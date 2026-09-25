@@ -62,6 +62,7 @@ export class Engine {
     this.player = new Player();
     this.player.setPosition(0, 0, 4.0);
     this.sceneManager.scene.add(this.player.group);
+    this.sceneManager.scene.add(this.player.slashRibbon.mesh);
 
     const playerCapsule = this.physicsWorld.createCharacterCapsule(
       new THREE.Vector3(0, 0.9, 4.0),
@@ -85,9 +86,10 @@ export class Engine {
   }
 
   public spawnLevelEnemies(levelIndex: number): void {
-    // Clear existing enemies
+    // Clear existing enemies & ribbons
     this.enemies.forEach((enemy) => {
       this.sceneManager.scene.remove(enemy.group);
+      this.sceneManager.scene.remove(enemy.slashRibbon.mesh);
     });
     this.enemies = [];
     this.projectileManager.clear();
@@ -101,6 +103,7 @@ export class Engine {
       const grunt = new MercenaryGrunt('merc_grunt_1');
       grunt.setPosition(2.2, 0, -3.2);
       this.sceneManager.scene.add(grunt.group);
+      this.sceneManager.scene.add(grunt.slashRibbon.mesh);
       const gruntCapsule = this.physicsWorld.createCharacterCapsule(new THREE.Vector3(2.2, 0.9, -3.2), 0.55, 0.4, true);
       grunt.rigidBody = gruntCapsule.body;
       grunt.collider = gruntCapsule.collider;
@@ -108,6 +111,7 @@ export class Engine {
       const spear = new SpearWarrior('spear_warrior_1');
       spear.setPosition(-2.2, 0, -3.8);
       this.sceneManager.scene.add(spear.group);
+      this.sceneManager.scene.add(spear.slashRibbon.mesh);
       const spearCapsule = this.physicsWorld.createCharacterCapsule(new THREE.Vector3(-2.2, 0.9, -3.8), 0.55, 0.4, true);
       spear.rigidBody = spearCapsule.body;
       spear.collider = spearCapsule.collider;
@@ -118,6 +122,7 @@ export class Engine {
       const katar = new KatarRogue('katar_rogue_1');
       katar.setPosition(2.5, 0, -2.8);
       this.sceneManager.scene.add(katar.group);
+      this.sceneManager.scene.add(katar.slashRibbon.mesh);
       const katarCapsule = this.physicsWorld.createCharacterCapsule(new THREE.Vector3(2.5, 0.9, -2.8), 0.55, 0.4, true);
       katar.rigidBody = katarCapsule.body;
       katar.collider = katarCapsule.collider;
@@ -125,6 +130,7 @@ export class Engine {
       const chakram = new ChakramThrower('chakram_thrower_1');
       chakram.setPosition(-3.2, 0, -5.5);
       this.sceneManager.scene.add(chakram.group);
+      this.sceneManager.scene.add(chakram.slashRibbon.mesh);
       const chakramCapsule = this.physicsWorld.createCharacterCapsule(new THREE.Vector3(-3.2, 0.9, -5.5), 0.55, 0.4, true);
       chakram.rigidBody = chakramCapsule.body;
       chakram.collider = chakramCapsule.collider;
@@ -134,7 +140,9 @@ export class Engine {
       // Level 3: Grandmaster Mahayodha Boss
       const boss = new BossMahayodha('boss_mahayodha');
       boss.setPosition(0, 0, -4.5);
+      boss.slashRibbon.setColor(0xff3300);
       this.sceneManager.scene.add(boss.group);
+      this.sceneManager.scene.add(boss.slashRibbon.mesh);
       const bossCapsule = this.physicsWorld.createCharacterCapsule(new THREE.Vector3(0, 1.2, -4.5), 0.75, 0.55, true);
       boss.rigidBody = bossCapsule.body;
       boss.collider = bossCapsule.collider;

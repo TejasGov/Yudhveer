@@ -164,33 +164,50 @@ export class Enemy extends Character {
   }
 
   public updateHUD(): void {
-    const hpBar = document.getElementById('enemy-health-bar');
-    const hpText = document.getElementById('enemy-health-text');
-    const marmaBar = document.getElementById('enemy-marma-bar');
-    const marmaStatus = document.getElementById('enemy-marma-status');
+    const hpBar = document.getElementById('target-health-bar');
+    const hpNum = document.getElementById('target-hp-num');
+    const marmaBar = document.getElementById('target-marma-bar');
+    const marmaStatus = document.getElementById('target-marma-status');
+    const marmaPrompt = document.getElementById('marma-prompt');
+    const targetName = document.getElementById('target-name');
 
-    const hpPercent = (this.currentHealth / this.maxHealth) * 100;
+    const hpPercent = Math.max(0, (this.currentHealth / this.maxHealth) * 100);
     if (hpBar) hpBar.style.width = `${hpPercent}%`;
-    if (hpText) hpText.textContent = `${Math.ceil(this.currentHealth)} / ${this.maxHealth}`;
+    if (hpNum) hpNum.textContent = `${Math.ceil(hpPercent)}%`;
 
-    const marmaPercent = (this.currentMarma / this.maxMarma) * 100;
+    const marmaPercent = Math.min(100, (this.currentMarma / this.maxMarma) * 100);
     if (marmaBar) {
       marmaBar.style.width = `${marmaPercent}%`;
       if (this.stateMachine.currentState === 'POSTURE_BROKEN') {
-        marmaBar.className = 'h-full bg-red-500 animate-pulse transition-all duration-100';
+        marmaBar.className = 'h-full bg-red-500 animate-pulse transition-all duration-75';
       } else {
-        marmaBar.className = 'h-full bg-gradient-to-r from-amber-600 to-yellow-400 transition-all duration-100';
+        marmaBar.className = 'h-full bg-gradient-to-r from-amber-600 to-yellow-400 transition-all duration-75';
       }
     }
 
     if (marmaStatus) {
       if (this.stateMachine.currentState === 'POSTURE_BROKEN') {
-        marmaStatus.textContent = 'BROKEN (VULNERABLE!)';
-        marmaStatus.className = 'text-[10px] text-red-400 font-bold animate-pulse';
+        marmaStatus.textContent = 'SHATTERED';
+        marmaStatus.className = 'text-[9px] text-red-400 font-bold animate-pulse font-mono';
       } else {
         marmaStatus.textContent = `${Math.ceil(marmaPercent)}%`;
-        marmaStatus.className = 'text-[10px] text-amber-300/80 font-mono';
+        marmaStatus.className = 'text-[9px] font-mono text-amber-300';
       }
+    }
+
+    // Toggle Sanskrit Marma Deathblow Execution Prompt
+    if (marmaPrompt) {
+      if (this.stateMachine.currentState === 'POSTURE_BROKEN') {
+        marmaPrompt.classList.remove('hidden');
+        marmaPrompt.classList.add('flex');
+      } else {
+        marmaPrompt.classList.remove('flex');
+        marmaPrompt.classList.add('hidden');
+      }
+    }
+
+    if (targetName && targetName.textContent === 'MERCENARY SENTINEL' && this.id !== 'dummy_gladiator') {
+      targetName.textContent = this.id.replace(/_/g, ' ').toUpperCase();
     }
   }
 

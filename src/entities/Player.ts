@@ -48,14 +48,16 @@ export class Player extends Character {
     }
 
     // 2. Attack Trigger (Left Click) & Combo Chaining
-    if (input.attack) {
+    if (input.attack || this.inputManager.attackBuffered) {
       if (currentState === 'IDLE' || currentState === 'MOVE' || currentState === 'SPRINT') {
+        this.inputManager.consumeAttack();
         this.stateMachine.changeState('ATTACK_1');
         return;
       } else if (
         (currentState === 'ATTACK_1' || currentState === 'ATTACK_2') &&
         this.stateMachine.comboWindowOpen
       ) {
+        this.inputManager.consumeAttack();
         this.stateMachine.comboQueued = true;
       }
     }

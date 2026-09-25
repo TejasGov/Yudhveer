@@ -13,15 +13,19 @@ export interface InputState {
 
 export class InputManager {
   private static instance: InputManager | null = null;
-  public keys: { [code: string]: boolean } = {};
+  public keys: Record<string, boolean> = {};
   public mouseXDelta = 0;
   public mouseYDelta = 0;
   public isPointerLocked = false;
   
-  // Buffers for snappy combat triggers
+  // Combat Input Buffering (The "No Stutter" Combo System)
   public attackBuffered = false;
-  public parryBuffered = false;
+  public parryRequested = false;
   public dodgeBuffered = false;
+
+  private bufferWindow = 250; // 250ms window to store queued action clicks
+  private attackBufferTimer: ReturnType<typeof setTimeout> | null = null;
+  private dodgeBufferTimer: ReturnType<typeof setTimeout> | null = null;
 
   public onPointerLockChange: ((locked: boolean) => void) | null = null;
 
@@ -40,7 +44,7 @@ export class InputManager {
     window.addEventListener('keydown', (e) => {
       this.keys[e.code] = true;
       if (e.code === 'Space') {
-        this.dodgeBuffered = true;
+        this.queueDodge();
       }
     });
 
@@ -50,14 +54,23 @@ export class InputManager {
 
     window.addEventListener('mousedown', (e) => {
       if (!this.isPointerLocked) return;
+
       if (e.button === 0) {
-        this.attackBuffered = true;
+        // Left Click: Attack (Buffered with 250ms decay)
+        this.queueAttack();
       } else if (e.button === 2) {
-        this.parryBuffered = true;
+        // Right Click: Parry
+        this.parryRequested = true;
       }
     });
 
-    // Prevent context menu on right click in combat
+    window.addEventListener('mouseup', (e) => {
+      if (e.button === 2) {
+        this.parryRequested = false;
+      }
+    });
+
+    // Prevent default context menu on right click in combat
     window.addEventListener('contextmenu', (e) => {
       if (this.isPointerLocked) {
         e.preventDefault();
@@ -77,6 +90,52 @@ export class InputManager {
         this.onPointerLockChange(this.isPointerLocked);
       }
     });
+  }
+
+  /**
+   * Queue attack into 250ms buffer
+   */
+  public queueAttack(): void {
+    this.attackBuffered = true;
+    if (this.attackBufferTimer) clearTimeout(this.attackBufferTimer);
+    this.attackBufferTimer = setTimeout(() => {
+      this.attackBuffered = false;
+    }, this.bufferWindow);
+  }
+
+  /**
+   * Consume buffered attack click
+   */
+  public consumeAttack(): boolean {
+    if (this.attackBuffered) {
+      this.attackBuffered = false;
+      if (this.attackBufferTimer) clearTimeout(this.attackBufferTimer);
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * Queue dodge roll into 250ms buffer
+   */
+  public queueDodge(): void {
+    this.dodgeBuffered = true;
+    if (this.dodgeBufferTimer) clearTimeout(this.dodgeBufferTimer);
+    this.dodgeBufferTimer = setTimeout(() => {
+      this.dodgeBuffered = false;
+    }, this.bufferWindow);
+  }
+
+  /**
+   * Consume buffered dodge action
+   */
+  public consumeDodge(): boolean {
+    if (this.dodgeBuffered) {
+      this.dodgeBuffered = false;
+      if (this.dodgeBufferTimer) clearTimeout(this.dodgeBufferTimer);
+      return true;
+    }
+    return false;
   }
 
   public requestPointerLock(element?: HTMLElement): void {
@@ -107,9 +166,9 @@ export class InputManager {
     const right = !!(this.keys['KeyD'] || this.keys['ArrowRight']);
     const sprint = !!(this.keys['ShiftLeft'] || this.keys['ShiftRight']);
     
-    const attack = this.attackBuffered;
-    const parry = this.parryBuffered;
-    const dodge = this.dodgeBuffered;
+    const attack = this.consumeAttack();
+    const parry = this.parryRequested;
+    const dodge = this.consumeDodge();
 
     const state: InputState = {
       forward,
@@ -124,10 +183,6 @@ export class InputManager {
       mouseYDelta: this.mouseYDelta
     };
 
-    // Consume single-frame impulse triggers
-    this.attackBuffered = false;
-    this.parryBuffered = false;
-    this.dodgeBuffered = false;
     this.mouseXDelta = 0;
     this.mouseYDelta = 0;
 

@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { Entity } from './Entity';
-import { CharacterStateMachine, CharacterState } from './CharacterStateMachine';
+import { CharacterStateMachine } from './CharacterStateMachine';
+import { SlashRibbon } from '../combat/SlashRibbon';
 
 export class Character extends Entity {
   public maxHealth = 100;
@@ -27,16 +28,22 @@ export class Character extends Entity {
   public swordMesh: THREE.Group;
   public shieldMesh: THREE.Group;
 
+  // Procedural Weapon Ribbon Trail
+  public slashRibbon: SlashRibbon;
+
   // Dodge direction vector
   public dodgeDirection = new THREE.Vector3(0, 0, 1);
   public dodgeSpeed = 11.5;
 
-  constructor(id: string, color = 0xd4af37) {
+  constructor(id: string, color = 0xd4af37, ribbonColor = 0xffd15c) {
     super(id);
 
     this.stateMachine = new CharacterStateMachine();
     this.primitiveRoot = new THREE.Group();
     this.modelGroup.add(this.primitiveRoot);
+
+    // Procedural weapon ribbon
+    this.slashRibbon = new SlashRibbon(ribbonColor, 0.75);
 
     // Build stylized greybox mesh hierarchy
     const capsuleMat = new THREE.MeshStandardMaterial({
@@ -176,6 +183,25 @@ export class Character extends Entity {
     return shieldGroup;
   }
 
+  public getWeaponPoints(): { tip: THREE.Vector3; hilt: THREE.Vector3 } {
+    const rSocket = this.getSocket('mixamorigRightHand');
+    const hilt = new THREE.Vector3();
+    const tip = new THREE.Vector3();
+
+    if (rSocket) {
+      rSocket.getWorldPosition(hilt);
+      const quat = new THREE.Quaternion();
+      rSocket.getWorldQuaternion(quat);
+      const dir = new THREE.Vector3(0, 1.1, 0).applyQuaternion(quat);
+      tip.copy(hilt).add(dir);
+    } else {
+      this.group.getWorldPosition(hilt);
+      tip.copy(hilt).add(new THREE.Vector3(0, 1.1, 0.8));
+    }
+
+    return { tip, hilt };
+  }
+
   public takeDamage(amount: number): void {
     this.currentHealth = Math.max(0, this.currentHealth - amount);
     if (this.currentHealth <= 0) {
@@ -202,7 +228,6 @@ export class Character extends Entity {
     const state = this.stateMachine.currentState;
     const t = this.stateMachine.stateTime;
 
-    // Reset base orientations
     let targetRightArmRot = new THREE.Euler(0, 0, 0);
     let targetLeftArmRot = new THREE.Euler(0, 0, 0);
     let targetTorsoRot = new THREE.Euler(0, 0, 0);
@@ -222,30 +247,24 @@ export class Character extends Entity {
       targetLeftArmRot.set(runCycle * 0.6 * mult + 0.3, 0.2, -0.2);
       targetTorsoRot.x = 0.15 * mult;
     } else if (state === 'ATTACK_1') {
-      // Horizontal Slash
       const p = Math.min(1.0, t / this.stateMachine.ATTACK_1_DURATION);
       const swing = Math.sin(p * Math.PI);
       targetTorsoRot.y = (0.5 - p) * 1.6;
       targetRightArmRot.set(-0.6 + swing * 1.5, 0.8 - p * 1.6, -swing * 0.4);
     } else if (state === 'ATTACK_2') {
-      // Diagonal Overhead Cleave
       const p = Math.min(1.0, t / this.stateMachine.ATTACK_2_DURATION);
       const swing = Math.sin(p * Math.PI);
       targetTorsoRot.x = swing * 0.3;
       targetRightArmRot.set(1.4 - p * 2.6, -0.2, 0.3);
     } else if (state === 'ATTACK_3') {
-      // Heavy 360 Spin Finisher
       const p = Math.min(1.0, t / this.stateMachine.ATTACK_3_DURATION);
       targetTorsoRot.y = p * Math.PI * 2;
       targetRightArmRot.set(-0.2, 1.2, 0.5);
     } else if (state === 'PARRY') {
-      // Raise Dhal in defensive deflection posture
-      const p = Math.min(1.0, t / this.stateMachine.PARRY_TOTAL_DURATION);
       targetLeftArmRot.set(1.1, 0.6, -0.3);
       targetRightArmRot.set(-0.4, -0.4, 0.2);
       targetTorsoRot.y = 0.35;
     } else if (state === 'DODGE_ROLL') {
-      // Acrobatic forward roll
       const p = Math.min(1.0, t / this.stateMachine.DODGE_DURATION);
       targetTorsoRot.x = p * Math.PI * 2;
       targetTorsoY = 0.4 + Math.sin(p * Math.PI) * 0.4;
@@ -256,14 +275,12 @@ export class Character extends Entity {
       targetTorsoRot.x = -0.4 * (1 - p);
       targetRightArmRot.set(-0.8 * (1 - p), 0.4, 0);
     } else if (state === 'POSTURE_BROKEN') {
-      // Kneeling / dizzy
       targetTorsoY = 0.55;
       targetTorsoRot.x = 0.45;
       targetRightArmRot.set(0.1, 0, 0);
       targetLeftArmRot.set(0.1, 0, 0);
     }
 
-    // Interpolate visual limb rotations smoothly
     const lerpSpeed = 1.0 - Math.exp(-22 * dt);
     this.torsoMesh.position.y = THREE.MathUtils.lerp(this.torsoMesh.position.y, targetTorsoY, lerpSpeed);
     this.torsoMesh.rotation.x = THREE.MathUtils.lerp(this.torsoMesh.rotation.x, targetTorsoRot.x, lerpSpeed);
@@ -277,6 +294,11 @@ export class Character extends Entity {
     this.leftArm.rotation.x = THREE.MathUtils.lerp(this.leftArm.rotation.x, targetLeftArmRot.x, lerpSpeed);
     this.leftArm.rotation.y = THREE.MathUtils.lerp(this.leftArm.rotation.y, targetLeftArmRot.y, lerpSpeed);
     this.leftArm.rotation.z = THREE.MathUtils.lerp(this.leftArm.rotation.z, targetLeftArmRot.z, lerpSpeed);
+
+    // Update weapon ribbon trail
+    const isAttacking = state.startsWith('ATTACK');
+    const { tip, hilt } = this.getWeaponPoints();
+    this.slashRibbon.update(tip, hilt, isAttacking);
   }
 
   public override update(dt: number): void {
@@ -290,7 +312,7 @@ export class Character extends Entity {
     }
 
     if (this.stateMachine.currentState === 'POSTURE_BROKEN' && this.stateMachine.stateTime >= this.stateMachine.POSTURE_BROKEN_DURATION) {
-      this.currentMarma = 0; // Reset posture on recovery
+      this.currentMarma = 0;
     }
   }
 }

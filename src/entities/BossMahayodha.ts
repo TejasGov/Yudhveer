@@ -168,14 +168,14 @@ export class BossMahayodha extends Enemy {
 
   public override updateHUD(): void {
     super.updateHUD();
-    const enemyName = document.getElementById('enemy-name');
-    if (enemyName) {
+    const targetName = document.getElementById('target-name');
+    if (targetName) {
       if (this.phase === 2) {
-        enemyName.textContent = '🔥 GRANDMASTER MAHAYODHA (AGNI PHASE)';
-        enemyName.className = 'text-orange-400 hud-font uppercase tracking-wider font-extrabold';
+        targetName.textContent = '🔥 GRANDMASTER MAHAYODHA (AGNI PHASE)';
+        targetName.className = 'text-orange-400 font-serif uppercase tracking-[0.2em] font-extrabold';
       } else {
-        enemyName.textContent = 'GRANDMASTER MAHAYODHA';
-        enemyName.className = 'text-red-400 hud-font uppercase tracking-wider font-bold';
+        targetName.textContent = 'GRANDMASTER MAHAYODHA';
+        targetName.className = 'text-amber-200 font-serif uppercase tracking-[0.2em] font-bold';
       }
     }
   }
