@@ -155,30 +155,56 @@
     </div>
   </div>
 
-  <!-- Pointer Lock / Click to Enter Overlay -->
-  <div id="start-overlay" class="absolute inset-0 z-40 bg-zinc-950/90 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center cursor-pointer transition-opacity duration-300">
-    <div class="max-w-xl space-y-6">
-      <div class="space-y-2">
-        <p class="text-xs uppercase tracking-[0.35em] text-amber-500 font-bold">3-Stage Vedic Campaign</p>
-        <h1 class="hud-font text-5xl md:text-7xl font-black text-amber-300 gold-glow tracking-wider">YUDHVEER</h1>
-        <p class="hud-font text-sm md:text-base text-amber-200/80 tracking-widest uppercase">The Way of the Ancient Blade</p>
+  <!-- Pointer Lock / Click to Enter Overlay with Vedic Burnished Brass Look -->
+  <div id="start-overlay" class="absolute inset-0 z-40 bg-zinc-950/92 backdrop-blur-lg flex flex-col items-center justify-center p-6 text-center cursor-pointer transition-opacity duration-300">
+    <div class="max-w-2xl space-y-6 flex flex-col items-center">
+      
+      <!-- Cinematic Title Splash -->
+      <div id="title-screen" class="select-none flex flex-col items-center space-y-2">
+        <!-- Sanskrit Glyphs Header -->
+        <h2 class="brass-glyph tracking-[0.55em] text-sm md:text-base uppercase font-serif font-bold">
+          ॥ युद्धवीर ॥
+        </h2>
+        
+        <!-- Main Western Brass Title -->
+        <h1 class="brass-title text-6xl md:text-8xl font-black tracking-[0.22em] font-serif uppercase">
+          YUDHVEER
+        </h1>
+        
+        <!-- Subtitle / Chapter -->
+        <p class="brass-sub text-xs md:text-sm tracking-[0.55em] uppercase pt-1 font-semibold">
+          Echoes of the Sacred Ghat
+        </p>
       </div>
 
-      <!-- Campaign Flow Summary -->
-      <div class="glass-panel p-4 rounded-xl border border-amber-500/30 text-left text-xs text-zinc-300 space-y-2">
-        <div class="text-amber-400 font-bold uppercase tracking-wider text-[11px]">Campaign Journey:</div>
-        <div class="space-y-1 text-[11px]">
-          <div>• <strong class="text-amber-200">Level 1: Moonlit Baoli</strong> — Submerged Stepped Ghat, Mist & Spear Duo</div>
-          <div>• <strong class="text-amber-200">Level 2: Mandapa of Pillars</strong> — Temple Hypostyle, Katar Rogues, Chakrams & Wall-Kicks</div>
-          <div>• <strong class="text-amber-200">Level 3: Garbhagriha Sanctum</strong> — Grandmaster Mahayodha Flame Duel & Colossal Braziers</div>
+      <!-- Brass Ornate Filigree Divider -->
+      <div class="brass-divider max-w-md py-1">
+        <span class="text-amber-500/80 px-3 text-xs">❖ ⚔ ❖</span>
+      </div>
+
+      <!-- Campaign & Controls Vedic Brass Plate -->
+      <div class="brass-plate p-5 rounded-2xl max-w-lg w-full text-left text-xs space-y-3">
+        <div class="flex justify-between items-center border-b border-amber-500/20 pb-2">
+          <span class="text-amber-300 font-bold uppercase tracking-wider font-serif">Combat Discipline:</span>
+          <span class="text-[10px] text-amber-400/70 uppercase tracking-widest font-mono">140ms Dhal Deflection</span>
+        </div>
+        
+        <div class="grid grid-cols-2 gap-2 text-[11px] text-amber-100/90">
+          <div>• <strong class="text-amber-300">WASD:</strong> Movement</div>
+          <div>• <strong class="text-amber-300">Shift:</strong> High Sprint</div>
+          <div>• <strong class="text-amber-300">LMB:</strong> 3x Sword Combo</div>
+          <div>• <strong class="text-amber-300">RMB:</strong> Dhal Parry (Deflection)</div>
+          <div>• <strong class="text-amber-300">Space:</strong> Dodge Roll / Wall-Kick</div>
+          <div>• <strong class="text-amber-300">Marma:</strong> Stance & Poise Break</div>
         </div>
       </div>
 
-      <div class="inline-block animate-pulse px-8 py-3.5 bg-gradient-to-r from-amber-600 via-amber-500 to-yellow-500 text-zinc-950 font-black tracking-widest uppercase rounded-full shadow-lg shadow-amber-500/25 text-sm cursor-pointer hover:scale-105 transition-transform">
-        CLICK TO ENTER THE ARENA
+      <!-- Burnished Brass Action Button -->
+      <div class="brass-btn px-9 py-4 font-black tracking-[0.25em] uppercase rounded-full text-xs md:text-sm cursor-pointer mt-2 font-serif flex items-center space-x-2">
+        <span>⚔ ENTER THE SACRED ARENA ⚔</span>
       </div>
 
-      <p class="text-[11px] text-zinc-500 tracking-wider">Press ESC to unlock cursor at any time.</p>
+      <p class="text-[11px] text-amber-500/50 tracking-widest uppercase">Click anywhere to lock blade & engage • ESC to release</p>
     </div>
   </div>
 
