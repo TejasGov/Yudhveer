@@ -172,7 +172,13 @@ export class Enemy extends Character {
     const targetName = document.getElementById('target-name');
 
     const hpPercent = Math.max(0, (this.currentHealth / this.maxHealth) * 100);
+    const ghostBar = document.getElementById('target-health-ghost');
     if (hpBar) hpBar.style.width = `${hpPercent}%`;
+    if (ghostBar) {
+      setTimeout(() => {
+        ghostBar.style.width = `${hpPercent}%`;
+      }, 300);
+    }
     if (hpNum) hpNum.textContent = `${Math.ceil(hpPercent)}%`;
 
     const marmaPercent = Math.min(100, (this.currentMarma / this.maxMarma) * 100);

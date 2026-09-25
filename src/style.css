@@ -4,19 +4,26 @@
   body {
     user-select: none;
     overflow: hidden;
-    background-color: #08080c;
+    background-color: #06070a;
     font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
   }
 }
 
 .hud-font {
   font-family: 'Cinzel', 'Trajan Pro', Georgia, serif;
-  letter-spacing: 0.15em;
 }
 
 /* =========================================================
-   VEDIC BURNISHED BRASS & EMBOSSED GOLD AESTHETICS
+   RAZOR-SHARP EDITORIAL MARTIAL STYLING (ZERO ROUNDED CORNERS)
    ========================================================= */
+
+.hairline-border {
+  border: 1px solid rgba(212, 175, 55, 0.2);
+}
+
+.hairline-border-subtle {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
 
 .brass-title {
   font-family: 'Cinzel', serif;
@@ -31,134 +38,74 @@
   );
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
-  filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.9))
-          drop-shadow(0 0 25px rgba(212, 175, 55, 0.45));
-  position: relative;
-}
-
-.brass-title::after {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -100%;
-  width: 50%;
-  height: 100%;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    rgba(255, 255, 255, 0.35),
-    transparent
-  );
-  transform: skewX(-25deg);
-  animation: brassShine 6s infinite ease-in-out;
-}
-
-@keyframes brassShine {
-  0% { left: -100%; }
-  25%, 100% { left: 200%; }
-}
-
-.brass-sub {
-  color: #d1b88a;
-  text-shadow: 0 1px 2px #000, 0 0 10px rgba(184, 134, 11, 0.5);
-  font-family: 'Outfit', sans-serif;
-  letter-spacing: 0.45em;
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.9));
 }
 
 .brass-glyph {
   background: linear-gradient(180deg, #ffe8a3 0%, #c49539 60%, #6e4911 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
-  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.8));
 }
 
-.brass-plate {
-  background: radial-gradient(circle at 50% 0%, #201a14 0%, #0e0c0a 100%);
-  border: 1px solid rgba(212, 175, 55, 0.35);
-  box-shadow: 
-    inset 0 1px 0 0 rgba(255, 240, 180, 0.25),
-    inset 0 -1px 0 0 rgba(0, 0, 0, 0.8),
-    0 12px 40px rgba(0, 0, 0, 0.85);
+.brass-sub {
+  color: #bfa77e;
+  font-family: 'Outfit', sans-serif;
+}
+
+/* L-bracket corner marks */
+.corner-bracket {
   position: relative;
 }
 
-.brass-plate::before {
+.corner-bracket::before {
   content: '';
   position: absolute;
-  inset: 3px;
-  border: 1px solid rgba(184, 134, 11, 0.18);
-  pointer-events: none;
-  border-radius: inherit;
+  top: -1px;
+  left: -1px;
+  width: 5px;
+  height: 5px;
+  border-top: 1px solid #eab308;
+  border-left: 1px solid #eab308;
 }
 
-.brass-btn {
-  background: linear-gradient(
-    180deg,
-    #ffe8a8 0%,
-    #dca63e 25%,
-    #ab7722 60%,
-    #5f3e0c 100%
-  );
-  border: 1px solid #ffd880;
-  box-shadow: 
-    inset 0 1px 2px rgba(255, 255, 255, 0.6),
-    0 4px 16px rgba(0, 0, 0, 0.7),
-    0 0 20px rgba(212, 175, 55, 0.35);
-  color: #1a1005;
-  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.4);
-  transition: all 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
-}
-
-.brass-btn:hover {
-  transform: translateY(-2px) scale(1.02);
-  box-shadow: 
-    inset 0 1px 3px rgba(255, 255, 255, 0.8),
-    0 6px 24px rgba(0, 0, 0, 0.8),
-    0 0 32px rgba(250, 204, 21, 0.6);
-  filter: brightness(1.1);
-}
-
-.brass-divider {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-}
-
-.brass-divider::before,
-.brass-divider::after {
+.corner-bracket::after {
   content: '';
-  flex: 1;
-  height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(212, 175, 55, 0.5), transparent);
+  position: absolute;
+  bottom: -1px;
+  right: -1px;
+  width: 5px;
+  height: 5px;
+  border-bottom: 1px solid #eab308;
+  border-right: 1px solid #eab308;
+}
+
+.sharp-btn {
+  background: linear-gradient(180deg, #1c1813 0%, #0d0b09 100%);
+  border: 1px solid rgba(212, 175, 55, 0.35);
+  color: #f3e5be;
+  transition: all 0.15s ease-out;
+}
+
+.sharp-btn:hover {
+  background: linear-gradient(180deg, #2b231a 0%, #15120d 100%);
+  border-color: rgba(250, 204, 21, 0.8);
+  color: #ffffff;
 }
 
 .gold-glow {
-  text-shadow: 0 0 12px rgba(234, 179, 8, 0.6), 0 0 24px rgba(217, 119, 6, 0.3);
+  text-shadow: 0 0 10px rgba(234, 179, 8, 0.5);
 }
 
 .crimson-glow {
-  text-shadow: 0 0 12px rgba(239, 68, 68, 0.8), 0 0 24px rgba(185, 28, 28, 0.4);
+  text-shadow: 0 0 10px rgba(239, 68, 68, 0.7);
 }
 
-.glass-panel {
-  background: rgba(15, 18, 26, 0.75);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(212, 175, 55, 0.25);
-  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.6);
+/* Posture fill outward from center */
+.marma-center-fill {
+  transition: width 0.08s ease-out, background-color 0.2s ease;
 }
 
-.parry-flash-active {
-  animation: parryPulse 0.3s cubic-bezier(0.1, 0.9, 0.2, 1);
-}
-
-@keyframes parryPulse {
-  0% { box-shadow: 0 0 0 0 rgba(250, 204, 21, 0.9); }
-  70% { box-shadow: 0 0 0 25px rgba(250, 204, 21, 0); }
-  100% { box-shadow: 0 0 0 0 rgba(250, 204, 21, 0); }
-}
-
-.marma-bar-fill {
-  transition: width 0.1s ease-out, background-color 0.3s ease;
+/* Ghost damage trail */
+.health-ghost-trail {
+  transition: width 0.35s cubic-bezier(0.2, 0.8, 0.2, 1);
 }

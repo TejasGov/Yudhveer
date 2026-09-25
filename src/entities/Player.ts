@@ -162,55 +162,52 @@ export class Player extends Character {
   private updateHudBadge(state: string): void {
     const badge = document.getElementById('badge-state');
     if (badge) {
-      badge.textContent = state.replace('_', ' ');
-      if (state === 'PARRY') {
-        badge.className = 'px-2 py-0.5 rounded bg-yellow-400 text-zinc-950 font-bold font-mono text-[10px] animate-pulse';
-      } else if (state.startsWith('ATTACK')) {
-        badge.className = 'px-2 py-0.5 rounded bg-red-700 text-white font-bold font-mono text-[10px]';
+      badge.textContent = `◆ KHANDA [${state.replace('_', ' ')}]`;
+      if (state.startsWith('ATTACK')) {
+        badge.className = 'text-red-400 font-bold';
       } else if (state === 'DODGE_ROLL') {
-        badge.className = 'px-2 py-0.5 rounded bg-blue-600 text-white font-bold font-mono text-[10px]';
+        badge.className = 'text-blue-400 font-bold';
       } else {
-        badge.className = 'px-2 py-0.5 rounded bg-zinc-800 text-zinc-300 font-mono text-[10px] uppercase';
+        badge.className = 'text-zinc-300';
       }
     }
 
     const dhalBadge = document.getElementById('badge-parry');
     if (dhalBadge) {
       if (state === 'PARRY') {
-        dhalBadge.textContent = 'DEFLECTING!';
-        dhalBadge.className = 'px-2 py-0.5 rounded bg-yellow-500 text-zinc-950 font-black border border-yellow-300 parry-flash-active';
+        dhalBadge.textContent = '◇ DHAL [DEFLECTING!]';
+        dhalBadge.className = 'text-yellow-300 font-bold gold-glow';
       } else {
-        dhalBadge.textContent = 'DHAL READY';
-        dhalBadge.className = 'px-2 py-0.5 rounded bg-amber-950 text-amber-400 border border-amber-500/30';
+        dhalBadge.textContent = '◇ DHAL [READY]';
+        dhalBadge.className = 'text-amber-400';
       }
     }
   }
 
   public updateHUD(): void {
-    // Health bar
-    const hpPercent = (this.currentHealth / this.maxHealth) * 100;
+    // Health bar & Ghost Damage Trail
+    const hpPercent = Math.max(0, (this.currentHealth / this.maxHealth) * 100);
     const hpBar = document.getElementById('player-health-bar');
+    const ghostBar = document.getElementById('player-health-ghost');
     const hpText = document.getElementById('player-health-text');
+    
     if (hpBar) hpBar.style.width = `${hpPercent}%`;
+    if (ghostBar) {
+      setTimeout(() => {
+        ghostBar.style.width = `${hpPercent}%`;
+      }, 300);
+    }
     if (hpText) hpText.textContent = `${Math.ceil(this.currentHealth)} / ${this.maxHealth}`;
 
     // Marma Posture bar
-    const marmaPercent = (this.currentMarma / this.maxMarma) * 100;
+    const marmaPercent = Math.min(100, (this.currentMarma / this.maxMarma) * 100);
     const marmaBar = document.getElementById('player-marma-bar');
-    const marmaText = document.getElementById('player-marma-text');
     if (marmaBar) {
       marmaBar.style.width = `${marmaPercent}%`;
       if (this.stateMachine.currentState === 'POSTURE_BROKEN') {
-        marmaBar.className = 'h-full bg-red-600 animate-pulse transition-all duration-100';
+        marmaBar.className = 'h-full bg-red-500 animate-pulse transition-all duration-75';
       } else {
-        marmaBar.className = 'h-full bg-gradient-to-r from-amber-500 via-orange-400 to-yellow-300 transition-all duration-100';
-      }
-    }
-    if (marmaText) {
-      if (this.stateMachine.currentState === 'POSTURE_BROKEN') {
-        marmaText.textContent = 'BROKEN!';
-      } else {
-        marmaText.textContent = `${Math.ceil(this.currentMarma)} / ${this.maxMarma}`;
+        marmaBar.className = 'h-full bg-gradient-to-r from-amber-500 to-yellow-400 transition-all duration-75';
       }
     }
   }

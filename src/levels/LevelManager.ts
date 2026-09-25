@@ -76,10 +76,12 @@ export class LevelManager {
     const info = this.levelData.find((l) => l.id === levelIndex) || this.levelData[0];
     const titleEl = document.getElementById('level-title');
     const subEl = document.getElementById('level-subtitle');
+    const letterboxTitle = document.getElementById('level-title-top');
     const levelSelect = document.getElementById('level-select') as HTMLSelectElement;
 
     if (titleEl) titleEl.textContent = info.title;
     if (subEl) subEl.textContent = info.subtitle;
+    if (letterboxTitle) letterboxTitle.textContent = info.title.toUpperCase();
     if (levelSelect) levelSelect.value = levelIndex.toString();
 
     console.log(`[LevelManager] Loaded ${info.title}`);
