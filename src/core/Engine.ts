@@ -15,7 +15,9 @@ import { SpearWarrior } from '../entities/SpearWarrior';
 import { KatarRogue } from '../entities/KatarRogue';
 import { ChakramThrower } from '../entities/ChakramThrower';
 import { BossMahayodha } from '../entities/BossMahayodha';
+import { BossBaoli } from '../entities/BossBaoli';
 import { YODHA } from '../entities/characters/Yodha';
+import { LEVEL1_BOSS } from '../entities/characters/Level1Boss';
 import type { Character } from '../entities/Character';
 import { separateFighters } from '../physics/CharacterMotor';
 
@@ -116,14 +118,12 @@ export class Engine {
     this.interpolated.clear();
 
     if (levelIndex === 1) {
-      // Level 1: Mercenary Grunt & Spear Duo
-      const grunt = new MercenaryGrunt('merc_grunt_1');
-      this.addFighter(grunt, new THREE.Vector3(2.2, 0, -3.2), FIGHTER_CAPSULE);
-
-      const spear = new SpearWarrior('spear_warrior_1');
-      this.addFighter(spear, new THREE.Vector3(-2.2, 0, -3.8), FIGHTER_CAPSULE);
-
-      this.enemies.push(grunt, spear);
+      // Level 1: Baoli Guardian Boss with All-/NPC-only animations
+      const boss = new BossBaoli('baoli_guardian');
+      boss.slashRibbon.setColor(0xd4af37);
+      this.addFighter(boss, new THREE.Vector3(0, 0, -4.2), BOSS_CAPSULE);
+      boss.attachRig(LEVEL1_BOSS).catch((err) => console.error('[Engine] Level 1 Boss rig failed to load', err));
+      this.enemies.push(boss);
     } else if (levelIndex === 2) {
       // Level 2: Agile Katar Rogue & Chakram Thrower
       const katar = new KatarRogue('katar_rogue_1');

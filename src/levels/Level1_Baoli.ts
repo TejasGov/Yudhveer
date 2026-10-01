@@ -29,7 +29,7 @@ interface Scroller { texture: THREE.Texture; speed: THREE.Vector2 }
 export class Level1_Baoli extends GLBLevel {
   public readonly id = 1;
   public readonly title = 'Level 1: The Moonlit Baoli';
-  public readonly subtitle = 'Submerged Stepped Ghat • Mercenary Grunt & Spear Duo';
+  public readonly subtitle = 'Submerged Stepped Ghat • Baoli Guardian Boss Duel';
   public readonly atmosphere: LevelAtmosphere = {
     background: new THREE.Color(0x070b16),
     backgroundIntensity: 1.0,
