@@ -1,7 +1,38 @@
 import * as THREE from 'three';
 import { Entity } from './Entity';
-import { CharacterStateMachine } from './CharacterStateMachine';
+import { CharacterStateMachine, type CharacterState, type TimedStateKey } from './CharacterStateMachine';
 import { SlashRibbon } from '../combat/SlashRibbon';
+import { CharacterRig, type CharacterDefinition } from './animation/CharacterRig';
+import { CharacterMotor, DEFAULT_MOTOR, type MotorOptions } from '../physics/CharacterMotor';
+import { PhysicsWorld } from '../core/PhysicsWorld';
+import type RAPIER from '@dimforge/rapier3d-compat';
+
+const UP = new THREE.Vector3(0, 1, 0);
+// State-machine timers an animated character sets from its clip lengths (when the state is marked `timesState`).
+const TIMED_STATES: Partial<Record<CharacterState, TimedStateKey>> = {
+  ATTACK_1: 'ATTACK_1_DURATION',
+  ATTACK_2: 'ATTACK_2_DURATION',
+  ATTACK_3: 'ATTACK_3_DURATION',
+  ATTACK_JUMP: 'ATTACK_JUMP_DURATION',
+  CHARGE: 'CHARGE_DURATION',
+  BLOCK_HIT: 'BLOCK_HIT_DURATION',
+  SHEATHE: 'SHEATHE_DURATION',
+  DRAW: 'DRAW_DURATION',
+  STAGGER: 'STAGGER_DURATION',
+};
+const SHEATHED_MARK = 'sheathed';
+// A jump without clip timing (greybox): leaves at once, ~1 m high.
+const DEFAULT_JUMP = { takeoff: 0, landing: 0.58, speed: 7, recovery: 0.12 };
+
+/** How a jump plays out, in state seconds: when to leave the ground and how fast, and how long landing takes. */
+export interface JumpPlan {
+  clip: string | null;
+  takeoff: number;
+  /** Clip time of touchdown (state seconds); the fall pose is held from here until the feet actually land. */
+  landing: number;
+  speed: number;
+  recovery: number;
+}
 
 export class Character extends Entity {
   public maxHealth = 100;
@@ -15,9 +46,16 @@ export class Character extends Entity {
   public timeSinceLastPostureHit = 0;
 
   public stateMachine: CharacterStateMachine;
+  public walkSpeed = 1.8;
   public moveSpeed = 5.5;
   public sprintSpeed = 9.0;
   public rotationSpeed = 12.0;
+
+  /** The jump in progress (set by `beginJump`), whether it has left the ground yet, and when it touched down. */
+  public jump: JumpPlan = { clip: null, ...DEFAULT_JUMP };
+  public jumpLaunched = false;
+  /** The sword is in its scabbard (moved there by the sheathe clip, back out by the draw). */
+  public swordSheathed = false;
 
   // Visual Meshes for Greybox fallback
   public primitiveRoot: THREE.Group;
@@ -34,6 +72,14 @@ export class Character extends Entity {
   // Dodge direction vector
   public dodgeDirection = new THREE.Vector3(0, 0, 1);
   public dodgeSpeed = 11.5;
+
+  /** Collision, gravity and stepping; null until `attachPhysics` (then gameplay moves are resolved by it). */
+  public motor: CharacterMotor | null = null;
+  /** Skinned, animated model that replaces the greybox once `attachRig` resolves. */
+  public rig: CharacterRig | null = null;
+  private rigState: CharacterState | null = null;
+  private rigStateTime = 0;
+  private readonly lastGroundPos = new THREE.Vector3();
 
   constructor(id: string, color = 0xd4af37, ribbonColor = 0xffd15c) {
     super(id);
@@ -183,7 +229,183 @@ export class Character extends Entity {
     return shieldGroup;
   }
 
+  /**
+   * Gives the character a physical capsule: from now on every fixed step's movement (input, AI, dodges, lunges,
+   * root motion) is resolved against the level, other fighters and gravity by a `CharacterMotor`.
+   * @param footOffset capsule centre height above the feet (half-height + radius)
+   */
+  public attachPhysics(body: RAPIER.RigidBody, collider: RAPIER.Collider, footOffset: number, options: MotorOptions = DEFAULT_MOTOR): void {
+    this.motor?.dispose();
+    this.rigidBody = body;
+    this.collider = collider;
+    this.motor = new CharacterMotor(body, collider, footOffset, options);
+    this.motor.teleport(this.group.position);
+    this.lastGroundPos.copy(this.group.position);
+  }
+
+  /** Teleport (spawns, respawns): skips collision and resets falling. */
+  public override setPosition(x: number, y: number, z: number): void {
+    this.group.position.set(x, y, z);
+    this.lastGroundPos.set(x, y, z);
+    if (this.motor) this.motor.teleport(this.group.position);
+    else this.rigidBody?.setTranslation({ x, y, z }, true);
+  }
+
+  /** Releases the capsule's controller; the body itself is removed by whoever created it. */
+  public detachPhysics(): void {
+    this.motor?.dispose();
+    this.motor = null;
+  }
+
+  /**
+   * Swaps the greybox for an animated model from the character pipeline: the sword and dhal move onto the
+   * rig's hand sockets, locomotion speeds and attack timings come from the definition and its clips.
+   */
+  public async attachRig(definition: CharacterDefinition): Promise<CharacterRig> {
+    const rig = await CharacterRig.load(definition);
+    if (definition.weapon && !rig.attach(this.swordMesh, definition.weapon)) {
+      console.warn(`[Character ${this.id}] rig has no socket ${definition.weapon.socket}`);
+    }
+    if (definition.offhand) rig.attach(this.shieldMesh, definition.offhand);
+    this.primitiveRoot.visible = false;
+    this.modelGroup.add(rig.root);
+    this.walkSpeed = definition.locomotion.walkSpeed;
+    this.moveSpeed = definition.locomotion.moveSpeed;
+    this.sprintSpeed = definition.locomotion.sprintSpeed;
+    for (const state of Object.keys(TIMED_STATES) as CharacterState[]) {
+      const config = definition.states[state];
+      const seconds = config?.timesState ? rig.stateDuration(config) : undefined;
+      if (seconds) this.stateMachine[TIMED_STATES[state]!] = seconds;
+    }
+    this.rig = rig;
+    this.rigState = null;
+    this.lastGroundPos.copy(this.group.position);
+    if (this.swordSheathed) this.stowSword(true);
+    return rig;
+  }
+
+  /**
+   * Starts a jump. Its timing comes from the jump clip (a running one when `moving`): the character leaves the
+   * ground at the clip's takeoff, with the speed that keeps it in the air exactly as long as the clip, so on flat
+   * ground the feet touch down when the animation lands.
+   */
+  public beginJump(moving: boolean): void {
+    const config = this.rig?.definition.states.JUMP;
+    const clip = config ? (moving && config.movingClip) || config.clip : null;
+    const air = clip ? this.rig!.clipInfo(clip)?.airborne : undefined;
+    if (clip && air) {
+      const rate = config!.timeScale ?? 1;
+      const airtime = (air.landing - air.takeoff) / rate;
+      const gravity = Math.abs(PhysicsWorld.getInstance().gravityY);
+      this.jump = {
+        clip,
+        takeoff: air.takeoff / rate,
+        landing: air.landing / rate,
+        speed: THREE.MathUtils.clamp((gravity * airtime) / 2, 5, 8),
+        recovery: (this.rig!.clipInfo(clip)!.duration - air.landing) / rate,
+      };
+    } else {
+      this.jump = { clip, ...DEFAULT_JUMP };
+    }
+    this.jumpLaunched = false;
+    this.stateMachine.changeState('JUMP');
+  }
+
+  /** Plays the current state's clip, matches locomotion speed and applies root motion. */
+  private updateRig(dt: number): void {
+    const rig = this.rig!;
+    const sm = this.stateMachine;
+    const pos = this.group.position;
+    const groundSpeed = dt > 0 ? Math.hypot(pos.x - this.lastGroundPos.x, pos.z - this.lastGroundPos.z) / dt : 0;
+    // A new state, or the same state re-entered (its timer restarted).
+    if (sm.currentState !== this.rigState || sm.stateTime < this.rigStateTime) {
+      const config = rig.definition.states[sm.currentState] ?? rig.definition.states.IDLE;
+      rig.play(sm.currentState === 'JUMP' && this.jump.clip ? { ...config, clip: this.jump.clip } : config);
+      this.rigState = sm.currentState;
+    }
+    this.rigStateTime = sm.stateTime;
+    if (sm.currentState === 'JUMP') this.syncJumpClip();
+    const root = rig.update(dt, groundSpeed);
+    // Root motion is just more intended movement; the motor (end of update) resolves it with the rest.
+    if (root) pos.add(root.applyAxisAngle(UP, this.group.rotation.y));
+  }
+
+  /**
+   * Keeps the jump clip in step with the physics: a longer fall (off a ledge) holds the last airborne pose until
+   * the feet touch down, an early touchdown (onto a ledge) skips straight to the landing.
+   */
+  private syncJumpClip(): void {
+    const rig = this.rig!;
+    const air = this.jump.clip ? rig.clipInfo(this.jump.clip)?.airborne : undefined;
+    if (!air || rig.clip !== this.jump.clip) return;
+    const landed = this.jumpLaunched && !!this.motor?.grounded;
+    const fallPose = air.landing - 1 / 30;
+    if (!landed && this.jumpLaunched && rig.time >= fallPose) rig.hold(fallPose);
+    else if (landed && rig.time < air.landing) {
+      rig.hold(null);
+      rig.seek(air.landing);
+    } else rig.hold(null);
+  }
+
+  /**
+   * Moves the sword between the hand and the scabbard on the hips at the sheathe clip's "sheathed" moment, where
+   * the two sockets coincide: forwards while sheathing, backwards (in reverse) while drawing.
+   */
+  private updateSwordStowage(): void {
+    const state = this.stateMachine.currentState;
+    if (state !== 'SHEATHE' && state !== 'DRAW') return;
+    const rig = this.rig;
+    const config = rig?.definition.states[state];
+    const mark = config ? rig!.clipInfo(config.clip)?.marks?.[SHEATHED_MARK] : undefined;
+    const sheathing = state === 'SHEATHE';
+    if (this.swordSheathed === sheathing) return; // already swapped
+    if (mark === undefined || rig!.clip !== config!.clip) {
+      // No sheathe clip: the sword simply goes away (or comes back) halfway through.
+      const half = (sheathing ? this.stateMachine.SHEATHE_DURATION : this.stateMachine.DRAW_DURATION) / 2;
+      if (this.stateMachine.stateTime >= half) this.stowSword(sheathing);
+    } else if (sheathing ? rig!.time >= mark : rig!.time <= mark) {
+      this.stowSword(sheathing);
+    }
+  }
+
+  /** Puts the sword in the scabbard (or back in hand), keeping its grip so the swap at the sheathe mark is seamless. */
+  public stowSword(sheathed: boolean): void {
+    const hand = this.rig?.definition.weapon ? this.rig.socket(this.rig.definition.weapon.socket) : undefined;
+    const scabbard = this.rig?.socket('Socket_Sheath');
+    if (hand && scabbard) (sheathed ? scabbard : hand).add(this.swordMesh);
+    else this.swordMesh.visible = !sheathed;
+    this.swordSheathed = sheathed;
+  }
+
+  /** The dhal is up: a held guard, a blow being absorbed, or a parry whose deflection window has passed. */
+  public isGuarding(): boolean {
+    const state = this.stateMachine.currentState;
+    return state === 'BLOCK' || state === 'BLOCK_HIT' || (state === 'PARRY' && !this.stateMachine.isParryActive);
+  }
+
+  /** Whether `point` lies within `maxAngle` (radians) either side of where the character faces. */
+  public isFacing(point: THREE.Vector3, maxAngle = THREE.MathUtils.degToRad(100)): boolean {
+    const toX = point.x - this.group.position.x;
+    const toZ = point.z - this.group.position.z;
+    const yaw = this.group.rotation.y;
+    const cos = (Math.sin(yaw) * toX + Math.cos(yaw) * toZ) / (Math.hypot(toX, toZ) || 1);
+    return cos >= Math.cos(maxAngle);
+  }
+
+  /** True while the current state's clip moves the character itself (scripted lunges should stand down). */
+  public rigDrivesMotion(state: CharacterState): boolean {
+    return !!this.rig?.definition.states[state]?.rootMotion;
+  }
+
   public getWeaponPoints(): { tip: THREE.Vector3; hilt: THREE.Vector3 } {
+    if (this.rig) {
+      // The sword rides the rig's hand socket: read its blade straight from the animated skeleton.
+      this.swordMesh.updateWorldMatrix(true, false);
+      return {
+        hilt: this.swordMesh.localToWorld(new THREE.Vector3(0, 0.05, 0)),
+        tip: this.swordMesh.localToWorld(new THREE.Vector3(0, 1.15, 0)),
+      };
+    }
     const rSocket = this.getSocket('mixamorigRightHand');
     const hilt = new THREE.Vector3();
     const tip = new THREE.Vector3();
@@ -227,6 +449,12 @@ export class Character extends Entity {
   public updateProceduralAnimations(dt: number, moveMagnitude: number): void {
     const state = this.stateMachine.currentState;
     const t = this.stateMachine.stateTime;
+    if (this.rig) {
+      // The rig animates the body; only the weapon trail is procedural.
+      const { tip, hilt } = this.getWeaponPoints();
+      this.slashRibbon.update(tip, hilt, state.startsWith('ATTACK'));
+      return;
+    }
 
     let targetRightArmRot = new THREE.Euler(0, 0, 0);
     let targetLeftArmRot = new THREE.Euler(0, 0, 0);
@@ -304,6 +532,8 @@ export class Character extends Entity {
   public override update(dt: number): void {
     super.update(dt);
     this.stateMachine.update(dt);
+    if (this.rig) this.updateRig(dt);
+    this.updateSwordStowage();
 
     // Marma posture natural decay
     this.timeSinceLastPostureHit += dt;
@@ -314,5 +544,9 @@ export class Character extends Entity {
     if (this.stateMachine.currentState === 'POSTURE_BROKEN' && this.stateMachine.stateTime >= this.stateMachine.POSTURE_BROKEN_DURATION) {
       this.currentMarma = 0;
     }
+
+    // Last: everything this step moved the character freely; collide, step and fall in one place.
+    this.motor?.resolve(this.group.position, dt);
+    this.lastGroundPos.copy(this.group.position);
   }
 }

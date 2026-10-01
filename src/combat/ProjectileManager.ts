@@ -166,6 +166,16 @@ export class ProjectileManager {
             continue;
           }
 
+          if (player.isGuarding() && player.isFacing(p.position)) {
+            // Caught on the raised dhal
+            player.takeDamage(p.damage * 0.2);
+            if (!player.addMarmaDamage(p.postureDamage * 1.25)) player.stateMachine.changeState('BLOCK_HIT');
+            this.soundFX.playParryClash();
+            this.particleFX.spawnSparks(p.position, 18, false);
+            this.destroyProjectile(i);
+            continue;
+          }
+
           // Direct Hit on Player
           player.takeDamage(p.damage);
           player.addMarmaDamage(p.postureDamage);

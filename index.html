@@ -13,7 +13,7 @@
   <!-- Cinematic Letterbox Top & Bottom (2.39:1 Anamorphic Ratio) -->
   <div class="fixed top-0 inset-x-0 h-6 bg-black/95 z-50 pointer-events-none border-b border-stone-800/40 flex items-center justify-between px-6 text-[9px] font-mono tracking-[0.4em] text-stone-500">
     <span>YUDHVEER // COMBAT SIMULATOR</span>
-    <span id="level-title-top">PHASE I: THE SUNKEN BAOLI</span>
+    <span id="level-title-top">LEVEL 1: THE MOONLIT BAOLI</span>
   </div>
   <div class="fixed bottom-0 inset-x-0 h-6 bg-black/95 z-50 pointer-events-none border-t border-stone-800/40 flex items-center justify-between px-6 text-[9px] font-mono tracking-[0.4em] text-stone-500">
     <span>DEFLECTION WINDOW: 140MS</span>
@@ -108,20 +108,26 @@
       <div class="corner-bracket hairline-border px-3.5 py-2 text-[9px] font-mono tracking-wider flex flex-wrap gap-x-4 gap-y-1 text-zinc-400 bg-black/60">
         <div><span class="text-amber-300">[WASD]</span> MOVE</div>
         <div><span class="text-amber-300">[SHIFT]</span> SPRINT</div>
+        <div><span class="text-amber-300">[C]</span> WALK</div>
+        <div><span class="text-amber-300">[F]</span> JUMP</div>
         <div><span class="text-amber-300">[SPACE]</span> ROLL</div>
         <div><span class="text-amber-300">[LMB]</span> 3x COMBO</div>
-        <div><span class="text-amber-300">[RMB]</span> PARRY (140MS)</div>
+        <div><span class="text-amber-300">[SHIFT+LMB]</span> LEAP STRIKE</div>
+        <div><span class="text-amber-300">[RMB]</span> PARRY · HOLD GUARD</div>
+        <div><span class="text-amber-300">[HOLD Q]</span> CHARGE</div>
+        <div><span class="text-amber-300">[X]</span> SHEATHE</div>
+        <div><span class="text-amber-300">[1-3]</span> LEVEL</div>
       </div>
     </div>
   </div>
 
   <!-- Interactive Menus (Upper Right) -->
-  <div class="absolute top-8 right-6 z-30 flex items-center space-x-2">
+  <div class="absolute top-8 right-6 z-[41] flex items-center space-x-2">
     <!-- Level Selector Dropdown -->
     <select id="level-select" class="hairline-border text-[9px] font-mono tracking-[0.2em] uppercase text-amber-300 px-2.5 py-1 bg-stone-950 cursor-pointer outline-none hover:border-amber-400 transition rounded-none">
       <option value="1">L1: MOONLIT BAOLI</option>
-      <option value="2">L2: MANDAPA OF PILLARS</option>
-      <option value="3">L3: GARBHAGRIHA SANCTUM</option>
+      <option value="2">L2: HANUMAN AKHADA</option>
+      <option value="3">L3: KAILASHA SUMMIT</option>
     </select>
 
     <!-- Hot-Swappable GLB Loader Trigger -->
@@ -166,6 +172,15 @@
     </div>
   </div>
 
+  <!-- Level Streaming Veil (shown while a level GLB and its sky load) -->
+  <div id="level-loading" class="fixed inset-0 z-[35] bg-zinc-950 hidden flex-col items-center justify-center space-y-3 pointer-events-none">
+    <div id="level-loading-title" class="text-[10px] font-serif tracking-[0.45em] text-amber-200/90 uppercase">Loading</div>
+    <div class="h-[2px] w-64 bg-stone-900 border-t border-b border-amber-900/30 overflow-hidden">
+      <div id="level-loading-bar" class="h-full bg-amber-400 transition-all duration-150" style="width: 0%"></div>
+    </div>
+    <div class="text-[9px] font-mono tracking-[0.35em] text-stone-500 uppercase">Streaming Arena</div>
+  </div>
+
   <!-- Pointer Lock / Click to Enter Overlay (Zero-Rounded Editorial Martial Style) -->
   <div id="start-overlay" class="absolute inset-0 z-40 bg-zinc-950/95 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center cursor-pointer transition-opacity duration-300">
     <div class="max-w-xl space-y-6 flex flex-col items-center">
@@ -198,8 +213,13 @@
         <div class="grid grid-cols-2 gap-x-4 gap-y-1 text-stone-300">
           <div>• <span class="text-amber-200">WASD:</span> Omnidirectional Move</div>
           <div>• <span class="text-amber-200">Shift:</span> Sprint Dash</div>
+          <div>• <span class="text-amber-200">C:</span> Walk / Run Toggle</div>
+          <div>• <span class="text-amber-200">F:</span> Jump</div>
           <div>• <span class="text-amber-200">LMB:</span> 3x Sword Combo</div>
-          <div>• <span class="text-amber-200">RMB:</span> Dhal Deflection</div>
+          <div>• <span class="text-amber-200">Shift+LMB:</span> Leaping Strike</div>
+          <div>• <span class="text-amber-200">RMB:</span> Deflect, Hold to Guard</div>
+          <div>• <span class="text-amber-200">Hold Q:</span> Charge Shakti</div>
+          <div>• <span class="text-amber-200">X:</span> Sheathe / Draw</div>
           <div>• <span class="text-amber-200">Space:</span> Invulnerable Roll</div>
           <div>• <span class="text-amber-200">मर्म:</span> Posture Execution</div>
         </div>

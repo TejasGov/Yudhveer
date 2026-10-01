@@ -22,23 +22,8 @@ export class HitboxManager {
    * Extract sword hilt and tip world coordinates
    */
   public getWeaponPoints(character: Character): WeaponHitPoint {
-    const rSocket = character.getSocket('mixamorigRightHand');
-    const hilt = new THREE.Vector3();
-    const tip = new THREE.Vector3();
-
-    if (rSocket) {
-      rSocket.getWorldPosition(hilt);
-      
-      // Calculate tip based on sword orientation
-      const dir = new THREE.Vector3(0, 1.1, 0);
-      dir.applyQuaternion(rSocket.quaternion);
-      tip.copy(hilt).add(dir);
-    } else {
-      character.group.getWorldPosition(hilt);
-      tip.copy(hilt).add(new THREE.Vector3(0, 1, 1));
-    }
-
-    return { tip, hilt };
+    // The character knows where its blade is (greybox arm or animated hand socket), in world space.
+    return character.getWeaponPoints();
   }
 
   /**

@@ -1,14 +1,27 @@
 import * as THREE from 'three';
 import { Character } from './Character';
-import { InputManager } from '../core/InputManager';
+import type { CharacterState } from './CharacterStateMachine';
+import { InputManager, type InputState } from '../core/InputManager';
 import { SoundFX } from '../combat/SoundFX';
 import { ParticleFX } from '../combat/ParticleFX';
+
+/** A completed charge (hold Q) empowers this many blows, each dealing this much more damage and posture. */
+const CHARGED_HITS = 3;
+export const CHARGED_MULTIPLIER = 1.6;
 
 export class Player extends Character {
   private inputManager: InputManager;
   private soundFX: SoundFX;
   private particleFX: ParticleFX;
   public cameraYaw: number = 0;
+
+  /** Blows still empowered by a completed charge. */
+  public chargedHits = 0;
+  /** Called when a charge completes (the engine shows the banner). */
+  public onCharged: (() => void) | null = null;
+  /** Ground speed carried through the current jump, and when it touched down (state seconds, -1 while airborne). */
+  private jumpCarry = 0;
+  private jumpLandedAt = -1;
 
   constructor() {
     super('player_hero', 0xd4af37); // Royal Gold
@@ -21,7 +34,7 @@ export class Player extends Character {
     this.stateMachine.onStateChanged = (newState) => {
       this.updateHudBadge(newState);
 
-      if (newState === 'ATTACK_1' || newState === 'ATTACK_2' || newState === 'ATTACK_3') {
+      if (newState.startsWith('ATTACK')) {
         const pitch = newState === 'ATTACK_1' ? 1.0 : newState === 'ATTACK_2' ? 1.15 : 0.85;
         this.soundFX.playSwordSwing(pitch);
       } else if (newState === 'DODGE_ROLL') {
@@ -34,116 +47,164 @@ export class Player extends Character {
   public handleInput(dt: number, cameraYaw: number): void {
     this.cameraYaw = cameraYaw;
     const input = this.inputManager.getState();
-    const currentState = this.stateMachine.currentState;
+    const sm = this.stateMachine;
+    const state = sm.currentState;
+    sm.guardHeld = input.parry;
 
     // Don't allow new actions during locked states
-    if (currentState === 'POSTURE_BROKEN' || currentState === 'DEAD') {
+    if (state === 'POSTURE_BROKEN' || state === 'DEAD') {
       return;
     }
 
-    // 1. Parry Trigger (Right Click)
-    if (input.parry && (currentState === 'IDLE' || currentState === 'MOVE' || currentState === 'SPRINT')) {
-      this.stateMachine.changeState('PARRY');
+    const grounded = this.motor?.grounded ?? true;
+    const free = state === 'IDLE' || state === 'WALK' || state === 'MOVE' || state === 'SPRINT';
+    const moveVec = this.calculateInputDirection(input);
+    const moving = moveVec.lengthSq() > 0.001;
+
+    // 1. Dhal (Right Click): a press opens the 140 ms parry window, holding on settles into a guard.
+    if (input.parryPressed && (free || state === 'BLOCK') && grounded) {
+      this.inputManager.consume('parry');
+      sm.changeState('PARRY');
+      return;
+    }
+    if (input.parry && free && grounded) {
+      sm.changeState('BLOCK');
       return;
     }
 
-    // 2. Attack Trigger (Left Click) & Combo Chaining
+    // 2. Attack Trigger (Left Click) & Combo Chaining. Sheathed, the first click draws the sword; out of a sprint
+    // it is a leaping strike.
     if (input.attack || this.inputManager.attackBuffered) {
-      if (currentState === 'IDLE' || currentState === 'MOVE' || currentState === 'SPRINT') {
+      if ((free || state === 'BLOCK') && grounded) {
         this.inputManager.consumeAttack();
-        this.stateMachine.changeState('ATTACK_1');
+        if (this.swordSheathed) sm.changeState('DRAW');
+        else if (state === 'SPRINT' && this.rig?.definition.states.ATTACK_JUMP) sm.changeState('ATTACK_JUMP');
+        else sm.changeState('ATTACK_1');
         return;
-      } else if (
-        (currentState === 'ATTACK_1' || currentState === 'ATTACK_2') &&
-        this.stateMachine.comboWindowOpen
-      ) {
+      } else if ((state === 'ATTACK_1' || state === 'ATTACK_2') && sm.comboWindowOpen) {
         this.inputManager.consumeAttack();
-        this.stateMachine.comboQueued = true;
+        sm.comboQueued = true;
       }
     }
 
-    // 3. Dodge Roll Trigger (Space)
-    if (input.dodge && (currentState === 'IDLE' || currentState === 'MOVE' || currentState === 'SPRINT' || currentState === 'ATTACK_1' || currentState === 'ATTACK_2')) {
-      // Calculate dodge roll direction from input or forward
-      const moveVec = this.calculateInputDirection(input);
-      if (moveVec.lengthSq() > 0.001) {
+    // 3. Dodge Roll Trigger (Space); it also breaks off a guard, a charge or a sheathe.
+    const dodgeable = free || state === 'ATTACK_1' || state === 'ATTACK_2' || state === 'BLOCK' || state === 'CHARGE' ||
+      state === 'SHEATHE' || state === 'DRAW';
+    if (input.dodge && dodgeable && grounded) {
+      if (moving) {
         this.dodgeDirection.copy(moveVec).normalize();
       } else {
         // Default to facing direction
         this.group.getWorldDirection(this.dodgeDirection);
       }
-      this.stateMachine.changeState('DODGE_ROLL');
+      sm.changeState('DODGE_ROLL');
       return;
     }
 
-    // 4. Movement handling
+    // 4. Jump (F): a running jump on the move, carrying the speed it started with.
+    if (input.jump && (free || state === 'BLOCK') && grounded) {
+      this.inputManager.consume('jump');
+      const running = moving && (state === 'MOVE' || state === 'SPRINT');
+      this.jumpCarry = moving ? this.speedOf(this.locomotionState(input)) : this.walkSpeed;
+      this.jumpLandedAt = -1;
+      this.beginJump(running);
+      return;
+    }
+
+    // 5. Charge (press and hold Q; a finished charge needs a fresh press) and sheathe / draw (X).
+    if (input.chargePressed && input.charge && free && grounded && !this.swordSheathed) {
+      this.inputManager.consume('charge');
+      sm.changeState('CHARGE');
+      return;
+    }
+    if (input.stow && free && grounded) {
+      this.inputManager.consume('stow');
+      sm.changeState(this.swordSheathed ? 'DRAW' : 'SHEATHE');
+      return;
+    }
+
+    // 6. Movement handling
     let moveMagnitude = 0;
-    if (currentState === 'IDLE' || currentState === 'MOVE' || currentState === 'SPRINT') {
-      const moveVec = this.calculateInputDirection(input);
-      moveMagnitude = moveVec.length();
-
-      if (moveMagnitude > 0.01) {
-        const isSprinting = input.sprint;
-        const targetState = isSprinting ? 'SPRINT' : 'MOVE';
-        if (currentState !== targetState) {
-          this.stateMachine.changeState(targetState);
-        }
-
-        const speed = isSprinting ? this.sprintSpeed : this.moveSpeed;
-        const step = moveVec.clone().multiplyScalar(speed * dt);
-        
-        this.group.position.add(step);
-        if (this.rigidBody) {
-          this.rigidBody.setTranslation(
-            { x: this.group.position.x, y: this.group.position.y, z: this.group.position.z },
-            true
-          );
-        }
-
-        // Rotate character towards movement direction smoothly
-        const targetRotationY = Math.atan2(moveVec.x, moveVec.z);
-        let diff = targetRotationY - this.group.rotation.y;
-        while (diff < -Math.PI) diff += Math.PI * 2;
-        while (diff > Math.PI) diff -= Math.PI * 2;
-
-        this.group.rotation.y += diff * Math.min(1.0, this.rotationSpeed * dt);
-      } else {
-        if (currentState !== 'IDLE') {
-          this.stateMachine.changeState('IDLE');
-        }
+    if (free) {
+      if (moving) {
+        moveMagnitude = 1;
+        const target = this.locomotionState(input);
+        if (state !== target) sm.changeState(target);
+        this.group.position.addScaledVector(moveVec, this.speedOf(target) * dt);
+        this.turnTowards(moveVec, dt);
+      } else if (state !== 'IDLE') {
+        sm.changeState('IDLE');
       }
-    } else if (currentState === 'DODGE_ROLL') {
+    } else if (state === 'JUMP') {
+      this.updateJump(input, moveVec, moving, dt);
+    } else if (state === 'CHARGE') {
+      if (!input.charge) {
+        sm.changeState('IDLE'); // let go early: nothing gathered
+      } else if (sm.stateTime >= sm.CHARGE_DURATION) {
+        this.chargedHits = CHARGED_HITS;
+        this.soundFX.playParryClash();
+        this.particleFX.spawnSparks(this.getPosition().clone().setY(this.getPosition().y + 1.2), 45, true);
+        sm.changeState('IDLE');
+        this.onCharged?.();
+      }
+    } else if (state === 'BLOCK') {
+      // The guard faces where the camera looks.
+      if (!input.parry) sm.changeState('IDLE');
+      else this.turnTowards(new THREE.Vector3(-Math.sin(this.cameraYaw), 0, -Math.cos(this.cameraYaw)), dt);
+    } else if (state === 'DODGE_ROLL') {
       // Move in dodge direction
-      const step = this.dodgeDirection.clone().multiplyScalar(this.dodgeSpeed * dt);
-      this.group.position.add(step);
-      if (this.rigidBody) {
-        this.rigidBody.setTranslation(
-          { x: this.group.position.x, y: this.group.position.y, z: this.group.position.z },
-          true
-        );
-      }
-
-      // Rotate towards dodge direction
-      const targetRotationY = Math.atan2(this.dodgeDirection.x, this.dodgeDirection.z);
-      this.group.rotation.y = targetRotationY;
-    } else if (currentState.startsWith('ATTACK')) {
+      this.group.position.addScaledVector(this.dodgeDirection, this.dodgeSpeed * dt);
+      this.group.rotation.y = Math.atan2(this.dodgeDirection.x, this.dodgeDirection.z);
+    } else if (state.startsWith('ATTACK') && !this.rigDrivesMotion(state)) {
       // Subtle forward lunge during attacks
       const forward = new THREE.Vector3(0, 0, 1).applyAxisAngle(new THREE.Vector3(0, 1, 0), this.group.rotation.y);
-      const lungeSpeed = currentState === 'ATTACK_3' ? 3.5 : 1.8;
-      const step = forward.multiplyScalar(lungeSpeed * dt);
-      this.group.position.add(step);
-      if (this.rigidBody) {
-        this.rigidBody.setTranslation(
-          { x: this.group.position.x, y: this.group.position.y, z: this.group.position.z },
-          true
-        );
-      }
+      const lungeSpeed = state === 'ATTACK_3' ? 3.5 : 1.8;
+      this.group.position.addScaledVector(forward, lungeSpeed * dt);
     }
 
     this.updateProceduralAnimations(dt, moveMagnitude);
   }
 
-  private calculateInputDirection(input: ReturnType<InputManager['getState']>): THREE.Vector3 {
+  /**
+   * Leaves the ground at the clip's takeoff, steers in the air at the speed the jump began with, and on touchdown
+   * lets the landing play out (or runs straight on if a direction is held).
+   */
+  private updateJump(input: InputState, moveVec: THREE.Vector3, moving: boolean, dt: number): void {
+    const sm = this.stateMachine;
+    if (!this.jumpLaunched && sm.stateTime >= this.jump.takeoff) {
+      this.motor?.launch(this.jump.speed);
+      this.jumpLaunched = true;
+    }
+    if (moving) {
+      this.group.position.addScaledVector(moveVec, this.jumpCarry * dt);
+      this.turnTowards(moveVec, dt);
+    }
+    if (!this.jumpLaunched || !(this.motor?.grounded ?? true)) return;
+    if (this.jumpLandedAt < 0) {
+      this.jumpLandedAt = sm.stateTime;
+      this.particleFX.spawnDustPuff(this.getPosition(), 10);
+    }
+    if (moving) sm.changeState(this.locomotionState(input));
+    else if (sm.stateTime - this.jumpLandedAt >= this.jump.recovery) sm.changeState('IDLE');
+  }
+
+  private locomotionState(input: InputState): CharacterState {
+    return input.sprint ? 'SPRINT' : input.walk ? 'WALK' : 'MOVE';
+  }
+
+  private speedOf(state: CharacterState): number {
+    return state === 'SPRINT' ? this.sprintSpeed : state === 'WALK' ? this.walkSpeed : this.moveSpeed;
+  }
+
+  /** Turns smoothly to face `dir` (horizontal). */
+  private turnTowards(dir: THREE.Vector3, dt: number): void {
+    let diff = Math.atan2(dir.x, dir.z) - this.group.rotation.y;
+    while (diff < -Math.PI) diff += Math.PI * 2;
+    while (diff > Math.PI) diff -= Math.PI * 2;
+    this.group.rotation.y += diff * Math.min(1.0, this.rotationSpeed * dt);
+  }
+
+  private calculateInputDirection(input: InputState): THREE.Vector3 {
     const forward = new THREE.Vector3(Math.sin(this.cameraYaw), 0, Math.cos(this.cameraYaw));
     const right = new THREE.Vector3(Math.cos(this.cameraYaw), 0, -Math.sin(this.cameraYaw));
 
@@ -162,7 +223,8 @@ export class Player extends Character {
   private updateHudBadge(state: string): void {
     const badge = document.getElementById('badge-state');
     if (badge) {
-      badge.textContent = `◆ KHANDA [${state.replace('_', ' ')}]`;
+      const resting = state === 'IDLE' || state === 'WALK' || state === 'MOVE' || state === 'SPRINT';
+      badge.textContent = `◆ KHANDA [${this.swordSheathed && resting ? 'SHEATHED' : state.replace('_', ' ')}]`;
       if (state.startsWith('ATTACK')) {
         badge.className = 'text-red-400 font-bold';
       } else if (state === 'DODGE_ROLL') {
@@ -177,6 +239,9 @@ export class Player extends Character {
       if (state === 'PARRY') {
         dhalBadge.textContent = '◇ DHAL [DEFLECTING!]';
         dhalBadge.className = 'text-yellow-300 font-bold gold-glow';
+      } else if (state === 'BLOCK' || state === 'BLOCK_HIT') {
+        dhalBadge.textContent = '◇ DHAL [GUARD]';
+        dhalBadge.className = 'text-amber-300 font-bold';
       } else {
         dhalBadge.textContent = '◇ DHAL [READY]';
         dhalBadge.className = 'text-amber-400';

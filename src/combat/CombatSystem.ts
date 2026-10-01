@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import gsap from 'gsap';
-import { Player } from '../entities/Player';
+import { Player, CHARGED_MULTIPLIER } from '../entities/Player';
 import { Enemy } from '../entities/Enemy';
 import { HitboxManager } from './HitboxManager';
 import { ParticleFX } from './ParticleFX';
@@ -16,6 +16,7 @@ export class CombatSystem {
 
   // Attack hit registration debounce tracking
   private playerHitRegistered = false;
+  private lastPlayerState = '';
   private enemyHitMap: Map<string, boolean> = new Map();
 
   // Combo count
@@ -42,9 +43,10 @@ export class CombatSystem {
   public update(player: Player, enemies: Enemy[]): void {
     const playerState = player.stateMachine.currentState;
 
-    // Reset player hit flag when leaving attack
-    if (!playerState.startsWith('ATTACK')) {
+    // Each swing can land once: reset on every new state (a combo goes ATTACK_1 -> ATTACK_2 without leaving attack)
+    if (playerState !== this.lastPlayerState) {
       this.playerHitRegistered = false;
+      this.lastPlayerState = playerState;
     }
 
     enemies.forEach((enemy) => {
@@ -55,10 +57,10 @@ export class CombatSystem {
         this.enemyHitMap.set(enemy.id, false);
       }
 
-      // 1. Process Player attacking this Enemy
+      // 1. Process Player attacking this Enemy (the blade counts through the middle of the swing, whatever its length)
       if (playerState.startsWith('ATTACK') && !this.playerHitRegistered) {
-        const progress = player.stateMachine.stateTime;
-        if (progress >= 0.12 && progress <= 0.48) {
+        const progress = player.stateMachine.stateTime / Math.max(player.stateMachine.attackDuration(), 1e-3);
+        if (progress >= 0.15 && progress <= 0.75) {
           const { hit, hitPoint } = this.hitboxManager.checkWeaponIntersection(player, enemy, 0.9);
           if (hit) {
             this.playerHitRegistered = true;
@@ -96,6 +98,16 @@ export class CombatSystem {
     } else if (attackState === 'ATTACK_3') {
       damage = 48;
       postureDmg = 50;
+    } else if (attackState === 'ATTACK_JUMP') {
+      damage = 55;
+      postureDmg = 60;
+    }
+
+    const charged = player.chargedHits > 0;
+    if (charged) {
+      player.chargedHits--;
+      damage *= CHARGED_MULTIPLIER;
+      postureDmg *= CHARGED_MULTIPLIER;
     }
 
     if (enemy.stateMachine.currentState === 'POSTURE_BROKEN') {
@@ -105,10 +117,11 @@ export class CombatSystem {
     enemy.takeDamage(damage);
     const broken = enemy.addMarmaDamage(postureDmg);
 
+    const heavy = charged || attackState === 'ATTACK_JUMP';
     this.soundFX.playHitImpact();
-    this.particleFX.spawnSparks(hitPoint, 25, false);
-    this.sceneManager.triggerScreenShake(0.2, 0.16);
-    this.triggerHitStop(0.08, 0.08);
+    this.particleFX.spawnSparks(hitPoint, heavy ? 45 : 25, charged);
+    this.sceneManager.triggerScreenShake(heavy ? 0.4 : 0.2, heavy ? 0.24 : 0.16);
+    this.triggerHitStop(0.08, heavy ? 0.12 : 0.08);
 
     if (broken) {
       this.soundFX.playPostureBreak();
@@ -128,6 +141,12 @@ export class CombatSystem {
     // 140ms Dhal Parry Window -> DEFLECTION!
     if (player.stateMachine.currentState === 'PARRY' && player.stateMachine.isParryActive) {
       this.handlePerfectParry(player, enemy, hitPoint);
+      return;
+    }
+
+    // Raised dhal (a guard, or a parry pressed too early): the blow lands on the shield.
+    if (player.isGuarding() && player.isFacing(enemy.getPosition())) {
+      this.handleBlockedHit(player, hitPoint, 16, 18);
       return;
     }
 
@@ -159,6 +178,16 @@ export class CombatSystem {
     }
 
     this.incrementCombo();
+  }
+
+  /** A blow taken on the guard: a little health gets through, posture takes more, and the dhal rocks back. */
+  public handleBlockedHit(player: Player, hitPoint: THREE.Vector3, damage: number, postureDamage: number): void {
+    player.takeDamage(damage * 0.2);
+    const broken = player.addMarmaDamage(postureDamage * 1.25);
+    this.soundFX.playParryClash();
+    this.particleFX.spawnSparks(hitPoint, 18, false);
+    this.sceneManager.triggerScreenShake(0.15, 0.14);
+    if (!broken && player.stateMachine.currentState !== 'DEAD') player.stateMachine.changeState('BLOCK_HIT');
   }
 
   public triggerHitStop(targetTimeScale = 0.05, duration = 0.12): void {

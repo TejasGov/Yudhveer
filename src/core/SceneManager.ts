@@ -1,5 +1,12 @@
 import * as THREE from 'three';
 import gsap from 'gsap';
+import { PostFX } from './postfx/PostFX';
+import { PhysicsWorld } from './PhysicsWorld';
+import type { LevelAtmosphere } from '../levels/LevelTypes';
+
+// Spring-arm camera: gap kept in front of whatever blocks the arm, and the shortest the arm may get.
+const CAMERA_PADDING = 0.3;
+const CAMERA_MIN_ARM = 0.6;
 
 export class SceneManager {
   private static instance: SceneManager | null = null;
@@ -18,8 +25,16 @@ export class SceneManager {
   public cameraYaw = 0; // Horizontal rotation
   public cameraPitch = -0.12; // Vertical tilt
 
+  // Current spring-arm length (shortened when level geometry is in the way)
+  private armLength = 3.4;
+  private readonly physics = PhysicsWorld.getInstance();
+
   // Screen shake offset
   private shakeOffset = new THREE.Vector3();
+
+  // Offset of the shadow-casting key light from the player; follows the level's moon or sun.
+  private keyLightOffset = new THREE.Vector3(15, 25, 15);
+  public readonly postFX: PostFX;
 
   private constructor() {
     this.scene = new THREE.Scene();
@@ -38,7 +53,6 @@ export class SceneManager {
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.shadowMap.enabled = true;
     this.renderer.shadowMap.type = THREE.PCFShadowMap;
-    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.2;
 
     // Atmospheric Lighting
@@ -62,6 +76,9 @@ export class SceneManager {
     this.dirLight.shadow.bias = -0.0005;
     this.scene.add(this.dirLight);
 
+    // Tone mapping moves into the post chain (the renderer outputs linear HDR).
+    this.postFX = new PostFX(this.renderer, this.scene, this.camera);
+
     window.addEventListener('resize', this.onWindowResize.bind(this));
   }
 
@@ -72,29 +89,34 @@ export class SceneManager {
     return SceneManager.instance;
   }
 
-  public setLevelAtmosphere(levelIndex: number): void {
-    if (levelIndex === 1) {
-      // Moonlit Baoli
-      this.scene.background = new THREE.Color(0x08101e);
-      (this.scene.fog as THREE.FogExp2).color.setHex(0x08101e);
-      this.ambientLight.color.setHex(0x7ea0d6);
-      this.dirLight.color.setHex(0xc8dcff);
-      this.dirLight.intensity = 1.9;
-    } else if (levelIndex === 2) {
-      // Mandapa of Pillars
-      this.scene.background = new THREE.Color(0x16120d);
-      (this.scene.fog as THREE.FogExp2).color.setHex(0x16120d);
-      this.ambientLight.color.setHex(0xd4af37);
-      this.dirLight.color.setHex(0xffe2b8);
-      this.dirLight.intensity = 2.2;
-    } else if (levelIndex === 3) {
-      // Garbhagriha Sanctum
-      this.scene.background = new THREE.Color(0x120808);
-      (this.scene.fog as THREE.FogExp2).color.setHex(0x120808);
-      this.ambientLight.color.setHex(0xff5522);
-      this.dirLight.color.setHex(0xff8844);
-      this.dirLight.intensity = 2.4;
-    }
+  /**
+   * Drops the outgoing level's sky and environment before they are disposed. Rendering a disposed equirect
+   * background (the loop keeps drawing while the next level streams in) makes three.js rebuild its cube
+   * conversion, which nothing would ever free.
+   */
+  public clearAtmosphere(): void {
+    this.scene.background = new THREE.Color(0x05060a);
+    this.scene.environment = null;
+  }
+
+  public applyAtmosphere(atm: LevelAtmosphere): void {
+    this.scene.background = atm.background;
+    this.scene.backgroundIntensity = atm.backgroundIntensity;
+    this.scene.environment = atm.environment;
+    this.scene.environmentIntensity = atm.environmentIntensity;
+    const fog = this.scene.fog as THREE.FogExp2;
+    fog.color.setHex(atm.fog.color);
+    fog.density = atm.fog.density;
+    this.ambientLight.color.setHex(atm.ambient.color);
+    this.ambientLight.intensity = atm.ambient.intensity;
+    this.hemiLight.color.setHex(atm.hemi.sky);
+    this.hemiLight.groundColor.setHex(atm.hemi.ground);
+    this.hemiLight.intensity = atm.hemi.intensity;
+    this.dirLight.color.setHex(atm.key.color);
+    this.dirLight.intensity = atm.key.intensity;
+    this.keyLightOffset.copy(atm.key.direction).normalize().multiplyScalar(30);
+    this.renderer.toneMappingExposure = atm.exposure;
+    this.postFX.configure(atm);
   }
 
   public mount(container: HTMLElement): void {
@@ -105,6 +127,7 @@ export class SceneManager {
     this.camera.aspect = window.innerWidth / window.innerHeight;
     this.camera.updateProjectionMatrix();
     this.renderer.setSize(window.innerWidth, window.innerHeight);
+    this.postFX.setSize(window.innerWidth, window.innerHeight);
   }
 
   public updateCamera(
@@ -132,24 +155,24 @@ export class SceneManager {
     const backward = new THREE.Vector3(sinYaw * cosPitch, -sinPitch, cosYaw * cosPitch);
     const right = new THREE.Vector3(cosYaw, 0, -sinYaw);
 
-    const desiredCameraPos = this.cameraPivot
-      .clone()
-      .addScaledVector(backward, this.cameraDistance)
-      .addScaledVector(right, this.cameraShoulderOffset)
-      .add(this.shakeOffset);
-
-    if (desiredCameraPos.y < 0.4) {
-      desiredCameraPos.y = 0.4;
-    }
-
-    this.camera.position.copy(desiredCameraPos);
+    // Spring arm from the pivot (head height) to the over-the-shoulder spot. If visible level geometry is in the
+    // way - the ground when standing on a lower platform, a cliff, a pillar - the arm shortens to just in front of
+    // it, so the camera never sinks below the floor or into walls and pitch always responds.
+    const arm = new THREE.Vector3().addScaledVector(backward, this.cameraDistance).addScaledVector(right, this.cameraShoulderOffset);
+    const fullLength = arm.length();
+    const armDir = arm.divideScalar(fullLength);
+    const hit = this.physics.castCameraRay(this.cameraPivot, armDir, fullLength + CAMERA_PADDING);
+    const target = hit === null ? fullLength : Math.max(CAMERA_MIN_ARM, hit - CAMERA_PADDING);
+    // Pull in at once (never show the inside of a wall), ease back out when the way clears.
+    this.armLength = target < this.armLength ? target : THREE.MathUtils.lerp(this.armLength, target, 1 - Math.exp(-6 * dt));
+    this.camera.position.copy(this.cameraPivot).addScaledVector(armDir, this.armLength).add(this.shakeOffset);
 
     const lookAtTarget = this.cameraPivot
       .clone()
       .addScaledVector(right, this.cameraShoulderOffset * 0.5);
     this.camera.lookAt(lookAtTarget);
 
-    this.dirLight.position.set(targetPos.x + 15, targetPos.y + 25, targetPos.z + 15);
+    this.dirLight.position.copy(targetPos).add(this.keyLightOffset);
     this.dirLight.target.position.copy(targetPos);
     this.dirLight.target.updateMatrixWorld();
   }
@@ -183,7 +206,7 @@ export class SceneManager {
     }
   }
 
-  public render(): void {
-    this.renderer.render(this.scene, this.camera);
+  public render(dt: number): void {
+    this.postFX.render(dt);
   }
 }

@@ -4,12 +4,26 @@ export interface InputState {
   left: boolean;
   right: boolean;
   sprint: boolean;
+  /** Walk instead of run (C toggles it). */
+  walk: boolean;
   dodge: boolean;
   attack: boolean;
+  /** Guard button (RMB) held. */
   parry: boolean;
+  /** Fresh, unused presses within the buffer window; the controller `consume`s one when it acts on it. */
+  parryPressed: boolean;
+  jump: boolean;
+  stow: boolean;
+  chargePressed: boolean;
+  /** Charge button (Q) held. */
+  charge: boolean;
   mouseXDelta: number;
   mouseYDelta: number;
 }
+
+/** Buffered one-shot presses: RMB parry, F jump, X sheathe / draw, Q starting a charge. */
+export type PressAction = 'parry' | 'jump' | 'stow' | 'charge';
+const PRESS_KEYS: Record<string, PressAction> = { KeyF: 'jump', KeyX: 'stow', KeyQ: 'charge' };
 
 export class InputManager {
   private static instance: InputManager | null = null;
@@ -26,6 +40,8 @@ export class InputManager {
   private bufferWindow = 250; // 250ms window to store queued action clicks
   private attackBufferTimer: ReturnType<typeof setTimeout> | null = null;
   private dodgeBufferTimer: ReturnType<typeof setTimeout> | null = null;
+  private pressedAt = new Map<PressAction, number>();
+  public walkToggled = false;
 
   public onPointerLockChange: ((locked: boolean) => void) | null = null;
 
@@ -46,6 +62,9 @@ export class InputManager {
       if (e.code === 'Space') {
         this.queueDodge();
       }
+      if (e.repeat) return;
+      if (PRESS_KEYS[e.code]) this.pressedAt.set(PRESS_KEYS[e.code], performance.now());
+      if (e.code === 'KeyC') this.walkToggled = !this.walkToggled;
     });
 
     window.addEventListener('keyup', (e) => {
@@ -59,8 +78,9 @@ export class InputManager {
         // Left Click: Attack (Buffered with 250ms decay)
         this.queueAttack();
       } else if (e.button === 2) {
-        // Right Click: Parry
+        // Right Click: a press is a parry, holding it on is a guard
         this.parryRequested = true;
+        this.pressedAt.set('parry', performance.now());
       }
     });
 
@@ -138,6 +158,16 @@ export class InputManager {
     return false;
   }
 
+  /** A press of `action` within the buffer window that nothing has used yet. */
+  public pressed(action: PressAction): boolean {
+    const at = this.pressedAt.get(action);
+    return at !== undefined && performance.now() - at <= this.bufferWindow;
+  }
+
+  public consume(action: PressAction): void {
+    this.pressedAt.delete(action);
+  }
+
   public requestPointerLock(element?: HTMLElement): void {
     try {
       const target = element || document.body;
@@ -176,16 +206,30 @@ export class InputManager {
       left,
       right,
       sprint,
+      walk: this.walkToggled,
       dodge,
       attack,
       parry,
+      parryPressed: this.pressed('parry'),
+      jump: this.pressed('jump'),
+      stow: this.pressed('stow'),
+      chargePressed: this.pressed('charge'),
+      charge: !!this.keys['KeyQ'],
       mouseXDelta: this.mouseXDelta,
       mouseYDelta: this.mouseYDelta
     };
 
+    return state;
+  }
+
+  /**
+   * Mouse motion accumulated since the last call. The camera consumes it once per rendered frame;
+   * getState() only reports it, since gameplay may poll input several times per frame (fixed step).
+   */
+  public consumeMouseDelta(): { x: number; y: number } {
+    const delta = { x: this.mouseXDelta, y: this.mouseYDelta };
     this.mouseXDelta = 0;
     this.mouseYDelta = 0;
-
-    return state;
+    return delta;
   }
 }

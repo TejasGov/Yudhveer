@@ -1,158 +1,178 @@
 import * as THREE from 'three';
-import { PhysicsWorld } from '../core/PhysicsWorld';
+import { HDRLoader } from 'three/examples/jsm/loaders/HDRLoader.js';
+import { GLBLevel } from './GLBLevel';
+import type { LevelAtmosphere } from './LevelTypes';
+import { WaterRippleMaterial } from './environment/WaterRippleMaterial';
+import { addRimLight, createToonRamp, toonifyModel, toToonMaterial } from './environment/ToonRelight';
+import { ParticleFX } from '../combat/ParticleFX';
 
-export class Level1_Baoli {
-  public group: THREE.Group;
-  private physicsWorld: PhysicsWorld;
-  public waterMesh: THREE.Mesh | null = null;
+const LEVEL_URL = '/assets/levels/moonlit_baoli.glb';
+// The fighting platform; the level is re-centred so its top-centre is the origin (spawns, bounds are relative).
+const ARENA_FLOOR = 'Arena_Floor';
+// Direction from the arena toward the moon baked into the sky (Blender -> three axes).
+const MOON_DIR = new THREE.Vector3(0.299, 0.707, -0.641).normalize();
+
+const ADDITIVE_MATERIALS = new Set(['FX_Glow', 'FX_Glow_Far', 'Flame_Outer']);
+const SOFT_TRANSPARENT = new Set(['Waterfall_Sheet', 'Waterfall_Streaks', 'Waterfall_Foam', 'Mist', 'Mist_Water']);
+const DECALS = new Set(['Yantra_Groove', 'Yantra_Gold']);
+const SHADOW_CASTERS = /^(Pillar_|Pedestal_|Statue_|Temple_|Deco_HangingLamps|Deco_Curtains)/;
+const SHADOW_RECEIVERS = /^(Arena_Floor|Arena_Steps|Arena_PoolBed|Arena_Yantra|Env_Ground|Env_Pathways|Temple_)/;
+// The Devi (Durga) shrine gets the same pronounced cel treatment as the Level 2 Hanuman monolith.
+const DEITY_STONE = new Set(['Devi_Stone', 'Kaali_Black', 'Kaali_Sandstone']);
+
+interface Scroller { texture: THREE.Texture; speed: THREE.Vector2 }
+
+/**
+ * Level 1: moonlit stepwell arena - shallow rippling pool, waterfalls, mist, Devi shrine.
+ * Cel-shaded with ink lines like Level 2; water, mist, waterfalls and glows keep their own shading.
+ */
+export class Level1_Baoli extends GLBLevel {
+  public readonly id = 1;
+  public readonly title = 'Level 1: The Moonlit Baoli';
+  public readonly subtitle = 'Submerged Stepped Ghat • Mercenary Grunt & Spear Duo';
+  public readonly atmosphere: LevelAtmosphere = {
+    background: new THREE.Color(0x070b16),
+    backgroundIntensity: 1.0,
+    environment: null,
+    environmentIntensity: 0.35,
+    fog: { color: 0x0a1224, density: 0.0045 },
+    ambient: { color: 0x6d86b8, intensity: 0.2 },
+    hemi: { sky: 0x7ea0d6, ground: 0x1a2130, intensity: 0.34 },
+    key: { color: 0xd4e9ff, intensity: 1.3, direction: MOON_DIR },
+    exposure: 1.2,
+    bloom: { threshold: 0.85, smoothing: 0.12, intensity: 1.3 },
+    vignette: { offset: 0.3, darkness: 0.6 },
+    ink: { color: 0x04050c, thickness: 1.0, threshold: 0.014, fadeNear: 30, fadeFar: 75 },
+  };
+  private ramp = createToonRamp([0.18, 0.45, 0.8, 1.0]);
+  private deityRamp = createToonRamp([0.07, 0.3, 0.74, 1.0]);
+  public waterMaterial: WaterRippleMaterial | null = null;
+  private scrollers: Scroller[] = [];
+  private particleFX = ParticleFX.getInstance();
 
   constructor() {
-    this.group = new THREE.Group();
-    this.physicsWorld = PhysicsWorld.getInstance();
-    this.buildMoonlitBaoli();
+    super(LEVEL_URL);
+    this.ownedTextures.add(this.ramp).add(this.deityRamp);
+    this.anchorNode = ARENA_FLOOR;
+    // The whole stepwell is the arena: the 28 m island, the wadeable pool (bed 0.7 m down) and the terraced
+    // steps up to just inside the colonnades and corner chhatris (~42.5 m out). The temples, shrine and
+    // jungle beyond the rim are off-limits.
+    this.arenaBoundsSpec = { shape: { kind: 'rect', center: [0, 0], halfExtents: [41, 41] }, floorY: -1.5, height: 14 };
+    this.killPlaneY = -12;
   }
 
-  private buildMoonlitBaoli(): void {
-    // Ancient weathered stone
-    const stoneMat = new THREE.MeshStandardMaterial({
-      color: 0x2b333c, // Dark slate with cool moonlit tint
-      roughness: 0.75,
-      metalness: 0.25
-    });
-
-    const stepMat = new THREE.MeshStandardMaterial({
-      color: 0x3d4855,
-      roughness: 0.7,
-      metalness: 0.2
-    });
-
-    const goldTrimMat = new THREE.MeshStandardMaterial({
-      color: 0xd4af37,
-      roughness: 0.35,
-      metalness: 0.8
-    });
-
-    // 1. Central 26x26 Stepped Platform (Main Arena)
-    const platformHalfSize = 13;
-    const platformHeight = 1.0;
-    const baseGeo = new THREE.BoxGeometry(platformHalfSize * 2, platformHeight, platformHalfSize * 2);
-    const baseMesh = new THREE.Mesh(baseGeo, stoneMat);
-    baseMesh.position.set(0, -platformHeight / 2, 0);
-    baseMesh.receiveShadow = true;
-    this.group.add(baseMesh);
-
-    this.physicsWorld.createStaticBox(
-      new THREE.Vector3(0, -platformHeight / 2, 0),
-      new THREE.Vector3(platformHalfSize, platformHeight / 2, platformHalfSize)
-    );
-
-    // 2. Central Vedic Dueling Circle Inlay
-    const circleGeo = new THREE.RingGeometry(0.1, 7.8, 48);
-    const circleMat = new THREE.MeshStandardMaterial({
-      color: 0x242a33,
-      roughness: 0.6,
-      metalness: 0.3,
-      side: THREE.DoubleSide
-    });
-    const circleMesh = new THREE.Mesh(circleGeo, circleMat);
-    circleMesh.rotation.x = -Math.PI / 2;
-    circleMesh.position.y = 0.015;
-    circleMesh.receiveShadow = true;
-    this.group.add(circleMesh);
-
-    // Golden boundary ring
-    const ringGeo = new THREE.RingGeometry(7.7, 7.95, 64);
-    const ringMesh = new THREE.Mesh(ringGeo, goldTrimMat);
-    ringMesh.rotation.x = -Math.PI / 2;
-    ringMesh.position.y = 0.02;
-    this.group.add(ringMesh);
-
-    // 3. Four Massive Indian Temple Pillars with Physics Colliders
-    const pillarPositions = [
-      new THREE.Vector3(9.5, 0, 9.5),
-      new THREE.Vector3(-9.5, 0, 9.5),
-      new THREE.Vector3(9.5, 0, -9.5),
-      new THREE.Vector3(-9.5, 0, -9.5)
-    ];
-
-    const pillarRadius = 1.15;
-    const pillarHeight = 7.5;
-
-    pillarPositions.forEach((pos) => {
-      const pillarGroup = new THREE.Group();
-      pillarGroup.position.copy(pos);
-
-      // Pillar Column
-      const colGeo = new THREE.CylinderGeometry(pillarRadius * 0.85, pillarRadius, pillarHeight, 16);
-      const colMesh = new THREE.Mesh(colGeo, stoneMat);
-      colMesh.position.y = pillarHeight / 2;
-      colMesh.castShadow = true;
-      colMesh.receiveShadow = true;
-      pillarGroup.add(colMesh);
-
-      // Capital & Base
-      const capGeo = new THREE.BoxGeometry(pillarRadius * 2.5, 0.6, pillarRadius * 2.5);
-      const capTop = new THREE.Mesh(capGeo, stoneMat);
-      capTop.position.y = pillarHeight;
-      capTop.castShadow = true;
-      pillarGroup.add(capTop);
-
-      const capBottom = new THREE.Mesh(capGeo, stoneMat);
-      capBottom.position.y = 0.3;
-      pillarGroup.add(capBottom);
-
-      // Torch Brazier on Pillar
-      const brazierGeo = new THREE.CylinderGeometry(0.35, 0.15, 0.4, 8);
-      const brazierMesh = new THREE.Mesh(brazierGeo, goldTrimMat);
-      brazierMesh.position.set(0, 3.2, pillarRadius * 0.9);
-      pillarGroup.add(brazierMesh);
-
-      // Warm torch point light
-      const torchLight = new THREE.PointLight(0xffaa44, 1.6, 14, 1.6);
-      torchLight.position.set(0, 3.6, pillarRadius * 1.1);
-      pillarGroup.add(torchLight);
-
-      this.group.add(pillarGroup);
-
-      this.physicsWorld.createStaticCylinder(
-        new THREE.Vector3(pos.x, pillarHeight / 2, pos.z),
-        pillarHeight / 2,
-        pillarRadius
-      );
-    });
-
-    // 4. Submerged Stepped Ghats (Stepwell descending tiers)
-    for (let step = 1; step <= 4; step++) {
-      const stepWidth = platformHalfSize + step * 2.6;
-      const stepY = -step * 0.75;
-
-      const stepBorderGeo = new THREE.BoxGeometry(stepWidth * 2, 0.75, stepWidth * 2);
-      const stepMesh = new THREE.Mesh(stepBorderGeo, stepMat);
-      stepMesh.position.y = stepY - 0.375;
-      stepMesh.receiveShadow = true;
-      this.group.add(stepMesh);
-    }
-
-    // 5. Submerged Water Surface with Moonlit Sheen
-    const waterGeo = new THREE.PlaneGeometry(55, 55, 32, 32);
-    const waterMat = new THREE.MeshStandardMaterial({
-      color: 0x092238,
-      roughness: 0.1,
-      metalness: 0.85,
-      transparent: true,
-      opacity: 0.82
-    });
-    this.waterMesh = new THREE.Mesh(waterGeo, waterMat);
-    this.waterMesh.rotation.x = -Math.PI / 2;
-    this.waterMesh.position.y = -3.2;
-    this.waterMesh.receiveShadow = true;
-    this.group.add(this.waterMesh);
+  protected async loadEnvironment(): Promise<void> {
+    const [bg, hdr] = await Promise.all([
+      new THREE.TextureLoader().loadAsync('/assets/sky/baoli_night_sky_4k.jpg'),
+      new HDRLoader().loadAsync('/assets/sky/baoli_night_sky_1k.hdr'),
+    ]);
+    bg.mapping = THREE.EquirectangularReflectionMapping;
+    bg.colorSpace = THREE.SRGBColorSpace;
+    hdr.mapping = THREE.EquirectangularReflectionMapping;
+    this.atmosphere.environment = this.bakeEnvironment(hdr);
+    hdr.dispose();
+    this.ownedTextures.add(bg);
+    this.atmosphere.background = bg;
   }
 
-  public update(time: number): void {
-    if (this.waterMesh) {
-      // Subtle water ripple undulation
-      this.waterMesh.position.y = -3.2 + Math.sin(time * 1.5) * 0.04;
+  protected prepareModel(model: THREE.Object3D): void {
+    const scrolledMaps = new Set<THREE.Texture>();
+    model.traverse((obj) => {
+      const mesh = obj as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      mesh.castShadow = SHADOW_CASTERS.test(mesh.name) || SHADOW_CASTERS.test(mesh.parent?.name ?? '');
+      mesh.receiveShadow = SHADOW_RECEIVERS.test(mesh.name) || SHADOW_RECEIVERS.test(mesh.parent?.name ?? '');
+
+      const scroll = obj.userData.uv_scroll ?? mesh.parent?.userData.uv_scroll;
+      const mats = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+      mats.forEach((m) => {
+        const mat = m as THREE.MeshStandardMaterial;
+        this.fixMaterial(mat, mesh);
+        if (scroll && mat.map && !scrolledMaps.has(mat.map)) {
+          scrolledMaps.add(mat.map);
+          mat.map.wrapS = mat.map.wrapT = THREE.RepeatWrapping;
+          this.scrollers.push({ texture: mat.map, speed: new THREE.Vector2(scroll[0], scroll[1]) });
+        }
+      });
+    });
+    toonifyModel(model, this.ramp, (src) => this.toonOverride(src as THREE.MeshStandardMaterial));
+    this.collectBloom(model);
+
+    // Pillars the dodge-roll can wall-kick from.
+    model.traverse((obj) => {
+      if (/^Pillar_/.test(obj.name) && obj.userData.collider === 'cylinder') {
+        this.wallKickPoints.push(obj.getWorldPosition(new THREE.Vector3()).setY(0));
+      }
+    });
+  }
+
+  /** Cel-shading exceptions; undefined falls through to the default toon conversion. */
+  private toonOverride(src: THREE.MeshStandardMaterial): THREE.Material | undefined {
+    if (src.name === 'Water_Deep') return src; // plunge pools keep their reflections
+    if (DEITY_STONE.has(src.name)) {
+      const stone = toToonMaterial(src, this.deityRamp);
+      stone.normalScale.multiplyScalar(1.4);
+      addRimLight(stone, { color: 0xa9c8ff, strength: 0.55, start: 0.66 });
+      return stone;
     }
+    if (src.name === 'Yantra_Gold') {
+      // Textured metal has no specular in toon; lift it and let it glint so the inlay still reads as gold.
+      const gold = toToonMaterial(src, this.ramp);
+      gold.color.setRGB(1.6, 1.25, 0.6);
+      gold.emissive.setRGB(0.16, 0.1, 0.02);
+      gold.emissiveMap = src.map;
+      return gold;
+    }
+    return undefined;
+  }
+
+  private fixMaterial(mat: THREE.MeshStandardMaterial, mesh: THREE.Mesh): void {
+    const name = mat.name;
+    if (ADDITIVE_MATERIALS.has(name)) {
+      mat.transparent = true;
+      mat.blending = THREE.AdditiveBlending;
+      mat.depthWrite = false;
+      mesh.renderOrder = 3;
+    } else if (SOFT_TRANSPARENT.has(name)) {
+      mat.transparent = true;
+      mat.depthWrite = false;
+      mat.side = THREE.DoubleSide;
+      mesh.renderOrder = 2;
+    } else if (DECALS.has(name)) {
+      mat.transparent = true;
+      mat.depthWrite = false;
+      mat.polygonOffset = true;
+      mat.polygonOffsetFactor = -2;
+      mat.polygonOffsetUnits = -2;
+      mesh.renderOrder = 1;
+    } else if (name.startsWith('Foliage_')) {
+      mat.alphaTest = 0.5;
+      mat.transparent = false;
+      mat.side = THREE.DoubleSide;
+    } else if (name === 'Water_Shallow') {
+      // Transmission is too costly for gameplay; a reflective translucent surface with analytic ripples instead.
+      this.waterMaterial ??= new WaterRippleMaterial({
+        color: 0x0b2230,
+        opacity: 0.78,
+        roughness: 0.04,
+        envMapIntensity: 1.4,
+        waveStrength: 0.4,
+      });
+      mat.dispose();
+      mesh.material = this.waterMaterial;
+    } else if (name === 'Riverbed_Rock_Arena') {
+      mat.roughness = 0.6; // Blender remapped this texture to 0.2-0.55 for a damp look
+    } else if (name === 'Stone_Steps_Wet') {
+      mat.roughness = 0.35;
+    }
+  }
+
+  public override update(time: number, dt: number, camera: THREE.Camera): void {
+    super.update(time, dt, camera);
+    for (const s of this.scrollers) {
+      s.texture.offset.set(s.speed.x * time, s.speed.y * time);
+    }
+    this.waterMaterial?.update(time);
+    if (Math.random() < 0.2) this.particleFX.spawnMist(14);
   }
 }
