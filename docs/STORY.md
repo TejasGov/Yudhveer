@@ -103,10 +103,8 @@ himself: Andhaka has carried his own judge up the mountain.
 
 ## What has to be built
 
-1. **Progression system:** abilities and weapons unlocked per chapter, saved with progress; the hero's state
-   (weapon, shield, which moves are allowed) set by the chapter.
-2. **Weapon sets for the hero:** move sets, hit data and sounds for the lathi, the basic sword and the mace (the
-   mace needs heavy animations; source them from Mixamo or Meshy).
+1. **Progression system:** *done (milestone 1).* See "Milestone 1" below.
+2. **Weapon sets for the hero:** *done (milestone 1), with placeholder models and borrowed clips.*
 3. **Prologue:** the small village arena, the goons, the scripted loss, the guru's apparent death, Andhaka's
    silhouette shot.
 4. **The guru's voice in Chapter I:** teaching prompts tied to the fight.
@@ -121,6 +119,37 @@ himself: Andhaka has carried his own judge up the mountain.
    effects to replace the synthesized ones the user disliked.
 
 Suggested order: progression system and weapon sets first, then the prologue, then the chapters in order.
+
+## Milestone 1: progression and weapon sets (landed)
+
+- **`src/game/Progression.ts`:** a `HeroKit` per chapter (`Chapter.kit`) names the weapon and the moves allowed. The
+  kit follows from the chapter, so replaying Chapter I gives the lathi again. The campaign save is still
+  `Progress.unlocked`; what a fight *teaches* mid-chapter (`Player.learn`, saved per kit) sits on top of it.
+- **Moves that can be locked:** slide (`dodge`), chained blows (`combo`), `block`, `parry`, `charge` (Shakti) and
+  `leap` (the strike out of a sprint). Block and parry also need the dhal in hand.
+- **`src/entities/characters/YodhaWeapons.ts`:** one `WeaponSet` per weapon: the hero's rig with that weapon's clips
+  and grip, damage and posture per blow, sound, whether it comes with the dhal, whether it can be sheathed. Hit
+  windows are still measured from the clips, so a new move set needs no timing by hand. Changing weapon rebuilds
+  the rig while the chapter loads (`Player.equip`).
+- **Chapter hints** (Engine `FIRST_FIGHT_HINTS`) only mention moves the hero has.
+
+| Kit | Weapon | Dhal | Moves | Blows (damage / posture) |
+|---|---|---|---|---|
+| `baoli` (I) | Lathi | no | slide, chained blows; **charge is the guru's lesson (not yet taught)** | 17/26, 22/32, 36/52 |
+| `akhada` (II) | Basic sword | yes | slide, chain, block, parry | 18/20, 24/26, 38/40, leap 44/48 |
+| `dwarka` (IV) | Blessed mace | no | slide, chain, **slam out of a run** | 36/44, 46/54, spin 2 x 38/46, slam 80/90 |
+| `summit` (V) | Magical khanda | yes | everything | 22/25, 30/32, 48/50, leap 55/60 |
+
+- **Decided here:** Dwarka's "skills unlocked" (it said *to decide*) is the mace's slam out of a run. Charge arrives
+  with the magical sword, so it is the one move the summit adds over the akhada's kit besides the leap.
+- **Placeholders:** the lathi is a staff built in code (`buildLathi`); the basic sword is the Vetala's notched blade;
+  the mace is Shalva's gada at 0.7 scale. The lathi's swings are cut from Mixamo's One Hand Club Combo; the mace's
+  from the Mace Attack Combo, Spin Mace Attack and the brute's run-jump attack. The mace is held in the right hand
+  only: both hands on the haft needs a clip authored for it.
+- **Kit keys are not chapter numbers**, so the prologue and the island slot in as new kits (`KitId`) without
+  renumbering anything. The island's kit is the mace again.
+- **Known gaps:** the pause screen's controls list still shows every move; the lathi has no guard at all, so Chapter
+  I is a pure slide-and-strike fight until the guru's teachings (milestone 4) hand something over.
 
 ## Tools
 
@@ -144,3 +173,30 @@ Suggested order: progression system and weapon sets first, then the prologue, th
 - Sound: the per-place ambience stays (stepwell, jungle, sea, mountain with thunder and lightning). The synthesized
   character sounds were reverted; they are to be replaced with real ones.
 - Andhaka's in-game entrance at the summit (smile, crown, sword from the stone) is the reveal of his face.
+
+## Roadmap
+
+Each milestone is one chat. Start it with: "Read docs/STORY.md, let's do milestone N." Tick it off here when done.
+
+- [ ] **0. Merge and set up** (this chat or a short one): merge `campaign-production-pass` into `main`; connect
+  ElevenLabs, Meshy and Poly Haven.
+- [ ] **1. Progression system:** five chapters (the island inserted as III), the hero's kit per chapter (weapon,
+  shield, allowed moves), saved with progress.
+- [ ] **2. Hero weapon sets:** lathi, basic sword, two-handed mace (own animations), magical sword; hit data,
+  trails, sounds. The user downloads the Mixamo packs it asks for.
+- [ ] **3. Story delivery:** dialogue and subtitle system, cinematic cutscene tools for story beats (beyond intros),
+  voice line playback.
+- [ ] **4. Prologue:** the small village arena, goons, the scripted loss, the guru taken, Andhaka's silhouette.
+- [ ] **5. Chapter I rework:** lathi fight, the guru's remembered teachings, the freed Guardian's words.
+- [ ] **6. Chapter II rework:** the sunset relight, the sword-training cinematic, the vanara mentor (placeholder),
+  shield and parry training, the ending that points to Dwarka.
+- [ ] **7. Chapter III, the island:** the new underground lamp-lit map (explorable), mini monster and archer
+  placeholders, the blessed mace.
+- [ ] **8. Chapter IV, Dwarka:** the hero with the mace, Shalva mace against mace, the truth about Andhaka,
+  Takshaka's prophecy and the sword.
+- [ ] **9. Chapter V, the summit:** the second minion type, the guru-as-Shiva ending cinematic, credits.
+- [ ] **10. Voices and sound:** ElevenLabs voices for every line, real character sound effects, music per chapter.
+- [ ] **11. Replace placeholders:** the user's Meshy models (mentor, island monsters, second minion, weapons).
+- [ ] **12. Polish and balance:** full playthroughs, difficulty curve across the five chapters, performance,
+  loading sizes.
+- [ ] **13. Release:** final build, deploy, a trailer if wanted.
