@@ -222,6 +222,24 @@ export class SceneManager {
     this.armLength = this.cameraDistance;
   }
 
+  private flashBase: { hemi: number; ambient: number } | null = null;
+
+  /** Lightning: the sky light flares and flickers out (a brighter flash for a nearer strike). */
+  public flash(strength = 1): void {
+    const base = this.flashBase ?? { hemi: this.hemiLight.intensity, ambient: this.ambientLight.intensity };
+    this.flashBase = base;
+    const set = (k: number) => {
+      this.hemiLight.intensity = base.hemi * (1 + k * 4 * strength);
+      this.ambientLight.intensity = base.ambient * (1 + k * 3 * strength);
+    };
+    // A flare, a dip, a second flare, then out.
+    ([[0, 1], [70, 0.2], [130, 0.75], [260, 0.3], [420, 0]] as const).forEach(([ms, k]) =>
+      window.setTimeout(() => {
+        set(k);
+        if (k === 0) this.flashBase = null;
+      }, ms));
+  }
+
   public triggerScreenShake(intensity = 0.25, duration = 0.22): void {
     if (!Settings.get().cameraShake) return;
     const shakeObj = { intensity };

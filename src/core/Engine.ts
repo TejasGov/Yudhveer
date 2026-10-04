@@ -7,7 +7,7 @@ import { Settings, Progress, type GameSettings } from './Settings';
 import { LevelManager } from '../levels/LevelManager';
 import { disposeObject } from '../levels/GLBLevel';
 import { ParticleFX } from '../combat/ParticleFX';
-import { SoundFX, MOODS, type MusicMood } from '../combat/SoundFX';
+import { SoundFX, MOODS, type MusicMood, type Ambience } from '../combat/SoundFX';
 import { CombatSystem } from '../combat/CombatSystem';
 import { CombatDebug } from '../combat/CombatDebug';
 import { ProjectileManager } from '../combat/ProjectileManager';
@@ -155,6 +155,8 @@ const FINALES: Record<number, Finale> = {
 };
 
 const LEVEL_MOODS: Record<number, MusicMood> = { 1: MOODS.baoli, 2: MOODS.akhada, 3: MOODS.dwarka, 4: MOODS.summit };
+/** Each arena's ambience and reverb: the stepwell, the jungle akhada, the sea at Dwarka, the mountain. */
+const LEVEL_AMBIENCE: Record<number, Ambience> = { 1: 'baoli', 2: 'akhada', 3: 'dwarka', 4: 'summit' };
 
 /** Chapter I teaches the basics, one line at a time (fight seconds, text). */
 const FIRST_FIGHT_HINTS: [number, string][] = [
@@ -233,6 +235,7 @@ export class Engine {
     this.combatSystem.onEvent = (e) => this.combatDebug.onEvent(e);
     this.combatSystem.onCallout = (c) => this.hud.callout(c);
     this.combatSystem.onPlayerHurt = () => this.hud.hurt();
+    this.soundFX.onLightning = (strength) => this.sceneManager.flash(strength);
     this.projectileManager.onPlayerContact = (result) => {
       if (result === 'hit') {
         this.combatSystem.stats.hitsTaken++;
@@ -580,6 +583,7 @@ export class Engine {
     this.screens.only('title', unlocked > 1 ? cont : null);
     refreshGlyphs(document, this.inputManager.device);
     this.soundFX.music.play(MOODS.title);
+    this.soundFX.playAmbience(null);
   }
 
   /**
@@ -611,6 +615,7 @@ export class Engine {
     const report = () => this.showLoading(kicker, chapter.name, levelShare * 0.75 + rigShare * 0.25);
     report();
     this.soundFX.music.play(LEVEL_MOODS[chapter.level] ?? MOODS.title);
+    this.soundFX.playAmbience(LEVEL_AMBIENCE[chapter.level] ?? null);
 
     try {
       if (needLevel) await this.levelManager.loadLevel(chapter.level, (f) => { levelShare = f; report(); });
