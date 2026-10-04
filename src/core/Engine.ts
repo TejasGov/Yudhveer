@@ -23,7 +23,6 @@ import { BossBaoli } from '../entities/BossBaoli';
 import { BossShalva } from '../entities/BossShalva';
 import { BossAndhaka } from '../entities/BossAndhaka';
 import { DWARKA_STARTS } from '../levels/Level3_Dwarka';
-import { YODHA } from '../entities/characters/Yodha';
 import { BAOLI_GUARDIAN } from '../entities/characters/BaoliGuardian';
 import { VETALA } from '../entities/characters/Vetala';
 import { MAYAVI } from '../entities/characters/Mayavi';
@@ -35,6 +34,7 @@ import { CharacterRig, type CharacterDefinition } from '../entities/animation/Ch
 import type { Character } from '../entities/Character';
 import { separateFighters } from '../physics/CharacterMotor';
 import { CHAPTERS, chapterById, type Chapter } from '../game/Chapters';
+import { KITS, type Ability } from '../game/Progression';
 import { CinematicDirector } from '../cinematics/CinematicDirector';
 import { buildIntro, buildArrival, ATTRACT, type IntroContext } from '../cinematics/Intros';
 import { Hud } from '../ui/Hud';
@@ -158,14 +158,24 @@ const LEVEL_MOODS: Record<number, MusicMood> = { 1: MOODS.baoli, 2: MOODS.akhada
 /** Each arena's ambience and reverb: the stepwell, the jungle akhada, the sea at Dwarka, the mountain. */
 const LEVEL_AMBIENCE: Record<number, Ambience> = { 1: 'baoli', 2: 'akhada', 3: 'dwarka', 4: 'summit' };
 
-/** Chapter I teaches the basics, one line at a time (fight seconds, text). */
-const FIRST_FIGHT_HINTS: [number, string][] = [
-  [1.5, 'Press {guard} just as a blow lands to deflect it.'],
-  [10, 'Press {dodge} to slide under a blow. You can slide out of a swing once it has landed.'],
-  [18, 'Hold {guard} to keep your guard up. Blocking still wears down your posture.'],
-  [26, 'Hold {charge} to put your strength into the next three blows.'],
-  [36, 'Sprint with {sprint} and attack to leap in with a falling strike.'],
+/** Chapter I teaches the basics, one line at a time (fight seconds, text). Only moves the hero has are mentioned. */
+const FIRST_FIGHT_HINTS: [number, string, Ability?][] = [
+  [1.5, 'Press {attack} to strike. Press it again as the blow lands to chain up to three.', 'combo'],
+  [1.5, 'Press {guard} just as a blow lands to deflect it.', 'parry'],
+  [10, 'Press {dodge} to slide under a blow. You can slide out of a swing once it has landed.', 'dodge'],
+  [18, 'Hold {guard} to keep your guard up. Blocking still wears down your posture.', 'block'],
+  [26, 'Hold {charge} to put your strength into the next three blows.', 'charge'],
+  [36, 'Sprint with {sprint} and attack to leap in with a falling strike.', 'leap'],
 ];
+
+const ABILITY_NAMES: Record<Ability, string> = {
+  dodge: 'The slide',
+  combo: 'Chained blows',
+  block: 'The guard',
+  parry: 'The parry',
+  charge: 'Shakti, the gathered blow',
+  leap: 'The leaping strike',
+};
 
 type Mode = 'boot' | 'title' | 'loading' | 'intro' | 'handoff' | 'play' | 'outro' | 'over';
 
@@ -266,6 +276,7 @@ export class Engine {
 
     this.player = new Player();
     this.player.onCharged = () => this.hud.callout({ text: 'Shakti', sub: 'Your next three blows strike harder', tone: 'gold' });
+    this.player.onLearned = (ability) => this.hud.callout({ text: 'Learned', sub: ABILITY_NAMES[ability], tone: 'gold' });
     this.player.group.visible = false;
 
     // The title screen stands in the first chapter's arena; the hero streams in alongside it.
@@ -274,7 +285,7 @@ export class Engine {
     let heroShare = 0;
     const report = () => this.showLoading('', 'Yudhveer', levelShare * 0.8 + heroShare * 0.2);
     const level = this.levelManager.loadLevel(firstLevel, (f) => { levelShare = f; report(); });
-    const hero = this.player.attachRig(YODHA).then(() => { heroShare = 1; report(); })
+    const hero = this.player.equip(KITS[CHAPTERS[0].kit]).then(() => { heroShare = 1; report(); })
       .catch((err) => console.error('[Engine] Yodha failed to load; keeping the greybox', err));
 
     this.isRunning = true;
@@ -627,7 +638,10 @@ export class Engine {
     levelShare = 1;
     report();
 
-    const rigs = [...this.spawnEnemies(chapter), ...this.startHorde(chapter)];
+    // The chapter decides his weapon and moves; a new weapon is a new rig, so it loads with the rest.
+    const hero = this.player.equip(KITS[chapter.kit])
+      .catch((err) => console.error('[Engine] Yodha failed to arm; keeping the previous weapon', err));
+    const rigs = [hero, ...this.spawnEnemies(chapter), ...this.startHorde(chapter)];
     this.finale = FINALES[chapter.level] ? { def: FINALES[chapter.level], boss: null } : null;
     if (this.finale) CharacterRig.prefetch(this.finale.def.rig);
     let done = 0;
@@ -1227,11 +1241,17 @@ export class Engine {
   }
 
   private updateHints(): void {
-    if (this.hintIndex >= FIRST_FIGHT_HINTS.length) return;
-    const [at, text] = FIRST_FIGHT_HINTS[this.hintIndex];
-    if (this.fightTime < at) return;
-    this.hud.hint(text, 6);
-    this.hintIndex++;
+    while (this.hintIndex < FIRST_FIGHT_HINTS.length) {
+      const [at, text, needs] = FIRST_FIGHT_HINTS[this.hintIndex];
+      if (needs && !this.player?.can(needs)) { // a move he does not have yet is not taught
+        this.hintIndex++;
+        continue;
+      }
+      if (this.fightTime < at) return;
+      this.hud.hint(text, 6);
+      this.hintIndex++;
+      break;
+    }
     if (this.hintIndex >= FIRST_FIGHT_HINTS.length) this.hintsShown = true;
   }
 }

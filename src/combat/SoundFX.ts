@@ -718,9 +718,19 @@ export class SoundFX {
     this.tone({ type: 'sawtooth', freq: 880, to: 420, linear: true, gain: 0.1, duration: 0.3, delay: 0.16, filter: { type: 'bandpass', freq: 650, q: 4 } });
   }
 
-  public playHitImpact(): void {
-    this.tone({ type: 'triangle', freq: 160, to: 35, gain: 0.42, duration: 0.16 });
-    this.noise({ duration: 0.08, gain: 0.16, attack: 0.002, filter: 'lowpass', from: 2400, to: 400 });
+  /** A blow landing: steel by default, a hard knock for wood, a deep thud for a mace. */
+  public playHitImpact(kind: 'blade' | 'wood' | 'crush' = 'blade'): void {
+    if (kind === 'wood') {
+      this.tone({ type: 'triangle', freq: 330, to: 140, gain: 0.4, duration: 0.09 });
+      this.noise({ duration: 0.05, gain: 0.2, attack: 0.001, filter: 'bandpass', from: 2800, to: 900, q: 1.5 });
+    } else if (kind === 'crush') {
+      this.tone({ type: 'triangle', freq: 110, to: 28, gain: 0.55, duration: 0.3 });
+      this.tone({ type: 'sine', freq: 70, to: 30, gain: 0.35, duration: 0.45 });
+      this.noise({ duration: 0.12, gain: 0.2, attack: 0.002, filter: 'lowpass', from: 1800, to: 200 });
+    } else {
+      this.tone({ type: 'triangle', freq: 160, to: 35, gain: 0.42, duration: 0.16 });
+      this.noise({ duration: 0.08, gain: 0.16, attack: 0.002, filter: 'lowpass', from: 2400, to: 400 });
+    }
   }
 
   /** A blade turned aside by hide or armour: a dull knock and a short scrape. */

@@ -7,6 +7,7 @@ import { ParticleFX } from './ParticleFX';
 import { SoundFX } from './SoundFX';
 import { SceneManager } from '../core/SceneManager';
 import type { Character } from '../entities/Character';
+import type { CharacterState } from '../entities/CharacterStateMachine';
 
 /** Posture a chip hit deals into an armoured (committed) enemy attack, as a share of normal. */
 const ARMORED_POSTURE = 0.3;
@@ -168,19 +169,10 @@ export class CombatSystem {
     hitPoint: THREE.Vector3,
     attackState: string
   ): void {
-    let damage = 22;
-    let postureDmg = 25;
-
-    if (attackState === 'ATTACK_2') {
-      damage = 30;
-      postureDmg = 32;
-    } else if (attackState === 'ATTACK_3') {
-      damage = 48;
-      postureDmg = 50;
-    } else if (attackState === 'ATTACK_JUMP') {
-      damage = 55;
-      postureDmg = 60;
-    }
+    // What the blow does comes from the weapon in his hand.
+    const blow = player.weapon.blows[attackState as CharacterState] ?? player.weapon.blows.ATTACK_1!;
+    let damage = blow.damage;
+    let postureDmg = blow.posture;
 
     const charged = player.chargedHits > 0;
     if (charged) {
@@ -195,7 +187,7 @@ export class CombatSystem {
 
     // Committed enemy attacks are armoured: a chip hit lands but barely dents posture and does not interrupt.
     // Heavy blows (finisher, leaping strike, a charged hit) still break through.
-    const heavyBlow = charged || attackState === 'ATTACK_3' || attackState === 'ATTACK_JUMP';
+    const heavyBlow = charged || !!blow.heavy;
     const armored = enemy.isArmored();
     if (armored && !heavyBlow) postureDmg *= ARMORED_POSTURE;
     postureDmg *= enemy.isBoss ? BOSS_BLADE_POSTURE : BLADE_POSTURE;
@@ -206,16 +198,17 @@ export class CombatSystem {
     enemy.takeDamage(damage);
     const broken = enemy.addMarmaDamage(postureDmg);
 
-    const heavy = charged || attackState === 'ATTACK_JUMP';
+    const crush = player.weapon.sound.impact === 'crush';
+    const heavy = charged || crush || attackState === 'ATTACK_JUMP';
     if (glancing) {
       this.soundFX.playGlancingBlow();
       this.particleFX.spawnSparks(hitPoint, 10, false);
       this.triggerHitStop(0.3, 0.06);
     } else {
-      this.soundFX.playHitImpact();
+      this.soundFX.playHitImpact(player.weapon.sound.impact);
       this.particleFX.spawnSparks(hitPoint, heavy ? 45 : 25, charged);
       this.sceneManager.triggerScreenShake(heavy ? 0.4 : 0.2, heavy ? 0.24 : 0.16);
-      this.triggerHitStop(0.06, heavy || attackState === 'ATTACK_3' ? 0.15 : 0.1);
+      this.triggerHitStop(0.06, heavy || blow.heavy ? 0.15 : 0.1);
     }
 
     this.stats.damageDealt += damage;

@@ -43,6 +43,11 @@ export interface StateAnimation {
   reverse?: boolean;
   /** Clip seconds to start from, skipping a slow lead-in (an attack's settle from idle). The state is shorter by it. */
   startAt?: number;
+  /**
+   * Clip seconds to stop at: one swing cut out of a longer combo clip (`startAt` to `endAt`). The state is only as
+   * long as that span; the next state's cross-fade takes the pose from there.
+   */
+  endAt?: number;
 }
 
 export interface SocketAttachment {
@@ -70,6 +75,8 @@ export interface SocketAttachment {
    * the built-in greybox sword.
    */
   model?: string;
+  /** Builds the prop in code instead (a placeholder with no model file yet); takes the place of `model`. */
+  build?: () => THREE.Group;
   /** Where the blade starts (just past the guard) and ends, up its local +Y (m): the hit-detection segment. */
   blade?: [number, number];
   /** Size of the prop relative to its model (a borrowed weapon cut down or scaled up to suit the wielder). */
@@ -358,7 +365,7 @@ export class CharacterRig {
   /** Seconds one play of this state's clip takes at its configured rate. */
   public stateDuration(config: StateAnimation): number | undefined {
     const info = this.manifest.clips[config.clip];
-    return info ? (info.duration - (config.startAt ?? 0)) / (config.timeScale ?? 1) : undefined;
+    return info ? (Math.min(config.endAt ?? Infinity, info.duration) - (config.startAt ?? 0)) / (config.timeScale ?? 1) : undefined;
   }
 
   /** The playing clip's name and its position in clip seconds (counts down when reversed). */
