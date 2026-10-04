@@ -1,7 +1,11 @@
+import type { KitId } from './Progression';
+
 /** The campaign, in order. `level` is the LevelManager index of the arena it is fought in. */
 export interface Chapter {
   id: number;
   level: number;
+  /** What the hero carries and can do here (see Progression). */
+  kit: KitId;
   numeral: string;
   name: string;
   /** Devanagari name, shown on the chapter card. */
@@ -19,6 +23,7 @@ export const CHAPTERS: Chapter[] = [
   {
     id: 1,
     level: 1,
+    kit: 'baoli',
     numeral: 'I',
     name: 'The Moonlit Baoli',
     native: 'चाँदनी बावड़ी',
@@ -30,6 +35,7 @@ export const CHAPTERS: Chapter[] = [
   {
     id: 2,
     level: 2,
+    kit: 'akhada',
     numeral: 'II',
     name: 'Hanuman Akhada',
     native: 'हनुमान अखाड़ा',
@@ -41,6 +47,7 @@ export const CHAPTERS: Chapter[] = [
   {
     id: 3,
     level: 3,
+    kit: 'dwarka',
     numeral: 'III',
     name: 'Dwarka',
     native: 'द्वारका',
@@ -52,6 +59,7 @@ export const CHAPTERS: Chapter[] = [
   {
     id: 4,
     level: 4,
+    kit: 'summit',
     numeral: 'IV',
     name: 'Kailasha Summit',
     native: 'कैलाश शिखर',

@@ -265,7 +265,8 @@ export class Character extends Entity {
   public async attachRig(definition: CharacterDefinition): Promise<CharacterRig> {
     const [rig, prop, shield] = await Promise.all([
       CharacterRig.load(definition),
-      definition.weapon?.model ? CharacterRig.loadProp(definition.weapon.model) : Promise.resolve(null),
+      definition.weapon?.build ? Promise.resolve(definition.weapon.build())
+        : definition.weapon?.model ? CharacterRig.loadProp(definition.weapon.model) : Promise.resolve(null),
       definition.offhand?.model ? CharacterRig.loadProp(definition.offhand.model) : Promise.resolve(null),
     ]);
     // Modelled weapons replace the greybox ones everywhere (sockets, sheathing, hit detection).
@@ -302,9 +303,10 @@ export class Character extends Entity {
       if (!state.startsWith('ATTACK')) continue;
       const rate = config.timeScale ?? 1;
       const start = config.startAt ?? 0;
+      const end = config.endAt ?? Infinity;
       const spans = rig.measureStrikes(config.clip, () => this.swordMesh.localToWorld(new THREE.Vector3(0, this.bladeSpan[1], 0)))
-        .filter((s) => s.t1 > start)
-        .map((s) => ({ t0: Math.max(0, s.t0 - start) / rate, t1: (s.t1 - start) / rate }));
+        .filter((s) => s.t1 > start && s.t0 < end)
+        .map((s) => ({ t0: Math.max(0, s.t0 - start) / rate, t1: (Math.min(s.t1, end) - start) / rate }));
       this.strikeWindows.set(state, spans);
       if (this.chainsEarly && spans.length) this.stateMachine.cancelAt[state] = spans[spans.length - 1].t1 + CANCEL_AFTER_STRIKE;
     }

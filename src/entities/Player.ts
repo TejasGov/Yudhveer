@@ -4,6 +4,8 @@ import type { CharacterState } from './CharacterStateMachine';
 import { InputManager, type InputState } from '../core/InputManager';
 import { SoundFX } from '../combat/SoundFX';
 import { ParticleFX } from '../combat/ParticleFX';
+import { KITS, Skills, type Ability, type HeroKit } from '../game/Progression';
+import { WEAPON_SETS, type WeaponSet } from './characters/YodhaWeapons';
 
 /** A completed charge (hold Q) empowers this many blows, each dealing this much more damage and posture. */
 const CHARGED_HITS = 3;
@@ -53,6 +55,12 @@ export class Player extends Character {
   /** Yaw of the camera's view (SceneManager.viewYaw): WASD are relative to it. */
   public viewYaw = 0;
 
+  /** What he carries and which moves are his, set by the chapter (`equip`). Starts as the first chapter's. */
+  public readonly skills = new Skills(KITS.baoli);
+  public weapon: WeaponSet = WEAPON_SETS[KITS.baoli.weapon];
+  /** Called when the fight teaches him a move (the engine shows the banner). */
+  public onLearned: ((ability: Ability) => void) | null = null;
+
   /** Blows still empowered by a completed charge. */
   public chargedHits = 0;
   /** Called when a charge completes (the engine shows the banner). */
@@ -79,11 +87,39 @@ export class Player extends Character {
     this.stateMachine.onStateChanged = (newState) => {
       this.rootMotionScale = 1;
       if (newState.startsWith('ATTACK')) {
-        const pitch = newState === 'ATTACK_1' ? 1.0 : newState === 'ATTACK_2' ? 1.15 : 0.85;
-        this.soundFX.playSwordSwing(pitch);
+        const swing = this.weapon.sound.swing;
+        this.soundFX.playSwordSwing(newState === 'ATTACK_1' ? swing[0] : newState === 'ATTACK_2' ? swing[1] : swing[2]);
         this.aimAttack(newState); // chained swings too, which the state machine starts
       }
     };
+  }
+
+  /**
+   * Whether `ability` is his in this chapter. The guard and the parry are the dhal's, so they need the shield as well
+   * as the lesson.
+   */
+  public can(ability: Ability): boolean {
+    if ((ability === 'block' || ability === 'parry') && !this.weapon.shield) return false;
+    return this.skills.has(ability);
+  }
+
+  /** Teaches him a move the chapter withheld (banner and save included). */
+  public learn(ability: Ability): void {
+    if (this.skills.learn(ability)) this.onLearned?.(ability);
+  }
+
+  /**
+   * Puts him in a chapter's kit: its weapon (and the dhal, if that weapon comes with it) and its moves. Changing
+   * weapon rebuilds his rig, so call it while the chapter loads.
+   */
+  public async equip(kit: HeroKit): Promise<void> {
+    this.skills.setKit(kit);
+    const set = WEAPON_SETS[kit.weapon];
+    if (set === this.weapon && this.rig) return;
+    // Every chapter starts with the weapon in hand; one that cannot be sheathed never is.
+    this.swordSheathed = false;
+    await this.attachRig(set.definition);
+    this.weapon = set;
   }
 
   public handleInput(dt: number, viewYaw: number, foes: readonly Character[] = []): void {
@@ -92,7 +128,7 @@ export class Player extends Character {
     const input = this.inputManager.getState();
     const sm = this.stateMachine;
     const state = sm.currentState;
-    sm.guardHeld = input.parry;
+    sm.guardHeld = input.parry && this.can('block');
 
     // Don't allow new actions during locked states
     if (state === 'POSTURE_BROKEN' || state === 'DEAD') {
@@ -112,20 +148,20 @@ export class Player extends Character {
     const canAct = free || state === 'BLOCK' || recovering || slideDone;
 
     // 0. Slide (F): out of anything but a hit, a fall or the middle of a swing.
-    if (input.dodge && grounded && (canAct || state === 'CHARGE' || (state === 'PARRY' && !sm.isParryActive))) {
+    if (input.dodge && grounded && this.can('dodge') && (canAct || state === 'CHARGE' || (state === 'PARRY' && !sm.isParryActive))) {
       this.inputManager.consume('dodge');
       this.beginSlide(moving ? moveVec : null);
       return;
     }
 
     // 1. Dhal (Right Click): a press opens the 140 ms parry window, holding on settles into a guard.
-    if (input.parryPressed && canAct && grounded) {
+    if (input.parryPressed && canAct && grounded && this.can('parry')) {
       this.inputManager.consume('parry');
       sm.changeState('PARRY');
       return;
     }
     // The guard is a planted stance: movement always wins over it, so holding the button never pins him in place.
-    if (input.parry && !moving && free && grounded && this.speed < LOCOMOTION.stopSpeed) {
+    if (input.parry && this.can('block') && !moving && free && grounded && this.speed < LOCOMOTION.stopSpeed) {
       sm.changeState('BLOCK');
       return;
     }
@@ -138,10 +174,10 @@ export class Player extends Character {
       if (grounded && (free || state === 'BLOCK' || slideDone || (recovering && !chaining))) {
         this.inputManager.consume('attack');
         if (this.swordSheathed) sm.changeState('DRAW');
-        else if (state === 'SPRINT' && this.rig?.definition.states.ATTACK_JUMP) sm.changeState('ATTACK_JUMP');
+        else if (state === 'SPRINT' && this.can('leap') && this.rig?.definition.states.ATTACK_JUMP) sm.changeState('ATTACK_JUMP');
         else sm.changeState('ATTACK_1');
         return;
-      } else if (chaining && (sm.comboWindowOpen || sm.stateTime >= (this.hitWindows(state)[0]?.t0 ?? 0))) {
+      } else if (chaining && this.can('combo') && (sm.comboWindowOpen || sm.stateTime >= (this.hitWindows(state)[0]?.t0 ?? 0))) {
         this.inputManager.consume('attack');
         sm.comboQueued = true;
       }
@@ -156,12 +192,12 @@ export class Player extends Character {
     }
 
     // 4. Charge (press and hold Q; a finished charge needs a fresh press) and sheathe / draw (X).
-    if (input.chargePressed && input.charge && free && grounded && !this.swordSheathed) {
+    if (input.chargePressed && input.charge && this.can('charge') && free && grounded && !this.swordSheathed) {
       this.inputManager.consume('charge');
       sm.changeState('CHARGE');
       return;
     }
-    if (input.stow && free && grounded) {
+    if (input.stow && free && grounded && this.weapon.stowable) {
       this.inputManager.consume('stow');
       sm.changeState(this.swordSheathed ? 'DRAW' : 'SHEATHE');
       return;

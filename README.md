@@ -31,6 +31,8 @@ The campaign runs Chapter I to IV. Each chapter opens with a short cutscene (hol
 | Sheathe or draw | X | D-pad down |
 | Pause | Esc | Start |
 
+What Yudhveer carries and can do depends on the chapter (`src/game/Progression.ts`): the lathi in Chapter I, a basic sword and the dhal in II, the blessed mace in two hands (no dhal) in III, the magical khanda and the dhal in IV. A move he has not earned yet (the guard, the deflect, the charge, the leaping strike) does nothing.
+
 Swings turn toward the nearest enemy you are facing or steering toward and step in to reach it. Once a swing's blade has passed, the next blow, a slide or a deflect cuts its follow-through short. The slide is untouchable while low (about half a second) and carries you past an enemy.
 
 Deflect as a blow lands (a 140 ms window) to throw the attacker off balance and damage its posture. A broken posture leaves it open: your blows land at 2.2x while it recovers.
@@ -53,7 +55,7 @@ Every character has its own model (`src/entities/characters/`); `game asset/READ
 | Folder | What lives there |
 |---|---|
 | `src/core` | `Engine` (fixed 60 Hz simulation, interpolated rendering, game flow: title, loading, intro, fight, pause, outcome), input (keyboard, mouse, gamepad), camera, physics, settings and saved progress |
-| `src/game` | Chapter list and text |
+| `src/game` | Chapter list and text, and `Progression` (the hero's kit per chapter: weapon and allowed moves) |
 | `src/cinematics` | `CinematicDirector` (camera shots along curves, cues, fades) and the per-chapter intros |
 | `src/ui` | HUD, cutscene overlay, menu navigation, key and button glyphs |
 | `src/entities` | Player, enemies, bosses, the animation rig and character definitions |
