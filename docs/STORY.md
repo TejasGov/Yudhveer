@@ -242,11 +242,11 @@ export const BAOLI_STORY: ChapterStory = {
 
 Each milestone is one chat. Start it with: "Read docs/STORY.md, let's do milestone N." Tick it off here when done.
 
-- [ ] **0. Merge and set up** (this chat or a short one): merge `campaign-production-pass` into `main`; connect
+- [x] **0. Merge and set up** (this chat or a short one): merge `campaign-production-pass` into `main`; connect
   ElevenLabs, Meshy and Poly Haven.
-- [ ] **1. Progression system:** five chapters (the island inserted as III), the hero's kit per chapter (weapon,
+- [x] **1. Progression system:** five chapters (the island inserted as III), the hero's kit per chapter (weapon,
   shield, allowed moves), saved with progress.
-- [ ] **2. Hero weapon sets:** lathi, basic sword, two-handed mace (own animations), magical sword; hit data,
+- [x] **2. Hero weapon sets:** lathi, basic sword, two-handed mace (own animations), magical sword; hit data,
   trails, sounds. The user downloads the Mixamo packs it asks for.
 - [x] **3. Story delivery:** dialogue and subtitle system, cinematic cutscene tools for story beats (beyond intros),
   voice line playback.
