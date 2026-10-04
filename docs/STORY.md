@@ -31,9 +31,14 @@ himself: Andhaka has carried his own judge up the mountain.
 
 ### Chapter I: the Moonlit Baoli (existing map)
 
+- **Why he is here:** the raiders fled with the guru through the old baoli. The stepwell outside the village hides
+  a passage they used, and Andhaka's darkness has bound the Baoli Guardian (once the well's protector) to block
+  anyone who follows.
 - **Weapon: the lathi only.** No sword, no shield.
 - He fights the Baoli Guardian by **remembering his guru's teachings**: the guru's voice and memories guide him
   through the fight, teaching the basics as he needs them.
+- **Freed by its defeat**, the Guardian tells him a lathi will not carry him further: he must go to the vanaras of
+  the Hanuman akhada to learn to truly fight.
 
 ### Chapter II: the Hanuman forest akhada (existing map, relit)
 
@@ -133,17 +138,6 @@ Suggested order: progression system and weapon sets first, then the prologue, th
 - **The mace** is one mace, held in both hands. No shield while he carries it.
 - **Trial areas are not explorable** (the prologue arena, the akhada training), except the island, where
   exploring is the mission.
-
-## Still open: why Chapter I happens
-
-Proposal, to confirm: **the raiders fled with the guru through the old baoli.** The stepwell outside the village
-hides a passage the raiders used, and Andhaka's darkness has bound the Baoli Guardian (once the well's protector) to
-block anyone who follows. Yudhveer goes down with only his lathi and the guru's teachings in his head. Freed by
-defeat, the Guardian tells him that a lathi will not carry him further: he must go to the vanaras of the Hanuman
-akhada to learn to truly fight. That chains the prologue to Chapter I and Chapter I to Chapter II.
-
-Alternatives considered: the baoli as the village's poisoned water, which he must clear before he can leave; or
-the guru's dropped rudraksha leading him there.
 
 ## Already decided (from earlier sessions)
 
