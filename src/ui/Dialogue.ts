@@ -1,0 +1,174 @@
+import * as THREE from 'three';
+import { SoundFX } from '../combat/SoundFX';
+import { Voices } from '../combat/Voices';
+
+/** One spoken line. */
+export interface Line {
+  /** Who speaks, as shown above the line (a name, in sentence case). Omit for a line with no speaker. */
+  speaker?: string;
+  text: string;
+  /** Its recording, `public/assets/voice/<voice>.mp3`. Without one (or until the file exists) the line is read. */
+  voice?: string;
+  /** Seconds on screen, instead of the recording's length or the reading time. */
+  hold?: number;
+}
+
+/**
+ * `scene`: a cutscene's lines, low in the frame over the letterbox; the player can read ahead. `voice`: a voice in
+ * the hero's head during the fight (the guru's remembered teachings), above the HUD, on its timer only (the buttons
+ * are busy fighting), with a little of the place's reverb.
+ */
+export type LineStyle = 'scene' | 'voice';
+
+/** Seconds a line without a recording stays up: a lead-in, then a comfortable reading pace. */
+export function readingTime(text: string): number {
+  const words = text.trim().split(/\s+/).length;
+  return THREE.MathUtils.clamp(1.2 + words * 0.3, 2.2, 8);
+}
+
+/** After its recording ends, a line stays this long. */
+export const VOICE_TAIL = 0.45;
+/** A recording that arrives later than this into its line is not started (the line has moved on without it). */
+const LATE_VOICE = 0.6;
+/** A line can't be read past in its first moments (one press should not skip two lines). */
+const ADVANCE_GUARD = 0.25;
+const VOICE_WET = 0.35;
+
+const $ = (id: string) => document.getElementById(id)!;
+
+interface Entry {
+  line: Line;
+  style: LineStyle;
+  /** Called when this line is done (the last line of a group); `cut`: the player read past it. */
+  done?: (cut: boolean) => void;
+}
+
+/**
+ * Subtitles and the voices behind them. Lines play one after another, each for its recording's length or its reading
+ * time; `advance` (the skip button tapped, in cutscenes) moves on early. The caller runs `update` every rendered
+ * frame while the game is not paused.
+ */
+export class Dialogue {
+  private readonly root = $('subtitle');
+  private readonly speakerEl = $('subtitle-speaker');
+  private readonly textEl = $('subtitle-line');
+  private queue: Entry[] = [];
+  private entry: Entry | null = null;
+  private time = 0;
+  private duration = 0;
+  private voice: AudioBuffer | null = null;
+  /** Line seconds at which its recording started. */
+  private voiceAt = 0;
+  private stopVoice: (() => void) | null = null;
+  private paused = false;
+  /** Bumped whenever the line changes, so a recording that arrives late knows it is too late. */
+  private token = 0;
+
+  /**
+   * Speaks `lines`, then calls `onDone` (`cut`: the player read past the last one). Cutscene lines replace whatever
+   * is being said; in-fight lines wait behind other in-fight lines.
+   */
+  public play(lines: Line[], style: LineStyle, onDone?: (cut: boolean) => void): void {
+    const entries: Entry[] = lines.map((line) => ({ line, style }));
+    if (entries.length === 0) {
+      onDone?.(false);
+      return;
+    }
+    entries[entries.length - 1].done = onDone;
+    Voices.preload(lines.map((l) => l.voice));
+    if (style === 'voice' && this.entry?.style === 'voice') {
+      this.queue.push(...entries);
+      return;
+    }
+    this.clear();
+    this.queue = entries;
+    this.next(false);
+  }
+
+  /** Whether a line is up. */
+  public get speaking(): boolean {
+    return this.entry !== null;
+  }
+
+  /** The player read ahead: the next line now (cutscene lines only). */
+  public advance(): void {
+    if (this.entry?.style !== 'scene' || this.time < ADVANCE_GUARD) return;
+    this.next(true);
+  }
+
+  public update(dt: number): void {
+    if (!this.entry || this.paused) return;
+    this.time += dt;
+    if (this.time >= this.duration) this.next(false);
+  }
+
+  /** The game paused: the line holds and its recording stops; on resume it picks up where it was. */
+  public setPaused(on: boolean): void {
+    if (on === this.paused) return;
+    this.paused = on;
+    if (on) this.silence();
+    else if (this.entry && this.voice) this.speak(this.voice, this.time - this.voiceAt);
+  }
+
+  /** Stops talking at once (nothing waiting is called). */
+  public clear(): void {
+    this.token++;
+    this.queue = [];
+    this.entry = null;
+    this.silence();
+    this.voice = null;
+    this.root.classList.remove('show');
+  }
+
+  private next(cut: boolean): void {
+    const done = this.entry?.done;
+    this.token++;
+    this.silence();
+    this.voice = null;
+    this.entry = this.queue.shift() ?? null;
+    if (this.entry) this.start(this.entry);
+    else this.root.classList.remove('show');
+    done?.(cut);
+  }
+
+  private start(entry: Entry): void {
+    const { line } = entry;
+    this.time = 0;
+    this.duration = line.hold ?? readingTime(line.text);
+    this.speakerEl.textContent = line.speaker ?? '';
+    this.textEl.textContent = line.text;
+    this.root.classList.toggle('voice', entry.style === 'voice');
+    this.root.classList.remove('show');
+    void this.root.offsetWidth; // restart the fade between lines
+    this.root.classList.add('show');
+
+    const ready = Voices.get(line.voice);
+    if (ready) {
+      this.useVoice(ready);
+      return;
+    }
+    if (!Voices.has(line.voice)) return;
+    const token = this.token;
+    void Voices.load(line.voice).then((buffer) => {
+      if (buffer && token === this.token && this.time < LATE_VOICE) this.useVoice(buffer);
+    });
+  }
+
+  /** The recording starts now, and the line lasts as long as it does (unless the line has a hold of its own). */
+  private useVoice(buffer: AudioBuffer): void {
+    this.voice = buffer;
+    this.voiceAt = this.time;
+    if (this.entry?.line.hold === undefined) this.duration = this.time + buffer.duration + VOICE_TAIL;
+    if (!this.paused) this.speak(buffer, 0);
+  }
+
+  private speak(buffer: AudioBuffer, offset: number): void {
+    this.silence();
+    this.stopVoice = SoundFX.getInstance().playVoice(buffer, offset, this.entry?.style === 'voice' ? VOICE_WET : 0);
+  }
+
+  private silence(): void {
+    this.stopVoice?.();
+    this.stopVoice = null;
+  }
+}

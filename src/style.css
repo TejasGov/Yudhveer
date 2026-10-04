@@ -812,6 +812,10 @@ kbd {
   height: 11vh;
 }
 
+#cinema.on.bare .letterbox {
+  height: 0;
+}
+
 .card {
   position: absolute;
   opacity: 0;
@@ -946,6 +950,68 @@ kbd {
   pointer-events: none;
 }
 
+/* ---------------------------------------------------------------- Subtitles */
+
+/* Over the fade, so a line can be spoken on black. Low over the letterbox in cutscenes; above the HUD in a fight. */
+#subtitle {
+  position: fixed;
+  left: 50%;
+  bottom: calc(11vh + 2.4vh);
+  z-index: 26;
+  width: min(62ch, 86vw);
+  transform: translate(-50%, 6px);
+  text-align: center;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 350ms ease-out, transform 450ms ease-out;
+}
+
+#subtitle.show {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
+#subtitle.voice {
+  bottom: calc(var(--edge) * 0.7 + 118px);
+}
+
+#subtitle-speaker {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
+  font-size: 15px;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.95);
+}
+
+/* The one accent: a short sindoor rule before the speaker's name. */
+#subtitle-speaker::before {
+  content: '';
+  width: 22px;
+  height: 2px;
+  background: var(--sindoor);
+}
+
+#subtitle-speaker:empty {
+  display: none;
+}
+
+#subtitle-line {
+  font-family: var(--serif);
+  font-weight: 500;
+  font-size: clamp(22px, 2.2vw, 29px);
+  line-height: 1.25;
+  color: var(--paper);
+  text-shadow: 0 1px 12px rgba(0, 0, 0, 0.9), 0 0 2px rgba(0, 0, 0, 0.8);
+}
+
+#subtitle.voice #subtitle-line {
+  font-style: italic;
+  opacity: 0.92;
+}
+
 /* ---------------------------------------------------------------- Small screens */
 
 @media (max-width: 720px) {
@@ -971,6 +1037,10 @@ kbd {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  #subtitle {
+    transition: opacity 350ms ease-out;
+  }
+
   .screen,
   #callout.show,
   #marma-prompt {

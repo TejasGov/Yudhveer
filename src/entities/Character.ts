@@ -374,6 +374,13 @@ export class Character extends Entity {
     this.rigStateTime = this.stateMachine.stateTime;
   }
 
+  /** A cutscene cue: plays one of the model's clips by name (see `playScripted`). False if it has no such clip. */
+  public playClip(clip: string, options: { timeScale?: number; fade?: number } = {}): boolean {
+    if (!this.rig?.clipInfo(clip)) return false;
+    this.playScripted({ clip, ...options });
+    return true;
+  }
+
   /**
    * Keeps the jump clip in step with the physics: a longer fall (off a ledge) holds the last airborne pose until
    * the feet touch down, an early touchdown (onto a ledge) skips straight to the landing.

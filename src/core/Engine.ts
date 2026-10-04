@@ -11,6 +11,7 @@ import { SoundFX, MOODS, type MusicMood, type Ambience } from '../combat/SoundFX
 import { CombatSystem } from '../combat/CombatSystem';
 import { CombatDebug } from '../combat/CombatDebug';
 import { ProjectileManager } from '../combat/ProjectileManager';
+import { Voices } from '../combat/Voices';
 import { HitboxManager } from '../combat/HitboxManager';
 import { Player } from '../entities/Player';
 import { Enemy } from '../entities/Enemy';
@@ -37,8 +38,10 @@ import { CHAPTERS, chapterById, type Chapter } from '../game/Chapters';
 import { KITS, type Ability } from '../game/Progression';
 import { CinematicDirector } from '../cinematics/CinematicDirector';
 import { buildIntro, buildArrival, ATTRACT, type IntroContext } from '../cinematics/Intros';
+import { SceneRun, Stage, Staging, storyVoices, triggered, type StoryBeat, type StoryScene } from '../cinematics/Scene';
 import { Hud } from '../ui/Hud';
 import { Cinema } from '../ui/Cinema';
+import { Dialogue } from '../ui/Dialogue';
 import { ScreenStack } from '../ui/Menus';
 import { refreshGlyphs } from '../ui/Glyphs';
 
@@ -64,6 +67,8 @@ const MAX_STEPS_PER_FRAME = 5;
 const HANDOFF_SECONDS = 1.1;
 /** Hold the skip button this long to skip a cutscene. */
 const SKIP_HOLD = 0.7;
+/** A press of the skip button shorter than this is a tap: on to the next line. */
+const SKIP_TAP = 0.3;
 /** After the hero falls / the last enemy falls, this long before the outcome screen. */
 const DEFEAT_DELAY = 2.6;
 const VICTORY_DELAY = 3.4;
@@ -177,6 +182,7 @@ const ABILITY_NAMES: Record<Ability, string> = {
   leap: 'The leaping strike',
 };
 
+/** `intro`: any cutscene (a chapter's intro, a boss arriving, a story scene); nobody acts on their own. */
 type Mode = 'boot' | 'title' | 'loading' | 'intro' | 'handoff' | 'play' | 'outro' | 'over';
 
 interface InterpolatedTransform {
@@ -209,8 +215,19 @@ export class Engine {
 
   private readonly hud = new Hud();
   private readonly cinema = new Cinema();
+  private readonly dialogue = new Dialogue();
   private readonly screens = new ScreenStack();
   private readonly director: CinematicDirector;
+  /** Characters walking to their marks in story scenes. */
+  private readonly staging = new Staging();
+  /** The story scene playing, if one is. */
+  private sceneRun: SceneRun | null = null;
+  /** Story scenes already played this session: a retry settles them instead of playing them again. */
+  private readonly seenScenes = new Set<string>();
+  /** The chapter's mid-fight beats, and whether each has fired this attempt. */
+  private beats: { beat: StoryBeat; fired: boolean }[] = [];
+  /** Moves taught during this attempt (`learned` triggers). */
+  private readonly learnedNow = new Set<Ability>();
   private container!: HTMLElement;
 
   private mode: Mode = 'boot';
@@ -220,6 +237,8 @@ export class Engine {
   private modeTime = 0;
   private fightTime = 0;
   private skipHeld = 0;
+  /** The skip button must be let go before it counts again (held into a cutscene, or just used to skip one). */
+  private skipLatched = false;
   private hintIndex = 0;
   /** The first fight's hints play once per session, not on every retry. */
   private hintsShown = false;
@@ -242,6 +261,8 @@ export class Engine {
   constructor() {
     this.combatDebug = new CombatDebug(this.sceneManager.scene);
     this.director = new CinematicDirector(this.sceneManager.camera);
+    // Put on a mark by a cue (in a render frame): the next frame must not interpolate from where they were.
+    this.staging.onTeleport = (actor) => this.interpolated.delete(actor.group);
     this.combatSystem.onEvent = (e) => this.combatDebug.onEvent(e);
     this.combatSystem.onCallout = (c) => this.hud.callout(c);
     this.combatSystem.onPlayerHurt = () => this.hud.hurt();
@@ -276,7 +297,10 @@ export class Engine {
 
     this.player = new Player();
     this.player.onCharged = () => this.hud.callout({ text: 'Shakti', sub: 'Your next three blows strike harder', tone: 'gold' });
-    this.player.onLearned = (ability) => this.hud.callout({ text: 'Learned', sub: ABILITY_NAMES[ability], tone: 'gold' });
+    this.player.onLearned = (ability) => {
+      this.learnedNow.add(ability);
+      this.hud.callout({ text: 'Learned', sub: ABILITY_NAMES[ability], tone: 'gold' });
+    };
     this.player.group.visible = false;
 
     // The title screen stands in the first chapter's arena; the hero streams in alongside it.
@@ -573,6 +597,8 @@ export class Engine {
     this.loadToken++;
     this.paused = false;
     this.director.skip();
+    this.dialogue.clear();
+    this.dialogue.setPaused(false);
     this.cinema.setActive(false);
     this.cinema.setFade(0);
     this.hud.show(false);
@@ -609,6 +635,8 @@ export class Engine {
     this.paused = false;
     this.screens.clear();
     this.director.skip();
+    this.dialogue.clear();
+    this.dialogue.setPaused(false);
     this.cinema.setActive(false);
     this.hud.show(false);
     this.hud.clearHint();
@@ -654,10 +682,17 @@ export class Engine {
     this.hud.bind(this.enemies);
     this.fightTime = 0;
     this.hintIndex = chapter.id === 1 && Settings.get().hints && !this.hintsShown ? 0 : FIRST_FIGHT_HINTS.length;
+    this.beats = (chapter.story?.beats ?? []).map((beat) => ({ beat, fired: false }));
+    this.learnedNow.clear();
+    Voices.preload(storyVoices(chapter.story));
     this.hideLoading();
 
     if (options.intro) this.playIntro(chapter);
-    else this.beginFight(true);
+    else {
+      // No cutscenes on a retry: the opening scene's marks and hooks still apply.
+      if (chapter.story?.opening) this.storyScene(chapter.story.opening, () => {}, false);
+      this.beginFight(true);
+    }
   }
 
   /** Sets up a wave chapter: the first minions (one per lane) now. */
@@ -738,8 +773,9 @@ export class Engine {
     p.currentMarma = 0;
     p.group.rotation.y = Math.atan2(enemy.getPosition().x - p.getPosition().x, enemy.getPosition().z - p.getPosition().z);
     this.projectileManager.clear();
+    this.dialogue.clear();
     this.setMode('intro');
-    this.skipHeld = 0;
+    this.resetSkip();
     this.hud.show(false);
     this.cinema.setActive(true);
     this.director.play(buildArrival(this.introContext(this.chapter!), enemy), () => this.endIntro());
@@ -780,10 +816,106 @@ export class Engine {
 
   private playIntro(chapter: Chapter): void {
     this.setMode('intro');
-    this.skipHeld = 0;
+    this.resetSkip();
     this.cinema.setActive(true);
     this.cinema.setFade(1);
-    this.director.play(buildIntro(this.introContext(chapter)), () => this.endIntro());
+    const token = this.loadToken;
+    this.director.play(buildIntro(this.introContext(chapter)), () => this.afterIntro(chapter, token));
+  }
+
+  /** The intro is over (or skipped): the chapter's opening scene, if it has one, then the fight. */
+  private afterIntro(chapter: Chapter, token: number): void {
+    const opening = chapter.story?.opening;
+    if (!opening || token !== this.loadToken || this.mode !== 'intro') this.endIntro();
+    else this.storyScene(opening, () => this.endIntro());
+  }
+
+  /** A new cutscene: a press already held when it starts (or that skipped the last one) does not count. */
+  private resetSkip(): void {
+    this.skipHeld = 0;
+    this.skipLatched = this.inputManager.skipHeld();
+  }
+
+  /** Who stands where, for story scenes and beat triggers. */
+  private stage(): Stage {
+    return new Stage(this.chapter!, this.levelManager.activeLevel!, this.player!, this.enemies, this.introContext(this.chapter!).cards);
+  }
+
+  /**
+   * A story scene: played the first time this session (if `play`), otherwise settled (its marks and essential hooks
+   * applied at once). `onDone` either way, once it is over.
+   */
+  private storyScene(scene: StoryScene, onDone: () => void, play = true): void {
+    if (play && !this.seenScenes.has(scene.id)) {
+      this.playScene(scene, onDone);
+      return;
+    }
+    new SceneRun(scene, this.stage(), this.dialogue, this.staging).settle();
+    onDone();
+  }
+
+  /** Plays a story scene as a cutscene (whatever fight there is holds still); `onDone` once played or skipped. */
+  private playScene(scene: StoryScene, onDone: () => void): void {
+    this.seenScenes.add(scene.id);
+    this.setMode('intro');
+    this.resetSkip();
+    this.hud.show(false);
+    this.hud.clearHint();
+    this.projectileManager.clear();
+    this.dialogue.clear();
+    this.cinema.setActive(true, scene.letterbox !== false);
+    const stage = this.stage();
+    this.staging.begin(stage.player, stage.enemies);
+    const run = new SceneRun(scene, stage, this.dialogue, this.staging);
+    const token = this.loadToken;
+    this.sceneRun = run;
+    this.director.play(run.shots, () => {
+      if (this.sceneRun === run) this.sceneRun = null;
+      run.finish();
+      // Left for the title or another chapter: nothing follows.
+      if (token === this.loadToken) onDone();
+    });
+  }
+
+  /** Mid-fight story beats whose moment has come: lines spoken over the fight, or a scene that stops it. */
+  private updateBeats(): void {
+    if (!this.beats.length || !this.player || this.player.isDown()) return;
+    // A final boss still loading in gets his own cutscene first.
+    if (this.finale?.boss && !this.finale.boss.group.visible) return;
+    const stage = this.stage();
+    for (const b of this.beats) {
+      if (b.fired || !triggered(b.beat.on, stage, { time: this.fightTime, learned: this.learnedNow })) continue;
+      b.fired = true;
+      b.beat.run?.(stage);
+      if ('lines' in b.beat) {
+        this.dialogue.play(b.beat.lines, 'voice');
+      } else {
+        this.storyScene(b.beat.scene, () => this.endIntro());
+        if (this.mode !== 'play') return; // one scene at a time
+      }
+    }
+  }
+
+  /** The chapter is decided and its outcome screen is due: a won chapter's ending scene first, if it has one. */
+  private concludeChapter(): void {
+    const ending = this.mode === 'outro' ? this.chapter?.story?.ending : undefined;
+    if (!ending) {
+      if (this.mode === 'outro') this.mode = 'over';
+      this.showOutcome();
+      return;
+    }
+    this.storyScene(ending, () => {
+      this.mode = 'over';
+      this.cinema.setActive(false);
+      this.fadeFromBlack(0.8);
+      this.showOutcome();
+    });
+  }
+
+  /** Fades the picture back in from however black the screen is now. */
+  private fadeFromBlack(seconds: number): void {
+    const fade = { a: this.cinema.fade };
+    gsap.to(fade, { a: 0, duration: seconds, ease: 'power1.out', onUpdate: () => this.cinema.setFade(fade.a) });
   }
 
   private introContext(chapter: Chapter): IntroContext {
@@ -835,8 +967,7 @@ export class Engine {
     if (fadeIn) {
       // A retry skips the cutscene, but the boss still announces himself.
       this.cinema.setFade(1);
-      const fade = { a: 1 };
-      gsap.to(fade, { a: 0, duration: 0.8, ease: 'power1.out', onUpdate: () => this.cinema.setFade(fade.a) });
+      this.fadeFromBlack(0.8);
     }
     this.updateCaptureHint();
   }
@@ -844,6 +975,7 @@ export class Engine {
   private pause(): void {
     if (this.paused) return;
     this.paused = true;
+    this.dialogue.setPaused(true);
     this.inputManager.releaseAll();
     this.inputManager.exitPointerLock();
     $('pause-chapter').textContent = this.chapter ? `Chapter ${this.chapter.numeral}, ${this.chapter.name}` : '';
@@ -860,6 +992,7 @@ export class Engine {
     }
     this.screens.clear();
     this.paused = false;
+    this.dialogue.setPaused(false);
     this.inputManager.releaseAll();
     this.inputManager.discardLook();
     this.lastTime = performance.now();
@@ -874,6 +1007,7 @@ export class Engine {
       this.outcome = 'defeat';
       this.outcomeAt = DEFEAT_DELAY;
       this.hud.clearHint();
+      this.dialogue.clear();
       this.soundFX.music.play(null);
       this.soundFX.playDefeat();
       this.slowMotion(0.4, 1.2);
@@ -961,6 +1095,7 @@ export class Engine {
     this.enemies = [];
     this.horde = null;
     this.finale = null;
+    this.staging.clear();
     this.combatDebug.prune(this.player ? [this.player] : []);
     this.projectileManager.clear();
     this.interpolated.clear();
@@ -1013,6 +1148,8 @@ export class Engine {
       solid: f.stateMachine.currentState !== 'DEAD' && !(f === player && player.isEvading()),
     })));
 
+    // Story scenes walk people to their marks (the motor below still resolves them).
+    if (this.mode === 'intro') this.staging.update(dt);
     player.update(dt);
     this.enemies.forEach((enemy) => enemy.update(dt));
 
@@ -1102,9 +1239,18 @@ export class Engine {
       this.modeTime += FIXED_DT;
       this.updateCamera(FIXED_DT);
       this.updateFlow(FIXED_DT);
+      this.dialogue.update(FIXED_DT);
       this.particleFX.update(FIXED_DT);
     }
     this.paused = true;
+  }
+
+  /** Dev: everyone in the arena falls now; the victory, the chapter's ending scene and its outcome follow as in play. */
+  public debugWin(): void {
+    for (const e of this.enemies) {
+      e.currentHealth = 0;
+      e.stateMachine.changeState('DEAD');
+    }
   }
 
   /** Dev: back to real time after `debugShot` / `debugAdvance` / `debugStep`. */
@@ -1148,6 +1294,7 @@ export class Engine {
       this.modeTime += rawDt;
       this.updateCamera(rawDt);
       this.updateFlow(rawDt);
+      this.dialogue.update(rawDt);
     }
 
     this.particleFX.update(effectiveDt);
@@ -1208,12 +1355,19 @@ export class Engine {
   private updateFlow(dt: number): void {
     switch (this.mode) {
       case 'intro': {
-        // Hold to skip.
-        this.skipHeld = this.inputManager.skipHeld() ? this.skipHeld + dt : 0;
+        // Hold to skip; a tap moves on to the next line.
+        if (!this.inputManager.skipHeld()) {
+          if (this.skipHeld > 0 && this.skipHeld < SKIP_TAP) this.sceneRun?.advance();
+          this.skipHeld = 0;
+          this.skipLatched = false;
+        } else if (!this.skipLatched) {
+          this.skipHeld += dt;
+        }
         const show = this.skipHeld > 0 || this.modeTime > 2.5;
         this.cinema.skip(Math.min(1, this.skipHeld / SKIP_HOLD), show);
         if (this.skipHeld >= SKIP_HOLD) {
           this.skipHeld = 0;
+          this.skipLatched = true;
           this.director.skip();
         }
         break;
@@ -1224,15 +1378,15 @@ export class Engine {
         break;
       case 'play':
         this.updateHints();
-        this.checkOutcome();
+        this.updateBeats();
+        if (this.mode === 'play') this.checkOutcome();
         break;
       case 'outro':
       case 'over':
         this.outcomeAt -= dt;
         if (this.outcomeAt <= 0 && this.screens.empty) {
-          if (this.mode === 'outro') this.mode = 'over';
-          this.showOutcome();
           this.outcomeAt = Infinity;
+          this.concludeChapter();
         }
         break;
       default:

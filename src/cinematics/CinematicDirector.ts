@@ -10,7 +10,8 @@ export interface CameraKey {
 /** One shot: the camera travels through its keys (a smooth curve) over `duration` seconds. */
 export interface Shot {
   duration: number;
-  keys: CameraKey[];
+  /** The camera's path, or a function giving it when the shot starts (to frame characters where they stand then). */
+  keys: CameraKey[] | (() => CameraKey[]);
   /** Easing over the whole path (default: ease in and out). */
   ease?: (t: number) => number;
   /** Handheld drift, metres (default 0.03). */
@@ -20,6 +21,10 @@ export interface Shot {
   /** Fade from black at the start / to black at the end (seconds; 0 is a hard cut). */
   fadeIn?: number;
   fadeOut?: number;
+  /** Past `duration`, the camera holds its last pose while this is true (a line still being spoken). */
+  holdWhile?: () => boolean;
+  /** Ends the shot early once true (the player has read ahead). */
+  endWhen?: () => boolean;
 }
 
 export const ease = {
@@ -44,7 +49,9 @@ interface Prepared {
  * runs `update` every rendered frame while it is active; `fade` reports how black the screen should be.
  */
 export class CinematicDirector {
-  private shots: Prepared[] = [];
+  private shots: Shot[] = [];
+  /** The current shot, its path built when it starts. */
+  private current: Prepared | null = null;
   private index = 0;
   private time = 0;
   private onDone: (() => void) | null = null;
@@ -57,23 +64,49 @@ export class CinematicDirector {
   constructor(private readonly camera: THREE.PerspectiveCamera) {}
 
   public play(shots: Shot[], onDone: () => void): void {
-    this.shots = shots.filter((s) => s.keys.length > 0).map((shot) => {
-      const keys = shot.keys.length === 1 ? [shot.keys[0], shot.keys[0]] : shot.keys;
-      return {
-        shot,
-        path: new THREE.CatmullRomCurve3(keys.map((k) => k.pos), false, 'centripetal'),
-        look: new THREE.CatmullRomCurve3(keys.map((k) => k.look), false, 'centripetal'),
-        fov: keys.map((k) => k.fov ?? 45),
-        cuesFired: new Set(),
-      };
-    });
+    this.shots = shots.filter((s) => typeof s.keys === 'function' || s.keys.length > 0);
     this.index = 0;
     this.time = 0;
     this.elapsed = 0;
     this.onDone = onDone;
     this.active = this.shots.length > 0;
-    if (!this.active) onDone();
-    else this.apply();
+    if (!this.active) {
+      this.current = null;
+      onDone();
+    } else {
+      this.enter(0);
+      this.apply();
+    }
+  }
+
+  /**
+   * Starts shot `index`. Its cues at 0 s run first (someone put on a mark off camera), then its path is built from
+   * where things stand.
+   */
+  private enter(index: number): void {
+    this.index = index;
+    const shot = this.shots[index];
+    const cuesFired = new Set<number>();
+    (shot.cues ?? []).forEach((cue, i) => {
+      if (cue.at > 0) return;
+      cuesFired.add(i);
+      cue.run();
+    });
+    let keys = typeof shot.keys === 'function' ? shot.keys() : shot.keys;
+    if (keys.length === 0) keys = [{ pos: this.camera.position.clone(), look: this.focusAhead() }];
+    if (keys.length === 1) keys = [keys[0], keys[0]];
+    this.current = {
+      shot,
+      path: new THREE.CatmullRomCurve3(keys.map((k) => k.pos), false, 'centripetal'),
+      look: new THREE.CatmullRomCurve3(keys.map((k) => k.look), false, 'centripetal'),
+      fov: keys.map((k) => k.fov ?? 45),
+      cuesFired,
+    };
+  }
+
+  /** A point straight ahead of the camera (a shot with no keys holds the frame it inherits). */
+  private focusAhead(): THREE.Vector3 {
+    return this.camera.getWorldDirection(new THREE.Vector3()).multiplyScalar(10).add(this.camera.position);
   }
 
   /** Ends the cutscene now (cues not yet fired are skipped; the caller settles the scene). */
@@ -85,9 +118,9 @@ export class CinematicDirector {
   /** Jumps to shot `index` at `time` seconds, firing that shot's cues up to then (tuning shots by hand). */
   public seek(index: number, time: number): void {
     if (!this.active) return;
-    this.index = THREE.MathUtils.clamp(index, 0, this.shots.length - 1);
+    this.enter(THREE.MathUtils.clamp(index, 0, this.shots.length - 1));
     this.time = time;
-    const p = this.shots[this.index];
+    const p = this.current!;
     (p.shot.cues ?? []).forEach((cue, i) => {
       if (!p.cuesFired.has(i) && cue.at <= time) {
         p.cuesFired.add(i);
@@ -99,7 +132,7 @@ export class CinematicDirector {
 
   /** Where the current shot is looking (the shadow light follows it). */
   public focus(): THREE.Vector3 {
-    const p = this.shots[this.index];
+    const p = this.current;
     if (!p) return new THREE.Vector3();
     return p.look.getPoint(this.progress(p));
   }
@@ -108,21 +141,25 @@ export class CinematicDirector {
     if (!this.active) return;
     this.time += dt;
     this.elapsed += dt;
-    let p = this.shots[this.index];
+    const p = this.current!;
     for (const [i, cue] of (p.shot.cues ?? []).entries()) {
       if (!p.cuesFired.has(i) && this.time >= cue.at) {
         p.cuesFired.add(i);
         cue.run();
+        if (!this.active || this.current !== p) return; // the cue ended the cutscene
       }
     }
-    if (this.time >= p.shot.duration) {
-      this.index++;
-      this.time -= p.shot.duration;
-      if (this.index >= this.shots.length) {
+    const held = this.time >= p.shot.duration && !!p.shot.holdWhile?.();
+    if (held) this.time = p.shot.duration;
+    const early = p.shot.endWhen?.() ?? false;
+    if ((this.time >= p.shot.duration && !held) || early) {
+      // A shot cut short starts the next one from its beginning; a finished one carries the overshoot.
+      this.time = early ? 0 : this.time - p.shot.duration;
+      if (this.index + 1 >= this.shots.length) {
         this.finish();
         return;
       }
-      p = this.shots[this.index];
+      this.enter(this.index + 1);
     }
     this.apply();
   }
@@ -133,7 +170,7 @@ export class CinematicDirector {
   }
 
   private apply(): void {
-    const p = this.shots[this.index];
+    const p = this.current!;
     const u = this.progress(p);
     const pos = p.path.getPoint(u);
     const look = p.look.getPoint(u);
@@ -159,6 +196,7 @@ export class CinematicDirector {
 
   private finish(): void {
     this.active = false;
+    this.current = null;
     this.fade = 0;
     const done = this.onDone;
     this.onDone = null;

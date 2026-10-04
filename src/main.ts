@@ -22,6 +22,8 @@ window.addEventListener('DOMContentLoaded', async () => {
       shot: (index: number, time: number) => engine.debugShot(index, time),
       advance: (seconds: number) => engine.debugAdvance(seconds),
       resume: () => engine.debugResume(),
+      // Story scenes: win the chapter's fight now, to see its ending.
+      win: () => engine.debugWin(),
     };
   }
   try {

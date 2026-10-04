@@ -15,7 +15,7 @@ npm run preview  # serve the production build
 
 ## Playing
 
-The campaign runs Chapter I to IV. Each chapter opens with a short cutscene (hold Space or A to skip). Clearing a chapter unlocks the next one; progress and settings are saved in the browser. Retrying after a defeat skips the cutscene.
+The campaign runs Chapter I to IV. Each chapter opens with a short cutscene (hold Space or A to skip; in story scenes, tap it to read on to the next line). Clearing a chapter unlocks the next one; progress and settings are saved in the browser. Retrying after a defeat skips the cutscene.
 
 | Action | Keyboard and mouse | Controller |
 |---|---|---|
@@ -55,9 +55,9 @@ Every character has its own model (`src/entities/characters/`); `game asset/READ
 | Folder | What lives there |
 |---|---|
 | `src/core` | `Engine` (fixed 60 Hz simulation, interpolated rendering, game flow: title, loading, intro, fight, pause, outcome), input (keyboard, mouse, gamepad), camera, physics, settings and saved progress |
-| `src/game` | Chapter list and text, and `Progression` (the hero's kit per chapter: weapon and allowed moves) |
-| `src/cinematics` | `CinematicDirector` (camera shots along curves, cues, fades) and the per-chapter intros |
-| `src/ui` | HUD, cutscene overlay, menu navigation, key and button glyphs |
+| `src/game` | Chapter list and text, `Progression` (the hero's kit per chapter: weapon and allowed moves) and `Story` (each chapter's scenes and lines) |
+| `src/cinematics` | `CinematicDirector` (camera shots along curves, cues, fades), the per-chapter intros, and `Scene` (story scenes and beats authored as data: see docs/STORY.md, "Milestone 3") |
+| `src/ui` | HUD, cutscene overlay, subtitles and voices (`Dialogue`), menu navigation, key and button glyphs |
 | `src/entities` | Player, enemies, bosses, the animation rig and character definitions |
 | `src/combat` | Hit detection (swept blade against body capsule), combat rules, projectiles, particles, synthesized audio and music |
 | `src/levels` | Arena loading (GLB, colliders from Blender custom properties) and each level's lighting and effects |
@@ -74,4 +74,4 @@ In `npm run dev` builds (or any build with `?debug` in the URL for F3):
 
 - **F3**: combat overlay (blades, hurt capsules, strike windows, the hit log).
 - **Shift+1 / 2 / 3 / 4**: jump straight into a chapter's fight.
-- Console: `__debug.chapter(id, intro?)`, `__debug.shot(index, seconds)` to freeze a cutscene on a shot, `__debug.advance(seconds)`, `__debug.resume()`, `__debug.step(frames)` and `__debug.log()` for deterministic combat tests. `__yudhveer` is the engine.
+- Console: `__debug.chapter(id, intro?)`, `__debug.shot(index, seconds)` to freeze a cutscene on a shot, `__debug.advance(seconds)`, `__debug.resume()`, `__debug.step(frames)` and `__debug.log()` for deterministic combat tests, `__debug.win()` to win the fight at once (and see the chapter's ending scene). `__yudhveer` is the engine.

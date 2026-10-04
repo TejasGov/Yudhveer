@@ -2,7 +2,7 @@ import type { Chapter } from '../game/Chapters';
 
 const $ = (id: string) => document.getElementById(id)!;
 
-/** The cutscene overlay: letterbox bars, the fade, the chapter and name cards and the skip prompt. */
+/** The cutscene overlay: letterbox bars, the fade, the chapter and name cards and the skip prompt (subtitles: Dialogue). */
 export class Cinema {
   private readonly root = $('cinema');
   private readonly fadeEl = $('fade');
@@ -15,9 +15,11 @@ export class Cinema {
   private active = false;
   private hideTimer = 0;
 
-  public setActive(on: boolean): void {
+  /** `letterbox` false: a scene played full frame (the skip prompt and cards still show). */
+  public setActive(on: boolean, letterbox = true): void {
     this.active = on;
     clearTimeout(this.hideTimer);
+    if (on) this.root.classList.toggle('bare', !letterbox);
     if (on) {
       this.root.hidden = false;
       // Lay out the bars at zero height first, so they slide in.
@@ -30,6 +32,11 @@ export class Cinema {
       // Hidden once the bars have slid away.
       this.hideTimer = window.setTimeout(() => { if (!this.active) this.root.hidden = true; }, 750);
     }
+  }
+
+  /** How black the screen is now (0 clear .. 1 black). */
+  public get fade(): number {
+    return Math.max(0, this.fadeValue);
   }
 
   /** 0 clear .. 1 black. */

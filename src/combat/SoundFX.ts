@@ -100,7 +100,8 @@ const vary = (x: number, spread = 0.06) => x * (1 + (Math.random() * 2 - 1) * sp
 /**
  * All game audio, synthesized with the Web Audio API (no audio files): combat sounds, voices, each place's ambience
  * and reverb, cutscene hits, menu ticks and a procedural tanpura drone with a drum pulse for boss fights. Everything
- * runs through one master gain (Settings.masterVolume) split into effects, ambience and music buses.
+ * runs through one master gain (Settings.masterVolume) split into effects, ambience and music buses. The one
+ * exception is recorded dialogue (`playVoice`), which the story's lines bring when their files exist.
  */
 export class SoundFX {
   private static instance: SoundFX | null = null;
@@ -799,6 +800,41 @@ export class SoundFX {
   /** The player falls: a low bell, slowly fading. */
   public playDefeat(): void {
     [110, 164.8, 220].forEach((f, i) => this.tone({ type: 'sine', freq: f, to: f * 0.97, gain: 0.22 / (i + 1), duration: 3.5, delay: i * 0.05, wet: 0.5 }));
+  }
+
+  // --- Recorded dialogue ---------------------------------------------------------------------------------------
+
+  /** Decodes a recorded line; null before audio has started (no gesture yet) or if the file is not audio. */
+  public async decodeVoice(data: ArrayBuffer): Promise<AudioBuffer | null> {
+    if (!this.ctx) return null;
+    try {
+      return await this.ctx.decodeAudioData(data);
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Plays a recorded line from `offset` seconds through the effects bus (so the master volume applies), with `wet`
+   * of the place's reverb (a remembered voice sounds far off). Returns how to stop it, or null if audio is not running.
+   */
+  public playVoice(buffer: AudioBuffer, offset = 0, wet = 0): (() => void) | null {
+    const ctx = this.ready();
+    if (!ctx || offset >= buffer.duration) return null;
+    const src = ctx.createBufferSource();
+    src.buffer = buffer;
+    const gain = ctx.createGain();
+    gain.gain.value = 0.9;
+    src.connect(gain);
+    this.place(gain, { wet });
+    src.start(ctx.currentTime, offset);
+    return () => {
+      try {
+        src.stop();
+      } catch {
+        // Already ended.
+      }
+    };
   }
 }
 

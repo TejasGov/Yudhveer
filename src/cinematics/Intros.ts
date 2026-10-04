@@ -26,12 +26,12 @@ const UP = new THREE.Vector3(0, 1, 0);
 const v = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
 
 /** Facing and side unit vectors for a character's heading. */
-function frame(yaw: number): { fwd: THREE.Vector3; side: THREE.Vector3 } {
+export function frame(yaw: number): { fwd: THREE.Vector3; side: THREE.Vector3 } {
   return { fwd: v(Math.sin(yaw), 0, Math.cos(yaw)), side: v(Math.cos(yaw), 0, -Math.sin(yaw)) };
 }
 
 /** `base` + a*fwd + b*side + c*up. */
-function offset(base: THREE.Vector3, f: { fwd: THREE.Vector3; side: THREE.Vector3 }, a: number, b: number, c: number): THREE.Vector3 {
+export function offset(base: THREE.Vector3, f: { fwd: THREE.Vector3; side: THREE.Vector3 }, a: number, b: number, c: number): THREE.Vector3 {
   return base.clone().addScaledVector(f.fwd, a).addScaledVector(f.side, b).addScaledVector(UP, c);
 }
 

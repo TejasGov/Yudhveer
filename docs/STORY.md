@@ -53,6 +53,10 @@ himself: Andhaka has carried his own judge up the mountain.
 - **At the chapter's end**, with both bosses beaten, he learns he must go to **Dwarka**, where he will find out why
   his village was attacked. He also learns that Dwarka's boss (Shalva) fights with a **mace**, and that a sword
   will not be enough against it: hence the island and its blessed mace.
+  - *Draft, in the game since milestone 3* (`src/game/Story.ts`, `akhada-ending`): the fallen Mayavi says it. "A
+    village boy, with a borrowed sword." / Yudhveer: "Where did they take my guru?" / "Go to Dwarka, if you want to
+    know why your village burned. Shalva holds it now, and his mace has broken better blades than yours." Milestone 6
+    rewrites it (likely the vanara mentor's scene instead) and pushes on toward the island.
 
 ### Chapter III: the island (new map, its own chapter)
 
@@ -151,6 +155,66 @@ Suggested order: progression system and weapon sets first, then the prologue, th
 - **Known gaps:** the pause screen's controls list still shows every move; the lathi has no guard at all, so Chapter
   I is a pure slide-and-strike fight until the guru's teachings (milestone 4) hand something over.
 
+## Milestone 3: story delivery (landed)
+
+The systems every later chapter tells its story with. Code: `src/cinematics/Scene.ts` (the authoring format and its
+player), `src/ui/Dialogue.ts` (subtitles and voices), `src/combat/Voices.ts` (recordings), `src/game/Story.ts` (the
+scenes themselves), wired up in `Engine` (`storyScene`, `playScene`, `updateBeats`, `concludeChapter`).
+
+- **A chapter's story** is `Chapter.story` (a `ChapterStory`): an `opening` scene (after the chapter's intro, before
+  the fight), mid-fight `beats`, and an `ending` scene (once the chapter is won, before the chapter-complete screen).
+- **Beats** fire once per attempt, on a trigger: `{ bossBelow: 0.5 }` (or `{ bossBelow, enemy: 'takshaka' }`),
+  `{ fallen: 'vetala' }`, `{ learned: 'charge' }` (the hero was just taught it: `Player.learn`), `{ fightTime: 20 }`,
+  or `{ when: (s) => ... }`. A beat is either `scene` (a cutscene: the fight stops, as for a boss's arrival, then hands
+  back to the follow camera) or `lines` (spoken over the fight without stopping it: the guru's voice in his head). Its
+  `run` hook runs as it fires, e.g. to teach the move a line is about.
+- **Scenes** are lists of shots. A shot has a `camera` (keys, or a function of the stage evaluated when the shot
+  starts, so it frames people where they stand then), a `duration` (default: as long as its lines take), `ease`,
+  `sway`, `fadeIn` / `fadeOut`, `lines` (spoken from `linesAt`, default 0.4 s; the shot holds until the last is done)
+  and `cues` at seconds into the shot. Cues at 0 s run before the shot's camera is framed.
+- **Cues:** `{ actor, play: 'IDLE' | ... | 'intro' }` (a state's clip, or an enemy's roar), `{ actor, clip: 'name' }`
+  (any clip in the model), `{ actor, moveTo: mark, gait: 'walk' | 'run', face }`, `{ actor, place: mark, face }` (at
+  once), `{ actor, face: who or mark }`, and `{ run: (s) => ..., essential: true }`. Actors are `'hero'`, `'boss'` (the
+  last boss to arrive) or an enemy id. Marks are vectors or functions of the stage; `Stage` has `pos`, `head`,
+  `at(actor, fwd, side, up)`, `toward(from, to, metres)` and `height` to build them.
+- **Skipping** (hold Space or A, as for the intros) and **retries** leave the game as a played scene would: unfired
+  moves, places and turns are applied at once and `essential` hooks still run (other `run` cues and clips do not, so
+  anything that changes the game belongs in an essential hook). A scene plays once per session; after that (a retry)
+  it is settled instead. A retry also settles the opening rather than playing it, like the intro.
+- **Lines** are `{ speaker, text, voice?, hold? }`. A tap of the skip button (Space, Enter or A) reads ahead to the
+  next line, and past the last line of a shot cuts to the next shot; holding skips the scene. In-fight lines run on
+  their timer only (the buttons are busy fighting), sit above the HUD in italics and wait behind each other.
+- **Voices:** `voice: 'akhada_end_mayavi_1'` plays `public/assets/voice/akhada_end_mayavi_1.mp3` through the effects
+  bus (master volume applies; in-fight lines get a little of the place's reverb) and the line lasts as long as the
+  recording. Without the file the line shows for a reading time from its length. The build lists the files that exist
+  (`virtual:voice-lines`, `vite.config.ts`), so a missing recording is never even requested: no console errors. A
+  chapter's recordings load with the chapter. Name new files `<chapter>_<scene>_<speaker>_<n>`.
+- **Testing:** in a dev build, `__debug.chapter(2, false)` then `__debug.win()` plays Chapter II's ending.
+
+```ts
+// src/game/Story.ts: a mid-fight beat and an ending, for some chapter.
+export const BAOLI_STORY: ChapterStory = {
+  beats: [
+    { on: { bossBelow: 0.6 }, run: (s) => s.player.learn('charge'),
+      lines: [{ speaker: 'Guru', text: 'Gather yourself before you strike.', voice: 'baoli_guru_charge_1' }] },
+  ],
+  ending: {
+    id: 'baoli-ending',
+    shots: [{
+      fadeIn: 0.8,
+      cues: [{ at: 0.5, actor: 'hero', moveTo: (s) => s.toward('boss', 'hero', 2.5), face: 'boss' }],
+      camera: (s) => [{ pos: s.at('boss', 4, -2, 2.4), look: s.head('boss'), fov: 38 }],
+      lines: [{ speaker: 'Baoli Guardian', text: 'Go to the akhada.', voice: 'baoli_end_guardian_1' }],
+    }],
+  },
+};
+// src/game/Chapters.ts: { id: 1, ..., story: BAOLI_STORY }
+```
+
+- **Left for later:** there is no setting to turn subtitles off yet; the pause screen's controls list does not mention the
+  tap to read ahead; a scene cannot yet spawn a character of its own (the vanara mentor, the guru): add it to the
+  chapter's spawns, or a cue hook, when milestone 4 or 6 needs one.
+
 ## Tools
 
 - **ElevenLabs:** voices, character sound effects, music.
@@ -184,7 +248,7 @@ Each milestone is one chat. Start it with: "Read docs/STORY.md, let's do milesto
   shield, allowed moves), saved with progress.
 - [ ] **2. Hero weapon sets:** lathi, basic sword, two-handed mace (own animations), magical sword; hit data,
   trails, sounds. The user downloads the Mixamo packs it asks for.
-- [ ] **3. Story delivery:** dialogue and subtitle system, cinematic cutscene tools for story beats (beyond intros),
+- [x] **3. Story delivery:** dialogue and subtitle system, cinematic cutscene tools for story beats (beyond intros),
   voice line playback.
 - [ ] **4. Prologue:** the small village arena, goons, the scripted loss, the guru taken, Andhaka's silhouette.
 - [ ] **5. Chapter I rework:** lathi fight, the guru's remembered teachings, the freed Guardian's words.

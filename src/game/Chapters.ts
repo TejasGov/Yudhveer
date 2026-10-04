@@ -1,4 +1,6 @@
 import type { KitId } from './Progression';
+import type { ChapterStory } from '../cinematics/Scene';
+import { AKHADA_STORY } from './Story';
 
 /** The campaign, in order. `level` is the LevelManager index of the arena it is fought in. */
 export interface Chapter {
@@ -17,6 +19,8 @@ export interface Chapter {
   clearedLine: string;
   /** The defeat screen's line when no boss is standing (bosses get "<name> still stands."). */
   defeatLine: string;
+  /** Its story scenes and in-fight lines (src/game/Story.ts). */
+  story?: ChapterStory;
 }
 
 export const CHAPTERS: Chapter[] = [
@@ -43,6 +47,7 @@ export const CHAPTERS: Chapter[] = [
     line: 'The akhada asks one thing: whether you will stand.',
     clearedLine: 'The courtyard falls quiet.',
     defeatLine: 'The akhada still stands against you.',
+    story: AKHADA_STORY,
   },
   {
     id: 3,
