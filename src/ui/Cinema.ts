@@ -1,0 +1,82 @@
+import type { Chapter } from '../game/Chapters';
+
+const $ = (id: string) => document.getElementById(id)!;
+
+/** The cutscene overlay: letterbox bars, the fade, the chapter and name cards and the skip prompt. */
+export class Cinema {
+  private readonly root = $('cinema');
+  private readonly fadeEl = $('fade');
+  private readonly chapterCardEl = $('chapter-card');
+  private readonly nameCardEl = $('name-card');
+  private readonly skipEl = $('skip');
+  private readonly skipFill = $('skip-fill');
+  private timers: number[] = [];
+  private fadeValue = -1;
+  private active = false;
+  private hideTimer = 0;
+
+  public setActive(on: boolean): void {
+    this.active = on;
+    clearTimeout(this.hideTimer);
+    if (on) {
+      this.root.hidden = false;
+      // Lay out the bars at zero height first, so they slide in.
+      void this.root.offsetWidth;
+      this.root.classList.add('on');
+    } else {
+      this.root.classList.remove('on');
+      this.clearCards();
+      this.skip(0, false);
+      // Hidden once the bars have slid away.
+      this.hideTimer = window.setTimeout(() => { if (!this.active) this.root.hidden = true; }, 750);
+    }
+  }
+
+  /** 0 clear .. 1 black. */
+  public setFade(alpha: number): void {
+    if (Math.abs(alpha - this.fadeValue) < 0.002) return;
+    this.fadeValue = alpha;
+    this.fadeEl.style.opacity = alpha.toFixed(3);
+  }
+
+  public chapterCard(chapter: Chapter, holdSeconds = 5): void {
+    $('card-kicker').textContent = `Chapter ${chapter.numeral}`;
+    $('card-title').textContent = chapter.name;
+    $('card-native').textContent = chapter.native;
+    $('card-line').textContent = chapter.line;
+    this.flash(this.chapterCardEl, holdSeconds);
+  }
+
+  /** The big lower-left name card (bosses), or a smaller one (`small`) for ordinary enemies. */
+  public nameCard(name: string, epithet: string, holdSeconds: number, small = false): void {
+    $('name-title').textContent = name;
+    $('name-epithet').textContent = epithet;
+    this.nameCardEl.classList.toggle('small', small);
+    this.nameCardEl.classList.remove('show');
+    // Restart the transition when names follow each other.
+    void this.nameCardEl.offsetWidth;
+    this.flash(this.nameCardEl, holdSeconds);
+  }
+
+  public clearCards(): void {
+    this.timers.forEach((t) => clearTimeout(t));
+    this.timers = [];
+    this.chapterCardEl.classList.remove('show');
+    this.nameCardEl.classList.remove('show');
+  }
+
+  /** The "hold to skip" prompt and how far the hold has got (0..1). */
+  public skip(progress: number, visible: boolean): void {
+    this.skipEl.classList.toggle('show', visible);
+    this.skipFill.style.transform = `scaleX(${progress.toFixed(3)})`;
+  }
+
+  private flash(el: HTMLElement, holdSeconds: number): void {
+    el.classList.add('show');
+    this.later(() => el.classList.remove('show'), holdSeconds * 1000);
+  }
+
+  private later(fn: () => void, ms: number): void {
+    this.timers.push(window.setTimeout(fn, ms));
+  }
+}

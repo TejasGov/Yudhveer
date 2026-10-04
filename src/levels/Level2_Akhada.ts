@@ -31,7 +31,7 @@ const MURAL_GLOW = { color: 0xffc46b, intensity: 0.38 };
 export class Level2_Akhada extends GLBLevel {
   public readonly id = 2;
   public readonly title = 'Level 2: Hanuman Akhada';
-  public readonly subtitle = 'Oculus Courtyard of the Monolith • Agile Katar Rogues & Chakrams';
+  public readonly subtitle = 'Oculus Courtyard of the Monolith • The Vetala and Mayavi';
   public readonly atmosphere: LevelAtmosphere = {
     background: new THREE.Color(0x040614),
     backgroundIntensity: 1.0,
@@ -56,8 +56,6 @@ export class Level2_Akhada extends GLBLevel {
     super(LEVEL_URL);
     this.ownedTextures.add(this.ramp).add(this.bustRamp);
     this.playerSpawn.set(0, 0, 6);
-    // Inner verandah pillars flanking the arena (Blender x = +-17.2, y = -10 / 0 / 10).
-    for (const x of [-17.2, 17.2]) for (const z of [-10, 0, 10]) this.wallKickPoints.push(new THREE.Vector3(x, 0, z));
   }
 
   protected async loadEnvironment(): Promise<void> {

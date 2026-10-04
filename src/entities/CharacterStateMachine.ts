@@ -3,13 +3,17 @@ export type CharacterState =
   | 'WALK'
   | 'MOVE'
   | 'SPRINT'
+  | 'STRAFE_LEFT' // enemies circling, facing their target
+  | 'STRAFE_RIGHT'
+  | 'WALK_BACK' // backing off, facing their target
   | 'JUMP' // ends on landing (the controller decides)
-  | 'DODGE_ROLL'
+  | 'DODGE' // the slide: low and untouchable for part of it
   | 'ATTACK_1'
   | 'ATTACK_2'
   | 'ATTACK_3'
   | 'ATTACK_JUMP' // leaping strike out of a sprint
   | 'CHARGE' // gathering power; held, so the controller ends it
+  | 'CAST' // a ranged attack (a projectile or wave does the damage, not the blade)
   | 'PARRY'
   | 'BLOCK' // guard held after the parry window; the controller ends it
   | 'BLOCK_HIT' // a blow taken on the guard
@@ -23,12 +27,12 @@ export type CharacterState =
 /** Timers an animated character sets from its clips (see Character.attachRig). */
 export type TimedStateKey =
   | 'ATTACK_1_DURATION' | 'ATTACK_2_DURATION' | 'ATTACK_3_DURATION' | 'ATTACK_JUMP_DURATION'
-  | 'CHARGE_DURATION' | 'BLOCK_HIT_DURATION' | 'SHEATHE_DURATION' | 'DRAW_DURATION' | 'STAGGER_DURATION';
+  | 'CHARGE_DURATION' | 'BLOCK_HIT_DURATION' | 'SHEATHE_DURATION' | 'DRAW_DURATION' | 'STAGGER_DURATION'
+  | 'CAST_DURATION' | 'DODGE_DURATION';
 
 export class CharacterStateMachine {
   public currentState: CharacterState = 'IDLE';
   public stateTime = 0; // Duration in current state in seconds
-  public isInvulnerable = false;
   public isParryActive = false; // True during the 140ms deflection window
   public isAttacking = false;
   public comboQueued = false;
@@ -39,8 +43,6 @@ export class CharacterStateMachine {
   // Timings for states (in seconds)
   public readonly PARRY_WINDOW_DURATION = 0.14; // 140ms deflection frame
   public readonly PARRY_TOTAL_DURATION = 0.42;
-  public readonly DODGE_DURATION = 0.48;
-  public readonly DODGE_IFRAME_DURATION = 0.32;
 
   // Attack timings are per instance: an animated character sets them from its clip lengths.
   public ATTACK_1_DURATION = 0.38;
@@ -53,6 +55,13 @@ export class CharacterStateMachine {
   public SHEATHE_DURATION = 1.0;
   public DRAW_DURATION = 0.8;
   public STAGGER_DURATION = 0.35;
+  public CAST_DURATION = 0.7;
+  public DODGE_DURATION = 0.8;
+  /**
+   * Per attack: from when (state seconds) a queued follow-up may cut the rest of the swing short. Without an entry
+   * the whole attack plays out first (enemies). The player's are set where each swing's blade has finished.
+   */
+  public cancelAt: Partial<Record<CharacterState, number>> = {};
   public readonly DEFLECTED_DURATION = 0.75;
   public readonly POSTURE_BROKEN_DURATION = 2.5;
 
@@ -79,14 +88,11 @@ export class CharacterStateMachine {
     this.comboQueued = false;
 
     // Reset flags
-    this.isInvulnerable = false;
     this.isParryActive = false;
     this.isAttacking = false;
     this.comboWindowOpen = false;
 
-    if (newState === 'DODGE_ROLL') {
-      this.isInvulnerable = true;
-    } else if (newState === 'PARRY') {
+    if (newState === 'PARRY') {
       this.isParryActive = true;
     } else if (newState.startsWith('ATTACK')) {
       this.isAttacking = true;
@@ -97,13 +103,18 @@ export class CharacterStateMachine {
     }
   }
 
+  /** A follow-up is queued and the current swing has reached its cancel point. */
+  private chainNow(): boolean {
+    const at = this.cancelAt[this.currentState];
+    return this.comboQueued && at !== undefined && this.stateTime >= at;
+  }
+
   /** Respawn: back to IDLE even from DEAD / POSTURE_BROKEN, which `changeState` deliberately refuses to leave. */
   public reset(): void {
     const oldState = this.currentState;
     this.currentState = 'IDLE';
     this.stateTime = 0;
     this.comboQueued = false;
-    this.isInvulnerable = false;
     this.isParryActive = false;
     this.isAttacking = false;
     this.comboWindowOpen = false;
@@ -114,16 +125,6 @@ export class CharacterStateMachine {
     this.stateTime += dt;
 
     switch (this.currentState) {
-      case 'DODGE_ROLL':
-        // Invulnerability ends after i-frame window
-        if (this.stateTime > this.DODGE_IFRAME_DURATION) {
-          this.isInvulnerable = false;
-        }
-        if (this.stateTime >= this.DODGE_DURATION) {
-          this.changeState('IDLE');
-        }
-        break;
-
       case 'PARRY':
         // 140ms active deflection window
         if (this.stateTime > this.PARRY_WINDOW_DURATION) {
@@ -131,6 +132,12 @@ export class CharacterStateMachine {
         }
         if (this.stateTime >= this.PARRY_TOTAL_DURATION) {
           this.changeState(this.guardHeld ? 'BLOCK' : 'IDLE');
+        }
+        break;
+
+      case 'CAST':
+        if (this.stateTime >= this.CAST_DURATION) {
+          this.changeState('IDLE');
         }
         break;
 
@@ -142,6 +149,12 @@ export class CharacterStateMachine {
 
       case 'ATTACK_JUMP':
         if (this.stateTime >= this.ATTACK_JUMP_DURATION) {
+          this.changeState('IDLE');
+        }
+        break;
+
+      case 'DODGE':
+        if (this.stateTime >= this.DODGE_DURATION) {
           this.changeState('IDLE');
         }
         break;
@@ -163,7 +176,7 @@ export class CharacterStateMachine {
         if (this.stateTime >= this.ATTACK_1_DURATION * 0.45) {
           this.comboWindowOpen = true;
         }
-        if (this.stateTime >= this.ATTACK_1_DURATION) {
+        if (this.stateTime >= this.ATTACK_1_DURATION || this.chainNow()) {
           if (this.comboQueued) {
             this.changeState('ATTACK_2');
           } else {
@@ -176,7 +189,7 @@ export class CharacterStateMachine {
         if (this.stateTime >= this.ATTACK_2_DURATION * 0.45) {
           this.comboWindowOpen = true;
         }
-        if (this.stateTime >= this.ATTACK_2_DURATION) {
+        if (this.stateTime >= this.ATTACK_2_DURATION || this.chainNow()) {
           if (this.comboQueued) {
             this.changeState('ATTACK_3');
           } else {

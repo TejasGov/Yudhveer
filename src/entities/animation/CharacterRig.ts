@@ -4,7 +4,7 @@ import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.j
 import type { CharacterState } from '../CharacterStateMachine';
 import { addRimLight, createToonRamp, toToonMaterial } from '../../levels/environment/ToonRelight';
 
-/** One clip as described by `characters/build_character.py`'s manifest. */
+/** One clip as described by `game asset/characters/build_character.py`'s manifest. */
 export interface ClipInfo {
   duration: number;
   loop: boolean;
@@ -41,6 +41,8 @@ export interface StateAnimation {
   movingClip?: string;
   /** Play the clip backwards (drawing the sword is the sheathe in reverse). */
   reverse?: boolean;
+  /** Clip seconds to start from, skipping a slow lead-in (an attack's settle from idle). The state is shorter by it. */
+  startAt?: number;
 }
 
 export interface SocketAttachment {
@@ -52,6 +54,34 @@ export interface SocketAttachment {
   restWorldRotation: [number, number, number];
   /** Point on the attached object (its own space) that sits at the socket, e.g. the grip. */
   grip: [number, number, number];
+  /**
+   * `restWorldRotation` is relative to the socket's own frame instead of the rest-pose world. For grip sockets made
+   * by the pipeline's --fists (+Y along the fist's bar toward the thumb, +Z out of the back of the hand), where a
+   * prepared weapon (blade up +Y) fits with no rotation at all.
+   */
+  socketFrame?: boolean;
+  /**
+   * Other rest orientations for particular states, whose clips were authored for a different hold (a shield
+   * strapped to the forearm in combat clips, carried facing forward in generic runs). Blended to over ~0.2 s.
+   */
+  stateRotations?: Partial<Record<CharacterState, [number, number, number]>>;
+  /**
+   * A weapon model (GLB, made by game asset/characters/prepare_weapon.py: grip at the origin, blade up +Y) to wield instead of
+   * the built-in greybox sword.
+   */
+  model?: string;
+  /** Where the blade starts (just past the guard) and ends, up its local +Y (m): the hit-detection segment. */
+  blade?: [number, number];
+  /** Size of the prop relative to its model (a borrowed weapon cut down or scaled up to suit the wielder). */
+  scale?: number;
+}
+
+/** An attached prop and the grip orientations it can take (socket-local). */
+interface Mount {
+  object: THREE.Object3D;
+  grip: THREE.Vector3;
+  base: THREE.Quaternion;
+  byState: Map<CharacterState, THREE.Quaternion>;
 }
 
 export interface CharacterDefinition {
@@ -61,9 +91,39 @@ export interface CharacterDefinition {
   locomotion: { walkSpeed: number; moveSpeed: number; sprintSpeed: number };
   weapon?: SocketAttachment;
   offhand?: SocketAttachment;
+  /**
+   * Uniform size of the whole character, props included (a model shared by two characters can read as two people);
+   * locomotion and root motion scale with it.
+   */
+  scale?: number;
+  /** Multiplies every material's colour (a shared model recoloured for another character). */
+  tint?: THREE.ColorRepresentation;
 }
 
 const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
+/**
+ * Downloaded GLBs by URL. Several characters can share one model (the rakshasa waves); each still parses its own copy,
+ * so disposing one never frees geometry or textures another is drawing.
+ */
+const buffers = new Map<string, Promise<ArrayBuffer>>();
+
+function fetchModel(url: string): Promise<ArrayBuffer> {
+  let pending = buffers.get(url);
+  if (!pending) {
+    pending = fetch(url).then((r) => {
+      if (!r.ok) throw new Error(`${url}: HTTP ${r.status}`);
+      return r.arrayBuffer();
+    });
+    pending.catch(() => buffers.delete(url));
+    buffers.set(url, pending);
+  }
+  return pending;
+}
+
+async function loadModel(url: string): Promise<{ scene: THREE.Group; animations: THREE.AnimationClip[] }> {
+  const data = await fetchModel(url);
+  return loader.parseAsync(data, url.slice(0, url.lastIndexOf('/') + 1));
+}
 const DEFAULT_FADE = 0.15;
 const MATCH_SPEED_RANGE: [number, number] = [0.5, 2.4];
 
@@ -77,6 +137,9 @@ export class CharacterRig {
   private readonly actions = new Map<string, THREE.AnimationAction>();
   private readonly ramp = createToonRamp([0.18, 0.46, 0.8, 1.0]);
   private current: { config: StateAnimation; action: THREE.AnimationAction; lastTime: number } | null = null;
+  private readonly mounts: Mount[] = [];
+  /** The definition's `scale`, applied once props are attached (see `applyScale`). */
+  private scale = 1;
 
   private constructor(
     gltf: { scene: THREE.Object3D; animations: THREE.AnimationClip[] },
@@ -98,9 +161,23 @@ export class CharacterRig {
     this.stylise();
   }
 
+  /** Starts downloading a character's model ahead of time (a boss due mid-fight), so spawning it doesn't wait. */
+  public static prefetch(definition: CharacterDefinition): void {
+    void fetchModel(definition.model).catch(() => undefined);
+  }
+
+  /** Loads a weapon model for `SocketAttachment.model`. */
+  public static async loadProp(url: string): Promise<THREE.Object3D> {
+    const gltf = await loadModel(url);
+    gltf.scene.traverse((o) => {
+      if ((o as THREE.Mesh).isMesh) o.castShadow = true;
+    });
+    return gltf.scene;
+  }
+
   public static async load(definition: CharacterDefinition): Promise<CharacterRig> {
     const [gltf, manifest] = await Promise.all([
-      loader.loadAsync(definition.model),
+      loadModel(definition.model),
       fetch(definition.manifest).then((r) => {
         if (!r.ok) throw new Error(`manifest ${definition.manifest}: HTTP ${r.status}`);
         return r.json() as Promise<CharacterManifest>;
@@ -117,6 +194,7 @@ export class CharacterRig {
    */
   private stylise(): void {
     const converted = new Map<THREE.Material, THREE.Material>();
+    const tint = this.definition.tint !== undefined ? new THREE.Color(this.definition.tint) : null;
     this.root.traverse((obj) => {
       const mesh = obj as THREE.SkinnedMesh;
       if (!mesh.isMesh) return;
@@ -127,6 +205,7 @@ export class CharacterRig {
       const src = mesh.material as THREE.MeshStandardMaterial;
       if (!converted.has(src)) {
         const toon = toToonMaterial(src, this.ramp);
+        if (tint) toon.color.multiply(tint);
         addRimLight(toon, { color: 0xffe6c4, strength: 0.14, start: 0.74 });
         converted.set(src, toon);
         src.dispose();
@@ -151,11 +230,22 @@ export class CharacterRig {
     const socket = this.socket(attachment.socket);
     if (!socket) return false;
     this.root.updateMatrixWorld(true);
-    const socketRest = socket.getWorldQuaternion(new THREE.Quaternion());
-    const desired = new THREE.Quaternion().setFromEuler(new THREE.Euler(...attachment.restWorldRotation));
-    object.quaternion.copy(socketRest.invert().multiply(desired));
-    object.position.set(...attachment.grip).applyQuaternion(object.quaternion).negate();
-    object.scale.setScalar(1 / socket.getWorldScale(new THREE.Vector3()).x);
+    const socketRestInv = socket.getWorldQuaternion(new THREE.Quaternion()).invert();
+    const orientation = (euler: [number, number, number]) => {
+      const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(...euler));
+      return attachment.socketFrame ? q : socketRestInv.clone().multiply(q);
+    };
+    const mount: Mount = {
+      object,
+      grip: new THREE.Vector3(...attachment.grip),
+      base: orientation(attachment.restWorldRotation),
+      byState: new Map(Object.entries(attachment.stateRotations ?? {})
+        .map(([state, euler]) => [state as CharacterState, orientation(euler!)])),
+    };
+    object.quaternion.copy(mount.base);
+    object.position.copy(mount.grip).applyQuaternion(object.quaternion).negate();
+    object.scale.setScalar((attachment.scale ?? 1) / socket.getWorldScale(new THREE.Vector3()).x);
+    if (mount.byState.size) this.mounts.push(mount);
     // Props join the cel look: shiny PBR metal next to toon shading reads as glowing.
     object.traverse((obj) => {
       const mesh = obj as THREE.Mesh;
@@ -166,6 +256,79 @@ export class CharacterRig {
     });
     socket.add(object);
     return true;
+  }
+
+  /**
+   * When a clip's strikes happen, measured from the animation itself (clip seconds): spans where the weapon tip,
+   * relative to the character, moves at least 45 % of its peak speed in that clip. Spans closer than 0.12 s merge;
+   * blips shorter than 0.05 s are dropped. Each span is one hit. Samples a throwaway mixer, so call it while the
+   * rig is not mid-frame (at load).
+   */
+  public measureStrikes(clipName: string, tipOf: () => THREE.Vector3): { t0: number; t1: number; peak: number }[] {
+    const action = this.actions.get(clipName);
+    if (!action) return [];
+    const clip = action.getClip();
+    const probe = new THREE.AnimationMixer(this.root);
+    probe.clipAction(clip).play();
+    const dt = 1 / 60;
+    const tips: THREE.Vector3[] = [];
+    for (let t = 0; t <= clip.duration + 1e-6; t += dt) {
+      probe.setTime(t);
+      this.root.updateMatrixWorld(true);
+      tips.push(this.root.worldToLocal(tipOf()));
+    }
+    probe.stopAllAction();
+    probe.uncacheRoot(this.root);
+    const speed = tips.map((p, i) => (i === 0 ? 0 : p.distanceTo(tips[i - 1]) / dt));
+    const peak = Math.max(...speed);
+    const spans: { t0: number; t1: number; peak: number }[] = [];
+    speed.forEach((v, i) => {
+      if (v < peak * 0.45) return;
+      const t = i * dt;
+      const last = spans[spans.length - 1];
+      if (last && t - last.t1 <= 0.12) {
+        last.t1 = t;
+        if (v > speed[Math.round(last.peak / dt)]) last.peak = t;
+      } else spans.push({ t0: t - dt, t1: t, peak: t });
+    });
+    return spans.filter((s) => s.t1 - s.t0 >= 0.05);
+  }
+
+  /**
+   * Reads something off the rig as it would be posed at `time` (clip seconds) in `clipName`, e.g. where a hand
+   * will be at a clip's mark; the live animation takes the pose back on its next update.
+   */
+  public sampleAt<T>(clipName: string, time: number, read: () => T): T | undefined {
+    const action = this.actions.get(clipName);
+    if (!action) return undefined;
+    const probe = new THREE.AnimationMixer(this.root);
+    probe.clipAction(action.getClip()).play();
+    probe.setTime(time);
+    this.root.updateMatrixWorld(true);
+    const value = read();
+    probe.stopAllAction();
+    probe.uncacheRoot(this.root);
+    return value;
+  }
+
+  /**
+   * Sizes the whole character, props included. Call after attaching props (attachment normalises a prop to its
+   * own size against the socket, so scaling first would undo it on the weapon).
+   */
+  public applyScale(scale: number): void {
+    this.scale = scale;
+    this.root.scale.setScalar(scale);
+  }
+
+  /** Eases props with per-state holds (see `SocketAttachment.stateRotations`) toward the hold for `state`. */
+  public updateMounts(state: CharacterState, dt: number): void {
+    const t = 1 - Math.exp(-12 * dt);
+    for (const m of this.mounts) {
+      const target = m.byState.get(state) ?? m.base;
+      if (m.object.quaternion.angleTo(target) < 1e-4) continue;
+      m.object.quaternion.slerp(target, t);
+      m.object.position.copy(m.grip).applyQuaternion(m.object.quaternion).negate();
+    }
   }
 
   /** Cross-fades to the animation for `config`; a looping clip that is already playing just continues. */
@@ -183,17 +346,19 @@ export class CharacterRig {
     const rate = config.timeScale ?? 1;
     action.setEffectiveTimeScale(config.reverse ? -rate : rate);
     if (config.reverse) action.time = action.getClip().duration;
+    else if (config.startAt) action.time = config.startAt;
     action.setEffectiveWeight(1);
     action.play();
+    // The very first clip, or a restart of the one playing, starts at full weight: fading in from nothing would
+    // blend through the bind (T) pose.
     if (previous && previous !== action) action.crossFadeFrom(previous, fade, false);
-    else action.fadeIn(fade);
     this.current = { config, action, lastTime: action.time };
   }
 
   /** Seconds one play of this state's clip takes at its configured rate. */
   public stateDuration(config: StateAnimation): number | undefined {
     const info = this.manifest.clips[config.clip];
-    return info ? info.duration / (config.timeScale ?? 1) : undefined;
+    return info ? (info.duration - (config.startAt ?? 0)) / (config.timeScale ?? 1) : undefined;
   }
 
   /** The playing clip's name and its position in clip seconds (counts down when reversed). */
@@ -232,7 +397,7 @@ export class CharacterRig {
     if (cur?.config.matchSpeed) {
       const authored = this.manifest.clips[cur.config.clip]?.speed;
       if (authored && authored > 0.01) {
-        const scale = THREE.MathUtils.clamp(groundSpeed / authored, ...MATCH_SPEED_RANGE);
+        const scale = THREE.MathUtils.clamp(groundSpeed / (authored * this.scale), ...MATCH_SPEED_RANGE);
         cur.action.setEffectiveTimeScale(scale);
       }
     }
@@ -240,7 +405,7 @@ export class CharacterRig {
     if (!cur || !this.drivesRootMotion()) return null;
     const curve = this.manifest.clips[cur.config.clip].rootMotion!;
     const t = cur.action.time;
-    const delta = sampleCurve(curve, t).sub(sampleCurve(curve, cur.lastTime));
+    const delta = sampleCurve(curve, t).sub(sampleCurve(curve, cur.lastTime)).multiplyScalar(this.scale);
     cur.lastTime = t;
     return delta;
   }

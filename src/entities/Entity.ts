@@ -18,6 +18,11 @@ export class Entity {
   constructor(id: string) {
     this.id = id;
     this.group = new THREE.Group();
+    // Gameplay reads and writes the heading as `group.rotation.y`, while rendering interpolates `group.quaternion`.
+    // Converting a quaternion back to the default XYZ order turns any heading past +-90 degrees into
+    // (PI, PI - yaw, PI), so `rotation.y` would be wrong and characters would turn the wrong way. In YXZ order a pure
+    // heading always comes back as (0, yaw, 0).
+    this.group.rotation.order = 'YXZ';
     this.modelGroup = new THREE.Group();
     this.group.add(this.modelGroup);
 

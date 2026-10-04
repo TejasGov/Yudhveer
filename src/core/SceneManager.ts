@@ -3,6 +3,7 @@ import gsap from 'gsap';
 import { PostFX } from './postfx/PostFX';
 import { PhysicsWorld } from './PhysicsWorld';
 import type { LevelAtmosphere } from '../levels/LevelTypes';
+import { Settings } from './Settings';
 
 // Spring-arm camera: gap kept in front of whatever blocks the arm, and the shortest the arm may get.
 const CAMERA_PADDING = 0.3;
@@ -24,6 +25,13 @@ export class SceneManager {
   public cameraShoulderOffset = 0.55; // Over-the-right-shoulder offset
   public cameraYaw = 0; // Horizontal rotation
   public cameraPitch = -0.12; // Vertical tilt
+  /** Field of view while playing; cutscenes set their own. */
+  public readonly gameplayFov = 65;
+  /**
+   * Yaw of where the camera actually looks (same convention as `cameraYaw`). The shoulder offset turns the view a
+   * few degrees off `cameraYaw`; movement uses this so W runs straight into the screen instead of slightly across it.
+   */
+  public viewYaw = 0;
 
   // Current spring-arm length (shortened when level geometry is in the way)
   private armLength = 3.4;
@@ -104,9 +112,25 @@ export class SceneManager {
     this.scene.backgroundIntensity = atm.backgroundIntensity;
     this.scene.environment = atm.environment;
     this.scene.environmentIntensity = atm.environmentIntensity;
-    const fog = this.scene.fog as THREE.FogExp2;
-    fog.color.setHex(atm.fog.color);
-    fog.density = atm.fog.density;
+    // Exponential or linear fog; swapping the kind recompiles materials once, on level change.
+    if ('density' in atm.fog) {
+      if (!(this.scene.fog as THREE.FogExp2 | null)?.isFogExp2) this.scene.fog = new THREE.FogExp2(atm.fog.color, atm.fog.density);
+      const fog = this.scene.fog as THREE.FogExp2;
+      fog.color.setHex(atm.fog.color);
+      fog.density = atm.fog.density;
+    } else {
+      if (!(this.scene.fog as THREE.Fog | null)?.isFog) this.scene.fog = new THREE.Fog(atm.fog.color, atm.fog.near, atm.fog.far);
+      const fog = this.scene.fog as THREE.Fog;
+      fog.color.setHex(atm.fog.color);
+      fog.near = atm.fog.near;
+      fog.far = atm.fog.far;
+    }
+    this.scene.backgroundRotation.copy(atm.environmentRotation ?? new THREE.Euler());
+    this.scene.environmentRotation.copy(atm.environmentRotation ?? new THREE.Euler());
+    this.camera.near = atm.clip?.near ?? 0.1;
+    this.camera.far = atm.clip?.far ?? 1000;
+    this.camera.updateProjectionMatrix();
+    this.dirLight.shadow.normalBias = atm.key.normalBias ?? 0;
     this.ambientLight.color.setHex(atm.ambient.color);
     this.ambientLight.intensity = atm.ambient.intensity;
     this.hemiLight.color.setHex(atm.hemi.sky);
@@ -130,17 +154,23 @@ export class SceneManager {
     this.postFX.setSize(window.innerWidth, window.innerHeight);
   }
 
+  /**
+   * The follow camera: turns by `yawDelta` / `pitchDelta` radians (InputManager.consumeLook), eases its pivot to
+   * the target's head and pulls in in front of anything in the way.
+   */
   public updateCamera(
     targetPos: THREE.Vector3,
-    deltaX: number,
-    deltaY: number,
+    yawDelta: number,
+    pitchDelta: number,
     dt: number
   ): void {
-    const mouseSensitivity = 0.0022;
-
-    this.cameraYaw -= deltaX * mouseSensitivity;
-    this.cameraPitch -= deltaY * mouseSensitivity;
+    this.cameraYaw -= yawDelta;
+    this.cameraPitch -= pitchDelta;
     this.cameraPitch = Math.max(-1.1, Math.min(0.8, this.cameraPitch));
+    if (this.camera.fov !== this.gameplayFov) {
+      this.camera.fov = this.gameplayFov;
+      this.camera.updateProjectionMatrix();
+    }
 
     this.cameraPivot.lerp(
       new THREE.Vector3(targetPos.x, targetPos.y + this.cameraHeight, targetPos.z),
@@ -171,13 +201,29 @@ export class SceneManager {
       .clone()
       .addScaledVector(right, this.cameraShoulderOffset * 0.5);
     this.camera.lookAt(lookAtTarget);
+    const view = lookAtTarget.clone().sub(this.camera.position).add(this.shakeOffset);
+    this.viewYaw = Math.atan2(-view.x, -view.z);
 
-    this.dirLight.position.copy(targetPos).add(this.keyLightOffset);
-    this.dirLight.target.position.copy(targetPos);
+    this.focusKeyLight(targetPos);
+  }
+
+  /** Centres the shadow-casting key light (and its 40 m shadow box) on `point`. */
+  public focusKeyLight(point: THREE.Vector3): void {
+    this.dirLight.position.copy(point).add(this.keyLightOffset);
+    this.dirLight.target.position.copy(point);
     this.dirLight.target.updateMatrixWorld();
   }
 
+  /** Puts the follow camera straight behind a character facing `faceYaw`, with no easing (fight start, respawn). */
+  public resetFollowCamera(targetPos: THREE.Vector3, faceYaw: number): void {
+    this.cameraYaw = faceYaw + Math.PI;
+    this.cameraPitch = -0.12;
+    this.cameraPivot.set(targetPos.x, targetPos.y + this.cameraHeight, targetPos.z);
+    this.armLength = this.cameraDistance;
+  }
+
   public triggerScreenShake(intensity = 0.25, duration = 0.22): void {
+    if (!Settings.get().cameraShake) return;
     const shakeObj = { intensity };
 
     gsap.to(shakeObj, {
@@ -195,15 +241,6 @@ export class SceneManager {
         this.shakeOffset.set(0, 0, 0);
       }
     });
-
-    const overlay = document.getElementById('combat-fx-overlay');
-    if (overlay) {
-      overlay.style.backgroundColor = intensity > 0.3 ? 'rgba(255, 200, 0, 0.25)' : 'rgba(255, 50, 50, 0.2)';
-      overlay.style.opacity = '1';
-      setTimeout(() => {
-        overlay.style.opacity = '0';
-      }, duration * 400);
-    }
   }
 
   public render(dt: number): void {

@@ -65,6 +65,7 @@ export class PostFX {
     this.vignette.offset = atm.vignette.offset;
     this.vignette.darkness = atm.vignette.darkness;
     if (atm.ink) this.ink.configure(atm.ink);
+    this.toneMapping.mode = atm.toneMapping === 'agx' ? ToneMappingMode.AGX : ToneMappingMode.ACES_FILMIC;
     this.rebuildPass(atm.ink !== null);
   }
 

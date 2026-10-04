@@ -1,91 +1,75 @@
-# YUDHVEER (युद्धवीर) | 3D Vedic Combat Game Engine
+# Yudhveer (युद्धवीर)
 
-A production-grade, high-fidelity 3D browser combat game engine built with **Three.js**, **Rapier3D** (`@dimforge/rapier3d-compat`), **Vite**, **TypeScript**, and **GSAP**.
-Deployment: [https://yudhveer.onrender.com/]
----
+A four-chapter sword-and-shield action game in the browser: a moonlit stepwell, a Hanuman akhada, the sea city of Dwarka at sunset and the Kailasha summit under an eclipse. Three.js, Rapier physics, Vite and TypeScript, cel-shaded with ink lines.
 
-## ⚔️ Key Features & Mechanics
+Live build: https://yudhveer.onrender.com/
 
-- **Vedic Combat Mechanics**:
-  - **Dhal Parry (Deflection)**: 140ms deflection window with resonant metallic audio, 3D sparks, expanding shockwave ring, and heavy Marma posture damage.
-  - **Marma System**: Poise/posture accumulation system with stance-broken vulnerable execution state.
-  - **GSAP Hit-Stop Freeze**: Dynamic timescale deceleration (`timeScale: 0.05`) on perfect parries and critical impacts.
-  - **Fluid Combo System**: 3-step dynamic combo (Slash $\rightarrow$ Diagonal Cleave $\rightarrow$ 360 Spin Finisher).
-  - **Acrobatic Dodges & Wall-Kicks**: Invulnerable dodge-rolls with dust VFX and pillar-assisted wall-kick momentum boosts.
-
-- **3-Stage Campaign Progression** (Blender-authored arenas streamed as GLB):
-  - **Level 1: The Moonlit Baoli** — Cel-shaded, ink-lined stepwell arena over a shallow pool with an analytic ripple-water shader, waterfalls, mist and a Kaali shrine under a baked night sky. Mercenary Grunt & Spear Duo.
-  - **Level 2: Hanuman Akhada** — Enclosed akhada beneath an open octagonal oculus and a weathered Hanuman monolith, relit as a cel-shaded comic night: a cobalt (#1E55FF) key through the oculus, vermillion (#FF1A24) floor grazers and bust uplights, screen-space ink lines. Katar Rogues & Chakram Throwers.
-  - **Level 3: Kailasha Summit** — Frozen basalt plateau above a cloud sea under a silver solar eclipse; procedural basalt / drift-snow / blood shading, charcoal fog, swirling snow-ash-ember weather and lightning that crossfades the sky. Boss duel against **Grandmaster Mahayodha**.
-
-- **Architectural Excellence**:
-  - **Hot-Swappable GLB Loader**: Dynamically swap character models or level arenas while preserving Rapier3D physics colliders and socket attachments (`mixamorigRightHand`, `mixamorigLeftHand`).
-  - **Procedural Web Audio Synth**: Custom Web Audio API synthesizer for all sword whooshes, metal clangs, spear thrusts, katar slices, chakram hums, and flame roars (zero external audio asset dependencies).
-
----
-
-## 🏛️ Level Pipeline
-
-Levels live in `src/levels/`. Each is a `GLBLevel` (async GLB load, colliders from Blender `collider` custom properties, full GPU + Rapier disposal) plus a `LevelAtmosphere` (sky, fog, lights, exposure, bloom, vignette, ink) that `SceneManager.applyAtmosphere` and the post chain (`src/core/postfx/PostFX.ts`: selective bloom → vignette → ACES) consume.
-
-| Level | Source `.blend` | Export script | Runtime asset |
-|---|---|---|---|
-| 1 | `level 1/moonlit_baoli.blend` | `level 1/export_glb.py` | `public/assets/levels/moonlit_baoli.glb` |
-| 2 | `level 2/level2_browser_atrium.blend` | `level 2/export_glb_akhada.py` | `public/assets/levels/akhada_atrium.glb` |
-| 3 | `level 3/charnel_ridge_arena.blend` | `level 3/export_glb_charnel.py` | `public/assets/levels/charnel_ridge.glb` + `public/assets/sky/charnel_*.jpg` |
-
-Re-export headless (the `.blend` is only read):
+## Running it
 
 ```bash
-blender -b "level 2/level2_browser_atrium.blend" --python "level 2/export_glb_akhada.py" -- Yudhveer/public/assets/levels/akhada_atrium.glb
-blender -b "level 3/charnel_ridge_arena.blend" --python "level 3/export_glb_charnel.py" -- Yudhveer/public/assets/levels/charnel_ridge.glb
-```
-
-The Level 2 exporter converts world-space box-projected textures into UVs and bakes constant tint layers into the images; the Level 3 exporter bakes the procedural look-dev (basalt, drift snow, blood) into per-object textures and drops the far peaks that would cover the relief baked into the sky. All three levels are cel-shaded with screen-space ink lines. The game loop simulates at a fixed 60 Hz and interpolates characters for rendering.
-
----
-
-## 🎮 Controls
-
-| Action | Input |
-|---|---|
-| **Move** | <kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> |
-| **Sprint** | <kbd>Shift</kbd> |
-| **Walk / Run toggle** | <kbd>C</kbd> |
-| **Jump** | <kbd>F</kbd> |
-| **Dodge Roll / Wall Kick** | <kbd>Space</kbd> |
-| **3x Attack Combo** | <kbd>Left Click (LMB)</kbd> |
-| **Leaping Strike** | <kbd>Left Click</kbd> while sprinting |
-| **Dhal Parry (140ms) / Guard** | <kbd>Right Click (RMB)</kbd>, hold to keep the guard up |
-| **Charge (next 3 blows ×1.6)** | hold <kbd>Q</kbd> |
-| **Sheathe / Draw** | <kbd>X</kbd> (attacking while sheathed draws) |
-| **Camera Look** | Mouse Movement (PointerLock) |
-| **Switch Level (testing)** | <kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd> or the level menu |
-
----
-
-## 🛠️ Tech Stack
-
-- **Core**: Vite, TypeScript, Vanilla CSS + Tailwind CSS HUD overlay
-- **3D Graphics**: Three.js, PCF Shadows, ACESFilmic Tone Mapping
-- **Physics**: Rapier3D (`@dimforge/rapier3d-compat`)
-- **Animation & FX**: GSAP, Custom Three.js Particle System, Web Audio API
-
----
-
-## 🚀 Getting Started
-
-```bash
-# Clone the repository
-git clone https://github.com/TejasGov/Yudhveer.git
-cd Yudhveer
-
-# Install dependencies
 npm install
-
-# Start the development server
-npm run dev
-
-# Build for production
-npm run build
+npm run dev      # http://localhost:5199
+npm run build    # type-check and build to dist/
+npm run preview  # serve the production build
 ```
+
+## Playing
+
+The campaign runs Chapter I to IV. Each chapter opens with a short cutscene (hold Space or A to skip). Clearing a chapter unlocks the next one; progress and settings are saved in the browser. Retrying after a defeat skips the cutscene.
+
+| Action | Keyboard and mouse | Controller |
+|---|---|---|
+| Move / look | W A S D / mouse | Left stick / right stick |
+| Sprint | Shift | L3 |
+| Walk | C (toggle) | Push the stick lightly |
+| Jump | Space | A |
+| Attack (press again to chain three) | Left click | X or RB |
+| Leaping strike | Attack while sprinting | Attack while sprinting |
+| Slide (passes under blows and bolts) | F | B |
+| Deflect (hold to guard) | Right click | LB or LT |
+| Charge the next three blows | Hold Q | Hold Y or RT |
+| Sheathe or draw | X | D-pad down |
+| Pause | Esc | Start |
+
+Swings turn toward the nearest enemy you are facing or steering toward and step in to reach it. Once a swing's blade has passed, the next blow, a slide or a deflect cuts its follow-through short. The slide is untouchable while low (about half a second) and carries you past an enemy.
+
+Deflect as a blow lands (a 140 ms window) to throw the attacker off balance and damage its posture. A broken posture leaves it open: your blows land at 2.2x while it recovers.
+
+## Chapters
+
+| | Arena | Opponents |
+|---|---|---|
+| I. The Moonlit Baoli | `game asset/levels/01_baoli/` | Baoli Guardian (boss, a 3.2 m horned demon with a talwar) |
+| II. Hanuman Akhada | `game asset/levels/02_akhada/` | The Vetala (twin blades) and Mayavi (a sorcerer whose bolts can be deflected back) |
+| III. Dwarka | `game asset/levels/03_dwarka/` | Shalva (boss, an asura raider with a spiked gada and a leap); when he falls, Takshaka, king of the nagas, comes for the city (final boss, two phases; fire breathed along the ground in the second) |
+| IV. Kailasha Summit | `game asset/levels/04_summit/` | Six rakshasas run in over the bridges from the two outpost islands (three at a time); when the sixth falls, Andhaka, the asura of darkness, arrives on Shiva's dais: he smiles, crowns himself and draws his cleaver from the stone (final boss, two phases; light blows thrown into his swing glance off his hide, so strike after it lands) |
+
+Dwarka keeps its authored PBR look (AgX, its own HDR sky, no cel shading or ink) and follows `game asset/levels/03_dwarka/BROWSER_NOTES.md` and `browser/scene-config.js`: the fight is a flat 10.8 m disc at y = 7.6 with walls on its rim, fighters start at x = -5 and +5, and the gameplay camera is the same follow camera as every other chapter. Its intro uses the cameras exported in the GLB.
+
+Every character has its own model (`src/entities/characters/`); `game asset/README.md` has how each was rigged and built. A chapter's final boss (`FINALES` in `src/core/Engine.ts`) arrives with his own cutscene once everyone else has fallen.
+
+## Code layout
+
+| Folder | What lives there |
+|---|---|
+| `src/core` | `Engine` (fixed 60 Hz simulation, interpolated rendering, game flow: title, loading, intro, fight, pause, outcome), input (keyboard, mouse, gamepad), camera, physics, settings and saved progress |
+| `src/game` | Chapter list and text |
+| `src/cinematics` | `CinematicDirector` (camera shots along curves, cues, fades) and the per-chapter intros |
+| `src/ui` | HUD, cutscene overlay, menu navigation, key and button glyphs |
+| `src/entities` | Player, enemies, bosses, the animation rig and character definitions |
+| `src/combat` | Hit detection (swept blade against body capsule), combat rules, projectiles, particles, synthesized audio and music |
+| `src/levels` | Arena loading (GLB, colliders from Blender custom properties) and each level's lighting and effects |
+
+The page markup and styles are `index.html` and `src/style.css`.
+
+## Source art
+
+The Blender files, character models, Mixamo animation clips and weapon models behind `public/assets/` are kept outside this repo, in a `game asset` folder next to it, with the scripts that export them. Its README has the command that rebuilds each file.
+
+## Development tools
+
+In `npm run dev` builds (or any build with `?debug` in the URL for F3):
+
+- **F3**: combat overlay (blades, hurt capsules, strike windows, the hit log).
+- **Shift+1 / 2 / 3 / 4**: jump straight into a chapter's fight.
+- Console: `__debug.chapter(id, intro?)`, `__debug.shot(index, seconds)` to freeze a cutscene on a shot, `__debug.advance(seconds)`, `__debug.resume()`, `__debug.step(frames)` and `__debug.log()` for deterministic combat tests. `__yudhveer` is the engine.

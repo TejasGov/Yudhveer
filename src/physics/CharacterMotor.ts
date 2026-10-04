@@ -25,7 +25,7 @@ export const DEFAULT_MOTOR: MotorOptions = {
 /**
  * Collision, gravity and stepping for one character, on top of a Rapier kinematic character controller.
  *
- * Gameplay code keeps moving the entity freely (input, dodges, lunges, root motion, AI); once per fixed step
+ * Gameplay code keeps moving the entity freely (input, jumps, lunges, root motion, AI); once per fixed step
  * `resolve` turns "where it wants to be" into "where it can be": walls, pillars and other fighters block,
  * stairs are climbed, ground is followed and gravity pulls it down. The entity position is the feet.
  */
@@ -36,6 +36,19 @@ export class CharacterMotor {
    */
   private static readonly fighterColliders = new Set<number>();
   private static readonly ignoreFighters = (c: RAPIER.Collider) => !CharacterMotor.fighterColliders.has(c.handle);
+
+  /**
+   * Whether there is level geometry under `feet` within `maxDrop` metres (fighters ignored): AI checks it before
+   * stepping sideways or back, so nobody circles off a bridge.
+   */
+  public static hasGround(feet: THREE.Vector3, maxDrop = 1.2): boolean {
+    const physics = PhysicsWorld.getInstance();
+    const R = physics.RAPIER_INSTANCE;
+    if (!R || !physics.world) return true;
+    const ray = new R.Ray({ x: feet.x, y: feet.y + 0.6, z: feet.z }, { x: 0, y: -1, z: 0 });
+    return physics.world.castRay(ray, maxDrop + 0.6, true, undefined, undefined, undefined, undefined,
+      CharacterMotor.ignoreFighters) !== null;
+  }
 
   public grounded = false;
   public verticalVelocity = 0;

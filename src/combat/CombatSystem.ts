@@ -6,6 +6,50 @@ import { HitboxManager } from './HitboxManager';
 import { ParticleFX } from './ParticleFX';
 import { SoundFX } from './SoundFX';
 import { SceneManager } from '../core/SceneManager';
+import type { Character } from '../entities/Character';
+
+/** Posture a chip hit deals into an armoured (committed) enemy attack, as a share of normal. */
+const ARMORED_POSTURE = 0.3;
+/** After a stagger ends, this long before another hit can stagger the player again (s). */
+const STAGGER_GRACE = 0.4;
+/** After an enemy's stagger ends, this long before a light hit can stagger it again (s): its chance to answer. */
+const ENEMY_STAGGER_GRACE = 0.8;
+/** A boss shrugs off even heavy blows for this long after one staggers it (s): finishers alone can't pin it down. */
+const BOSS_STAGGER_GRACE = 2.5;
+/**
+ * Share of a plain blow's posture damage an enemy takes (a boss less still): deflecting its attacks is what breaks
+ * it, so a combo alone doesn't leave it open every time.
+ */
+const BLADE_POSTURE = 0.7;
+const BOSS_BLADE_POSTURE = 0.35;
+
+/** A short line the HUD flashes mid-screen. `tone` picks its colour. */
+export interface Callout {
+  text: string;
+  sub?: string;
+  tone: 'gold' | 'red' | 'pale';
+}
+
+/** What the chapter-complete screen reports. */
+export interface FightStats {
+  deflections: number;
+  blocks: number;
+  hitsTaken: number;
+  postureBreaks: number;
+  damageDealt: number;
+}
+
+/** One resolved blow, for the combat log. */
+export interface CombatEvent {
+  t: number;
+  attacker: string;
+  defender: string;
+  attack: string;
+  /** State time of the attacker when it landed. */
+  at: number;
+  result: 'hit' | 'armored' | 'break' | 'blocked' | 'deflected' | 'evaded' | 'player-hit';
+  point: number[];
+}
 
 export class CombatSystem {
   private static instance: CombatSystem | null = null;
@@ -14,17 +58,25 @@ export class CombatSystem {
   private soundFX: SoundFX;
   private sceneManager: SceneManager;
 
-  // Attack hit registration debounce tracking
-  private playerHitRegistered = false;
-  private lastPlayerState = '';
-  private enemyHitMap: Map<string, boolean> = new Map();
+  /** Per attacker: the attack in progress and which of its strike windows have already landed. */
+  private readonly strikes = new Map<string, { state: string; lastTime: number; landed: Set<number> }>();
+  /** Recent hits, newest last (debug overlay and tests read this). */
+  public readonly log: CombatEvent[] = [];
+  /** Total simulated combat time, for the log. */
+  private clock = 0;
+  /** Until when (combat clock) further hits on the player deal damage without restarting a stagger. */
+  private playerStaggerImmuneUntil = 0;
+  /** Per enemy: until when light hits cannot stagger it again. */
+  private readonly staggerImmuneUntil = new Map<string, number>();
 
-  // Combo count
-  public currentCombo = 0;
-  private comboResetTimer: number | null = null;
-
-  // Hit-Stop global timescale modifier controlled by GSAP
+  /** Hit-stop and slow motion: the engine scales simulated time by this. */
   public globalTimeScale = 1.0;
+  /** This chapter's tallies (reset by `resetStats`). */
+  public stats: FightStats = emptyStats();
+  /** Mid-screen callouts (the HUD shows them). */
+  public onCallout: ((callout: Callout) => void) | null = null;
+  /** The player took a blow to the body (HUD flash). */
+  public onPlayerHurt: (() => void) | null = null;
 
   private constructor() {
     this.hitboxManager = HitboxManager.getInstance();
@@ -40,48 +92,75 @@ export class CombatSystem {
     return CombatSystem.instance;
   }
 
-  public update(player: Player, enemies: Enemy[]): void {
-    const playerState = player.stateMachine.currentState;
-
-    // Each swing can land once: reset on every new state (a combo goes ATTACK_1 -> ATTACK_2 without leaving attack)
-    if (playerState !== this.lastPlayerState) {
-      this.playerHitRegistered = false;
-      this.lastPlayerState = playerState;
+  /**
+   * One fixed step of melee: each attacker's blade, swept over the step, against each opponent's body, during the
+   * attack's strike windows (measured from the animation for animated characters). Each window lands at most once.
+   */
+  public update(player: Player, enemies: Enemy[], dt = 1 / 60): void {
+    this.clock += dt;
+    const living = enemies.filter((e) => e.stateMachine.currentState !== 'DEAD');
+    for (const enemy of living) {
+      const w = this.activeStrike(player);
+      if (w !== null) {
+        const { hit, hitPoint } = this.hitboxManager.checkWeaponIntersection(player, enemy);
+        if (hit) {
+          this.markLanded(player, w);
+          this.resolvePlayerHitOnEnemy(player, enemy, hitPoint, player.stateMachine.currentState);
+        }
+      }
+      const e = this.activeStrike(enemy);
+      if (e !== null) {
+        const { hit, hitPoint } = this.hitboxManager.checkWeaponIntersection(enemy, player);
+        if (hit) {
+          this.markLanded(enemy, e);
+          if (player.isEvading()) this.resolveEvasion(enemy, player);
+          else this.resolveEnemyHitOnPlayer(enemy, player, hitPoint);
+        }
+      }
     }
-
-    enemies.forEach((enemy) => {
-      if (enemy.stateMachine.currentState === 'DEAD') return;
-
-      const enemyState = enemy.stateMachine.currentState;
-      if (enemyState !== 'ATTACK_1' && enemyState !== 'ATTACK_2') {
-        this.enemyHitMap.set(enemy.id, false);
-      }
-
-      // 1. Process Player attacking this Enemy (the blade counts through the middle of the swing, whatever its length)
-      if (playerState.startsWith('ATTACK') && !this.playerHitRegistered) {
-        const progress = player.stateMachine.stateTime / Math.max(player.stateMachine.attackDuration(), 1e-3);
-        if (progress >= 0.15 && progress <= 0.75) {
-          const { hit, hitPoint } = this.hitboxManager.checkWeaponIntersection(player, enemy, 0.9);
-          if (hit) {
-            this.playerHitRegistered = true;
-            this.resolvePlayerHitOnEnemy(player, enemy, hitPoint, playerState);
-          }
-        }
-      }
-
-      // 2. Process this Enemy attacking Player
-      if ((enemyState === 'ATTACK_1' || enemyState === 'ATTACK_2') && !this.enemyHitMap.get(enemy.id)) {
-        const progress = enemy.stateMachine.stateTime;
-        if (progress >= 0.12 && progress <= 0.45) {
-          const { hit, hitPoint } = this.hitboxManager.checkWeaponIntersection(enemy, player, 0.85);
-          if (hit) {
-            this.enemyHitMap.set(enemy.id, true);
-            this.resolveEnemyHitOnPlayer(enemy, player, hitPoint);
-          }
-        }
-      }
-    });
+    this.hitboxManager.commitBlades([player, ...enemies]);
   }
+
+  /** The strike window `c` is in right now and has not landed yet, or null. Resets when a new attack begins. */
+  private activeStrike(c: Character): number | null {
+    const sm = c.stateMachine;
+    const state = sm.currentState;
+    let track = this.strikes.get(c.id);
+    if (!track || track.state !== state || sm.stateTime < track.lastTime) {
+      track = { state, lastTime: sm.stateTime, landed: new Set() };
+      this.strikes.set(c.id, track);
+    }
+    track.lastTime = sm.stateTime;
+    if (!state.startsWith('ATTACK')) return null;
+    const windows = c.hitWindows(state);
+    const i = windows.findIndex((w, k) => !track!.landed.has(k) && sm.stateTime >= w.t0 && sm.stateTime <= w.t1);
+    return i < 0 ? null : i;
+  }
+
+  private markLanded(c: Character, window: number): void {
+    this.strikes.get(c.id)?.landed.add(window);
+  }
+
+  private record(event: Omit<CombatEvent, 't'>): void {
+    this.log.push({ t: +this.clock.toFixed(3), ...event });
+    if (this.log.length > 200) this.log.shift();
+    this.onEvent?.(this.log[this.log.length - 1]);
+  }
+
+  /**
+   * Whether a blow makes the enemy flinch. Heavy blows break through a committed attack and move a boss; light ones
+   * never do. Neither re-staggers an enemy that just recovered (no stun-locking by attack spam).
+   */
+  private canStagger(enemy: Enemy, armored: boolean, heavyBlow: boolean): boolean {
+    // Even a heavy blow can't restagger an enemy that has only just recovered: a finisher can't loop the combo.
+    const recovered = this.clock >= (this.staggerImmuneUntil.get(enemy.id) ?? 0);
+    if (heavyBlow) return recovered;
+    if (armored || enemy.heavyPoise) return false;
+    return recovered;
+  }
+
+  /** Called for every recorded hit (debug overlay). */
+  public onEvent: ((event: CombatEvent) => void) | null = null;
 
   private resolvePlayerHitOnEnemy(
     player: Player,
@@ -114,51 +193,90 @@ export class CombatSystem {
       damage *= 2.2;
     }
 
+    // Committed enemy attacks are armoured: a chip hit lands but barely dents posture and does not interrupt.
+    // Heavy blows (finisher, leaping strike, a charged hit) still break through.
+    const heavyBlow = charged || attackState === 'ATTACK_3' || attackState === 'ATTACK_JUMP';
+    const armored = enemy.isArmored();
+    if (armored && !heavyBlow) postureDmg *= ARMORED_POSTURE;
+    postureDmg *= enemy.isBoss ? BOSS_BLADE_POSTURE : BLADE_POSTURE;
+    // Some hides turn a light blow thrown into their swing: only part of it gets through.
+    const glancing = armored && !heavyBlow && enemy.armorDamage < 1;
+    if (glancing) damage *= enemy.armorDamage;
+
     enemy.takeDamage(damage);
     const broken = enemy.addMarmaDamage(postureDmg);
 
     const heavy = charged || attackState === 'ATTACK_JUMP';
-    this.soundFX.playHitImpact();
-    this.particleFX.spawnSparks(hitPoint, heavy ? 45 : 25, charged);
-    this.sceneManager.triggerScreenShake(heavy ? 0.4 : 0.2, heavy ? 0.24 : 0.16);
-    this.triggerHitStop(0.08, heavy ? 0.12 : 0.08);
-
-    if (broken) {
-      this.soundFX.playPostureBreak();
-      this.showCombatBanner('MARMA BROKEN!', 'CRITICAL OPENING!', 'text-red-400 crimson-glow');
-    } else if (enemy.stateMachine.currentState !== 'POSTURE_BROKEN') {
-      enemy.stateMachine.changeState('STAGGER');
+    if (glancing) {
+      this.soundFX.playGlancingBlow();
+      this.particleFX.spawnSparks(hitPoint, 10, false);
+      this.triggerHitStop(0.3, 0.06);
+    } else {
+      this.soundFX.playHitImpact();
+      this.particleFX.spawnSparks(hitPoint, heavy ? 45 : 25, charged);
+      this.sceneManager.triggerScreenShake(heavy ? 0.4 : 0.2, heavy ? 0.24 : 0.16);
+      this.triggerHitStop(0.06, heavy || attackState === 'ATTACK_3' ? 0.15 : 0.1);
     }
 
-    this.incrementCombo();
+    this.stats.damageDealt += damage;
+    if (broken) {
+      this.stats.postureBreaks++;
+      this.soundFX.playPostureBreak();
+      this.callout({ text: 'Marma broken', sub: 'Strike now', tone: 'red' });
+    } else if (enemy.stateMachine.currentState !== 'POSTURE_BROKEN' && this.canStagger(enemy, armored, heavyBlow)) {
+      enemy.stateMachine.changeState('STAGGER');
+      const grace = enemy.heavyPoise ? BOSS_STAGGER_GRACE : ENEMY_STAGGER_GRACE;
+      this.staggerImmuneUntil.set(enemy.id, this.clock + enemy.stateMachine.STAGGER_DURATION + grace);
+    }
+    this.record({
+      attacker: player.id, defender: enemy.id, attack: attackState, at: player.stateMachine.stateTime,
+      result: broken ? 'break' : enemy.stateMachine.currentState === 'STAGGER' ? 'hit' : armored ? 'armored' : 'hit', point: hitPoint.toArray(),
+    });
+
+  }
+
+  /** A blow that would have landed passes over the sliding player: a beat of slow motion marks the near miss. */
+  private resolveEvasion(enemy: Enemy, player: Player): void {
+    this.record({ attacker: enemy.id, defender: player.id, attack: enemy.stateMachine.currentState,
+      at: enemy.stateMachine.stateTime, result: 'evaded', point: player.getPosition().toArray() });
+    this.triggerHitStop(0.35, 0.2);
+    this.callout({ text: 'Evaded', tone: 'pale' });
   }
 
   private resolveEnemyHitOnPlayer(enemy: Enemy, player: Player, hitPoint: THREE.Vector3): void {
-    if (player.stateMachine.isInvulnerable) {
-      return;
-    }
-
+    const entry = { attacker: enemy.id, defender: player.id, attack: enemy.stateMachine.currentState,
+      at: enemy.stateMachine.stateTime, point: hitPoint.toArray() };
     // 140ms Dhal Parry Window -> DEFLECTION!
     if (player.stateMachine.currentState === 'PARRY' && player.stateMachine.isParryActive) {
       this.handlePerfectParry(player, enemy, hitPoint);
+      this.record({ ...entry, result: 'deflected' });
       return;
     }
 
     // Raised dhal (a guard, or a parry pressed too early): the blow lands on the shield.
+    const { damage, posture } = enemyBlow(enemy);
     if (player.isGuarding() && player.isFacing(enemy.getPosition())) {
-      this.handleBlockedHit(player, hitPoint, 16, 18);
+      this.handleBlockedHit(player, hitPoint, damage, posture);
+      this.record({ ...entry, result: 'blocked' });
       return;
     }
+    this.record({ ...entry, result: 'player-hit' });
 
-    player.takeDamage(16);
-    player.addMarmaDamage(18);
+    this.stats.hitsTaken++;
+    player.takeDamage(damage);
+    const broken = player.addMarmaDamage(posture);
+    this.onPlayerHurt?.();
+    if (broken && player.stateMachine.currentState !== 'DEAD') this.callout({ text: 'Posture broken', tone: 'red' });
 
     this.soundFX.playHitImpact();
     this.particleFX.spawnSparks(hitPoint, 30, false);
     this.sceneManager.triggerScreenShake(0.35, 0.22);
-    player.stateMachine.changeState('STAGGER');
-
-    this.resetCombo();
+    // No stun-lock: a stagger (and a short grace after it) is not restarted by the rest of a combo, so the player
+    // always gets a window to guard, parry or get out.
+    if (!broken && player.stateMachine.currentState !== 'DEAD' && this.clock >= this.playerStaggerImmuneUntil) {
+      player.stateMachine.changeState('STAGGER');
+      this.playerStaggerImmuneUntil = this.clock + player.stateMachine.STAGGER_DURATION + STAGGER_GRACE;
+    }
   }
 
   private handlePerfectParry(player: Player, enemy: Enemy, hitPoint: THREE.Vector3): void {
@@ -168,26 +286,28 @@ export class CombatSystem {
     this.triggerHitStop(0.05, 0.14);
     this.sceneManager.triggerScreenShake(0.42, 0.28);
 
+    this.stats.deflections++;
     const postureBroken = enemy.addMarmaDamage(50);
     if (postureBroken) {
+      this.stats.postureBreaks++;
       this.soundFX.playPostureBreak();
-      this.showCombatBanner('DEFLECTION!', 'ENEMY MARMA SHATTERED', 'text-yellow-300 gold-glow');
+      this.callout({ text: 'Marma broken', sub: 'Strike now', tone: 'red' });
     } else {
       enemy.stateMachine.changeState('DEFLECTED');
-      this.showCombatBanner('PERFECT PARRY!', '140ms DEFLECTION', 'text-yellow-300 gold-glow');
+      this.callout({ text: 'Deflected', tone: 'gold' });
     }
-
-    this.incrementCombo();
   }
 
   /** A blow taken on the guard: a little health gets through, posture takes more, and the dhal rocks back. */
   public handleBlockedHit(player: Player, hitPoint: THREE.Vector3, damage: number, postureDamage: number): void {
+    this.stats.blocks++;
     player.takeDamage(damage * 0.2);
     const broken = player.addMarmaDamage(postureDamage * 1.25);
     this.soundFX.playParryClash();
     this.particleFX.spawnSparks(hitPoint, 18, false);
     this.sceneManager.triggerScreenShake(0.15, 0.14);
-    if (!broken && player.stateMachine.currentState !== 'DEAD') player.stateMachine.changeState('BLOCK_HIT');
+    if (broken) this.callout({ text: 'Guard broken', tone: 'red' });
+    else if (player.stateMachine.currentState !== 'DEAD') player.stateMachine.changeState('BLOCK_HIT');
   }
 
   public triggerHitStop(targetTimeScale = 0.05, duration = 0.12): void {
@@ -202,50 +322,29 @@ export class CombatSystem {
     });
   }
 
-  private incrementCombo(): void {
-    this.currentCombo++;
-    const comboDisplay = document.getElementById('combo-display');
-    const comboCount = document.getElementById('combo-count');
-
-    if (comboDisplay && comboCount) {
-      comboCount.textContent = this.currentCombo.toString();
-      comboDisplay.style.opacity = '1';
-      comboDisplay.className = 'hud-font text-2xl text-amber-400 font-bold mt-2 opacity-100 scale-110 transition-transform';
-      setTimeout(() => {
-        if (comboDisplay) comboDisplay.className = 'hud-font text-2xl text-amber-400 font-bold mt-2 opacity-100 scale-100 transition-transform';
-      }, 100);
-    }
-
-    if (this.comboResetTimer) {
-      window.clearTimeout(this.comboResetTimer);
-    }
-    this.comboResetTimer = window.setTimeout(() => {
-      this.resetCombo();
-    }, 2500);
+  public callout(callout: Callout): void {
+    this.onCallout?.(callout);
   }
 
-  private resetCombo(): void {
-    this.currentCombo = 0;
-    const comboDisplay = document.getElementById('combo-display');
-    if (comboDisplay) {
-      comboDisplay.style.opacity = '0';
-    }
+  /** A new fight: tallies to zero, no stagger immunities or half-finished strikes carried over. */
+  public resetStats(): void {
+    this.stats = emptyStats();
+    this.strikes.clear();
+    this.staggerImmuneUntil.clear();
+    this.playerStaggerImmuneUntil = 0;
+    gsap.killTweensOf(this);
+    this.globalTimeScale = 1;
   }
+}
 
-  public showCombatBanner(title: string, sub: string, styleClass: string): void {
-    const banner = document.getElementById('parry-banner');
-    const subtitle = document.getElementById('parry-sub');
+function emptyStats(): FightStats {
+  return { deflections: 0, blocks: 0, hitsTaken: 0, postureBreaks: 0, damageDealt: 0 };
+}
 
-    if (banner && subtitle) {
-      banner.textContent = title;
-      banner.className = `hud-font text-4xl md:text-5xl font-extrabold scale-100 transition-transform duration-150 uppercase tracking-widest ${styleClass}`;
-      subtitle.textContent = sub;
-      subtitle.className = 'text-xs uppercase tracking-widest text-amber-200 mt-1 font-semibold scale-100 transition-transform duration-150';
-
-      setTimeout(() => {
-        if (banner) banner.className = 'hud-font text-4xl md:text-5xl font-extrabold scale-0 transition-transform duration-200 uppercase tracking-widest';
-        if (subtitle) subtitle.className = 'text-xs uppercase tracking-widest text-amber-200 mt-1 font-semibold scale-0 transition-transform duration-200';
-      }, 1200);
-    }
-  }
+/** Damage and posture a blow from `enemy` deals the player: bosses hit harder. */
+function enemyBlow(enemy: Enemy): { damage: number; posture: number } {
+  const k = enemy.damageScale;
+  if (!enemy.isBoss) return { damage: 16 * k, posture: 18 * k };
+  const finisher = enemy.stateMachine.currentState === 'ATTACK_3' || enemy.stateMachine.currentState === 'ATTACK_JUMP';
+  return finisher ? { damage: 24 * k, posture: 28 * k } : { damage: 18 * k, posture: 21 * k };
 }

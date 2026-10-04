@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { Entity } from './Entity';
 import { CharacterStateMachine, type CharacterState, type TimedStateKey } from './CharacterStateMachine';
 import { SlashRibbon } from '../combat/SlashRibbon';
-import { CharacterRig, type CharacterDefinition } from './animation/CharacterRig';
+import { CharacterRig, type CharacterDefinition, type StateAnimation } from './animation/CharacterRig';
 import { CharacterMotor, DEFAULT_MOTOR, type MotorOptions } from '../physics/CharacterMotor';
 import { PhysicsWorld } from '../core/PhysicsWorld';
 import type RAPIER from '@dimforge/rapier3d-compat';
@@ -19,7 +19,11 @@ const TIMED_STATES: Partial<Record<CharacterState, TimedStateKey>> = {
   SHEATHE: 'SHEATHE_DURATION',
   DRAW: 'DRAW_DURATION',
   STAGGER: 'STAGGER_DURATION',
+  CAST: 'CAST_DURATION',
+  DODGE: 'DODGE_DURATION',
 };
+/** A swing can be cut short this long (s) after its blade has finished. */
+const CANCEL_AFTER_STRIKE = 0.06;
 const SHEATHED_MARK = 'sheathed';
 // A jump without clip timing (greybox): leaves at once, ~1 m high.
 const DEFAULT_JUMP = { takeoff: 0, landing: 0.58, speed: 7, recovery: 0.12 };
@@ -68,10 +72,6 @@ export class Character extends Entity {
 
   // Procedural Weapon Ribbon Trail
   public slashRibbon: SlashRibbon;
-
-  // Dodge direction vector
-  public dodgeDirection = new THREE.Vector3(0, 0, 1);
-  public dodgeSpeed = 11.5;
 
   /** Collision, gravity and stepping; null until `attachPhysics` (then gameplay moves are resolved by it). */
   public motor: CharacterMotor | null = null;
@@ -230,7 +230,7 @@ export class Character extends Entity {
   }
 
   /**
-   * Gives the character a physical capsule: from now on every fixed step's movement (input, AI, dodges, lunges,
+   * Gives the character a physical capsule: from now on every fixed step's movement (input, AI, jumps, lunges,
    * root motion) is resolved against the level, other fighters and gravity by a `CharacterMotor`.
    * @param footOffset capsule centre height above the feet (half-height + radius)
    */
@@ -239,6 +239,7 @@ export class Character extends Entity {
     this.rigidBody = body;
     this.collider = collider;
     this.motor = new CharacterMotor(body, collider, footOffset, options);
+    this.bodyHeight = footOffset * 2;
     this.motor.teleport(this.group.position);
     this.lastGroundPos.copy(this.group.position);
   }
@@ -262,13 +263,29 @@ export class Character extends Entity {
    * rig's hand sockets, locomotion speeds and attack timings come from the definition and its clips.
    */
   public async attachRig(definition: CharacterDefinition): Promise<CharacterRig> {
-    const rig = await CharacterRig.load(definition);
+    const [rig, prop, shield] = await Promise.all([
+      CharacterRig.load(definition),
+      definition.weapon?.model ? CharacterRig.loadProp(definition.weapon.model) : Promise.resolve(null),
+      definition.offhand?.model ? CharacterRig.loadProp(definition.offhand.model) : Promise.resolve(null),
+    ]);
+    // Modelled weapons replace the greybox ones everywhere (sockets, sheathing, hit detection).
+    if (prop) {
+      this.swordMesh.removeFromParent();
+      this.swordMesh = prop as THREE.Group;
+    }
+    if (shield) {
+      this.shieldMesh.removeFromParent();
+      this.shieldMesh = shield as THREE.Group;
+    }
+    if (definition.weapon?.blade) this.bladeSpan = definition.weapon.blade;
     if (definition.weapon && !rig.attach(this.swordMesh, definition.weapon)) {
       console.warn(`[Character ${this.id}] rig has no socket ${definition.weapon.socket}`);
     }
     if (definition.offhand) rig.attach(this.shieldMesh, definition.offhand);
+    if (definition.scale) rig.applyScale(definition.scale);
     this.primitiveRoot.visible = false;
     this.modelGroup.add(rig.root);
+    this.rig?.dispose();
     this.walkSpeed = definition.locomotion.walkSpeed;
     this.moveSpeed = definition.locomotion.moveSpeed;
     this.sprintSpeed = definition.locomotion.sprintSpeed;
@@ -278,6 +295,19 @@ export class Character extends Entity {
       if (seconds) this.stateMachine[TIMED_STATES[state]!] = seconds;
     }
     this.rig = rig;
+    // Hit windows straight from each attack clip's motion (scaled to the state's playback rate and start).
+    this.strikeWindows.clear();
+    this.stateMachine.cancelAt = {};
+    for (const [state, config] of Object.entries(definition.states) as [CharacterState, NonNullable<typeof definition.states.IDLE>][]) {
+      if (!state.startsWith('ATTACK')) continue;
+      const rate = config.timeScale ?? 1;
+      const start = config.startAt ?? 0;
+      const spans = rig.measureStrikes(config.clip, () => this.swordMesh.localToWorld(new THREE.Vector3(0, this.bladeSpan[1], 0)))
+        .filter((s) => s.t1 > start)
+        .map((s) => ({ t0: Math.max(0, s.t0 - start) / rate, t1: (s.t1 - start) / rate }));
+      this.strikeWindows.set(state, spans);
+      if (this.chainsEarly && spans.length) this.stateMachine.cancelAt[state] = spans[spans.length - 1].t1 + CANCEL_AFTER_STRIKE;
+    }
     this.rigState = null;
     this.lastGroundPos.copy(this.group.position);
     if (this.swordSheathed) this.stowSword(true);
@@ -326,8 +356,20 @@ export class Character extends Entity {
     this.rigStateTime = sm.stateTime;
     if (sm.currentState === 'JUMP') this.syncJumpClip();
     const root = rig.update(dt, groundSpeed);
+    rig.updateMounts(sm.currentState, dt);
     // Root motion is just more intended movement; the motor (end of update) resolves it with the rest.
-    if (root) pos.add(root.applyAxisAngle(UP, this.group.rotation.y));
+    if (root) pos.add(root.multiplyScalar(this.rootMotionScale).applyAxisAngle(UP, this.group.rotation.y));
+  }
+
+  /**
+   * Plays a clip outside the state table (a scripted entrance) in the current state; the next change of state takes
+   * over as usual.
+   */
+  protected playScripted(config: StateAnimation): void {
+    if (!this.rig) return;
+    this.rig.play(config);
+    this.rigState = this.stateMachine.currentState;
+    this.rigStateTime = this.stateMachine.stateTime;
   }
 
   /**
@@ -377,6 +419,71 @@ export class Character extends Entity {
     this.swordSheathed = sheathed;
   }
 
+  /** Follow-up swings may cut the current one short once its blade has finished (`CharacterStateMachine.cancelAt`). */
+  protected chainsEarly = false;
+
+  /** Stretches the current clip's root-motion travel (a leap aimed at a target further than the clip goes). */
+  public rootMotionScale = 1;
+
+  /** The blade's extent up the weapon's local +Y (m): its hit-detection segment. */
+  private bladeSpan: [number, number] = [0.05, 1.15];
+
+  /** Total height of the body capsule (set with the physics; a greybox default before that). */
+  public bodyHeight = 1.9;
+  /** Measured per attack state from the rig's clips: when the blade is really swinging (state seconds). */
+  private readonly strikeWindows = new Map<CharacterState, HitWindow[]>();
+
+  /** Standing height of what is drawn (the rig's model, or the capsule for the greybox), metres. */
+  public visualHeight(): number {
+    const rig = this.rig;
+    return rig ? rig.manifest.height * (rig.definition.scale ?? 1) : this.bodyHeight;
+  }
+
+  /** The body's hurt volume: the physics capsule, standing on the feet. */
+  public hurtCapsule(): { a: THREE.Vector3; b: THREE.Vector3; radius: number } {
+    const radius = this.motor?.radius ?? 0.4;
+    const feet = this.group.position;
+    return {
+      a: new THREE.Vector3(feet.x, feet.y + radius, feet.z),
+      b: new THREE.Vector3(feet.x, feet.y + Math.max(this.bodyHeight - radius, radius), feet.z),
+      radius,
+    };
+  }
+
+  /**
+   * When `state`'s blade can land, in state seconds: one entry per strike. An animated character's windows come
+   * from its clips; the greybox falls back to `defaultHitWindows`.
+   */
+  public hitWindows(state: CharacterState = this.stateMachine.currentState): HitWindow[] {
+    return this.strikeWindows.get(state) ?? this.defaultHitWindows(state);
+  }
+
+  /** Greybox swings: the middle of the swing. Subclasses with hand-timed attacks override this. */
+  protected defaultHitWindows(state: CharacterState): HitWindow[] {
+    const d = this.stateMachine.attackDuration(state);
+    return d > 0 ? [{ t0: d * 0.15, t1: d * 0.75 }] : [];
+  }
+
+  /**
+   * Until when (state seconds) an attacker may still turn toward its target: committed from shortly before its
+   * first strike, so a side-step can beat the swing.
+   */
+  public trackUntil(state: CharacterState = this.stateMachine.currentState): number {
+    const first = this.hitWindows(state)[0];
+    return first ? Math.max(0, first.t0 - 0.15) : 0;
+  }
+
+  /**
+   * Turns toward `yaw` by at most `maxRate` rad/s, always the short way round; returns the angle left to turn.
+   * (Never lerp angles directly: across +-PI that spins the long way.)
+   */
+  public turnToward(yaw: number, maxRate: number, dt: number): number {
+    const diff = wrapAngle(yaw - this.group.rotation.y);
+    const step = THREE.MathUtils.clamp(diff, -maxRate * dt, maxRate * dt);
+    this.group.rotation.y = wrapAngle(this.group.rotation.y + step);
+    return wrapAngle(diff - step);
+  }
+
   /** The dhal is up: a held guard, a blow being absorbed, or a parry whose deflection window has passed. */
   public isGuarding(): boolean {
     const state = this.stateMachine.currentState;
@@ -402,8 +509,8 @@ export class Character extends Entity {
       // The sword rides the rig's hand socket: read its blade straight from the animated skeleton.
       this.swordMesh.updateWorldMatrix(true, false);
       return {
-        hilt: this.swordMesh.localToWorld(new THREE.Vector3(0, 0.05, 0)),
-        tip: this.swordMesh.localToWorld(new THREE.Vector3(0, 1.15, 0)),
+        hilt: this.swordMesh.localToWorld(new THREE.Vector3(0, this.bladeSpan[0], 0)),
+        tip: this.swordMesh.localToWorld(new THREE.Vector3(0, this.bladeSpan[1], 0)),
       };
     }
     const rSocket = this.getSocket('mixamorigRightHand');
@@ -492,12 +599,6 @@ export class Character extends Entity {
       targetLeftArmRot.set(1.1, 0.6, -0.3);
       targetRightArmRot.set(-0.4, -0.4, 0.2);
       targetTorsoRot.y = 0.35;
-    } else if (state === 'DODGE_ROLL') {
-      const p = Math.min(1.0, t / this.stateMachine.DODGE_DURATION);
-      targetTorsoRot.x = p * Math.PI * 2;
-      targetTorsoY = 0.4 + Math.sin(p * Math.PI) * 0.4;
-      targetRightArmRot.set(-1.0, 0, 0);
-      targetLeftArmRot.set(-1.0, 0, 0);
     } else if (state === 'DEFLECTED' || state === 'STAGGER') {
       const p = Math.min(1.0, t / this.stateMachine.STAGGER_DURATION);
       targetTorsoRot.x = -0.4 * (1 - p);
@@ -549,4 +650,15 @@ export class Character extends Entity {
     this.motor?.resolve(this.group.position, dt);
     this.lastGroundPos.copy(this.group.position);
   }
+}
+
+/** A span of an attack (state seconds) in which its blade can land; each window lands at most once. */
+export interface HitWindow {
+  t0: number;
+  t1: number;
+}
+
+/** The same angle in (-PI, PI]. */
+export function wrapAngle(a: number): number {
+  return a - Math.PI * 2 * Math.round(a / (Math.PI * 2));
 }
