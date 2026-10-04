@@ -15,7 +15,8 @@ and earns every weapon and skill on the road. Each chapter prepares him for the 
 ### Prologue: the village raid (new map)
 
 - His village (desert, dusk). Yudhveer trains with a lathi under his guru.
-- Rakshasas raid the village. He fights and **loses**.
+- **A very small arena**, not explorable. Goons raid the village; he fights a group of them and is **defeated**.
+- **The guru appears to be killed** in the raid. In truth he is **captured**.
 - Behind the raid stands a huge figure with a great sword: **Andhaka, seen only as a silhouette**. He is never shown
   in the face here, only his size and his blade against the light. The mystery stays until the summit, where his
   entrance (the smile, the crown, the sword drawn from the stone) reveals him at last.
@@ -38,22 +39,31 @@ and earns every weapon and skill on the road. Each chapter prepares him for the 
 - **Weapons: a very basic sword and the shield.**
 - He clears the chapter with them (the Vetala and Mayavi).
 
-### Chapter III: the island and Dwarka
+### Chapter III: the island (new map, its own chapter)
 
-- **A new map: an island.** He learns that a **blessed mace** is kept there.
+- He learns that a **blessed mace** is kept on the island.
+- **Underground:** dark, lit only by lamps and fire, in the spirit of the *Anaconda* films (tension, the unseen in
+  the dark).
+- **The one explorable mission in the game**, because exploring is the mission: he searches the caves for the mace.
 - He wins it by defeating the island's **mini monsters** and **archer monsters**.
   - Both are placeholders for now; the user will make them later.
-- **Weapon: the blessed mace.** With it he defeats Chapter III's bosses at Dwarka: Shalva, then Takshaka.
+
+### Chapter IV: Dwarka (existing map)
+
+- **Weapon: the blessed mace, two-handed. No shield** while he carries it.
+- He defeats Shalva, then Takshaka.
 - **Takshaka's dying prophecy.** As the serpent king dies, he tells Yudhveer that Andhaka cannot be defeated, then
   realises he was foolish not to see it: Yudhveer has set his purpose and is destined to free them all from Andhaka's
   reign. Takshaka **grants him the magical sword**.
   - This is the sword the hero carries in the game now (`yodha_khanda.glb`).
 
-### Chapter IV: the Kailasha summit (existing map)
+### Chapter V: the Kailasha summit (existing map)
 
 - **Weapon: the magical sword** (with the shield).
 - It plays as it does now: rakshasa waves over the bridges, then Andhaka's entrance and the final fight.
 - **Add a second minion type** alongside the current rakshasas, for variety. Placeholder for now.
+- **The final reveal:** the guru, thought dead and in truth Andhaka's captive, is revealed to be **Lord Shiva
+  incarnate**: the statue of Shiva on the summit. The teacher was the god all along.
 
 ## Weapon progression
 
@@ -62,14 +72,15 @@ and earns every weapon and skill on the road. Each chapter prepares him for the 
 | Prologue | Lathi | none | strike, dodge |
 | I. Baoli | Lathi | none | the guru's teachings, learned during the fight |
 | II. Hanuman forest | Basic sword | **Dhal, from the vanara mentor** | block, parry |
-| III. Island, Dwarka | **Blessed mace** | dhal | (to decide) |
-| IV. Summit | **Magical sword, from Takshaka** | dhal | the full kit |
+| III. Island | **Blessed mace** (two-handed) | none | heavy two-handed blows |
+| IV. Dwarka | Blessed mace (two-handed) | none | (to decide) |
+| V. Summit | **Magical sword, from Takshaka** | dhal | the full kit |
 
 ## Placeholders to replace later (the user, with Meshy)
 
 - The old vanara mentor (Chapter II).
 - The island's mini monsters and archer monsters (Chapter III).
-- The second minion type on the summit (Chapter IV).
+- The second minion type on the summit (Chapter V).
 - The lathi, the basic sword and the blessed mace models (to source or make).
 - Village characters and the guru (prologue).
 
@@ -79,13 +90,16 @@ and earns every weapon and skill on the road. Each chapter prepares him for the 
    (weapon, shield, which moves are allowed) set by the chapter.
 2. **Weapon sets for the hero:** move sets, hit data and sounds for the lathi, the basic sword and the mace (the
    mace needs heavy animations; source them from Mixamo or Meshy).
-3. **Prologue:** the village map, the raid, the scripted loss, Andhaka's silhouette shot.
+3. **Prologue:** the small village arena, the goons, the scripted loss, the guru's apparent death, Andhaka's
+   silhouette shot.
 4. **The guru's voice in Chapter I:** teaching prompts tied to the fight.
 5. **Chapter II:** the sunset relight of the atrium, the non-playable training cinematic, the mentor (placeholder),
    the shield-and-parry training section.
-6. **The island:** a new map, the mace's resting place, mini monster and archer placeholders, the extraction scene.
-7. **Takshaka's death scene:** the prophecy, the sword handed over.
-8. **Summit:** the second minion type (placeholder) in the waves.
+6. **The island (Chapter III):** a new underground, lamp-lit map that the player explores, the mace's resting
+   place, mini monster and archer placeholders, the extraction scene.
+7. **Dwarka (Chapter IV):** the hero with the two-handed mace and no shield; Takshaka's death scene with the
+   prophecy and the sword handed over.
+8. **Summit (Chapter V):** the second minion type (placeholder) in the waves; the guru's reveal as Shiva.
 9. **Voice and sound** (ElevenLabs): the guru, the mentor, Takshaka's prophecy, Andhaka; real character sound
    effects to replace the synthesized ones the user disliked.
 
@@ -99,12 +113,19 @@ Suggested order: progression system and weapon sets first, then the prologue, th
 - **Poly Haven:** CC0 textures, skies and models, for the village and the island.
 - **Mixamo** (downloaded by the user): animations.
 
-## Open questions
+## Decisions (2026-10-04)
 
-- **The guru:** is he killed in the raid, or taken (a rescue could then land at the summit)?
-- **The island and Dwarka:** is the island part of Chapter III (island, then Dwarka) or its own chapter?
-- **The mace:** does Yudhveer fight with mace and shield, or the mace in both hands?
-- **The interludes:** small explorable areas, or tight trial arenas?
+- **The guru** seems to die in the raid but is captured; at the end he is revealed as Shiva incarnate (the summit's
+  Shiva statue).
+- **The island** is its own chapter (III), before Dwarka (now IV); the summit becomes V.
+- **The mace** is one mace, held in both hands. No shield while he carries it.
+- **Trial areas are not explorable** (the prologue arena, the akhada training), except the island, where
+  exploring is the mission.
+
+## Still open
+
+- What the two-handed mace adds to his moves at Dwarka beyond the island.
+- How the hero meets the island (how he learns the mace is there, how he reaches it).
 
 ## Already decided (from earlier sessions)
 
