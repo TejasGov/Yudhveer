@@ -10,6 +10,13 @@ sword and shield from the first minute, the game becomes Tekken or Mortal Kombat
 struggle and a true warrior spirit is lost. So he starts with almost nothing, loses the first fight that matters,
 and earns every weapon and skill on the road. Each chapter prepares him for the next.
 
+## Andhaka's purpose
+
+Andhaka gathers **wise, intelligent souls** to sacrifice before his deity. Through those sacrifices he means to
+challenge the divinity of Lord Shiva and set himself up as the ultimate ruler. That is why the village was raided
+and the guru taken: the guru was a soul worth sacrificing. The irony the ending turns on is that the guru is Shiva
+himself: Andhaka has carried his own judge up the mountain.
+
 ## The story, chapter by chapter
 
 ### Prologue: the village raid (new map)
@@ -38,6 +45,9 @@ and earns every weapon and skill on the road. Each chapter prepares him for the 
   - The mentor is a placeholder for now; the user will make his model with Meshy.
 - **Weapons: a very basic sword and the shield.**
 - He clears the chapter with them (the Vetala and Mayavi).
+- **At the chapter's end**, with both bosses beaten, he learns he must go to **Dwarka**, where he will find out why
+  his village was attacked. He also learns that Dwarka's boss (Shalva) fights with a **mace**, and that a sword
+  will not be enough against it: hence the island and its blessed mace.
 
 ### Chapter III: the island (new map, its own chapter)
 
@@ -50,8 +60,10 @@ and earns every weapon and skill on the road. Each chapter prepares him for the 
 
 ### Chapter IV: Dwarka (existing map)
 
-- **Weapon: the blessed mace, two-handed. No shield** while he carries it.
-- He defeats Shalva, then Takshaka.
+- **Weapon: the blessed mace, two-handed. No shield** while he carries it. The mace has its **own animation set**
+  (heavy two-handed swings), different from the sword's.
+- At Dwarka he learns the truth: **Andhaka and his purpose** (see above).
+- He defeats Shalva, mace against mace, then Takshaka.
 - **Takshaka's dying prophecy.** As the serpent king dies, he tells Yudhveer that Andhaka cannot be defeated, then
   realises he was foolish not to see it: Yudhveer has set his purpose and is destined to free them all from Andhaka's
   reign. Takshaka **grants him the magical sword**.
@@ -122,10 +134,16 @@ Suggested order: progression system and weapon sets first, then the prologue, th
 - **Trial areas are not explorable** (the prologue arena, the akhada training), except the island, where
   exploring is the mission.
 
-## Still open
+## Still open: why Chapter I happens
 
-- What the two-handed mace adds to his moves at Dwarka beyond the island.
-- How the hero meets the island (how he learns the mace is there, how he reaches it).
+Proposal, to confirm: **the raiders fled with the guru through the old baoli.** The stepwell outside the village
+hides a passage the raiders used, and Andhaka's darkness has bound the Baoli Guardian (once the well's protector) to
+block anyone who follows. Yudhveer goes down with only his lathi and the guru's teachings in his head. Freed by
+defeat, the Guardian tells him that a lathi will not carry him further: he must go to the vanaras of the Hanuman
+akhada to learn to truly fight. That chains the prologue to Chapter I and Chapter I to Chapter II.
+
+Alternatives considered: the baoli as the village's poisoned water, which he must clear before he can leave; or
+the guru's dropped rudraksha leading him there.
 
 ## Already decided (from earlier sessions)
 
