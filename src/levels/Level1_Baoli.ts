@@ -97,13 +97,6 @@ export class Level1_Baoli extends GLBLevel {
     });
     toonifyModel(model, this.ramp, (src) => this.toonOverride(src as THREE.MeshStandardMaterial));
     this.collectBloom(model);
-
-    // Pillars the dodge-roll can wall-kick from.
-    model.traverse((obj) => {
-      if (/^Pillar_/.test(obj.name) && obj.userData.collider === 'cylinder') {
-        this.wallKickPoints.push(obj.getWorldPosition(new THREE.Vector3()).setY(0));
-      }
-    });
   }
 
   /** Cel-shading exceptions; undefined falls through to the default toon conversion. */

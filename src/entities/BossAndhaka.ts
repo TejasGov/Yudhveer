@@ -1,0 +1,196 @@
+import * as THREE from 'three';
+import { Boss } from './Boss';
+import type { CharacterRig, CharacterDefinition } from './animation/CharacterRig';
+import { SceneManager } from '../core/SceneManager';
+
+/** Below this share of health he enters his second phase. */
+const PHASE_2_AT = 0.5;
+/** His entrance clip (characters/Andhaka.ts): smile, crown, sword. */
+const ENTRANCE = 'coronation';
+/** The bone that carries the crown until it reaches his head. */
+const CROWN_HAND = 'mixamorigLeftHand';
+
+const smoothstep = (a: number, b: number, t: number) => THREE.MathUtils.smoothstep(t, a, b);
+
+/**
+ * Chapter IV final boss, Andhaka, the asura of darkness who climbed Kailasha (the Mahishasura model). He arrives once
+ * his rakshasas have fallen: he smiles, crowns himself and draws his cleaver from the stone of Shiva's dais. Heavy
+ * cuts, an overhead chop, a three-blow string and a leap; below half health he roars and comes faster. Light blows
+ * thrown into his swing glance off his hide (`armorDamage`): he is beaten by waiting out his blow and striking after it.
+ *
+ * The entrance is one authored clip whose marks say when the crown leaves his hands for his head ("crowned") and when
+ * his fist closes on the planted sword ("grip"). Until then the crown rides his left hand and the sword stands in the
+ * ground, each placed where the clip will have it at its mark, so the hand-overs are seamless.
+ */
+export class BossAndhaka extends Boss {
+  public phase = 1;
+  private entrance: { marks: Record<string, number>; duration: number; crowned: boolean; gripped: boolean; drawn: boolean; roared: boolean } | null = null;
+  /** The face's Smile morph target on each mesh that has it. */
+  private readonly smile: { mesh: THREE.Mesh; index: number }[] = [];
+  private smileLevel = 0;
+
+  constructor(id = 'andhaka') {
+    super(id, 0x2a1a14, {
+      attackInterval: 1.1,
+      strikeRange: 3.7, // 3.15 m tall with a 1.75 m cleaver
+      tooClose: 1.8,
+      leapRange: 6.5,
+      leapMax: 12,
+      roarRange: 18,
+    });
+    this.displayName = 'Andhaka';
+    this.epithet = 'Crowned in the eclipse';
+    this.maxHealth = 640;
+    this.currentHealth = 640;
+    this.damageScale = 1.1; // the last fight: his blows land harder than any other's
+    this.armorDamage = 0.4; // light blows thrown into his swing glance off his hide
+    this.maxMarma = 200;
+    this.moveSpeed = 4;
+    this.marmaDecayRate = 8;
+    this.turnRate = 4;
+    this.lungeSpec = { a: 0.1, b: 0.55, maxDist: 1.6, stopDist: 2.1 };
+    this.torsoMesh.scale.setScalar(1.25);
+  }
+
+  public override async attachRig(definition: CharacterDefinition): Promise<CharacterRig> {
+    const rig = await super.attachRig(definition);
+    this.smile.length = 0;
+    rig.root.traverse((obj) => {
+      const mesh = obj as THREE.Mesh;
+      const index = mesh.morphTargetDictionary?.Smile;
+      if (index !== undefined) this.smile.push({ mesh, index });
+    });
+    return rig;
+  }
+
+  public override scriptedEntrance(): { duration: number; marks: Record<string, number> } | null {
+    const info = this.rig?.clipInfo(ENTRANCE);
+    return info?.marks ? { duration: info.duration, marks: info.marks } : null;
+  }
+
+  /** The entrance: the crown into his hands, the sword into the stone, and the clip from its start. */
+  public override playIntro(): number {
+    const rig = this.rig;
+    const entrance = this.scriptedEntrance();
+    const hand = rig?.root.getObjectByName(CROWN_HAND);
+    if (!rig || !entrance || !hand) return super.playIntro();
+    this.hasRoared = true;
+    const { marks } = entrance;
+    const crown = this.shieldMesh;
+    const sword = this.swordMesh;
+    this.group.updateMatrixWorld(true);
+    // Where the crown will be in his hand when it reaches his head, and where his fist will close on the sword.
+    const inHand = rig.sampleAt(ENTRANCE, marks.crowned, () => hand.matrixWorld.clone().invert().multiply(crown.matrixWorld));
+    const planted = rig.sampleAt(ENTRANCE, marks.grip, () => this.group.matrixWorld.clone().invert().multiply(sword.matrixWorld));
+    if (!inHand || !planted) return super.playIntro();
+    place(crown, hand, inHand);
+    place(sword, this.group, planted);
+    this.stateMachine.changeState('IDLE');
+    this.playScripted({ clip: ENTRANCE, fade: 0 });
+    this.entrance = { marks, duration: entrance.duration, crowned: false, gripped: false, drawn: false, roared: false };
+    return entrance.duration;
+  }
+
+  public override settleIntro(): void {
+    super.settleIntro();
+    this.finishEntrance();
+  }
+
+  /** Crown on his head, sword in his hand, on guard (the entrance is over, or was cut short). */
+  private finishEntrance(): void {
+    const e = this.entrance;
+    if (!e) return;
+    this.entrance = null;
+    const def = this.rig?.definition;
+    if (def?.offhand) this.rig!.attach(this.shieldMesh, def.offhand);
+    if (def?.weapon) this.rig!.attach(this.swordMesh, def.weapon);
+    this.stateMachine.changeState('IDLE'); // re-enters IDLE: his stance takes over from the clip
+  }
+
+  public override update(dt: number): void {
+    super.update(dt);
+    const e = this.entrance;
+    const rig = this.rig;
+    if (e && rig) {
+      // Another state took over (he was hit, say): the entrance is done with. The clip's last frame can fall a hair
+      // short of its nominal length.
+      const playing = rig.clip === ENTRANCE && this.stateMachine.currentState === 'IDLE';
+      const t = playing ? rig.time : e.duration;
+      const def = rig.definition;
+      if (!e.crowned && t >= e.marks.crowned && def.offhand) {
+        e.crowned = true;
+        rig.attach(this.shieldMesh, def.offhand);
+      }
+      if (!e.gripped && t >= e.marks.grip && def.weapon) {
+        e.gripped = true;
+        rig.attach(this.swordMesh, def.weapon);
+      }
+      if (!e.drawn && t >= e.marks.drawn) {
+        e.drawn = true;
+        // Stone gives up the blade.
+        const tip = this.getWeaponPoints().tip.setY(this.getPosition().y);
+        this.particleFX.spawnDustPuff(tip, 26);
+        this.soundFX.playParryClash();
+      }
+      if (!e.roared && e.marks.roar !== undefined && t >= e.marks.roar) {
+        e.roared = true;
+        this.onRoar();
+      }
+      if (t >= e.duration - 1 / 30) this.finishEntrance();
+    }
+    this.updateSmile(dt);
+  }
+
+  /** The smile spreads as the entrance begins and stays as a smirk; in the fight it never quite leaves. */
+  private updateSmile(dt: number): void {
+    const e = this.entrance;
+    const rig = this.rig;
+    let target = 0.2;
+    if (e && rig?.clip === ENTRANCE) {
+      const t = rig.time;
+      target = smoothstep(e.marks.smile, e.marks.smile + 0.9, t) * (1 - 0.5 * smoothstep(e.marks.grip, e.marks.grip + 1.2, t));
+    } else if (this.stateMachine.currentState === 'DEAD') {
+      target = 0;
+    }
+    this.smileLevel += (target - this.smileLevel) * Math.min(1, dt * 6);
+    for (const s of this.smile) s.mesh.morphTargetInfluences![s.index] = this.smileLevel;
+  }
+
+  /**
+   * Committed from his wind-up until his last blow has fallen; after it he is open (trading blows with him loses,
+   * punishing his recovery pays).
+   */
+  public override isArmored(): boolean {
+    const state = this.stateMachine.currentState;
+    if (!state.startsWith('ATTACK')) return super.isArmored();
+    const last = this.hitWindows(state).at(-1);
+    return !last || this.stateMachine.stateTime <= last.t1;
+  }
+
+  public override takeDamage(amount: number): void {
+    super.takeDamage(amount);
+    if (this.phase === 1 && this.currentHealth > 0 && this.currentHealth <= this.maxHealth * PHASE_2_AT) this.enterPhase2();
+  }
+
+  /** He roars (CHARGE), the stone shakes, and he swings sooner and turns faster. */
+  private enterPhase2(): void {
+    this.phase = 2;
+    this.tuning = { ...this.tuning, attackInterval: 0.8 };
+    this.turnRate = 5;
+    this.soundFX.playBossPhaseTransition();
+    this.particleFX.spawnDeflectionShockwave(this.getPosition());
+    SceneManager.getInstance().triggerScreenShake(0.35, 0.4);
+    if (this.hasClip('CHARGE') && this.stateMachine.currentState !== 'POSTURE_BROKEN') this.stateMachine.changeState('CHARGE');
+  }
+
+  protected override onRoar(): void {
+    this.soundFX.playRoar(0.7);
+    this.particleFX.spawnDustPuff(this.getPosition(), 28);
+  }
+}
+
+/** Parents `obj` to `parent` with `local` (a matrix in the parent's space) as its transform. */
+function place(obj: THREE.Object3D, parent: THREE.Object3D, local: THREE.Matrix4): void {
+  parent.add(obj);
+  local.decompose(obj.position, obj.quaternion, obj.scale);
+}

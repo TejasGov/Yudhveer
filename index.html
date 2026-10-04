@@ -3,236 +3,185 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>YUDHVEER | 3D Vedic Combat Engine</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700;900&family=Outfit:wght@400;600;700&display=swap" rel="stylesheet">
+  <meta name="description" content="Yudhveer: a three-chapter sword-and-shield duel through a moonlit stepwell, a Hanuman akhada and the Kailasha summit." />
+  <meta name="theme-color" content="#0c0b0a" />
+  <title>Yudhveer</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%230c0b0a'/%3E%3Cpath d='M16 3 L19 16 L16 29 L13 16 Z' fill='%23c2412d'/%3E%3Ccircle cx='16' cy='16' r='9' fill='none' stroke='%23ece4d2' stroke-width='1.6'/%3E%3C/svg%3E" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Alegreya+Sans:wght@400;500;700&family=Cormorant+Garamond:ital,wght@0,500;0,600;0,700;1,500&family=Tiro+Devanagari+Hindi&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/src/style.css" />
 </head>
-<body class="w-screen h-screen overflow-hidden select-none bg-zinc-950 text-amber-50">
-  <!-- Cinematic Letterbox Top & Bottom (2.39:1 Anamorphic Ratio) -->
-  <div class="fixed top-0 inset-x-0 h-6 bg-black/95 z-50 pointer-events-none border-b border-stone-800/40 flex items-center justify-between px-6 text-[9px] font-mono tracking-[0.4em] text-stone-500">
-    <span>YUDHVEER // COMBAT SIMULATOR</span>
-    <span id="level-title-top">LEVEL 1: THE MOONLIT BAOLI</span>
-  </div>
-  <div class="fixed bottom-0 inset-x-0 h-6 bg-black/95 z-50 pointer-events-none border-t border-stone-800/40 flex items-center justify-between px-6 text-[9px] font-mono tracking-[0.4em] text-stone-500">
-    <span>DEFLECTION WINDOW: 140MS</span>
-    <span>STATUS: ENGAGED</span>
-  </div>
+<body>
+  <div id="game-container"></div>
 
-  <!-- Game Canvas Mount Container -->
-  <div id="game-container" class="absolute inset-0 z-0"></div>
+  <!-- Hurt flash: the screen's edge reddens when the hero takes a blow -->
+  <div id="hurt-vignette" aria-hidden="true"></div>
 
-  <!-- Screen Shake / Flash Overlay -->
-  <div id="combat-fx-overlay" class="pointer-events-none absolute inset-0 z-10 opacity-0 transition-opacity duration-75"></div>
+  <!-- In-play HUD -->
+  <div id="hud" class="layer" hidden>
+    <div id="enemy-plates"></div>
 
-  <!-- Cinematic Combat HUD Overlay -->
-  <div id="combat-hud" class="absolute inset-0 pointer-events-none select-none p-8 flex flex-col justify-between z-20">
-    
-    <!-- Top-Center Boss / Target Bar (380px, 3px Height, Outward Marma Wire) -->
-    <div id="target-hud" class="w-[380px] max-w-full mx-auto space-y-1.5 opacity-90 pt-4">
-      <div class="flex justify-between items-baseline text-[10px] tracking-[0.35em] text-amber-200/90 font-serif">
-        <span id="target-name">MERCENARY SENTINEL</span>
-        <span id="target-hp-num" class="font-mono text-[9px] text-stone-400 tabular-nums">100%</span>
-      </div>
-      
-      <!-- Target Health Bar (3px height with lagging ghost damage sub-layer) -->
-      <div class="h-[3px] w-full bg-stone-950 border border-amber-500/20 relative overflow-hidden">
-        <div id="target-health-ghost" class="absolute inset-y-0 left-0 bg-red-900/80 health-ghost-trail w-full"></div>
-        <div id="target-health-bar" class="absolute inset-y-0 left-0 bg-gradient-to-r from-red-700 via-red-500 to-amber-400 transition-all duration-75 w-full"></div>
-      </div>
-      
-      <!-- Target Marma (Posture): Centered 2px wire filling outward, flanked by diamond pips -->
-      <div class="flex items-center justify-center space-x-2 pt-0.5">
-        <span class="text-[8px] text-amber-500/60 font-mono">◇</span>
-        <div class="h-[2px] w-48 bg-stone-950 border-t border-b border-amber-900/30 relative flex items-center justify-center overflow-hidden">
-          <div id="target-marma-bar" class="h-full bg-amber-400 marma-center-fill w-0"></div>
-        </div>
-        <span class="text-[8px] text-amber-500/60 font-mono">◇</span>
+    <div id="callout" aria-live="polite">
+      <div id="callout-text"></div>
+      <div id="callout-sub"></div>
+    </div>
+
+    <div id="marma-prompt" hidden><span class="prompt-word">Strike</span> <span data-glyph="attack"></span></div>
+
+    <div id="hint" aria-live="polite"></div>
+
+    <div id="player-status">
+      <div class="bar bar-health"><div class="bar-ghost" id="player-ghost"></div><div class="bar-fill" id="player-health"></div></div>
+      <div class="status-row">
+        <div class="bar bar-posture"><div class="bar-fill" id="player-posture"></div></div>
+        <div id="shakti" title="Charged blows"><i></i><i></i><i></i></div>
       </div>
     </div>
 
-    <!-- Screen Center: The "Marma Shatter" Execution Prompt (Minimalist vermilion brackets) -->
-    <div id="marma-prompt" class="hidden flex-col items-center justify-center space-y-1.5 self-center">
-      <div class="flex items-center space-x-2 text-red-500 font-serif">
-        <span class="text-xl text-red-500/70 font-mono">[</span>
-        <span class="text-3xl md:text-4xl font-black tracking-[0.3em] text-red-500 drop-shadow-[0_0_10px_rgba(239,68,68,0.8)]">मर्म</span>
-        <span class="text-xl text-red-500/70 font-mono">]</span>
-      </div>
-      <div class="text-[9px] font-mono tracking-[0.35em] text-red-300 uppercase bg-black/85 px-3 py-0.5 border border-red-500/40">
-        EXECUTE [LMB]
-      </div>
+    <div id="boss-status" hidden>
+      <div class="boss-names"><span id="boss-name"></span><span id="boss-epithet"></span></div>
+      <div class="bar bar-boss-posture"><div class="bar-fill" id="boss-posture"></div></div>
+      <div class="bar bar-boss"><div class="bar-ghost" id="boss-ghost"></div><div class="bar-fill" id="boss-health"></div></div>
     </div>
 
-    <!-- Center Combat Notifications (Parry, Combo) -->
-    <div id="combat-announcer" class="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none flex flex-col items-center">
-      <h1 id="parry-banner" class="hud-font text-3xl md:text-4xl font-bold text-yellow-300 scale-0 transition-transform duration-150 uppercase tracking-[0.35em]">
-        Deflection
-      </h1>
-      <p id="parry-sub" class="text-[9px] uppercase tracking-[0.4em] text-amber-200 mt-1 font-mono scale-0 transition-transform"></p>
-      <div id="combo-display" class="font-mono text-sm tracking-[0.3em] text-amber-400 mt-2 opacity-0 transition-opacity">
-        <span id="combo-count">0</span>x COMBO
-      </div>
-    </div>
-
-    <!-- Bottom: Yudhveer Player Status & Quick Action Controls -->
-    <div class="w-full max-w-5xl mx-auto flex flex-col md:flex-row items-end justify-between gap-4 pb-2">
-      <!-- Bottom-Left Yudhveer Status: Floating without card container -->
-      <div class="w-64 md:w-72 space-y-1.5 bg-transparent p-0">
-        <div class="flex justify-between items-baseline text-[10px] tracking-[0.35em] text-amber-100 font-serif">
-          <span>YUDHVEER</span>
-          <span id="player-health-text" class="font-mono text-[9px] text-zinc-400 tabular-nums">100 / 100</span>
-        </div>
-        
-        <!-- Player Health: 3px slim wire with ghost damage trail -->
-        <div class="h-[3px] w-full bg-stone-950 border border-emerald-500/30 relative overflow-hidden">
-          <div id="player-health-ghost" class="absolute inset-y-0 left-0 bg-emerald-950/80 health-ghost-trail w-full"></div>
-          <div id="player-health-bar" class="absolute inset-y-0 left-0 bg-gradient-to-r from-emerald-600 to-teal-400 transition-all duration-100 w-full"></div>
-        </div>
-        
-        <!-- Player Marma (Guard Posture): 2px line beneath with segmented tick marks -->
-        <div class="h-[2px] w-4/5 bg-stone-950 border-t border-b border-amber-900/30 relative overflow-hidden">
-          <div id="player-marma-bar" class="h-full bg-amber-500 transition-all duration-75 w-0"></div>
-        </div>
-
-        <!-- Subtle geometric diamond stance indicators -->
-        <div class="flex items-center space-x-2.5 text-[9px] tracking-[0.25em] font-mono text-zinc-400 pt-0.5">
-          <span id="badge-parry" class="text-amber-400">◇ DHAL [READY]</span>
-          <span class="text-stone-700">|</span>
-          <span id="badge-state" class="text-zinc-300 uppercase">◆ KHANDA [IDLE]</span>
-          <span id="fps-counter" class="ml-auto text-zinc-600 tabular-nums">60 FPS</span>
-        </div>
-      </div>
-
-      <!-- Quick Action Controls Legend (Sharp Hairline Framing) -->
-      <div class="corner-bracket hairline-border px-3.5 py-2 text-[9px] font-mono tracking-wider flex flex-wrap gap-x-4 gap-y-1 text-zinc-400 bg-black/60">
-        <div><span class="text-amber-300">[WASD]</span> MOVE</div>
-        <div><span class="text-amber-300">[SHIFT]</span> SPRINT</div>
-        <div><span class="text-amber-300">[C]</span> WALK</div>
-        <div><span class="text-amber-300">[F]</span> JUMP</div>
-        <div><span class="text-amber-300">[SPACE]</span> ROLL</div>
-        <div><span class="text-amber-300">[LMB]</span> 3x COMBO</div>
-        <div><span class="text-amber-300">[SHIFT+LMB]</span> LEAP STRIKE</div>
-        <div><span class="text-amber-300">[RMB]</span> PARRY · HOLD GUARD</div>
-        <div><span class="text-amber-300">[HOLD Q]</span> CHARGE</div>
-        <div><span class="text-amber-300">[X]</span> SHEATHE</div>
-        <div><span class="text-amber-300">[1-3]</span> LEVEL</div>
-      </div>
-    </div>
+    <button id="capture-hint" class="quiet" hidden>Click to take control</button>
   </div>
 
-  <!-- Interactive Menus (Upper Right) -->
-  <div class="absolute top-8 right-6 z-[41] flex items-center space-x-2">
-    <!-- Level Selector Dropdown -->
-    <select id="level-select" class="hairline-border text-[9px] font-mono tracking-[0.2em] uppercase text-amber-300 px-2.5 py-1 bg-stone-950 cursor-pointer outline-none hover:border-amber-400 transition rounded-none">
-      <option value="1">L1: MOONLIT BAOLI</option>
-      <option value="2">L2: HANUMAN AKHADA</option>
-      <option value="3">L3: KAILASHA SUMMIT</option>
-    </select>
-
-    <!-- Hot-Swappable GLB Loader Trigger -->
-    <button id="glb-loader-btn" class="hairline-border text-[9px] font-mono tracking-[0.2em] uppercase text-amber-200 px-2.5 py-1 bg-stone-950 hover:border-amber-400 transition cursor-pointer rounded-none">
-      GLB SWAP
-    </button>
-
-    <!-- Audio Mute Toggle -->
-    <button id="audio-toggle-btn" class="hairline-border text-[9px] font-mono text-amber-200 px-2 py-1 bg-stone-950 hover:border-amber-400 transition cursor-pointer rounded-none">
-      🔊
-    </button>
-  </div>
-
-  <!-- GLB Swapper Modal (Sharp Zero-Rounded Editorial Styling) -->
-  <div id="glb-modal" class="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center hidden p-4">
-    <div class="corner-bracket hairline-border p-6 max-w-md w-full bg-stone-950 shadow-2xl space-y-4">
-      <div class="flex justify-between items-center border-b border-stone-800 pb-2">
-        <h3 class="text-xs tracking-[0.3em] font-serif uppercase text-amber-300 font-bold">HOT-SWAP ASSET PIPELINE</h3>
-        <button id="glb-modal-close" class="text-stone-500 hover:text-white font-mono text-sm cursor-pointer">&times;</button>
-      </div>
-      <p class="text-[11px] text-zinc-400 leading-relaxed font-mono">
-        Hot-swap character & arena models. Sockets (<code class="text-amber-400">mixamorigRightHand</code>, <code class="text-amber-400">mixamorigLeftHand</code>) and Rapier colliders are strictly preserved.
-      </p>
-
-      <div class="space-y-3 text-[11px] font-mono">
-        <div>
-          <label class="block text-stone-400 mb-1 tracking-wider uppercase">Character Model (GLB/GLTF):</label>
-          <div class="flex space-x-2">
-            <input id="glb-player-url" type="text" placeholder="/models/warrior.glb" class="flex-1 bg-black border border-stone-800 px-2.5 py-1 text-zinc-200 outline-none focus:border-amber-400 rounded-none" />
-            <button id="btn-load-player-glb" class="sharp-btn px-3 py-1 font-bold rounded-none cursor-pointer">APPLY</button>
-          </div>
-        </div>
-
-        <div>
-          <label class="block text-stone-400 mb-1 tracking-wider uppercase">Level Environment (GLB/GLTF):</label>
-          <div class="flex space-x-2">
-            <input id="glb-level-url" type="text" placeholder="/models/arena.glb" class="flex-1 bg-black border border-stone-800 px-2.5 py-1 text-zinc-200 outline-none focus:border-amber-400 rounded-none" />
-            <button id="btn-load-level-glb" class="sharp-btn px-3 py-1 font-bold rounded-none cursor-pointer">APPLY</button>
-          </div>
-        </div>
-      </div>
+  <!-- Cutscene overlay: letterbox, fades, cards -->
+  <div id="cinema" class="layer" hidden>
+    <div class="letterbox top"></div>
+    <div class="letterbox bottom"></div>
+    <div id="chapter-card" class="card">
+      <div class="card-kicker" id="card-kicker"></div>
+      <div class="card-title" id="card-title"></div>
+      <div class="card-native" id="card-native"></div>
+      <div class="card-line" id="card-line"></div>
     </div>
-  </div>
-
-  <!-- Level Streaming Veil (shown while a level GLB and its sky load) -->
-  <div id="level-loading" class="fixed inset-0 z-[35] bg-zinc-950 hidden flex-col items-center justify-center space-y-3 pointer-events-none">
-    <div id="level-loading-title" class="text-[10px] font-serif tracking-[0.45em] text-amber-200/90 uppercase">Loading</div>
-    <div class="h-[2px] w-64 bg-stone-900 border-t border-b border-amber-900/30 overflow-hidden">
-      <div id="level-loading-bar" class="h-full bg-amber-400 transition-all duration-150" style="width: 0%"></div>
+    <div id="name-card" class="card">
+      <div class="name-rule"></div>
+      <div class="name-title" id="name-title"></div>
+      <div class="name-epithet" id="name-epithet"></div>
     </div>
-    <div class="text-[9px] font-mono tracking-[0.35em] text-stone-500 uppercase">Streaming Arena</div>
+    <div id="skip"><span>Hold <span data-glyph="skip"></span> to skip</span><i id="skip-fill"></i></div>
   </div>
+  <div id="fade" aria-hidden="true"></div>
 
-  <!-- Pointer Lock / Click to Enter Overlay (Zero-Rounded Editorial Martial Style) -->
-  <div id="start-overlay" class="absolute inset-0 z-40 bg-zinc-950/95 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center cursor-pointer transition-opacity duration-300">
-    <div class="max-w-xl space-y-6 flex flex-col items-center">
-      
-      <!-- Title Splash -->
-      <div id="title-screen" class="select-none flex flex-col items-center space-y-1.5">
-        <h2 class="brass-glyph tracking-[0.55em] text-xs uppercase font-serif font-bold">
-          ॥ युद्धवीर ॥
-        </h2>
-        
-        <h1 class="brass-title text-6xl md:text-7xl font-black tracking-[0.25em] font-serif uppercase">
-          YUDHVEER
-        </h1>
-        
-        <p class="brass-sub text-[10px] tracking-[0.5em] uppercase font-semibold text-stone-400">
-          Echoes of the Sacred Ghat
-        </p>
-      </div>
-
-      <!-- Hairline Accent Divider -->
-      <div class="w-48 h-[1px] bg-gradient-to-r from-transparent via-amber-500/40 to-transparent"></div>
-
-      <!-- Controls Matrix -->
-      <div class="corner-bracket hairline-border p-4 max-w-md w-full text-left text-[10px] font-mono space-y-2 bg-stone-950/80">
-        <div class="flex justify-between items-center border-b border-stone-800 pb-1.5 text-amber-300 tracking-[0.25em] uppercase">
-          <span>COMBAT DISCIPLINE</span>
-          <span class="text-[9px] text-stone-500">140MS DEFLECTION</span>
-        </div>
-        
-        <div class="grid grid-cols-2 gap-x-4 gap-y-1 text-stone-300">
-          <div>• <span class="text-amber-200">WASD:</span> Omnidirectional Move</div>
-          <div>• <span class="text-amber-200">Shift:</span> Sprint Dash</div>
-          <div>• <span class="text-amber-200">C:</span> Walk / Run Toggle</div>
-          <div>• <span class="text-amber-200">F:</span> Jump</div>
-          <div>• <span class="text-amber-200">LMB:</span> 3x Sword Combo</div>
-          <div>• <span class="text-amber-200">Shift+LMB:</span> Leaping Strike</div>
-          <div>• <span class="text-amber-200">RMB:</span> Deflect, Hold to Guard</div>
-          <div>• <span class="text-amber-200">Hold Q:</span> Charge Shakti</div>
-          <div>• <span class="text-amber-200">X:</span> Sheathe / Draw</div>
-          <div>• <span class="text-amber-200">Space:</span> Invulnerable Roll</div>
-          <div>• <span class="text-amber-200">मर्म:</span> Posture Execution</div>
-        </div>
-      </div>
-
-      <!-- Sharp Action Button -->
-      <div class="sharp-btn corner-bracket px-8 py-3.5 font-mono tracking-[0.35em] uppercase text-xs cursor-pointer mt-1 font-bold">
-        [ CLICK TO ENTER THE ARENA ]
-      </div>
-
-      <p class="text-[9px] font-mono text-stone-600 tracking-[0.3em] uppercase">Press ESC to unlock cursor at any time</p>
+  <!-- Menus -->
+  <section id="title" class="screen" hidden>
+    <div class="title-block">
+      <div class="title-native" lang="hi">युद्धवीर</div>
+      <h1 class="title-word">Yudhveer</h1>
+      <p class="title-tagline">Echoes of the sacred ghat</p>
+      <nav class="menu" id="title-menu">
+        <button data-action="continue" id="title-continue">Continue<small id="continue-detail"></small></button>
+        <button data-action="new">New game</button>
+        <button data-action="chapters">Chapters</button>
+        <button data-action="settings">Settings</button>
+        <button data-action="controls">Controls</button>
+      </nav>
     </div>
-  </div>
+    <div class="title-foot">Keyboard and mouse, or a controller</div>
+  </section>
+
+  <section id="pause" class="screen scrim" hidden>
+    <div class="panel">
+      <h2>Paused</h2>
+      <p class="panel-sub" id="pause-chapter"></p>
+      <nav class="menu" id="pause-menu">
+        <button data-action="resume">Resume</button>
+        <button data-action="restart">Restart chapter</button>
+        <button data-action="settings">Settings</button>
+        <button data-action="controls">Controls</button>
+        <button data-action="quit">Quit to title</button>
+      </nav>
+    </div>
+  </section>
+
+  <section id="chapters" class="screen scrim" hidden>
+    <div class="panel wide">
+      <h2>Chapters</h2>
+      <nav class="menu chapter-list" id="chapters-menu"></nav>
+      <nav class="menu back-row"><button data-action="back">Back</button></nav>
+    </div>
+  </section>
+
+  <section id="settings" class="screen scrim" hidden>
+    <div class="panel wide">
+      <h2>Settings</h2>
+      <nav class="menu settings-list" id="settings-menu">
+        <button data-setting="masterVolume" data-kind="range" data-min="0" data-max="1" data-step="0.05">Volume<output></output></button>
+        <button data-setting="musicVolume" data-kind="range" data-min="0" data-max="1" data-step="0.05">Music<output></output></button>
+        <button data-setting="mouseSensitivity" data-kind="range" data-min="0.3" data-max="2.5" data-step="0.1">Mouse sensitivity<output></output></button>
+        <button data-setting="padLookSpeed" data-kind="range" data-min="1" data-max="5" data-step="0.2">Controller look speed<output></output></button>
+        <button data-setting="invertY" data-kind="toggle">Invert vertical look<output></output></button>
+        <button data-setting="cameraShake" data-kind="toggle">Camera shake<output></output></button>
+        <button data-setting="hints" data-kind="toggle">Combat hints<output></output></button>
+        <button data-action="back" class="back-item">Back</button>
+      </nav>
+      <p class="panel-note">Click a setting, or use left and right, to change it.</p>
+    </div>
+  </section>
+
+  <section id="controls" class="screen scrim" hidden>
+    <div class="panel wide">
+      <h2>Controls</h2>
+      <table class="controls-table">
+        <thead><tr><th></th><th>Keyboard and mouse</th><th>Controller</th></tr></thead>
+        <tbody>
+          <tr><td>Move</td><td><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></td><td><kbd>Left stick</kbd></td></tr>
+          <tr><td>Look</td><td><kbd>Mouse</kbd></td><td><kbd>Right stick</kbd></td></tr>
+          <tr><td>Sprint</td><td><kbd>Shift</kbd></td><td><kbd>L3</kbd></td></tr>
+          <tr><td>Walk</td><td><kbd>C</kbd></td><td>Push the stick lightly</td></tr>
+          <tr><td>Jump</td><td><kbd>Space</kbd></td><td><kbd>A</kbd></td></tr>
+          <tr><td>Attack (press again to chain)</td><td><kbd>Left click</kbd></td><td><kbd>X</kbd> or <kbd>RB</kbd></td></tr>
+          <tr><td>Leaping strike</td><td>Attack while sprinting</td><td>Attack while sprinting</td></tr>
+          <tr><td>Slide (passes under blows)</td><td><kbd>F</kbd></td><td><kbd>B</kbd></td></tr>
+          <tr><td>Deflect (hold to guard)</td><td><kbd>Right click</kbd></td><td><kbd>LB</kbd> or <kbd>LT</kbd></td></tr>
+          <tr><td>Charge the next three blows</td><td>Hold <kbd>Q</kbd></td><td>Hold <kbd>Y</kbd> or <kbd>RT</kbd></td></tr>
+          <tr><td>Sheathe or draw</td><td><kbd>X</kbd></td><td><kbd>D-pad down</kbd></td></tr>
+          <tr><td>Pause</td><td><kbd>Esc</kbd></td><td><kbd>Start</kbd></td></tr>
+        </tbody>
+      </table>
+      <p class="panel-note">Your swings turn toward the nearest enemy and step in to close the gap. Once a swing has landed, a slide, a deflect or the next blow can cut its follow-through short. Deflect just as a blow lands to throw the attacker off balance. Break an enemy's posture and your blows land more than twice as hard while it recovers.</p>
+      <nav class="menu back-row"><button data-action="back">Back</button></nav>
+    </div>
+  </section>
+
+  <section id="defeat" class="screen" hidden>
+    <div class="outcome">
+      <h2 class="outcome-title fallen">Fallen</h2>
+      <p class="outcome-line" id="defeat-line"></p>
+      <nav class="menu centred" id="defeat-menu">
+        <button data-action="retry">Retry</button>
+        <button data-action="quit">Quit to title</button>
+      </nav>
+    </div>
+  </section>
+
+  <section id="cleared" class="screen scrim" hidden>
+    <div class="outcome">
+      <div class="outcome-kicker" id="cleared-kicker"></div>
+      <h2 class="outcome-title" id="cleared-title"></h2>
+      <dl class="stats" id="cleared-stats"></dl>
+      <nav class="menu centred" id="cleared-menu">
+        <button data-action="next" id="cleared-next">Continue</button>
+        <button data-action="quit">Quit to title</button>
+      </nav>
+    </div>
+  </section>
+
+  <section id="loading" class="screen solid">
+    <div class="loading-block">
+      <div class="loading-kicker" id="loading-kicker"></div>
+      <div class="loading-title" id="loading-title">Yudhveer</div>
+      <div class="loading-track"><div id="loading-bar"></div></div>
+      <div class="loading-error" id="loading-error" hidden></div>
+      <nav class="menu centred" id="loading-menu" hidden>
+        <button data-action="recover" id="loading-recover">Return to the title</button>
+      </nav>
+    </div>
+  </section>
 
   <script type="module" src="/src/main.ts"></script>
 </body>

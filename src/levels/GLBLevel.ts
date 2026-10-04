@@ -5,7 +5,7 @@ import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.j
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { PhysicsWorld } from '../core/PhysicsWorld';
 import { SceneManager } from '../core/SceneManager';
-import type { GameLevel, LevelAtmosphere } from './LevelTypes';
+import type { CameraPose, GameLevel, LevelAtmosphere } from './LevelTypes';
 import { ArenaBounds, type ArenaBoundsSpec } from './ArenaBounds';
 
 // Blender's glTF exporter converts light watts to candela with 683 lm/W; Blender itself renders watts / (4*pi^2).
@@ -59,12 +59,13 @@ export abstract class GLBLevel implements GameLevel {
 
   public readonly group = new THREE.Group();
   public readonly playerSpawn = new THREE.Vector3(0, 0, 4);
-  public readonly wallKickPoints: THREE.Vector3[] = [];
   public readonly bloomObjects: THREE.Object3D[] = [];
   /** Invisible arena walls, built from `arenaBoundsSpec` once the level has loaded. */
   public bounds: ArenaBounds | null = null;
   /** Anything that falls below this height (level coordinates) is out of the fight and gets recovered. */
   public killPlaneY = -40;
+  /** Cameras exported with the GLB, by name (world transforms captured at load). */
+  private readonly cameras = new Map<string, { matrix: THREE.Matrix4; fov: number }>();
 
   protected readonly physics = PhysicsWorld.getInstance();
   protected disposed = false;
@@ -114,6 +115,8 @@ export abstract class GLBLevel implements GameLevel {
     const exportedLights: THREE.Light[] = [];
     model.traverse((obj) => {
       if ((obj as THREE.Light).isLight) exportedLights.push(obj as THREE.Light);
+      const cam = obj as THREE.PerspectiveCamera;
+      if (cam.isPerspectiveCamera) this.cameras.set(cam.name || cam.parent?.name || '', { matrix: cam.matrixWorld.clone(), fov: cam.fov });
       if (obj.name.startsWith('Collider_')) obj.visible = false;
     });
     exportedLights.forEach((light) => this.prepareExportedLight(light));
@@ -154,6 +157,15 @@ export abstract class GLBLevel implements GameLevel {
     this.group.add(this.bounds.createDebugMesh());
   }
 
+  /** An exported camera's pose: its position, a point `lookDistance` metres along its view, and its lens. */
+  public cameraPose(name: string, lookDistance = 20): CameraPose | null {
+    const cam = this.cameras.get(name);
+    if (!cam) return null;
+    const pos = new THREE.Vector3().setFromMatrixPosition(cam.matrix);
+    const forward = new THREE.Vector3(0, 0, -1).transformDirection(cam.matrix);
+    return { pos, look: pos.clone().addScaledVector(forward, lookDistance), fov: cam.fov };
+  }
+
   /** Draws the arena walls' outline (for tuning bounds); off by default. */
   public showBounds(visible: boolean): void {
     const debug = this.group.getObjectByName('ArenaBoundsDebug');
@@ -192,6 +204,11 @@ export abstract class GLBLevel implements GameLevel {
   /** A fixed box collider owned (and removed on dispose) by this level. */
   protected addStaticBox(center: THREE.Vector3, halfExtents: THREE.Vector3): void {
     this.bodies.push(this.physics.createStaticBox(center, halfExtents).body);
+  }
+
+  /** A fixed upright cylinder collider (a disc of floor, a plinth) owned by this level. */
+  protected addStaticCylinder(center: THREE.Vector3, halfHeight: number, radius: number): void {
+    this.bodies.push(this.physics.createStaticCylinder(center, halfHeight, radius).body);
   }
 
   protected addFlicker(light: THREE.Light): void {

@@ -88,6 +88,8 @@ export class ParticleFX {
   private shockwaveMat: THREE.MeshBasicMaterial;
 
   private constructor() {
+    // Every particle is a soft round dot rather than a hard square.
+    const dot = createSoftDot();
     // Sparks setup
     this.sparkPositions = new Float32Array(this.sparkMaxCount * 3);
     this.sparkColors = new Float32Array(this.sparkMaxCount * 3);
@@ -96,7 +98,9 @@ export class ParticleFX {
     this.sparkGeo.setAttribute('color', new THREE.BufferAttribute(this.sparkColors, 3));
 
     this.sparkMat = new THREE.PointsMaterial({
-      size: 0.12,
+      map: dot,
+      alphaTest: 0.01,
+      size: 0.17,
       vertexColors: true,
       transparent: true,
       blending: THREE.AdditiveBlending,
@@ -109,7 +113,9 @@ export class ParticleFX {
     this.dustGeo = new THREE.BufferGeometry();
     this.dustGeo.setAttribute('position', new THREE.BufferAttribute(this.dustPositions, 3));
     this.dustMat = new THREE.PointsMaterial({
-      size: 0.28,
+      map: dot,
+      alphaTest: 0.01,
+      size: 0.38,
       color: 0xd4b483,
       transparent: true,
       opacity: 0.4,
@@ -125,7 +131,9 @@ export class ParticleFX {
     this.flameGeo.setAttribute('position', new THREE.BufferAttribute(this.flamePositions, 3));
     this.flameGeo.setAttribute('color', new THREE.BufferAttribute(this.flameColors, 3));
     this.flameMat = new THREE.PointsMaterial({
-      size: 0.22,
+      map: dot,
+      alphaTest: 0.01,
+      size: 0.3,
       vertexColors: true,
       transparent: true,
       blending: THREE.AdditiveBlending,
@@ -138,7 +146,9 @@ export class ParticleFX {
     this.mistGeo = new THREE.BufferGeometry();
     this.mistGeo.setAttribute('position', new THREE.BufferAttribute(this.mistPositions, 3));
     this.mistMat = new THREE.PointsMaterial({
-      size: 0.85,
+      map: dot,
+      alphaTest: 0.01,
+      size: 1.15,
       color: 0x90b5d0,
       transparent: true,
       opacity: 0.25,
@@ -249,7 +259,7 @@ export class ParticleFX {
   }
 
   /**
-   * Spawn dust puff for dodge rolls or heavy foot landings
+   * Spawn dust puff for jump landings or heavy footfalls
    */
   public spawnDustPuff(origin: THREE.Vector3, count = 12): void {
     for (let i = 0; i < count; i++) {
@@ -280,7 +290,7 @@ export class ParticleFX {
   }
 
   /**
-   * Spawn flame particles & embers (Boss Mahayodha flaming blade & braziers)
+   * Spawn flame particles & embers (fire waves, the naga king's second phase, braziers)
    */
   public spawnFlames(origin: THREE.Vector3, count = 8, spread = 0.3): void {
     const fireColors = [
@@ -488,4 +498,21 @@ export class ParticleFX {
       (s.mesh.material as THREE.MeshBasicMaterial).opacity = (1 - progress) * 0.9;
     }
   }
+}
+
+/** A white dot fading to transparent at its rim: the sprite for every particle. */
+function createSoftDot(): THREE.CanvasTexture {
+  const size = 64;
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = size;
+  const ctx = canvas.getContext('2d')!;
+  const g = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+  g.addColorStop(0, 'rgba(255,255,255,1)');
+  g.addColorStop(0.35, 'rgba(255,255,255,0.85)');
+  g.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = g;
+  ctx.fillRect(0, 0, size, size);
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
 }

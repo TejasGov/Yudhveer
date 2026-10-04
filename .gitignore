@@ -8,3 +8,8 @@ dist-ssr
 *.log
 src/**/*.js
 src/**/*.js.map
+
+# Blender autosaves and Python caches
+*.blend1
+*.blend2
+__pycache__/

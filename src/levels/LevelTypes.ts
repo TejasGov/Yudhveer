@@ -21,15 +21,32 @@ export interface LevelAtmosphere {
   backgroundIntensity: number;
   environment: THREE.Texture | null;
   environmentIntensity: number;
-  fog: { color: number; density: number };
+  /** Exponential fog (`density`), or linear fog from `near` to `far` metres. */
+  fog: { color: number; density: number } | { color: number; near: number; far: number };
   ambient: { color: number; intensity: number };
   hemi: { sky: number; ground: number; intensity: number };
-  /** The single shadow-casting light; it follows the player along `direction` (towards the light). */
-  key: { color: number; intensity: number; direction: THREE.Vector3 };
+  /**
+   * The single shadow-casting light; it follows the player along `direction` (towards the light). `normalBias`
+   * fights shadow acne under a grazing (sunset) light.
+   */
+  key: { color: number; intensity: number; direction: THREE.Vector3; normalBias?: number };
   exposure: number;
+  /** Tone curve: ACES filmic (default) or AgX (scenes authored in Blender's AgX view). */
+  toneMapping?: 'aces' | 'agx';
+  /** Orientation of the sky and its reflections (an HDR exported from Blender); identity when absent. */
+  environmentRotation?: THREE.Euler;
+  /** Camera clip planes for this level (default 0.1 / 1000 m); large seascapes need a further far plane. */
+  clip?: { near: number; far: number };
   bloom: { threshold: number; smoothing: number; intensity: number };
   vignette: { offset: number; darkness: number };
   ink: InkOutlineSettings | null;
+}
+
+/** An authored camera from the level file: where it is, what it looks at, its lens. */
+export interface CameraPose {
+  pos: THREE.Vector3;
+  look: THREE.Vector3;
+  fov: number;
 }
 
 export interface GameLevel {
@@ -40,14 +57,14 @@ export interface GameLevel {
   /** Valid once `load()` resolves; the level may refine it while loading (e.g. when a sky finishes). */
   readonly atmosphere: LevelAtmosphere;
   readonly playerSpawn: THREE.Vector3;
-  /** Pillar centres the dodge-roll wall kick can push off. */
-  readonly wallKickPoints: THREE.Vector3[];
   /** Emissive meshes (flames, lamps, lava, eclipse corona) that feed the selective bloom. */
   readonly bloomObjects: THREE.Object3D[];
   /** Arena walls keeping fighters in the fight, if the level defines them. */
   readonly bounds: ArenaBounds | null;
   /** Falling below this height (level coordinates) means out of the arena: the engine recovers the fighter. */
   readonly killPlaneY: number;
+  /** An authored camera exported with the level, by name (cutscenes use them), or null. */
+  cameraPose(name: string, lookDistance?: number): CameraPose | null;
   load(onProgress?: (fraction: number) => void): Promise<void>;
   update(time: number, dt: number, camera: THREE.Camera): void;
   dispose(): void;

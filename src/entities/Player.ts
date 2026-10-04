@@ -9,43 +9,86 @@ import { ParticleFX } from '../combat/ParticleFX';
 const CHARGED_HITS = 3;
 export const CHARGED_MULTIPLIER = 1.6;
 
+/**
+ * Locomotion feel. He always travels the way he faces and turns toward the input rather than sliding sideways;
+ * a sharp change of direction bleeds his speed while he swings round, and speed builds and falls off over a few
+ * tenths of a second. That momentum is most of what makes a run read as a heavy warrior instead of a cursor.
+ */
+const LOCOMOTION = {
+  acceleration: 9, // m/s^2 up to running pace (~0.4 s)
+  sprintAcceleration: 6, // a sprint takes longer to wind up
+  deceleration: 14, // m/s^2 to a stop (~0.3 s from a run)
+  turnRate: 11, // rad/s standing or walking (a half-turn in ~0.3 s)
+  sprintTurnRate: 5, // rad/s at full sprint: wide arcs
+  airTurnRate: 2.5, // rad/s of steering while airborne
+  stopSpeed: 0.35, // below this with no input he is standing still
+};
+
+/**
+ * Swings find their mark. An attack turns toward the nearest enemy roughly where he is aiming (the stick or keys,
+ * else his facing) and steps in to reach it as the blade comes round, so a blow is aimed rather than lucky.
+ */
+const ASSIST = {
+  range: 5.5, // m, centre to centre
+  cone: THREE.MathUtils.degToRad(75), // either side of the aim
+  closeRange: 2.2, // m: an enemy this close is found in any direction
+  turnRate: 20, // rad/s while winding up (a half-turn in ~0.15 s)
+  reach: 1.2, // m from his centre to the target's body where the blade lands best
+  maxStep: 2.2, // m the step-in may cover
+  idleStep: 0.35, // m he steps into a swing at nothing
+};
+
+/**
+ * The slide (F / B), in clip seconds: low enough to pass under a blow from `untouchable[0]` to `[1]`, and back up
+ * enough to swing, guard or run on from `actFrom`. `travel` scales the clip's 5.6 m.
+ */
+const SLIDE = { untouchable: [0.1, 0.78], actFrom: 0.92, travel: 0.8 };
+/** After a swing's cancel point, movement takes over this much later than a slide or a follow-up blow. */
+const MOVE_CANCEL_DELAY = 0.12;
+
 export class Player extends Character {
   private inputManager: InputManager;
   private soundFX: SoundFX;
   private particleFX: ParticleFX;
-  public cameraYaw: number = 0;
+  /** Yaw of the camera's view (SceneManager.viewYaw): WASD are relative to it. */
+  public viewYaw = 0;
 
   /** Blows still empowered by a completed charge. */
   public chargedHits = 0;
   /** Called when a charge completes (the engine shows the banner). */
   public onCharged: (() => void) | null = null;
-  /** Ground speed carried through the current jump, and when it touched down (state seconds, -1 while airborne). */
-  private jumpCarry = 0;
+  /** Current ground speed along his facing (m/s): built up and bled off, never set outright. */
+  public speed = 0;
+  /** When the current jump touched down (state seconds, -1 while airborne). */
   private jumpLandedAt = -1;
+  /** Who might be struck, and this step's input direction (world, zero when none): attacks aim with them. */
+  private foes: readonly Character[] = [];
+  private aimDir = new THREE.Vector3();
+  /** The enemy the current swing is aimed at, and how far it steps in before its blade arrives (state seconds). */
+  private attackTarget: Character | null = null;
+  private step = { allow: 0, until: 0 };
 
   constructor() {
     super('player_hero', 0xd4af37); // Royal Gold
+    this.chainsEarly = true;
 
     this.inputManager = InputManager.getInstance();
     this.soundFX = SoundFX.getInstance();
     this.particleFX = ParticleFX.getInstance();
 
-    // Setup state change hooks
     this.stateMachine.onStateChanged = (newState) => {
-      this.updateHudBadge(newState);
-
+      this.rootMotionScale = 1;
       if (newState.startsWith('ATTACK')) {
         const pitch = newState === 'ATTACK_1' ? 1.0 : newState === 'ATTACK_2' ? 1.15 : 0.85;
         this.soundFX.playSwordSwing(pitch);
-      } else if (newState === 'DODGE_ROLL') {
-        this.soundFX.playDodgeWhoosh();
-        this.particleFX.spawnDustPuff(this.getPosition(), 14);
+        this.aimAttack(newState); // chained swings too, which the state machine starts
       }
     };
   }
 
-  public handleInput(dt: number, cameraYaw: number): void {
-    this.cameraYaw = cameraYaw;
+  public handleInput(dt: number, viewYaw: number, foes: readonly Character[] = []): void {
+    this.viewYaw = viewYaw;
+    this.foes = foes;
     const input = this.inputManager.getState();
     const sm = this.stateMachine;
     const state = sm.currentState;
@@ -53,6 +96,7 @@ export class Player extends Character {
 
     // Don't allow new actions during locked states
     if (state === 'POSTURE_BROKEN' || state === 'DEAD') {
+      this.speed = 0;
       return;
     }
 
@@ -60,58 +104,58 @@ export class Player extends Character {
     const free = state === 'IDLE' || state === 'WALK' || state === 'MOVE' || state === 'SPRINT';
     const moveVec = this.calculateInputDirection(input);
     const moving = moveVec.lengthSq() > 0.001;
+    if (moving) this.aimDir.copy(moveVec);
+    else this.aimDir.set(0, 0, 0);
+    // A swing whose blade has finished can be cut short (and a slide once he is back up).
+    const recovering = this.inRecovery();
+    const slideDone = state === 'DODGE' && this.slideRecovered();
+    const canAct = free || state === 'BLOCK' || recovering || slideDone;
+
+    // 0. Slide (F): out of anything but a hit, a fall or the middle of a swing.
+    if (input.dodge && grounded && (canAct || state === 'CHARGE' || (state === 'PARRY' && !sm.isParryActive))) {
+      this.inputManager.consume('dodge');
+      this.beginSlide(moving ? moveVec : null);
+      return;
+    }
 
     // 1. Dhal (Right Click): a press opens the 140 ms parry window, holding on settles into a guard.
-    if (input.parryPressed && (free || state === 'BLOCK') && grounded) {
+    if (input.parryPressed && canAct && grounded) {
       this.inputManager.consume('parry');
       sm.changeState('PARRY');
       return;
     }
-    if (input.parry && free && grounded) {
+    // The guard is a planted stance: movement always wins over it, so holding the button never pins him in place.
+    if (input.parry && !moving && free && grounded && this.speed < LOCOMOTION.stopSpeed) {
       sm.changeState('BLOCK');
       return;
     }
 
     // 2. Attack Trigger (Left Click) & Combo Chaining. Sheathed, the first click draws the sword; out of a sprint
     // it is a leaping strike.
-    if (input.attack || this.inputManager.attackBuffered) {
-      if ((free || state === 'BLOCK') && grounded) {
-        this.inputManager.consumeAttack();
+    // A chained blow is queued from the moment the swing's blade starts; it begins at the swing's cancel point.
+    const chaining = state === 'ATTACK_1' || state === 'ATTACK_2';
+    if (input.attack) {
+      if (grounded && (free || state === 'BLOCK' || slideDone || (recovering && !chaining))) {
+        this.inputManager.consume('attack');
         if (this.swordSheathed) sm.changeState('DRAW');
         else if (state === 'SPRINT' && this.rig?.definition.states.ATTACK_JUMP) sm.changeState('ATTACK_JUMP');
         else sm.changeState('ATTACK_1');
         return;
-      } else if ((state === 'ATTACK_1' || state === 'ATTACK_2') && sm.comboWindowOpen) {
-        this.inputManager.consumeAttack();
+      } else if (chaining && (sm.comboWindowOpen || sm.stateTime >= (this.hitWindows(state)[0]?.t0 ?? 0))) {
+        this.inputManager.consume('attack');
         sm.comboQueued = true;
       }
     }
 
-    // 3. Dodge Roll Trigger (Space); it also breaks off a guard, a charge or a sheathe.
-    const dodgeable = free || state === 'ATTACK_1' || state === 'ATTACK_2' || state === 'BLOCK' || state === 'CHARGE' ||
-      state === 'SHEATHE' || state === 'DRAW';
-    if (input.dodge && dodgeable && grounded) {
-      if (moving) {
-        this.dodgeDirection.copy(moveVec).normalize();
-      } else {
-        // Default to facing direction
-        this.group.getWorldDirection(this.dodgeDirection);
-      }
-      sm.changeState('DODGE_ROLL');
-      return;
-    }
-
-    // 4. Jump (F): a running jump on the move, carrying the speed it started with.
-    if (input.jump && (free || state === 'BLOCK') && grounded) {
+    // 3. Jump (Space): a running jump at pace, keeping his momentum through the air.
+    if (input.jump && canAct && grounded) {
       this.inputManager.consume('jump');
-      const running = moving && (state === 'MOVE' || state === 'SPRINT');
-      this.jumpCarry = moving ? this.speedOf(this.locomotionState(input)) : this.walkSpeed;
       this.jumpLandedAt = -1;
-      this.beginJump(running);
+      this.beginJump(this.speed > this.walkSpeed + 0.5);
       return;
     }
 
-    // 5. Charge (press and hold Q; a finished charge needs a fresh press) and sheathe / draw (X).
+    // 4. Charge (press and hold Q; a finished charge needs a fresh press) and sheathe / draw (X).
     if (input.chargePressed && input.charge && free && grounded && !this.swordSheathed) {
       this.inputManager.consume('charge');
       sm.changeState('CHARGE');
@@ -123,18 +167,17 @@ export class Player extends Character {
       return;
     }
 
-    // 6. Movement handling
+    // 5. Movement handling. Only running and jumping carry momentum; everything else is planted.
     let moveMagnitude = 0;
-    if (free) {
-      if (moving) {
-        moveMagnitude = 1;
-        const target = this.locomotionState(input);
-        if (state !== target) sm.changeState(target);
-        this.group.position.addScaledVector(moveVec, this.speedOf(target) * dt);
-        this.turnTowards(moveVec, dt);
-      } else if (state !== 'IDLE') {
-        sm.changeState('IDLE');
-      }
+    const moveCancel = moving && !sm.comboQueued && (slideDone
+      || (recovering && sm.stateTime >= (sm.cancelAt[state] ?? 0) + MOVE_CANCEL_DELAY));
+    if (state !== 'JUMP' && !free && !moveCancel) this.speed = 0;
+    if (free || moveCancel) {
+      // Out of a slide he is already moving: he runs straight on.
+      if (slideDone) this.speed = Math.max(this.speed, this.moveSpeed * 0.8);
+      moveMagnitude = this.locomote(input, moveVec, moving, dt);
+    } else if (state === 'DODGE') {
+      if (!this.rigDrivesMotion('DODGE')) this.advance(7 * Math.max(0, 1 - sm.stateTime / sm.DODGE_DURATION), dt);
     } else if (state === 'JUMP') {
       this.updateJump(input, moveVec, moving, dt);
     } else if (state === 'CHARGE') {
@@ -148,44 +191,178 @@ export class Player extends Character {
         this.onCharged?.();
       }
     } else if (state === 'BLOCK') {
-      // The guard faces where the camera looks.
+      // The guard faces where the camera looks; moving drops it and he runs.
       if (!input.parry) sm.changeState('IDLE');
-      else this.turnTowards(new THREE.Vector3(-Math.sin(this.cameraYaw), 0, -Math.cos(this.cameraYaw)), dt);
-    } else if (state === 'DODGE_ROLL') {
-      // Move in dodge direction
-      this.group.position.addScaledVector(this.dodgeDirection, this.dodgeSpeed * dt);
-      this.group.rotation.y = Math.atan2(this.dodgeDirection.x, this.dodgeDirection.z);
-    } else if (state.startsWith('ATTACK') && !this.rigDrivesMotion(state)) {
-      // Subtle forward lunge during attacks
-      const forward = new THREE.Vector3(0, 0, 1).applyAxisAngle(new THREE.Vector3(0, 1, 0), this.group.rotation.y);
-      const lungeSpeed = state === 'ATTACK_3' ? 3.5 : 1.8;
-      this.group.position.addScaledVector(forward, lungeSpeed * dt);
+      else if (moving) moveMagnitude = this.locomote(input, moveVec, moving, dt);
+      else this.turnTowards(Math.atan2(-Math.sin(this.viewYaw), -Math.cos(this.viewYaw)), LOCOMOTION.turnRate, dt);
+    } else if (state.startsWith('ATTACK')) {
+      this.followThrough(dt);
     }
 
     this.updateProceduralAnimations(dt, moveMagnitude);
   }
 
   /**
-   * Leaves the ground at the clip's takeoff, steers in the air at the speed the jump began with, and on touchdown
-   * lets the landing play out (or runs straight on if a direction is held).
+   * Walking, running and sprinting. He turns toward the input at a rate that narrows as he speeds up, and moves
+   * only along his facing: while the input points away from where he faces he slows to pivot instead of crabbing
+   * sideways. Letting go bleeds speed off before he settles into IDLE. Returns how hard he is moving (0..1).
+   */
+  private locomote(input: InputState, moveVec: THREE.Vector3, moving: boolean, dt: number): number {
+    const sm = this.stateMachine;
+    let target = 0;
+    if (moving) {
+      const gait = this.locomotionState(input);
+      if (sm.currentState !== gait) sm.changeState(gait);
+      const pace = THREE.MathUtils.clamp(this.speed / this.sprintSpeed, 0, 1);
+      const turnRate = THREE.MathUtils.lerp(LOCOMOTION.turnRate, LOCOMOTION.sprintTurnRate, pace);
+      const offAxis = this.turnTowards(Math.atan2(moveVec.x, moveVec.z), turnRate, dt);
+      // Full pace when facing the input, none when it points 90 degrees or more away (a planted pivot).
+      target = this.speedOf(gait) * Math.max(0, Math.cos(offAxis)) ** 2;
+      const accel = target < this.speed ? LOCOMOTION.deceleration
+        : gait === 'SPRINT' ? LOCOMOTION.sprintAcceleration : LOCOMOTION.acceleration;
+      this.speed = approach(this.speed, target, accel * dt);
+    } else {
+      this.speed = approach(this.speed, 0, LOCOMOTION.deceleration * dt);
+      if (this.speed < LOCOMOTION.stopSpeed) {
+        this.speed = 0;
+        if (sm.currentState !== 'IDLE') sm.changeState('IDLE');
+      }
+    }
+    this.advance(this.speed, dt);
+    return moving ? 1 : 0;
+  }
+
+  /**
+   * Leaves the ground at the clip's takeoff and keeps the momentum he jumped with (letting go of the keys does not
+   * stop him in mid-air); the input only steers, gently. On touchdown the landing plays out, or he runs straight on.
    */
   private updateJump(input: InputState, moveVec: THREE.Vector3, moving: boolean, dt: number): void {
     const sm = this.stateMachine;
     if (!this.jumpLaunched && sm.stateTime >= this.jump.takeoff) {
       this.motor?.launch(this.jump.speed);
       this.jumpLaunched = true;
+      // A standing jump in a held direction still drifts that way.
+      if (moving && this.speed < this.walkSpeed) this.speed = this.walkSpeed;
     }
-    if (moving) {
-      this.group.position.addScaledVector(moveVec, this.jumpCarry * dt);
-      this.turnTowards(moveVec, dt);
-    }
+    if (moving) this.turnTowards(Math.atan2(moveVec.x, moveVec.z), LOCOMOTION.airTurnRate, dt);
+    this.advance(this.speed, dt);
     if (!this.jumpLaunched || !(this.motor?.grounded ?? true)) return;
     if (this.jumpLandedAt < 0) {
       this.jumpLandedAt = sm.stateTime;
       this.particleFX.spawnDustPuff(this.getPosition(), 10);
     }
+    if (!moving) this.speed = approach(this.speed, 0, LOCOMOTION.deceleration * dt);
     if (moving) sm.changeState(this.locomotionState(input));
     else if (sm.stateTime - this.jumpLandedAt >= this.jump.recovery) sm.changeState('IDLE');
+  }
+
+  /** Past the current swing's cancel point (its blade has finished): the rest may be cut short. */
+  private inRecovery(): boolean {
+    const sm = this.stateMachine;
+    const at = sm.cancelAt[sm.currentState];
+    return at !== undefined && sm.stateTime >= at;
+  }
+
+  /** Clip seconds into the slide. */
+  private slideTime(): number {
+    const config = this.rig?.definition.states.DODGE;
+    return config ? this.stateMachine.stateTime * (config.timeScale ?? 1) + (config.startAt ?? 0) : -1;
+  }
+
+  /** Back up from the slide enough to act. */
+  private slideRecovered(): boolean {
+    return this.rig ? this.slideTime() >= SLIDE.actFrom : this.stateMachine.stateTime >= 0.5;
+  }
+
+  /** Low in the slide, under any blow or bolt. */
+  public isEvading(): boolean {
+    if (this.stateMachine.currentState !== 'DODGE') return false;
+    if (!this.rig) return this.stateMachine.stateTime < 0.4;
+    const t = this.slideTime();
+    return t >= SLIDE.untouchable[0] && t <= SLIDE.untouchable[1];
+  }
+
+  /** Slides the way the input points (or straight on), turning to it at once. */
+  private beginSlide(dir: THREE.Vector3 | null): void {
+    if (dir) this.group.rotation.y = Math.atan2(dir.x, dir.z);
+    this.speed = 0;
+    this.stateMachine.changeState('DODGE');
+    this.rootMotionScale = SLIDE.travel;
+    this.particleFX.spawnDustPuff(this.getPosition(), 10);
+    this.soundFX.playSwordSwing(0.55);
+  }
+
+  /**
+   * Picks what a swing that starts now is aimed at: the nearest enemy within reach and roughly where he is aiming
+   * (any direction if one is very close), weighing distance against how far he would have to turn.
+   */
+  private aimAttack(state: CharacterState): void {
+    const pos = this.group.position;
+    const aiming = this.aimDir.lengthSq() > 0.001;
+    const aim = aiming ? Math.atan2(this.aimDir.x, this.aimDir.z) : this.group.rotation.y;
+    let best: Character | null = null;
+    let bestScore = Infinity;
+    for (const foe of this.foes) {
+      if (foe.stateMachine.currentState === 'DEAD' || !foe.group.visible) continue;
+      const p = foe.group.position;
+      const dx = p.x - pos.x;
+      const dz = p.z - pos.z;
+      const d = Math.hypot(dx, dz);
+      if (d > ASSIST.range || Math.abs(p.y - pos.y) > 1.6) continue;
+      const off = Math.abs(wrapAngle(Math.atan2(dx, dz) - aim));
+      if (off > ASSIST.cone && d > ASSIST.closeRange) continue;
+      const score = d + off * 1.5;
+      if (score < bestScore) {
+        bestScore = score;
+        best = foe;
+      }
+    }
+    this.attackTarget = best;
+    const strike = this.hitWindows(state)[0];
+    this.step.until = strike ? strike.t0 : 0.2;
+    if (!best) {
+      // At nothing: a short step the way he is aiming.
+      this.step.allow = ASSIST.idleStep;
+      if (aiming) this.group.rotation.y = aim;
+      return;
+    }
+    const gap = Math.hypot(best.group.position.x - pos.x, best.group.position.z - pos.z) - ASSIST.reach - (best.motor?.radius ?? 0.4);
+    const travel = this.rootTravel(state, strike?.t0 ?? 0);
+    if (travel > 0.2) {
+      // A clip that carries him (the leaping strike) is stretched or shortened to land on the target.
+      this.step.allow = 0;
+      this.rootMotionScale = THREE.MathUtils.clamp(gap / travel, 0.3, 1.5);
+    } else {
+      this.step.allow = THREE.MathUtils.clamp(gap, 0, ASSIST.maxStep);
+    }
+  }
+
+  /** How far `state`'s clip carries him by `until` (state seconds), metres; 0 without root motion. */
+  private rootTravel(state: CharacterState, until: number): number {
+    const config = this.rig?.definition.states[state];
+    const curve = config?.rootMotion ? this.rig!.manifest.clips[config.clip]?.rootMotion : undefined;
+    if (!config || !curve) return 0;
+    const at = (t: number) => curve.samples[THREE.MathUtils.clamp(Math.round(t * curve.fps), 0, curve.samples.length - 1)];
+    const start = config.startAt ?? 0;
+    const a = at(start);
+    const b = at(start + until * (config.timeScale ?? 1));
+    return Math.hypot(b[0] - a[0], b[1] - a[1]) * (this.rig!.definition.scale ?? 1);
+  }
+
+  /** During a swing's wind-up: turns onto the target and steps in, so the blade arrives where it is. */
+  private followThrough(dt: number): void {
+    const t = this.stateMachine.stateTime;
+    if (t > this.step.until) return;
+    const target = this.attackTarget;
+    if (target && target.stateMachine.currentState !== 'DEAD') {
+      const p = target.group.position;
+      this.turnTowards(Math.atan2(p.x - this.group.position.x, p.z - this.group.position.z), ASSIST.turnRate, dt);
+    }
+    // Eased: speed 6u(1-u)/span integrates to exactly `allow` and comes to rest as the blade lands.
+    const span = this.step.until;
+    if (this.step.allow <= 0 || span <= 0) return;
+    const u = THREE.MathUtils.clamp(t / span, 0, 1);
+    this.advance((this.step.allow * 6 * u * (1 - u)) / span, dt);
   }
 
   private locomotionState(input: InputState): CharacterState {
@@ -196,89 +373,54 @@ export class Player extends Character {
     return state === 'SPRINT' ? this.sprintSpeed : state === 'WALK' ? this.walkSpeed : this.moveSpeed;
   }
 
-  /** Turns smoothly to face `dir` (horizontal). */
-  private turnTowards(dir: THREE.Vector3, dt: number): void {
-    let diff = Math.atan2(dir.x, dir.z) - this.group.rotation.y;
-    while (diff < -Math.PI) diff += Math.PI * 2;
-    while (diff > Math.PI) diff -= Math.PI * 2;
-    this.group.rotation.y += diff * Math.min(1.0, this.rotationSpeed * dt);
+  /** Moves him `speed` m/s along his facing. */
+  private advance(speed: number, dt: number): void {
+    if (speed <= 0) return;
+    const yaw = this.group.rotation.y;
+    this.group.position.x += Math.sin(yaw) * speed * dt;
+    this.group.position.z += Math.cos(yaw) * speed * dt;
   }
 
+  /**
+   * Turns toward `yaw` at no more than `rate` rad/s (easing in over the last few degrees); returns the angle still
+   * left to turn afterwards.
+   */
+  private turnTowards(yaw: number, rate: number, dt: number): number {
+    const diff = wrapAngle(yaw - this.group.rotation.y);
+    const step = THREE.MathUtils.clamp(diff * Math.min(1, 14 * dt), -rate * dt, rate * dt);
+    this.group.rotation.y = wrapAngle(this.group.rotation.y + step);
+    return wrapAngle(diff - step);
+  }
+
+  /** The input as a world direction relative to the camera, keeping a stick's partial deflection. */
   private calculateInputDirection(input: InputState): THREE.Vector3 {
-    const forward = new THREE.Vector3(Math.sin(this.cameraYaw), 0, Math.cos(this.cameraYaw));
-    const right = new THREE.Vector3(Math.cos(this.cameraYaw), 0, -Math.sin(this.cameraYaw));
-
-    const dir = new THREE.Vector3();
-    if (input.forward) dir.add(forward.clone().negate());
-    if (input.backward) dir.add(forward);
-    if (input.left) dir.add(right.clone().negate());
-    if (input.right) dir.add(right);
-
-    if (dir.lengthSq() > 0.001) {
-      dir.normalize();
-    }
-    return dir;
+    const s = Math.sin(this.viewYaw);
+    const c = Math.cos(this.viewYaw);
+    // Forward (into the screen) is -(sin, cos); right is (cos, -sin).
+    return new THREE.Vector3(-s * input.moveY + c * input.moveX, 0, -c * input.moveY - s * input.moveX);
   }
 
-  private updateHudBadge(state: string): void {
-    const badge = document.getElementById('badge-state');
-    if (badge) {
-      const resting = state === 'IDLE' || state === 'WALK' || state === 'MOVE' || state === 'SPRINT';
-      badge.textContent = `◆ KHANDA [${this.swordSheathed && resting ? 'SHEATHED' : state.replace('_', ' ')}]`;
-      if (state.startsWith('ATTACK')) {
-        badge.className = 'text-red-400 font-bold';
-      } else if (state === 'DODGE_ROLL') {
-        badge.className = 'text-blue-400 font-bold';
-      } else {
-        badge.className = 'text-zinc-300';
-      }
-    }
-
-    const dhalBadge = document.getElementById('badge-parry');
-    if (dhalBadge) {
-      if (state === 'PARRY') {
-        dhalBadge.textContent = '◇ DHAL [DEFLECTING!]';
-        dhalBadge.className = 'text-yellow-300 font-bold gold-glow';
-      } else if (state === 'BLOCK' || state === 'BLOCK_HIT') {
-        dhalBadge.textContent = '◇ DHAL [GUARD]';
-        dhalBadge.className = 'text-amber-300 font-bold';
-      } else {
-        dhalBadge.textContent = '◇ DHAL [READY]';
-        dhalBadge.className = 'text-amber-400';
-      }
-    }
+  /** Down and out of the fight (enemies stop pressing). */
+  public isDown(): boolean {
+    return this.stateMachine.currentState === 'DEAD';
   }
 
-  public updateHUD(): void {
-    // Health bar & Ghost Damage Trail
-    const hpPercent = Math.max(0, (this.currentHealth / this.maxHealth) * 100);
-    const hpBar = document.getElementById('player-health-bar');
-    const ghostBar = document.getElementById('player-health-ghost');
-    const hpText = document.getElementById('player-health-text');
-    
-    if (hpBar) hpBar.style.width = `${hpPercent}%`;
-    if (ghostBar) {
-      setTimeout(() => {
-        ghostBar.style.width = `${hpPercent}%`;
-      }, 300);
-    }
-    if (hpText) hpText.textContent = `${Math.ceil(this.currentHealth)} / ${this.maxHealth}`;
-
-    // Marma Posture bar
-    const marmaPercent = Math.min(100, (this.currentMarma / this.maxMarma) * 100);
-    const marmaBar = document.getElementById('player-marma-bar');
-    if (marmaBar) {
-      marmaBar.style.width = `${marmaPercent}%`;
-      if (this.stateMachine.currentState === 'POSTURE_BROKEN') {
-        marmaBar.className = 'h-full bg-red-500 animate-pulse transition-all duration-75';
-      } else {
-        marmaBar.className = 'h-full bg-gradient-to-r from-amber-500 to-yellow-400 transition-all duration-75';
-      }
-    }
+  /** Back on his feet at full strength (a new chapter or a retry). */
+  public revive(): void {
+    this.currentHealth = this.maxHealth;
+    this.currentMarma = 0;
+    this.chargedHits = 0;
+    this.speed = 0;
+    this.stateMachine.reset();
   }
+}
 
-  public override update(dt: number): void {
-    super.update(dt);
-    this.updateHUD();
-  }
+/** Moves `value` toward `target` by at most `maxStep`. */
+function approach(value: number, target: number, maxStep: number): number {
+  return value < target ? Math.min(value + maxStep, target) : Math.max(value - maxStep, target);
+}
+
+/** The same angle in (-PI, PI]. */
+function wrapAngle(a: number): number {
+  return a - Math.PI * 2 * Math.round(a / (Math.PI * 2));
 }
