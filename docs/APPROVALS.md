@@ -374,6 +374,7 @@ worth a look in play, each a constant or two:
 | The sword's grip | an offset onto the borrowed blade's grip (`SWORD_GRIP`) | a prepared hero copy of the model (`prepare_weapon.py`, no credit); or the distinct basic sword the audit suggests |
 | Dwarka's complete screen | the khanda in his hand, the mace on the stone | drop the screen's view of him |
 | Dwarka's mace | laid down across the cut into the take (no laying-down clip) | a Mixamo "put down" clip, if one is downloaded |
+| The dhal handed over | the vanara holds its far rim, the boy's palm comes up under its middle (2 cm off): the two hands 32 cm apart across the 66 cm dhal when it passes | the vanara holding it by its middle, so both hands meet within ~10 cm (the audit's number), at the cost of his hand covering the boss |
 
 Seen in passing, not changed: on the island, the take is hidden in the black hold, but in the last shot ("He will meet
 it now") the "power_up" clip swings the one-handed mace's head across his face (about 3 s in); in the Baoli, the
