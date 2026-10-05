@@ -151,6 +151,8 @@ Suggested order: progression system and weapon sets first, then the prologue, th
   only: both hands on the haft needs a clip authored for it.
 - **Kit keys are not chapter numbers**, so the prologue and the island slot in as new kits (`KitId`) without
   renumbering anything. The island's kit is the mace again.
+- **Two-handed clips arrived** (2026-10-04): Mixamo's Great Sword Pack, 51 clips, in `game asset/characters/animations`
+  as `Mace-*` (zip kept in `animations/packs/`), for the mace's own move set in milestone 8.
 - **Known gaps:** the pause screen's controls list still shows every move; the lathi has no guard at all, so Chapter
   I is a pure slide-and-strike fight until the guru's teachings (milestone 4) hand something over.
 
@@ -248,8 +250,7 @@ folder's README).
   take story cues (`GameLevel.cue`, the village's `raid-fire`). Weapon trails are cleared when a scene starts.
 - **The guru's model** (2026-10-04): Meshy 7 from `game asset/concepts/guru.png`, 31k triangles, autorigged, his
   staff part of the mesh and bound to his right hand, which is held at rest in every clip (`guru_post.py`). His
-  clips are borrowed from the fighters' packs (Yodha's idle and walk), so he stands and walks a little like a fighter
-  until calm old-man Mixamo clips replace them.
+  own Mixamo clips: Breathing Idle and Iv Pole Walking (upright, a hand on a pole).
 - **Placeholders:** the raiders are the summit's rakshasas, dyed dust-brown; the roof fire is plain
   flame cones; the kneel is the hero's crouch idle; the lathi is still built in code.
 - **Left for later:** the courtyard keeps its dusk light after the raid (no time-of-day change); the guru has no fight

@@ -8,6 +8,26 @@
   "Socket_Hand_L"
  ],
  "clips": {
+  "breathing_idle": {
+   "source": "Guru-Breathing Idle.fbx",
+   "duration": 9.9333,
+   "loop": true,
+   "speed": 0.0,
+   "direction": [
+    0.0,
+    0.0
+   ]
+  },
+  "iv_pole_walking": {
+   "source": "Guru-Iv Pole Walking.fbx",
+   "duration": 1.5667,
+   "loop": true,
+   "speed": 0.244,
+   "direction": [
+    -0.0,
+    1.0
+   ]
+  },
   "death": {
    "source": "Yodha-death.fbx",
    "duration": 2.3,
@@ -298,16 +318,6 @@
     ]
    }
   },
-  "idle": {
-   "source": "Yodha-idle.fbx",
-   "duration": 3.5333,
-   "loop": true,
-   "speed": 0.003,
-   "direction": [
-    -0.5321,
-    -0.8467
-   ]
-  },
   "impact": {
    "source": "Yodha-impact.fbx",
    "duration": 0.7,
@@ -318,16 +328,6 @@
    "duration": 0.7,
    "loop": true,
    "speed": 3.562,
-   "direction": [
-    0.0,
-    1.0
-   ]
-  },
-  "walk": {
-   "source": "Yodha-walk.fbx",
-   "duration": 1.1,
-   "loop": true,
-   "speed": 1.29,
    "direction": [
     0.0,
     1.0

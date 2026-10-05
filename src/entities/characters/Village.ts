@@ -16,18 +16,19 @@ export const RAIDER: CharacterDefinition = { ...RAKSHASA, tint: 0xc9a07a };
 /**
  * The guru (secretly Shiva): an old ascetic with his staff, made in Meshy 7 from `game asset/concepts/guru.png`. The
  * staff is part of his mesh, bound to his right hand, and that arm is held at rest in every clip (`guru_post.py`):
- * he only ever carries it. Built from `game asset/characters`:
+ * he only ever carries it. His own clips (`Guru-`, Mixamo): Breathing Idle, and Iv Pole Walking (a steady walk
+ * with one hand on a pole); run, impact and death are Yodha's. Built from `game asset/characters`:
  *
  *   blender -b --factory-startup --python autorig.py -- sources/guru_A_meshy7.glb rigs/guru.markers.json rigs/guru.rigged.glb
  *   blender -b --factory-startup --python build_character.py -- rigs/guru.rigged.glb animations <out>/guru.glb
- *     --clips "idle,walk,run,impact,death" --height 1.75 --decimate 0.75 --post guru_post.py
+ *     --prefixes "Guru-" --clips "run,impact,death" --height 1.75 --decimate 0.75 --post guru_post.py
  */
 export const GURU: CharacterDefinition = {
   model: '/assets/characters/guru.glb',
   manifest: '/assets/characters/guru.manifest.json',
   states: {
-    IDLE: { clip: 'idle', fade: 0.3 },
-    WALK: { clip: 'walk', matchSpeed: true, fade: 0.25 },
+    IDLE: { clip: 'breathing_idle', fade: 0.3 },
+    WALK: { clip: 'iv_pole_walking', matchSpeed: true, fade: 0.25 },
     MOVE: { clip: 'run', matchSpeed: true, fade: 0.2 },
     STAGGER: { clip: 'impact', timesState: true, fade: 0.05 },
     DEAD: { clip: 'death', fade: 0.1 },
