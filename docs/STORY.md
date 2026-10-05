@@ -486,7 +486,7 @@ reading time.
 
 ## Milestone 8: Chapter IV, Dwarka (landed)
 
-"Dwarka", chapter id 3 (its numeral follows the island's insertion in milestone 7). Code: `src/game/stories/Dwarka.ts`
+"Dwarka", chapter id 4 (Chapter IV, after the island, chapter id 3, from milestone 7; level index 3). Code: `src/game/stories/Dwarka.ts`
 (`DWARKA_STORY`), the mace's move set in `src/entities/characters/YodhaWeapons.ts` (`MACE_STATES`), the two-handed
 hold in `src/entities/animation/CharacterRig.ts` (`SocketAttachment.twoHanded`).
 
@@ -508,6 +508,8 @@ hold in `src/entities/animation/CharacterRig.ts` (`SocketAttachment.twoHanded`).
   0.7 scale, gripped 0.23 m up) still has haft. When the fists part (over 0.3 m, gone by 0.45 m: the slide, a fall)
   the mace eases back to the right fist's own hold. Checked in Blender renders of the clips with and without the aim,
   and in the game (the idle and the smash, close up).
+- **Testing:** `__debug.chapter(4, false)` then `__debug.win()` plays Shalva's fall; `__debug.win()` again, once
+  Takshaka is up, plays the ending.
 - **Flow:** the intro, then the **opening**: Shalva on the rosette knows the island's mace and the boy; "Where is my
   guru?"; Shalva promises the answer if he is beaten, and roars. The fight. **Shalva falls**: a beat scene
   (`{ fallen: 'shalva' }`) before anything else, in which the dying Shalva tells him the truth: Andhaka burns wise
