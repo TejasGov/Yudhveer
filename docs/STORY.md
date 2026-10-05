@@ -468,20 +468,20 @@ reading time.
 
 | Id | Speaker | Text | Trigger | Recorded |
 |---|---|---|---|---|
-| `island_open_boatman_1` | Boatman | This is as far as my boat goes. Whatever is kept on this island, it keeps for itself. | opening | no |
+| `island_open_boatman_1` | Boatman | This is as far as my boat goes. Whatever is kept on this island, it keeps for itself. | opening | yes |
 | (no id) | Yudhveer | They say a mace lies down there. A blessed one. | opening | subtitle only |
-| `island_open_boatman_2` | Boatman | They say it. Men have gone down to fetch it. I have rowed them here, and I have rowed back alone. | opening | no |
+| `island_open_boatman_2` | Boatman | They say it. Men have gone down to fetch it. I have rowed them here, and I have rowed back alone. | opening | yes |
 | (no id) | Yudhveer | Then wait for me until the tide turns. | opening | subtitle only |
-| `island_open_boatman_3` | Boatman | I will wait. Mind the lamps. No one lights them, and they never go out. | opening | no |
+| `island_open_boatman_3` | Boatman | I will wait. Mind the lamps. No one lights them, and they never go out. | opening | yes |
 | (no id) | Yudhveer (walking) | Still burning. Who keeps these lamps? | the first tunnel | subtitle only |
 | (no id) | Yudhveer (walking) | Small, and many. So this is where the others ended. | the hall's runts all down | subtitle only |
 | (no id) | Yudhveer (walking) | Something moves in the water. Keep to the stone. | near the black pool | subtitle only |
 | (no id) | Yudhveer (walking) | Warm air, and ghee burning. The shrine is close. | the last tunnel, pool cleared | subtitle only |
-| `island_shrine_voice_1` | Voice in the shrine | Many have come down for it. None has carried it up. | the shrine's door | no |
-| `island_shrine_voice_2` | Voice in the shrine | Come, then. Come and lift it, if you can. | the shrine's keepers all down | no |
-| `island_end_voice_1` | Voice in the shrine | Lift it, if you do not lift it for yourself. | ending, before the altar | no |
+| `island_shrine_voice_1` | Voice in the shrine | Many have come down for it. None has carried it up. | the shrine's door | yes |
+| `island_shrine_voice_2` | Voice in the shrine | Come, then. Come and lift it, if you can. | the shrine's keepers all down | yes |
+| `island_end_voice_1` | Voice in the shrine | Lift it, if you do not lift it for yourself. | ending, before the altar | yes |
 | (no id) | Yudhveer | Not for myself. For my guru, and against the ones who took him. | ending | subtitle only |
-| `island_end_voice_2` | Voice in the shrine | Then it will not grow heavy in your hands. Go to Dwarka. The one who holds it fights with a mace, and has not met its equal. | ending, mace in hand | no |
+| `island_end_voice_2` | Voice in the shrine | Then it will not grow heavy in your hands. Go to Dwarka. The one who holds it fights with a mace, and has not met its equal. | ending, mace in hand | yes |
 | (no id) | Yudhveer | He will meet it now. | ending | subtitle only |
 
 ## Milestone 8: Chapter IV, Dwarka (landed)
