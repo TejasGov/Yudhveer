@@ -68,6 +68,12 @@ export interface SceneShot {
   /** Spoken one after another from `linesAt` seconds (default 0.4). The shot does not end while one is up. */
   lines?: Line[];
   linesAt?: number;
+  /**
+   * The lines run on over the shots after this one instead of holding it: a long line spoken across cuts (Andhaka's,
+   * over his shadow and then the boy's eyes). The shot then needs its own `duration`, and the shots it runs on into
+   * should not have lines of their own until it is done.
+   */
+  carryLines?: boolean;
   cues?: SceneCue[];
 }
 
@@ -405,12 +411,15 @@ export class SceneRun {
       cues.push({
         at: linesAt,
         run: () => this.dialogue.play(lines, 'scene', (cut) => {
+          if (shot.carryLines) return;
           group.done = true;
           group.cut = cut;
         }),
       });
     }
     const camera = shot.camera;
+    // Lines carried over the next shots neither hold this one nor end it.
+    if (shot.carryLines) group.done = true;
     return {
       duration: shot.duration ?? Math.max(2, linesAt + spoken + 0.6),
       keys: typeof camera === 'function' ? () => camera(this.stage) : camera ?? [],

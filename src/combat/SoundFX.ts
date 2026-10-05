@@ -147,6 +147,9 @@ interface AmbienceRun {
 }
 
 const rand = (a: number, b: number) => a + Math.random() * (b - a);
+/** The muffler's cutoff when nothing is muffled (Hz): above hearing, so the mix is untouched. */
+const MUFFLE_OPEN = 20000;
+
 /** `x` give or take `spread` (a fraction), so no two hits sound quite alike. */
 const vary = (x: number, spread = 0.06) => x * (1 + (Math.random() * 2 - 1) * spread);
 
@@ -166,6 +169,10 @@ export class SoundFX {
   private musicBus: GainNode | null = null;
   private reverb: ConvolverNode | null = null;
   private reverbIn: GainNode | null = null;
+  /** Everything heard through it: open unless a dazed hero's ears are ringing (`muffle`). */
+  private muffler: BiquadFilterNode | null = null;
+  /** After the muffler: the ringing in his ears is not muffled with the rest. */
+  private post: AudioNode | null = null;
   private noise_: Record<NoiseColor, AudioBuffer> | null = null;
   private shapers = new Map<number, WaveShaperNode['curve']>();
   private ambience: AmbienceRun | null = null;
@@ -205,7 +212,13 @@ export class SoundFX {
       this.reverbIn.connect(this.reverb);
       this.reverb.connect(this.master);
       for (const bus of [this.sfxBus, this.ambBus, this.musicBus]) bus.connect(this.master);
-      this.master.connect(compressor);
+      this.muffler = ctx.createBiquadFilter();
+      this.muffler.type = 'lowpass';
+      this.muffler.frequency.value = MUFFLE_OPEN;
+      this.muffler.Q.value = 0.5;
+      this.master.connect(this.muffler);
+      this.muffler.connect(compressor);
+      this.post = compressor;
       compressor.connect(ctx.destination);
       this.noise_ = makeNoise(ctx);
       this.ctx = ctx;
@@ -1101,6 +1114,61 @@ export class SoundFX {
     this.noise({ duration: 0.35, gain: 0.3, attack: 0.08, filter: 'bandpass', from: 300, peak: 1100, to: 200, q: 2 });
     this.thump(60, 1.4, 0.5, { delay: 0.24, wet: 0.6 });
     this.noise({ color: 'brown', filter: 'lowpass', from: 700, to: 90, duration: 1.2, gain: 0.25, attack: 0.01, delay: 0.24, wet: 0.5 });
+  }
+
+  /**
+   * A dazed hero's hearing (Concussion): 0 clear, 1 as if underwater; everything but the ringing in his ears goes
+   * through it. Eased over `seconds`.
+   */
+  public muffle(amount: number, seconds = 0.15): void {
+    const ctx = this.ctx;
+    if (!ctx || !this.muffler || this.rendering) return;
+    const k = Math.max(0, Math.min(1, amount));
+    // Log-spaced: 1 brings it down to a dull 420 Hz.
+    const hz = MUFFLE_OPEN * Math.pow(420 / MUFFLE_OPEN, Math.sqrt(k));
+    this.muffler.frequency.cancelScheduledValues(ctx.currentTime);
+    this.muffler.frequency.setTargetAtTime(hz, ctx.currentTime, Math.max(0.01, seconds / 3));
+  }
+
+  /**
+   * The ringing in his ears after a blow to the head: a high, slightly beating whine that swells in at once and dies
+   * away over `seconds`, heard over the muffled world.
+   */
+  public playEarRing(seconds = 6, gain = 0.05): void {
+    const ctx = this.ready();
+    if (!ctx || !this.post || this.rendering) return;
+    const t = ctx.currentTime;
+    const vol = Settings.get().masterVolume ** 2;
+    const out = ctx.createGain();
+    out.gain.setValueAtTime(0.0001, t);
+    out.gain.linearRampToValueAtTime(gain * vol, t + 0.08);
+    out.gain.setTargetAtTime(gain * vol * 0.45, t + 0.4, 1.2);
+    out.gain.setTargetAtTime(0.0001, t + seconds * 0.45, seconds * 0.22);
+    out.connect(this.post);
+    for (const [hz, level] of [[3720, 1], [3727, 0.8], [7440, 0.12]] as const) {
+      const osc = ctx.createOscillator();
+      const g = ctx.createGain();
+      osc.frequency.value = hz;
+      g.gain.value = level;
+      osc.connect(g);
+      g.connect(out);
+      osc.start(t);
+      osc.stop(t + seconds + 0.5);
+    }
+  }
+
+  /** A giant's footfall felt through the ground: a deep thud, the grit of it, a little of the place's echo. */
+  public playHeavyStep(gain = 1): void {
+    this.thump(vary(48), 0.7, 0.55 * gain, { wet: 0.35 });
+    this.noise({ color: 'brown', filter: 'lowpass', from: 420, to: 70, duration: 0.45, gain: 0.22 * gain, attack: 0.005 });
+    this.noise({ duration: 0.12, gain: 0.05 * gain, attack: 0.002, filter: 'bandpass', from: 1800, to: 600, q: 1.2, delay: 0.02 });
+  }
+
+  /** A body going down in the dust. */
+  public playBodyFall(gain = 1): void {
+    this.thump(vary(70), 0.45, 0.45 * gain, { wet: 0.2 });
+    this.noise({ color: 'pink', filter: 'lowpass', from: 1600, to: 200, duration: 0.5, gain: 0.18 * gain, attack: 0.004 });
+    this.thump(vary(95), 0.25, 0.2 * gain, { delay: 0.14 });
   }
 
   /** A chapter card lands: a struck bell over a deep drum. */

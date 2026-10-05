@@ -10,11 +10,13 @@ import {
   type Effect,
 } from 'postprocessing';
 import { InkOutlineEffect } from './InkOutlineEffect';
+import { ConcussionEffect } from './ConcussionEffect';
 import type { LevelAtmosphere } from '../../levels/LevelTypes';
 
 /**
- * HDR post chain: scene -> [ink outline] -> selective bloom -> vignette -> ACES tone mapping.
- * The renderer itself runs without tone mapping; everything is graded here in half-float.
+ * HDR post chain: scene -> [ink outline] -> selective bloom -> vignette -> ACES tone mapping -> [concussion].
+ * The renderer itself runs without tone mapping; everything is graded here in half-float. The concussion (a dazed
+ * hero's swimming eyes, `concussion`) is a pass of its own on the finished picture, run only while it shows.
  * Only objects added with `addBloom` glow, and only where they exceed the level's luminance threshold,
  * so sparks, embers, flames and blade trails bloom while lit stone never does.
  */
@@ -26,6 +28,9 @@ export class PostFX {
   private readonly toneMapping = new ToneMappingEffect({ mode: ToneMappingMode.ACES_FILMIC });
   private effectPass: EffectPass | null = null;
   private inkEnabled: boolean | null = null;
+  /** A dazed hero's eyes (cinematics/Concussion.ts drives it); its pass is skipped while it shows nothing. */
+  public readonly concussion = new ConcussionEffect();
+  private readonly concussionPass: EffectPass;
 
   constructor(renderer: THREE.WebGLRenderer, scene: THREE.Scene, private readonly camera: THREE.Camera) {
     renderer.toneMapping = THREE.NoToneMapping;
@@ -33,6 +38,8 @@ export class PostFX {
       frameBufferType: THREE.HalfFloatType,
       multisampling: Math.min(4, renderer.capabilities.maxSamples),
     });
+    // Which pass draws to the screen is decided per frame (the concussion's, while it shows).
+    this.composer.autoRenderToScreen = false;
     this.composer.addPass(new RenderPass(scene, camera));
     this.bloom = new SelectiveBloomEffect(scene, camera, {
       mipmapBlur: true,
@@ -42,6 +49,9 @@ export class PostFX {
       radius: 0.7,
     });
     this.rebuildPass(false);
+    this.concussionPass = new EffectPass(camera, this.concussion);
+    this.concussionPass.enabled = false;
+    this.composer.addPass(this.concussionPass);
   }
 
   /** The effect list is compiled into one shader, so toggling ink rebuilds the pass (only on level change). */
@@ -55,7 +65,8 @@ export class PostFX {
     const effects: Effect[] = withInk ? [this.ink] : [];
     effects.push(this.bloom, this.vignette, this.toneMapping);
     this.effectPass = new EffectPass(this.camera, ...effects);
-    this.composer.addPass(this.effectPass);
+    // Straight after the scene render, before the concussion's pass.
+    this.composer.addPass(this.effectPass, 1);
   }
 
   public configure(atm: LevelAtmosphere): void {
@@ -87,6 +98,10 @@ export class PostFX {
   }
 
   public render(dt: number): void {
+    const dazed = this.concussion.active;
+    this.concussionPass.enabled = dazed;
+    this.concussionPass.renderToScreen = dazed;
+    if (this.effectPass) this.effectPass.renderToScreen = !dazed;
     this.composer.render(dt);
   }
 }

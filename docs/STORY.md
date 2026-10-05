@@ -24,8 +24,9 @@ himself: Andhaka has carried his own judge up the mountain.
 - His village (desert, dusk). Yudhveer trains with a lathi under his guru.
 - **A very small arena**, not explorable. Goons raid the village; he fights a group of them and is **defeated**.
 - **The guru appears to be killed** in the raid. In truth he is **captured**.
-- Behind the raid stands a huge figure with a great sword: **Andhaka, seen only as a silhouette**. He is never shown
-  in the face here, only his size and his blade against the light. The mystery stays until the summit, where his
+- Behind the raid stands a huge figure with a great sword: **Andhaka, seen almost only as a shadow**. The beaten boy,
+  concussed, sees his shadow fall over him and climb the wall behind him, hears his tread and his voice, and sees
+  him clearly for under a second, a black shape against the sunset (see "The prologue's ending"). The mystery stays until the summit, where his
   entrance (found seated on his rock throne, laughing; the smile; the crown; rising with the sword drawn from the
   stone) reveals him at last.
 - Yudhveer sets out after him.
@@ -222,9 +223,9 @@ export const BAOLI_STORY: ChapterStory = {
 ## Milestone 4: the prologue (landed)
 
 "The Last Lesson", chapter id 0, before Chapter I. Code: `src/levels/Level0_Village.ts`, `PROLOGUE_STORY` in
-`src/game/Story.ts`, `src/entities/characters/Village.ts` (its placeholder people), `src/entities/Raider.ts`,
-`src/entities/Extra.ts`; the map is built by `game asset/levels/00_village/build_village.py` (command in that
-folder's README).
+`src/game/stories/Prologue.ts` (was `src/game/Story.ts`), `src/entities/characters/Village.ts` (its placeholder
+people), `src/entities/Raider.ts`, `src/entities/Extra.ts`; the map is built by
+`game asset/levels/00_village/build_village.py` (command in that folder's README).
 
 - **The village:** a 22 m walled mud courtyard at dusk, not explorable (walls on its rim, plus the lane out through
   the north gate): three round thatched huts, a sandstone house, a neem tree on its platform, a well, a cooking fire,
@@ -236,13 +237,14 @@ folder's README).
   the gate, the raiders stepping out of the sunset (they wait out of sight until a `show` cue), the guru stepping
   aside. The fight: raiders come in through the gate in waves (9 in all, 3 at a time); the guru's voice twice. **The
   scripted loss** (`ChapterStory.loss`): the hero cannot die (`Player.mortal` off), and once his health is under 30 %,
-  or three raiders have fallen, or 75 s have passed, he is beaten (no defeat screen) and the ending plays: on his
-  knees with the raiders round him; Andhaka walks in through the gate, a black shape against the sun, and says his
-  line; the guru steps between them; the blade comes down as the picture cuts to black; "Guruji!" in the dark; later,
-  an empty courtyard, a roof burning, no guru; Yudhveer's vow; he walks out of the gate. The campaign then runs
+  or three raiders have fallen, or 75 s have passed, he is beaten (no defeat screen) and the ending plays (reworked
+  2026-10-05, see "The prologue's ending"): struck down from behind and concussed, he sees Andhaka come as a shadow;
+  the guru steps between them, is struck down and dragged away; he wakes at night by the burning roof, makes his vow
+  and walks out of the gate. The campaign then runs
   straight on into Chapter I's intro (`Chapter.continues`), and Chapter I is unlocked.
-- **Andhaka is only a silhouette:** his model and cleaver without the crown (he crowns himself at the summit), every
-  surface black with a thin rim of sunset light (`CastMember.silhouette`), framed along the line of the sun.
+- **Andhaka is a shadow:** his model and cleaver without the crown (he crowns himself at the summit), every
+  surface black with a thin rim of sunset light (`CastMember.silhouette`); in the ending he is mostly his shadow
+  (see "The prologue's ending").
 - **Kit `prologue`:** the lathi, single blows only (no chaining) and the slide. Chapter I adds the chain, and the first
   fights' hints now show once per session each, so Chapter I after the prologue only teaches what is new.
 - **Progress:** a new player has the prologue only (`Progress.unlocked` defaults to 0); clearing it unlocks Chapter I.
@@ -256,9 +258,10 @@ folder's README).
   staff part of the mesh and bound to his right hand, which is held at rest in every clip (`guru_post.py`). His
   own Mixamo clips: Breathing Idle and Iv Pole Walking (upright, a hand on a pole).
 - **Placeholders:** the raiders are the summit's rakshasas, dyed dust-brown; the roof fire is plain
-  flame cones; the kneel is the hero's crouch idle; the lathi is still built in code.
-- **Left for later:** the courtyard keeps its dusk light after the raid (no time-of-day change); the guru has no fight
-  of his own; every prologue line is recorded (2026-10-04).
+  flame cones; the boy's fall and struggle up are pieces of his death clips held or played backwards; the lathi is
+  still built in code.
+- **Left for later:** the guru has no fight of his own; every prologue line is recorded (2026-10-04). (The courtyard
+  now goes from dusk to night in the ending.)
 
 ### Prologue lines
 
@@ -278,6 +281,87 @@ Every line, for recording (ElevenLabs; the voices are in `game asset/voice/VOICE
 | `prologue_end_guru_1` | Guru | Leave the boy. It is me you came for. | yes |
 | `prologue_end_yudhveer_cry` | Yudhveer | Guruji! | subtitle only |
 | `yudhveer_prologue_find` | Yudhveer | Guruji... I will find you. Even if I have to climb to the top of the world. | subtitle only |
+
+## The prologue's ending (2026-10-05)
+
+The user: "the epilogue of the village is too childish, we need to make that more beautiful and believable", and
+"the silhouette scene of final boss in epilogue is bad, we just need to see him for one second, otherwise we just
+need to see the shadow of him being cast on the protag and behind him to show the gravitas; after the protag is
+beaten his eyes flicker (camera effect with some blur and re focus) as he faces minor concussion, that's why the final
+boss is not easily visible."
+
+The old ending stood the raiders in a ring round a crouching boy, walked Andhaka's silhouette in through the gate in
+plain view for some ten seconds, and cut away on the blow. The new one (`ending` in `src/game/stories/Prologue.ts`,
+about 70 s, every voiced line and id kept) is told from inside the boy's head once he is struck:
+
+| # | Shot | What happens |
+|---|---|---|
+| 1 | **The blow** (2 s): low, three-quarters on him, a slow push | Winded and swaying, he does not see the raider step in behind him. The swing lands: a crushing thud, a white flash, the picture jolts out of focus and splits, the ears ring. The roof the raid fired is taking hold. |
+| 2 | **On his knees** (2.8 s): ground level in front of him | He drops into the dust (his fall held on its knees); the edges darken, the focus swims; a slow blink. |
+| 3 | **His eyes** (5.2 s): POV, head hanging, horizon tipped | The sun sinks behind the west wall and the last light comes low through the gate across the ground. Heavy footfalls (a thud, dust and a jolt each stride); only a pair of feet at the very top of the frame, then a huge head-and-shoulders shadow slides down the light and over him. Raiders step aside. |
+| 4 | **His shadow** (5.6 s): from Andhaka's side, over the boy | The boy kneels in the dark of it; behind him the shadow grows up the south wall with each step, head, shoulders and the cleaver, until it stands over him. Andhaka speaks; his line runs on over the next shots. |
+| 5 | **Keep your feet** (2 s): low, side on | He tries to rise on his lathi, the shadow's gold edge behind him. |
+| 6 | **The glimpse** (1.3 s): POV, up | His eyes fight into focus for under a second ("Kneel."): the giant against the sunset, the cleaver catching the light in a glint. It swims away again. The guru starts toward them. |
+| 7 | **The fall** (1.2 s): POV tumbling | A blow from behind; the world tips over into the dust and his eyes close. |
+| 8 | **In the dust** (3.6 s): POV, head on its side | His eyes open: Andhaka's feet, blurred; the guru's feet and staff come between them and the guru turns to look down at him. |
+| 9 | **The guru** (~4.5 s): close, in profile, long lens, firelit | He turns from the boy to Andhaka: "Leave the boy. It is me you came for." Andhaka's hand at the edge of frame; the boy's eyes hold on his face (the blur eases). |
+| 10 | **The laugh, the blade** (4 s): POV from the dust, up | Swimming and doubled: the guru's back, the dark mass beyond it, laughing (`andhaka_laugh`). The blade goes up and comes down; the guru falls back beside the boy; the laugh cuts off as his eyes shut. |
+| 11 | **Black** (1.8 s) | "Guruji!" |
+| 12 | **Taken** (5.6 s): POV, eyes half open | In the bright gate, shapes going: a raider drags the guru away by the arms, Andhaka goes after, their long shadows reaching back across the ground to the boy. A horn. His eyes close. |
+| 13 | **Black** (1.8 s) | The ringing ebbs and the fire's crackle comes up. Night falls. |
+| 14 | **Later** (6 s): high and wide, slowly closer | Night: indigo sky over a dull red horizon, the roof burning lower, its smoke leaning off across the sky, sparks and ash coming down; the boy alone in the dust of the circle; the fallen raiders where they fell. |
+| 15 | **He rises** (4.6 s): low, side on, rising with him | Out of the dust onto one knee on the lathi, and up. |
+| 16 | **The vow** (with the line): close, firelit, ash falling | "Guruji... I will find you. Even if I have to climb to the top of the world." |
+| 17 | **The threshold** (10 s): from the path outside the gate, then rising away | He walks out of the burning village toward us, a dark figure in the gateway where Andhaka stood; the fires behind him throw his own long shadow out ahead of him into the desert. He stops on the path; the camera rises over the dunes; fade. |
+
+**How long Andhaka is seen:** clearly, only in shot 6, about 0.7 s in focus (1.3 s in all, the first and last of it
+swimming). Everywhere else he is his shadow, his feet at the edge of a POV, a blurred and doubled dark mass (shot 10),
+or a small shape in the bright gate through half-closed eyes (shot 12). He is still drawn as a silhouette; his face is
+kept for the summit.
+
+**The shadow** (`Level0_Village.gateLight`): a real shadow from a shadow-casting light, not a decal. A spotlight just
+inside the gateway, under the lintel (3.6 m up), between the gate's torches with the sunset behind them, aimed down
+the courtyard. Because it sits barely above Andhaka's head (3.15 m), his shadow is thrown far ahead of him and
+magnified: it reaches the boy when Andhaka is only a few steps inside the gate, swallows him, and climbs the south
+wall behind him to about 2.4 m as he comes to stand over him. Meanwhile the sun drops (`setSun`: the key light falls
+to 15 %) so the gate's light rules the courtyard floor. The light is built with the level (so lighting it compiles no
+new shaders) with its shadow map drawn once and then only redrawn while it is lit; the last shot moves it behind the
+boy (`aimGateLight`), "the fires of the village", to throw his shadow out of the gate.
+
+**The concussion** (`src/cinematics/Concussion.ts` drives `src/core/postfx/ConcussionEffect.ts`): a reusable post
+effect, its own pass after the grade (so it blurs the finished picture, ink and bloom included), skipped entirely when
+nothing shows. One pass, 16 taps on a golden-angle disc turned per pixel: out of focus (more toward the edges), double
+vision (half the taps read a shifted picture), colour fringes toward the edges, the edges darkening, colour drained, a
+white flash, and eyelids (a slit closing from top and bottom, corners first). Its driver eases all of it from scene
+cues: `hit(strength, level)` (a blow: flash, jolt, the focus thrown out, the ears ringing), `daze(level, s)` (how
+dazed, the focus swimming on its own while dazed), `focus(clear, s)` (fighting to focus: 1 pulls it sharp),
+`blink(close, hold, open)`, `lids(to, s)` (eyes sinking shut / opening), `end(s)`. The sound goes with it: a low-pass on
+the whole mix (`SoundFX.muffle`), a high beating whine in the ears (`playEarRing`) that is not muffled. It runs on the
+game clock (SceneFX), and is undone by `end`, by skipping (the night shot's essential `end(0)`) and when the chapter is
+left. Also new for it: `CameraKey.roll` (a Dutch angle), `joltCamera` (a cutscene camera shake: blows, footfalls),
+`SceneShot.carryLines` (a line spoken on across cuts), `Character.playClip` `startAt` / `reverse`.
+
+**The place** (`Level0_Village`): `setNight(k)` takes the sky to indigo over a dull red horizon and the lights and fog
+from sunset to moonlight; `setRaidFire(k)` (the roof's light now stays in the scene, dark, from the start: no shader
+recompile when it catches; its flames a deeper red-orange); `Smoulder` (`src/levels/environment/Smoulder.ts`): the
+roof's smoke column leaning off on the wind, lit from beneath, sparks drifting across the courtyard and ash falling
+(two draws). `chapter-start` puts all of it back, so a retry starts at dusk with the roof whole.
+
+**Sound beats:** the crushing blow, the ears ringing and the world muffled; giant footfalls; Andhaka's line muffled
+and far; the laugh; the falling blow; silence and "Guruji!"; the raid horn as they go; the fire's crackle as the
+ringing ebbs. (New synths: `playHeavyStep`, `playBodyFall`, `playEarRing`.)
+
+**Room for a line:** the guru arrives facing the boy and only turns to Andhaka at the start of shot 9, a natural place
+for "Keep your feet, Yudhveer" (docs/proposals/DIALOGUE.md, 8A) if that is approved. Nothing else was added: no new
+lines, voiced or not.
+
+- **Testing:** `__debug.chapter(0, false)`, `__debug.win()`, then `__debug.advance(s)` in small steps, calling
+  `__yudhveer.levelManager.activeLevel.update(t, dt, __yudhveer.sceneManager.camera)` each step (the level's flames,
+  smoke and fire light only move in the real render loop) and `__yudhveer.sceneManager.render()` before a screenshot.
+  `Concussion.state` reports the daze.
+- **Left for later:** a real fall, a struggle up and a drag (Mixamo: "Getting Up", "Dragging" / "Being Dragged") would
+  replace the held and reversed death clips and the dragged guru's slide; the raiders could carry torches; real
+  footfall and fire recordings.
 
 ## Milestone 5: Chapter I (landed)
 
@@ -904,7 +988,8 @@ Each milestone is one chat. Start it with: "Read docs/STORY.md, let's do milesto
   trails, sounds. The user downloads the Mixamo packs it asks for.
 - [x] **3. Story delivery:** dialogue and subtitle system, cinematic cutscene tools for story beats (beyond intros),
   voice line playback.
-- [x] **4. Prologue:** the small village arena, goons, the scripted loss, the guru taken, Andhaka's silhouette.
+- [x] **4. Prologue:** the small village arena, goons, the scripted loss, the guru taken, Andhaka's shadow (ending
+  reworked 2026-10-05: the concussion, the shadow, night).
 - [x] **5. Chapter I rework:** lathi fight, the guru's remembered teachings, the freed Guardian's words.
 - [x] **6. Chapter II rework:** the sunset relight, the sword-training cinematic, the vanara mentor (placeholder;
   the user's model since 2026-10-05), shield and parry training, the ending that points to Dwarka.

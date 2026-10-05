@@ -432,7 +432,7 @@ export class Character extends Entity {
   }
 
   /** A cutscene cue: plays one of the model's clips by name (see `playScripted`). False if it has no such clip. */
-  public playClip(clip: string, options: { timeScale?: number; fade?: number } = {}): boolean {
+  public playClip(clip: string, options: { timeScale?: number; fade?: number; startAt?: number; reverse?: boolean } = {}): boolean {
     if (!this.rig?.clipInfo(clip)) return false;
     this.playScripted({ clip, ...options });
     return true;

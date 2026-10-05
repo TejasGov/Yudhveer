@@ -1,6 +1,6 @@
 import type { KitId } from './Progression';
 import type { ChapterStory } from '../cinematics/Scene';
-import { PROLOGUE_STORY } from './Story';
+import { PROLOGUE_STORY } from './stories/Prologue';
 import { BAOLI_STORY } from './stories/Baoli';
 import { AKHADA_STORY } from './stories/Akhada';
 import { ISLAND_STORY } from './stories/Island';
