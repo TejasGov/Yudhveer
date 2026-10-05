@@ -48,7 +48,7 @@ himself: Andhaka has carried his own judge up the mountain.
 - **Opening cinematic (not playable):** Yudhveer learning to fight with a sword.
 - **Then gameplay:** an **old vanara (monkey-like) mentor** teaches him. He **gives Yudhveer the shield** and teaches
   him to block and **parry** and to fight properly.
-  - The mentor is a placeholder for now; the user will make his model with Meshy.
+  - The mentor is the user's own model (an old monkey sage with a staff), in the game since 2026-10-05.
 - **Weapons: a very basic sword and the shield.**
 - He clears the chapter with them (the Vetala and Mayavi).
 - **At the chapter's end**, with both bosses beaten, he learns he must go to **Dwarka**, where he will find out why
@@ -99,11 +99,11 @@ himself: Andhaka has carried his own judge up the mountain.
 
 ## Placeholders to replace later (the user, with Meshy)
 
-- The old vanara mentor (Chapter II).
 - The island's mini monsters and archer monsters (Chapter III).
 - The second minion type on the summit (Chapter V).
 - The lathi, the basic sword and the blessed mace models (to source or make).
-- Village characters (prologue). The guru is done (Meshy 7, 2026-10-04).
+- Village characters (prologue). The guru is done (Meshy 7, 2026-10-04); so is the old vanara (the user's model,
+  2026-10-05).
 
 ## What has to be built
 
@@ -111,7 +111,8 @@ himself: Andhaka has carried his own judge up the mountain.
 2. **Weapon sets for the hero:** *done (milestone 1), with placeholder models and borrowed clips.*
 3. **Prologue:** *done (milestone 4).* See "Milestone 4" below.
 4. **The guru's voice in Chapter I:** teaching prompts tied to the fight.
-5. **Chapter II:** the sunset relight of the atrium, the non-playable training cinematic, the mentor (placeholder),
+5. **Chapter II:** the sunset relight of the atrium, the non-playable training cinematic, the mentor (the user's model
+   since 2026-10-05),
    the shield-and-parry training section.
 6. **The island (Chapter III):** a new underground, lamp-lit map that the player explores, the mace's resting
    place, mini monster and archer placeholders, the extraction scene.
@@ -339,7 +340,7 @@ the hint for a move just learned). The map and the Guardian's fight are unchange
 ## Milestone 6: Chapter II (landed)
 
 "Hanuman Akhada", chapter id 2. Code: `src/game/stories/Akhada.ts` (`AKHADA_STORY`, `AKHADA_MARKS`),
-`src/entities/Vanara.ts` (the sparring vanara), `src/entities/characters/Akhada.ts` (`MENTOR`, his placeholder),
+`src/entities/Vanara.ts` (the sparring vanara), `src/entities/characters/Akhada.ts` (`MENTOR`, `MENTOR_CAST`),
 the relight in `src/levels/Level2_Akhada.ts`.
 
 - **The sunset relight** (code only, the .glb is unchanged): the night's cobalt key, vermillion grazers and starry sky
@@ -389,10 +390,18 @@ the relight in `src/levels/Level2_Akhada.ts`.
 - **New in the engine (additive):** `Spawn.hidden` (an enemy spawned out of sight, out of the fight until a `show`
   cue: the Vetala and Mayavi wait at the north end), `StoryBeat.hint` (a control hint with a beat), and the HUD gives
   no plate to an enemy that is not shown.
-- **Placeholder:** the vanara is the Baoli Guardian's model at half size (1.6 m), tinted grey-brown, with its talwar.
-  Replace `MENTOR` in `src/entities/characters/Akhada.ts` with the Meshy model; the spar and the cast both follow.
-  The opening uses the guardian's `standing_melee_attack_*` clips by name, so a new model wants clips under those
-  names or the cues changed.
+- **The vanara's model** (2026-10-05; it replaced the placeholder, the Baoli Guardian at half size): the user's old
+  monkey sage (`vanara.glb`, ~29k triangles, 1.75 m to the top of his topknot, autorigged; his tail is bound wholly to
+  the hips) with his staff (`vanara_staff.glb`, a separate prop in the right fist, laid through both fists in his
+  two-handed clips). He fights with the Great Sword Pack's clips: on guard `great_sword_idle`, a wide sweep
+  (`great_sword_slash`, ATTACK_1) and a long lunging one (`great_sword_slash_3`, ATTACK_2) in the spar, the turn into
+  an overhead blow (`great_sword_slash_4`) in the opening; a parry knocks his staff up (`great_sword_impact`). The
+  spar counts one blow per attack (`VanaraMentor.hitWindows` keeps each swing's main stroke: the wind-up turns are
+  fast enough to measure as strikes), and his staff whooshes and knocks like wood. Once the lesson is over the cast's
+  vanara (`MENTOR_CAST`) leans on the planted staff, a hand on his hip (`staff_rest`), walks with it like a pole
+  (`iv_pole_walking`), and strokes his beard on "Hm. Not a farmer, then." (`staff_ponder`); both authored clips are
+  cut from Great Sword idles by `game asset/characters/vanara_post.py`. No new Mixamo clips: the Browser pane was not
+  signed in to Mixamo, so a dedicated talking clip is still to get.
 - **Left for later:** the mentor has no name (subtitles say "Vanara"); every vanara line but the dhal handover is
   unrecorded; the chapter-complete screen counts the training's deflections; the hero's sword-clip timings in the
   montage are by eye.
@@ -682,8 +691,8 @@ Each milestone is one chat. Start it with: "Read docs/STORY.md, let's do milesto
   voice line playback.
 - [x] **4. Prologue:** the small village arena, goons, the scripted loss, the guru taken, Andhaka's silhouette.
 - [x] **5. Chapter I rework:** lathi fight, the guru's remembered teachings, the freed Guardian's words.
-- [x] **6. Chapter II rework:** the sunset relight, the sword-training cinematic, the vanara mentor (placeholder),
-  shield and parry training, the ending that points to Dwarka.
+- [x] **6. Chapter II rework:** the sunset relight, the sword-training cinematic, the vanara mentor (placeholder;
+  the user's model since 2026-10-05), shield and parry training, the ending that points to Dwarka.
 - [x] **7. Chapter III, the island:** the new underground lamp-lit map (explorable), mini monster and archer
   placeholders, the blessed mace.
 - [x] **8. Chapter IV, Dwarka:** the hero with the mace, Shalva mace against mace, the truth about Andhaka,
@@ -691,7 +700,8 @@ Each milestone is one chat. Start it with: "Read docs/STORY.md, let's do milesto
 - [x] **9. Chapter V, the summit:** the second minion type, the guru-as-Shiva ending cinematic, credits.
 - [ ] **10. Voices and sound:** ElevenLabs voices for every line, real character sound effects, music per chapter.
   (Effects and music wired; the island track awaits its chapter; remaining: voices for every line.)
-- [ ] **11. Replace placeholders:** the user's Meshy models (mentor, island monsters, second minion, weapons).
+- [ ] **11. Replace placeholders:** the user's Meshy models (island monsters, second minion, weapons;
+  the mentor is done).
 - [ ] **12. Polish and balance:** full playthroughs, difficulty curve across the five chapters, performance,
   loading sizes.
 - [ ] **13. Release:** final build, deploy, a trailer if wanted.

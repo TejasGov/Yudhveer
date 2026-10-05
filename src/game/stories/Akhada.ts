@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { ease, type CameraKey } from '../../cinematics/CinematicDirector';
 import type { ChapterStory, SceneShot, Stage } from '../../cinematics/Scene';
 import type { Enemy } from '../../entities/Enemy';
-import { MENTOR } from '../../entities/characters/Akhada';
+import { MENTOR_CAST } from '../../entities/characters/Akhada';
 import { CombatSystem } from '../../combat/CombatSystem';
 import { SoundFX } from '../../combat/SoundFX';
 import { twoShot } from '../Story';
@@ -20,7 +20,8 @@ import { twoShot } from '../Story';
  *     that Shalva's mace will break a sword, which points him at the island.
  *
  * The vanara is two characters with one model: `mentor_spar`, the sparring partner (an Enemy, entities/Vanara.ts,
- * spawned by the Engine), and `mentor`, the story's cast member who takes his place once the lesson is over.
+ * spawned by the Engine, on guard with his staff), and `mentor`, the story's cast member who takes his place once the
+ * lesson is over (leaning on the planted staff; `MENTOR_CAST`).
  *
  * Time of day is the level's (`Level2_Akhada.cue`): `day` as the opening starts, `dusk` and `twilight` as the lesson
  * goes on, `nightfall` as the two come out, and `night` (essential) at the arrival's end, so a skipped arrival or a
@@ -109,7 +110,7 @@ function closeUp(id: 'vetala' | 'mayavi', clip: string, side: 1 | -1): SceneShot
 export const AKHADA_STORY: ChapterStory = {
   cast: [
     // The vanara once the lesson is over: out of sight until then (the sparring one is him meanwhile).
-    { id: 'mentor', rig: MENTOR, at: M.aside, face: AKHADA_CENTRE, hidden: true },
+    { id: 'mentor', rig: MENTOR_CAST, at: M.aside, face: AKHADA_CENTRE, hidden: true },
   ],
 
   // Sword practice in the evening sun, a montage: the boy swings, the old vanara swats him aside, again and again;
@@ -132,7 +133,7 @@ export const AKHADA_STORY: ChapterStory = {
           { at: 0, run: (s) => s.level.cue?.('day'), essential: true },
           { at: 0.5, actor: 'hero', clip: 'slash_3', timeScale: 1.2 },
           { at: 0.7, run: () => sfx().playSwordSwing(1, 'blade') },
-          { at: 0.6, actor: 'mentor_spar', clip: 'standing_melee_attack_horizontal', timeScale: 1.3 },
+          { at: 0.6, actor: 'mentor_spar', clip: 'great_sword_slash', timeScale: 1.3 },
           { at: 1.05, run: () => sfx().playParryClash() },
           { at: 1.2, actor: 'hero', clip: 'impact_2', timeScale: 1.1 },
         ],
@@ -160,7 +161,7 @@ export const AKHADA_STORY: ChapterStory = {
           { pos: v(-2.0, 0.65, 8.5), look: v(0, 1.3, 3.4), fov: 40 },
         ],
       },
-      // Over the vanara's shoulder: the boy, stubborn, at it again; the blow meets the talwar.
+      // Over the vanara's shoulder: the boy, stubborn, at it again; the blow meets the staff.
       {
         fadeIn: 0.45,
         ease: ease.drift,
@@ -171,7 +172,7 @@ export const AKHADA_STORY: ChapterStory = {
           { at: 0, actor: 'hero', place: M.hero, face: M.mentor },
           { at: 0.3, actor: 'hero', clip: 'slash_5', timeScale: 1.25 },
           { at: 0.45, run: () => sfx().playSwordSwing(1.15, 'blade') },
-          { at: 0.4, actor: 'mentor_spar', clip: 'standing_melee_attack_downward', timeScale: 1.4 },
+          { at: 0.4, actor: 'mentor_spar', clip: 'great_sword_slash_4', timeScale: 1.4 },
           { at: 0.8, run: () => sfx().playParryClash() },
         ],
         lines: [{ speaker: 'Yudhveer', text: 'Again.' }],
@@ -256,7 +257,7 @@ export const AKHADA_STORY: ChapterStory = {
     },
     {
       on: { when: (s) => !drill.done && s.player.can('parry') && stats().deflections === 0 && stats().blocks >= drill.blocksAtParry + 4 },
-      hint: 'Press {guard} as his blade comes down, not before.',
+      hint: 'Press {guard} as his staff comes down, not before.',
       lines: [{ speaker: 'Vanara', text: 'Too soon, and you are only hiding. Wait for it... then meet it.', voice: 'akhada_train_mentor_6' }],
     },
 
@@ -266,7 +267,7 @@ export const AKHADA_STORY: ChapterStory = {
       scene: {
         id: 'akhada-arrival',
         shots: [
-          // He lowers his blade. (Here the cast's vanara takes the sparring one's place.)
+          // He grounds his staff. (Here the cast's vanara takes the sparring one's place.)
           {
             fadeIn: 0.2,
             ease: ease.drift,
@@ -368,11 +369,12 @@ export const AKHADA_STORY: ChapterStory = {
           ];
         },
       },
-      // Over the boy's shoulder, down at the old one.
+      // Over the boy's shoulder, down at the old one: a hand to his beard.
       {
         fadeIn: 0.15,
         ease: ease.drift,
         sway: 0.015,
+        cues: [{ at: 0.1, actor: 'mentor', clip: 'staff_ponder' }],
         lines: [{ speaker: 'Vanara', text: 'Hm. Not a farmer, then.', voice: 'akhada_end_mentor_1' }],
         camera: (s): CameraKey[] => [
           { pos: s.at('hero', -1.5, -0.8, 1.9), look: s.head('mentor'), fov: 38 },
@@ -384,6 +386,7 @@ export const AKHADA_STORY: ChapterStory = {
         fadeIn: 0.12,
         ease: ease.out,
         sway: 0.015,
+        cues: [{ at: 0, actor: 'mentor', play: 'IDLE' }],
         lines: [{ speaker: 'Yudhveer', text: 'Where did they take my guru?' }],
         camera: (s): CameraKey[] => [
           { pos: s.at('mentor', -1.3, -1.0, 1.3), look: s.head('hero'), fov: 38 },
