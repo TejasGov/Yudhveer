@@ -345,6 +345,8 @@ export const PROLOGUE_STORY: ChapterStory = {
           { at: 0.8, actor: 'raider_1', moveTo: v(-1.1, 0, -12.4), face: 'hero' },
           { at: 1.1, actor: 'raider_2', moveTo: v(1.0, 0, -12.8), face: 'hero' },
           { at: 1.5, actor: 'raider_3', moveTo: v(0, 0, -13.6), face: 'hero' },
+          // Their card, as they come out of the glow (the intro shows only the place, so it is shown here).
+          { at: 2.0, run: (s) => s.cards.horde() },
         ],
         camera: [
           { pos: v(1.3, 1.7, 4.6), look: v(0, 1.7, -12.5), fov: 40 },
@@ -486,7 +488,9 @@ export const PROLOGUE_STORY: ChapterStory = {
         linesAt: 0.6,
         carryLines: true,
         cues: [{ at: 0, run: () => Concussion.daze(0.4, 0.8) }],
-        lines: [{ speaker: 'Andhaka', text: "A boy with a stick... Your guru's soul will burn before my god. Kneel.", voice: 'andhaka_prologue_kneel' }],
+        // Captioned only as a voice: the boy does not know whose it is, and the Baoli Guardian is the first to name
+        // Andhaka (Chapter I's ending).
+        lines: [{ speaker: 'A voice', text: "A boy with a stick... Your guru's soul will burn before my god. Kneel.", voice: 'andhaka_prologue_kneel' }],
         camera: [
           { pos: v(0.32, 1.62, -1.05), look: v(-0.05, -0.2, 7.0), fov: 40 },
           { pos: v(0.28, 1.55, -0.8), look: v(-0.05, -0.15, 7.0), fov: 37 },
@@ -667,13 +671,17 @@ export const PROLOGUE_STORY: ChapterStory = {
         camera: [{ pos: DUST_EYES, look: v(0.25, 0.9, -8), fov: 46, roll: 0.45 }],
       },
       // 14. Later. High over the courtyard at night, slowly closer: the roof burning, its smoke leaning off across the
-      // sky, sparks and ash coming down, and the boy alone in the dust of the circle.
+      // sky, sparks and ash coming down, and the boy alone in the dust of the circle. The chapter's cleared line comes
+      // up over it, quietly: the prologue runs straight on into Chapter I, with no chapter-complete screen to say it.
       {
         duration: 6.0,
         fadeIn: 2.2,
         ease: ease.drift,
         sway: 0.012,
-        cues: [{ at: 0, run: () => Concussion.end(0), essential: true }],
+        cues: [
+          { at: 0, run: () => Concussion.end(0), essential: true },
+          { at: 1.8, run: (s) => s.cards.caption(s.chapter.clearedLine, 3.4) },
+        ],
         camera: [
           { pos: v(-6.2, 4.4, 9.2), look: v(3.0, 1.3, -3.2), fov: 46 },
           { pos: v(-5.4, 3.8, 8.2), look: v(2.8, 1.3, -3.2), fov: 44 },

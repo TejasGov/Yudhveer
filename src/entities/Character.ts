@@ -7,6 +7,7 @@ import { CharacterMotor, DEFAULT_MOTOR, type MotorOptions } from '../physics/Cha
 import { PhysicsWorld } from '../core/PhysicsWorld';
 import type RAPIER from '@dimforge/rapier3d-compat';
 import { ACTORS } from './ActorRegistry';
+import { disposeObject } from '../levels/GLBLevel';
 
 const UP = new THREE.Vector3(0, 1, 0);
 // State-machine timers an animated character sets from its clip lengths (when the state is marked `timesState`).
@@ -415,13 +416,19 @@ export class Character extends Entity {
   public mountRig(p: PreparedRig, keepPose = false): CharacterRig {
     const { definition, rig } = p;
     const was = keepPose && this.rig && this.scripted ? { clip: this.rig.clip, time: this.rig.time } : null;
-    // Modelled weapons replace the greybox ones everywhere (sockets, sheathing, hit detection).
+    // Modelled weapons replace the greybox ones everywhere (sockets, sheathing, hit detection). The ones they replace
+    // (the greybox's, or the last rig's: the lathi, the sword, the dhal) are freed, not only taken off: off its socket,
+    // the old rig's dispose below never reaches a prop, and every change of chapter left one on the GPU (audit W-08).
     if (p.prop) {
-      this.swordMesh.removeFromParent();
+      const old = this.swordMesh;
+      old.removeFromParent();
+      if (old !== p.prop) disposeObject(old);
       this.swordMesh = p.prop;
     }
     if (p.shield) {
-      this.shieldMesh.removeFromParent();
+      const old = this.shieldMesh;
+      old.removeFromParent();
+      if (old !== p.shield) disposeObject(old);
       this.shieldMesh = p.shield;
     }
     if (definition.weapon?.blade) this.bladeSpan = definition.weapon.blade;

@@ -8,6 +8,7 @@ export class Cinema {
   private readonly fadeEl = $('fade');
   private readonly chapterCardEl = $('chapter-card');
   private readonly nameCardEl = $('name-card');
+  private readonly captionEl = $('scene-caption');
   private readonly skipEl = $('skip');
   private readonly skipFill = $('skip-fill');
   private timers: number[] = [];
@@ -65,11 +66,23 @@ export class Cinema {
     this.flash(this.nameCardEl, holdSeconds);
   }
 
+  /**
+   * A quiet line over the picture, centred low, held for `holdSeconds`: words a scene says without a speaker (the
+   * prologue's cleared line over the village at night, where no chapter-complete screen follows).
+   */
+  public caption(text: string, holdSeconds: number): void {
+    this.captionEl.textContent = text;
+    this.captionEl.classList.remove('show');
+    void this.captionEl.offsetWidth;
+    this.flash(this.captionEl, holdSeconds);
+  }
+
   public clearCards(): void {
     this.timers.forEach((t) => clearTimeout(t));
     this.timers = [];
     this.chapterCardEl.classList.remove('show');
     this.nameCardEl.classList.remove('show');
+    this.captionEl.classList.remove('show');
   }
 
   /** The "hold to skip" prompt and how far the hold has got (0..1). */

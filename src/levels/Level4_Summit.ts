@@ -62,7 +62,9 @@ const ALBEDO_LIFT: Record<string, number> = {
 // light dusting (they already carry baked drifts and the blood).
 const SNOW_COVER: Record<string, SnowCover> = {
   Coarse_Basalt_Ash: { amount: 1, wall: 1 },
-  Slate_Silhouette: { amount: 1, wall: 0.9 },
+  // The beacon cliff and the far peak: their bake is about three texels a metre, a flat colour a face, so their slate
+  // is mottled in world space instead (its mean colour; audit W-15).
+  Slate_Silhouette: { amount: 1, wall: 0.9, breakup: { color: 0x22252a, amount: 1 } },
   Vista_Pinnacle_Rock: { amount: 1, wall: 0.9 },
   Basalt_Ash_Floor_Crag: { amount: 0.8, wall: 0.8 },
   Basalt_Ash_Floor: { amount: 0.35, wall: 0 },
@@ -70,6 +72,85 @@ const SNOW_COVER: Record<string, SnowCover> = {
   Shiva_Temple_Weathered_Granite: { amount: 0.55, wall: 0.25 },
   Pilgrim_Trail_Stone: { amount: 0.5, wall: 0.2 },
 };
+/**
+ * The terrain and the vista rock came out of the bake flat-shaded (every face its own vertices and normal), and the
+ * cel ramp then lit each face as a band of its own: the snow and the cliffs broke into square patches (audit W-15).
+ * Their normals are smoothed at load, creased so ledges and ridges keep their edge. Not the small scattered rocks
+ * (`Joined_*`) or the lake's spikes, which are meant to be faceted, nor stairs, trails and masonry.
+ */
+const SMOOTH_FACETS = {
+  families: ['Coarse_Basalt_Ash', 'Slate_Silhouette', 'Vista_Pinnacle_Rock'],
+  minVertices: 1000,
+  creaseDeg: 50,
+};
+
+/**
+ * Smooth normals for a flat-shaded mesh, in place: each vertex takes the area-weighted normal of the faces round its
+ * position that lie within `creaseDeg` of its own face. Positions, UVs and the index are unchanged.
+ */
+function smoothFacets(geometry: THREE.BufferGeometry, creaseDeg: number): void {
+  const position = geometry.attributes.position;
+  const normal = geometry.attributes.normal;
+  const index = geometry.index;
+  if (!normal || !index) return;
+  const count = position.count;
+  const pos = new Float32Array(count * 3);
+  const own = new Float32Array(count * 3);
+  for (let i = 0; i < count; i++) {
+    pos[3 * i] = position.getX(i); pos[3 * i + 1] = position.getY(i); pos[3 * i + 2] = position.getZ(i);
+    own[3 * i] = normal.getX(i); own[3 * i + 1] = normal.getY(i); own[3 * i + 2] = normal.getZ(i);
+  }
+  // Vertices that share a position are one point of the surface. The key packs the position, 17 bits an axis across
+  // the mesh's bounds (under a millimetre a step for these), into one number a double holds exactly.
+  geometry.computeBoundingBox();
+  const { min, max } = geometry.boundingBox!;
+  const STEPS = 131071;
+  const sx = STEPS / Math.max(max.x - min.x, 1e-6), sy = STEPS / Math.max(max.y - min.y, 1e-6), sz = STEPS / Math.max(max.z - min.z, 1e-6);
+  const point = new Int32Array(count);
+  const points = new Map<number, number>();
+  for (let i = 0; i < count; i++) {
+    const key = Math.round((pos[3 * i] - min.x) * sx) * 2 ** 34 + Math.round((pos[3 * i + 1] - min.y) * sy) * 2 ** 17
+      + Math.round((pos[3 * i + 2] - min.z) * sz);
+    let p = points.get(key);
+    if (p === undefined) points.set(key, (p = points.size));
+    point[i] = p;
+  }
+  // Each face's normal, its length twice the face's area (the weight), and the faces round each point.
+  const faces = index.count / 3;
+  const corner = Uint32Array.from({ length: index.count }, (_, k) => index.getX(k));
+  const faceNormal = new Float32Array(faces * 3);
+  const faceArea = new Float32Array(faces);
+  const start = new Int32Array(points.size + 1);
+  for (let f = 0; f < faces; f++) {
+    const a = 3 * corner[3 * f], b = 3 * corner[3 * f + 1], c = 3 * corner[3 * f + 2];
+    const cbx = pos[c] - pos[b], cby = pos[c + 1] - pos[b + 1], cbz = pos[c + 2] - pos[b + 2];
+    const abx = pos[a] - pos[b], aby = pos[a + 1] - pos[b + 1], abz = pos[a + 2] - pos[b + 2];
+    const nx = cby * abz - cbz * aby, ny = cbz * abx - cbx * abz, nz = cbx * aby - cby * abx;
+    faceNormal[3 * f] = nx; faceNormal[3 * f + 1] = ny; faceNormal[3 * f + 2] = nz;
+    faceArea[f] = Math.hypot(nx, ny, nz);
+    for (let k = 0; k < 3; k++) start[point[corner[3 * f + k]] + 1]++;
+  }
+  for (let p = 0; p < points.size; p++) start[p + 1] += start[p];
+  const fill = start.slice(0, points.size);
+  const around = new Int32Array(faces * 3);
+  for (let f = 0; f < faces; f++) for (let k = 0; k < 3; k++) around[fill[point[corner[3 * f + k]]]++] = f;
+  // Each vertex: its own (flat) normal decides which of the faces round it lie on its side of a crease.
+  const crease = Math.cos(THREE.MathUtils.degToRad(creaseDeg));
+  for (let i = 0; i < count; i++) {
+    const ox = own[3 * i], oy = own[3 * i + 1], oz = own[3 * i + 2];
+    let x = 0, y = 0, z = 0;
+    for (let j = start[point[i]]; j < start[point[i] + 1]; j++) {
+      const f = around[j];
+      const nx = faceNormal[3 * f], ny = faceNormal[3 * f + 1], nz = faceNormal[3 * f + 2];
+      if (faceArea[f] > 0 && nx * ox + ny * oy + nz * oz >= crease * faceArea[f]) {
+        x += nx; y += ny; z += nz;
+      }
+    }
+    const length = Math.hypot(x, y, z);
+    if (length > 0) normal.setXYZ(i, x / length, y / length, z / length);
+  }
+  normal.needsUpdate = true;
+}
 
 /**
  * Level 4: frozen octagonal basalt plateau above a cloud sea under a silver solar eclipse, cel-shaded with
@@ -290,6 +371,17 @@ export class Level4_Summit extends GLBLevel {
     this.fires = new FireField(spots);
     for (const group of ['deepam_E', 'deepam_W', 'lanterns']) this.fires.set(group, 1);
     this.group.add(this.fires.mesh);
+
+    // The flat-shaded terrain and vista rock, smoothed (see SMOOTH_FACETS); each geometry once.
+    const smoothed = new Set<THREE.BufferGeometry>();
+    model.traverse((obj) => {
+      const mesh = obj as THREE.Mesh;
+      if (!mesh.isMesh || smoothed.has(mesh.geometry) || mesh.name.startsWith('Joined_')) return;
+      const family = (Array.isArray(mesh.material) ? mesh.material[0] : mesh.material).name.split('@')[0];
+      if (!SMOOTH_FACETS.families.includes(family) || mesh.geometry.attributes.position.count < SMOOTH_FACETS.minVertices) return;
+      smoothFacets(mesh.geometry, SMOOTH_FACETS.creaseDeg);
+      smoothed.add(mesh.geometry);
+    });
 
     toonifyModel(model, this.ramp, (src, mesh) => this.convertMaterial(src as THREE.MeshStandardMaterial, mesh));
 

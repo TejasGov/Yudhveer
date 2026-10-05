@@ -3,6 +3,7 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 import type { CharacterState } from '../CharacterStateMachine';
 import { addRimLight, createToonRamp, toToonMaterial } from '../../levels/environment/ToonRelight';
+import { disposeObject } from '../../levels/GLBLevel';
 
 /** One clip as described by `game asset/characters/build_character.py`'s manifest. */
 export interface ClipInfo {
@@ -713,18 +714,15 @@ export class CharacterRig {
     return delta;
   }
 
+  /**
+   * Frees the model and the props still on its sockets: every geometry, every material (arrays too) and every texture
+   * they hold, the levels' way (`disposeObject`). It used to free only the colour maps, so each rig it let go left its
+   * normal maps on the GPU (audit W-08). Every rig parses its own copy of its model, so nothing here is shared.
+   */
   public dispose(): void {
     this.mixer.stopAllAction();
     this.root.removeFromParent();
-    this.root.traverse((obj) => {
-      const mesh = obj as THREE.Mesh;
-      mesh.geometry?.dispose();
-      const mat = mesh.material as THREE.MeshToonMaterial | undefined;
-      if (mat) {
-        mat.map?.dispose();
-        mat.dispose();
-      }
-    });
+    disposeObject(this.root);
     this.ramp.dispose();
   }
 }

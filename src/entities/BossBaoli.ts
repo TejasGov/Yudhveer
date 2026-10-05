@@ -16,7 +16,8 @@ export class BossBaoli extends Boss {
       roarRange: 16,
     });
     this.displayName = 'Baoli Guardian';
-    this.epithet = 'Asura of the stepwell';
+    // The well's own protector, bound by Andhaka (docs/STORY.md, Chapter I), not a demon of it.
+    this.epithet = 'Keeper of the stepwell';
     this.maxHealth = 450;
     this.currentHealth = 450;
     this.maxMarma = 140;

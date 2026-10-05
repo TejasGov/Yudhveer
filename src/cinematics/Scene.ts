@@ -12,7 +12,7 @@ import type { Chapter } from '../game/Chapters';
 import type { Ability } from '../game/Progression';
 import type { GameLevel } from '../levels/LevelTypes';
 import { Voices } from '../combat/Voices';
-import { readingTime, VOICE_TAIL, type Dialogue, type Line } from '../ui/Dialogue';
+import { readingTime, VOICE_TAIL, type Dialogue, type Line, type LineStyle } from '../ui/Dialogue';
 
 /*
  * Story scenes, authored as data (docs/STORY.md, "Milestone 3"). A scene is a list of shots for the CinematicDirector;
@@ -108,9 +108,19 @@ export type Trigger =
 export type StoryBeat = {
   on: Trigger;
   run?: (s: Stage) => void;
-  /** A control hint shown with it (`{guard}`-style placeholders become the right key or button), as a lesson's. */
+  /**
+   * A control hint shown with it (`{guard}`-style placeholders become the right key or button), as a lesson's. Shown
+   * only with "Combat hints" on.
+   */
   hint?: string;
-} & ({ scene: StoryScene } | { lines: Line[] });
+} & ({ scene: StoryScene } | {
+  lines: Line[];
+  /**
+   * How they are heard: `voice` (the default), the remembered voice in his head, in italics with the place's reverb;
+   * `aloud`, said out loud in the arena, upright and dry (a foe's taunt, a boss calling out his own move).
+   */
+  style?: Extract<LineStyle, 'voice' | 'aloud'>;
+});
 
 /**
  * Someone the story brings on who does not fight: the guru, Andhaka seen only as a shadow. Spawned with the chapter

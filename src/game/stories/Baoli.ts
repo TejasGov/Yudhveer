@@ -90,9 +90,11 @@ export const BAOLI_STORY: ChapterStory = {
     id: 'baoli-opening',
     shots: [
       // The Devi's shrine on the terrace above the stepwell (docs/STORY.md, "The divya kavach"). From black: low
-      // behind the boy, in his training clothes, as he climbs between the stone lions to the Devi on her lion.
+      // behind the boy, in his training clothes, as he climbs between the stone lions to the Devi on her lion. It cuts
+      // as he nears the mark he kneels on (the next shot puts him there): this shot and the next are 2 s shorter than
+      // they were, for the long run of cutscenes from the prologue's loss to this fight (audit S-07).
       {
-        duration: 5.6,
+        duration: 4.4,
         fadeIn: 1.0,
         ease: ease.drift,
         cues: [
@@ -112,9 +114,9 @@ export const BAOLI_STORY: ChapterStory = {
           { pos: v(-1.8, 5.4, 48.8), look: v(0, 10.2, 66), fov: 44 },
         ],
       },
-      // Side on, close: he lays the lathi down, kneels, and joins his hands.
+      // Side on, close: he lays the lathi down, kneels, and joins his hands (held a breath and a half once joined).
       {
-        duration: 5.2,
+        duration: 4.4,
         fadeIn: 0.15,
         ease: ease.drift,
         cues: [

@@ -16,9 +16,13 @@ export interface Line {
 /**
  * `scene`: a cutscene's lines, low in the frame over the letterbox; the player can read ahead. `voice`: a voice in
  * the hero's head during the fight (the guru's remembered teachings), above the HUD, on its timer only (the buttons
- * are busy fighting), with a little of the place's reverb.
+ * are busy fighting), in italics, with a little of the place's reverb. `aloud`: spoken out loud in the arena during
+ * the fight (a foe's taunt): placed and timed as `voice`, but upright and dry, a man in front of him and not a memory.
  */
-export type LineStyle = 'scene' | 'voice';
+export type LineStyle = 'scene' | 'voice' | 'aloud';
+
+/** The styles spoken over a fight: they wait behind each other instead of cutting in. */
+const IN_FIGHT: readonly LineStyle[] = ['voice', 'aloud'];
 
 /** Seconds a line without a recording stays up: a lead-in, then a comfortable reading pace. */
 export function readingTime(text: string): number {
@@ -76,7 +80,7 @@ export class Dialogue {
     }
     entries[entries.length - 1].done = onDone;
     Voices.preload(lines.map((l) => l.voice));
-    if (style === 'voice' && this.entry?.style === 'voice') {
+    if (IN_FIGHT.includes(style) && this.entry && IN_FIGHT.includes(this.entry.style)) {
       this.queue.push(...entries);
       return;
     }
@@ -138,6 +142,7 @@ export class Dialogue {
     this.speakerEl.textContent = line.speaker ?? '';
     this.textEl.textContent = line.text;
     this.root.classList.toggle('voice', entry.style === 'voice');
+    this.root.classList.toggle('aloud', entry.style === 'aloud');
     this.root.classList.remove('show');
     void this.root.offsetWidth; // restart the fade between lines
     this.root.classList.add('show');
@@ -164,6 +169,7 @@ export class Dialogue {
 
   private speak(buffer: AudioBuffer, offset: number): void {
     this.silence();
+    // Only the voice in his head carries the place's reverb; a line said aloud (a cutscene's, a foe's taunt) is dry.
     this.stopVoice = SoundFX.getInstance().playVoice(buffer, offset, this.entry?.style === 'voice' ? VOICE_WET : 0);
   }
 

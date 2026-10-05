@@ -25,10 +25,16 @@ export interface Chapter {
   place: string;
   /** One line on the chapter card. */
   line: string;
-  /** Shown when the chapter is cleared. */
+  /**
+   * Shown when the chapter is cleared: on the chapter-complete screen; as a caption over the prologue's night shot (it
+   * runs straight on, with no such screen); first in the credits after the last chapter.
+   */
   clearedLine: string;
-  /** The defeat screen's line when no boss is standing (bosses get "<name> still stands."). */
-  defeatLine: string;
+  /**
+   * The defeat screen's line: alone when no boss is standing, else under "<name> still stands.". None for a chapter the
+   * hero cannot lose (the prologue: he cannot fall, and its fight ends in its scripted loss).
+   */
+  defeatLine?: string;
   /** Its story scenes and in-fight lines (src/game/Story.ts). */
   story?: ChapterStory;
   /** The intro shows the place and nothing else: its opponents arrive later, in the story (the prologue's raid). */
@@ -50,7 +56,6 @@ export const CHAPTERS: Chapter[] = [
     place: 'His village, at the edge of the desert',
     line: 'One more lesson before the light goes.',
     clearedLine: 'The village is quiet. The guru is gone.',
-    defeatLine: 'The village burns.',
     story: PROLOGUE_STORY,
     introPlaceOnly: true,
     continues: true,

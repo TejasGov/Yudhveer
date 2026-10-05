@@ -9,7 +9,9 @@ downloaded yet.
 **Decision:** "go with A - let the gods see their new ruler". The line is now "Burn, Agni. Let the gods see their new
 ruler." (voice id `summit_crown_andhaka_1`, ElevenLabs flow hNijKdjbfXylpNQQdcpK; take A 4.96 s in the game, levelled to
 -18 LUFS; take B 5.44 s kept in `game asset/voice/takes/`). It starts 1.75 s before the crown settles so it fits
-between the crown and his roar (docs/STORY.md, "Andhaka's model and entrance"). The proposal as it was:
+between the crown and his roar (docs/STORY.md, "Andhaka's model and entrance"). The original proposal, as it was
+before the decision (superseded: option A was recorded as "...their new ruler." under the id above, not as
+`summit_andhaka_crowned`, and the line is voiced, no longer subtitle only):
 
 As the crown settles on his head the Agni beacon takes fire (docs/STORY.md, "Andhaka's model and entrance", shot 5).
 He speaks one line there, tying the crown to the fire. It is in the game now as a subtitle only (`CROWNING_LINE` in
@@ -18,7 +20,7 @@ He speaks one line there, tying the crown to the fire. It is in the game now as 
 
 | | Line | Characters | To record (2 takes) |
 |---|---|---|---|
-| **A (picked, in the game)** | Burn, Agni. Let the gods see their king. | 40 | about 96 credits |
+| **A (picked; recorded as "Burn, Agni. Let the gods see their new ruler.")** | Burn, Agni. Let the gods see their king. | 40 | about 96 credits |
 | B | Fire for the crown. Ash for the boy. | 36 | about 86 credits |
 | C | Let it burn. Let Shiva see who sits on his mountain now. | 56 | about 134 credits |
 
@@ -185,7 +187,8 @@ colliders, lamps and marks unchanged.
 from sketchfab, i've given you mcp access, cite them properly use poly haven for decent cave stone textures". No Meshy
 credits spent. 25 Sketchfab models downloaded (the user's signed-in session; no Sketchfab MCP was available), 23 used
 (22 CC BY 4.0, 1 CC0), plus 3 Poly Haven textures (CC0); every one credited in the credits roll, docs/ASSET_CREDITS.md
-and `game asset/README.md`. The level is 7.5 MB (was 1.2 MB). Nothing is blocked; no terms or consents were accepted.
+and `game asset/README.md`. The level was 7.5 MB (from 1.2 MB), and is 8.1 MB (8,142,180 bytes) since the Meshy boat
+replaced the Sketchfab one. Nothing is blocked; no terms or consents were accepted.
 
 Left for a later pass (code-built still, nothing suitable or licensable found, or worth Meshy on a later yes): the
 boat's cane canopy and pole, the landing's lantern post, the dais and altar (code-built, now textured stone with a
@@ -380,3 +383,64 @@ Seen in passing, not changed: on the island, the take is hidden in the black hol
 it now") the "power_up" clip swings the one-handed mace's head across his face (about 3 s in); in the Baoli, the
 lathi (hidden while he kneels) reappears in his hand 1.9 s into the rise with nothing picked up; with the lathi (and
 every weapon) the charge's "Power Up" crosses the staff over his head for a few frames.
+
+### Flow, teaching, memory and polish (batches 8-12 and batch 9's free parts): DONE; judgement calls
+
+No credits spent, nothing downloaded, no sign-ins; no voiced line's text changed. What changed is in docs/STORY.md
+(the milestones it touches, and "The summit's snow, and memory between chapters"); captures in
+`game asset/audit/fixes/fix-flow/`.
+
+- **Shakti in II-IV (S-04), reversible:** `charge` is back in the akhada, island and Dwarka kits, so the guru's Chapter I
+  lesson keeps working; STORY.md's "Charge arrives with the magical sword" is replaced. To undo: drop `'charge'` from
+  those three kits in `src/game/Progression.ts` (then a vanara line should say why it is gone; that costs credits).
+- **Newly granted moves (S-03):** "the first chapter that grants it" is read against every earlier chapter's kit (moves
+  given or taught), not only the previous one; comparing with the previous kit alone would re-teach block and parry at
+  the summit (Dwarka's mace has no dhal). Only Dwarka's leap qualifies; its hint shows 4 s into the fight.
+- **The Akhada drill and "Combat hints" off (S-12):** not exempt. With hints off the drill stays playable: the vanara
+  says what to do, "Learned: The guard / The parry" names the moves, the hero cannot fall while he teaches, and the
+  Controls screen lists the guard. To exempt it, show `b.beat.hint` regardless of the setting for the drill's beats.
+- **Dead card text (S-11, V3-01):** the prologue's cleared line is a caption over the night shot, the summit's the
+  first line of the credits, and a chapter's defeat line sits under "<boss> still stands." The prologue's defeat line
+  ("The village burns.") is removed rather than shown: he cannot fall there (`Chapter.defeatLine` is now optional). The
+  "Raiders" card, which the place-only intro skipped, comes up in the opening as they step out of the gate's glow.
+- **The summit's low-health line (S-05):** Andhaka's fight only (under 35 %), once: Andhaka's arrival restores the hero,
+  so a line spent on the rakshasa waves would leave the fight that matters, the one "You kept your feet" answers,
+  without it.
+- **The dry style (V3-02):** named `aloud` (beside `scene` and `voice`); unused until the boss lines are recorded. Tested
+  with a temporary call only (`v302_aloud_style_test.jpg`); nothing in the game uses it yet.
+- **Dwarka's file (W-12):** the shipped GLB had been touched up after its export by the building session's
+  `validate_export.py` (the hills made unlit, the moss and algae's vertex alpha moved into COLOR_0); the new export
+  script does the same, or the hills would have lit and the patches lost their fade. Positions are packed at 16 bits,
+  not the exporter's default 12, for 0.5 MB: at 12 the 2.8 km horizon disc moved up to 95 cm and the arena's 6 mm
+  decals could have met the paving. The old file is kept in `game asset/levels/03_dwarka/_backup_2026-10-05/`. The
+  optional decimation of the summit's staircase and pilasters was skipped: it means re-exporting the summit, whose
+  export re-bakes every object (not isolated).
+- **The summit's square patches (W-15):** the code fallback, not a re-bake (a re-bake redoes every object's texture):
+  smoothed normals on the flat-shaded terrain and vista rock, and the beacon cliff's 3-texels-a-metre bake replaced
+  by world-space mottling of its mean colour (`SnowCover.breakup`). The trail up the cliff stays stepped (it is steps).
+- **Memory (W-08):** besides the greybox prop and the texture slots the audit named, each character's bone texture
+  leaked (`disposeObject` now frees skeletons). Measured: steady at 35/51 and 88/67 (geometries/textures) over ten
+  prologue <-> Chapter I round trips.
+- **Chapter I's lead-in (S-07):** 2.0 s cut (the walk up to the Devi 5.6 to 4.4 s, the kneel 5.2 to 4.4 s); the cut now
+  comes as he nears his mark, which the next shot puts him on.
+- **Credits (S-14):** Dwarka's Poly Haven sources are listed with links; their authors are not (no local record, and
+  nothing was fetched). Dwarka's fort and moored boat were "user supplied" in the building session's notes, with no
+  source recorded: worth a line from you on where they came from, in case they need a credit.
+
+### The kavach's promise: a small mechanic (S-06, proposal, your decision, not built)
+
+Durga says "No evil will pierce it", but in play the kavach only changes his clothes: damage, posture and guard are
+as before, so the Guardian hits as hard a minute after the promise. Options, cheapest first (no credits; each needs a
+little combat tuning and a playtest):
+
+| | What it does | Shown as | Effort |
+|---|---|---|---|
+| **A (recommended)** | Once a fight, the first blow that would take him under a quarter of his health is turned: no damage, a short stagger for the attacker | a gold ripple over him and the callout "The kavach holds" | S: a flag in `Player.takeDamage`, a callout, the ripple from `DivineLight` |
+| B | Blocked blows' chip damage halved while he wears it | nothing new (felt, not seen) | S, but nearly invisible until the akhada gives him a dhal |
+| C | A slow regeneration of posture after a hit | the posture bar | S, but it reads as a stat, not a gift |
+
+Why A: it keeps the Devi's words true at the moment they matter (the brink of a fall), it is seen, and once a fight
+it saves a life without making him strong (STORY.md, "The idea"). It also gives the summit's "Breathe. Feet first."
+moment a partner: the armour holds once, the feet must do the rest ("It will not move your feet" was the first draft
+of her line). On a yes: build A in the Player, tune it against the Guardian and Andhaka, and add it to STORY.md's
+"The divya kavach".

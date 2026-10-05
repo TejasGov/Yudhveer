@@ -222,7 +222,8 @@ const LEVEL_AMBIENCE: Record<number, Ambience> = { 0: 'village', 1: 'baoli', 2: 
 /**
  * The first fights (the prologue, then Chapter I) teach the basics, one line at a time: fight seconds, text, the move
  * it needs and (fourth) a move that makes it moot. Only moves the hero has are mentioned, and each hint shows once
- * per session, so Chapter I after the prologue teaches only what is new (chaining blows).
+ * per session, so Chapter I after the prologue teaches only what is new (chaining blows). A later chapter shows the
+ * hint of a move it is the first to grant (Dwarka's leap), early in its fight: see `planHints`.
  */
 const FIRST_FIGHT_HINTS: [number, string, Ability?, Ability?][] = [
   [1.5, 'Press {attack} to strike.', undefined, 'combo'],
@@ -233,6 +234,11 @@ const FIRST_FIGHT_HINTS: [number, string, Ability?, Ability?][] = [
   [26, 'Hold {charge}, standing, until your strength gathers: the next three blows strike harder.', 'charge'],
   [36, 'Sprint with {sprint} and attack to leap in with a falling strike.', 'leap'],
 ];
+/**
+ * A later chapter's hints for the moves it is the first to grant: the first this many seconds into its fight (the
+ * opponent still closing in), any more this far apart.
+ */
+const NEW_MOVE_HINT = { at: 4, gap: 8 };
 
 /**
  * Seconds of fight after an in-fight line before a beat may start another: the guru's voice never talks over itself
@@ -334,7 +340,8 @@ export class Engine {
   private skipHeld = 0;
   /** The skip button must be let go before it counts again (held into a cutscene, or just used to skip one). */
   private skipLatched = false;
-  private hintIndex = 0;
+  /** The chapter's first-fight hints still to come (`FIRST_FIGHT_HINTS` indices) and the fight second each is due. */
+  private hintPlan: { index: number; at: number }[] = [];
   /** The first fights' hints play once per session (by index), not on every retry or again in the next chapter. */
   private readonly hintsShown = new Set<number>();
   private attractAngle = 0.6;
@@ -853,7 +860,7 @@ export class Engine {
     this.projectileManager.clear();
     this.hud.bind(this.enemies);
     this.fightTime = 0;
-    this.hintIndex = chapter.id <= 1 && Settings.get().hints ? 0 : FIRST_FIGHT_HINTS.length;
+    this.hintPlan = this.planHints(chapter);
     // A fight he is meant to lose cannot kill him.
     this.player.mortal = !chapter.story?.loss;
     this.beaten = false;
@@ -1140,9 +1147,12 @@ export class Engine {
       if (!triggered(b.beat.on, stage, { time: this.fightTime, learned: this.learnedNow })) continue;
       b.fired = true;
       b.beat.run?.(stage);
-      if (b.beat.hint) this.hud.hint(b.beat.hint, 9);
+      // A beat's control hint follows the "Combat hints" setting, as the first fights' do (the Akhada drill's too: the
+      // vanara says what to do, the hero cannot fall while he teaches, and the Controls screen names the guard).
+      if (b.beat.hint && Settings.get().hints) this.hud.hint(b.beat.hint, 9);
       if ('lines' in b.beat) {
-        this.dialogue.play(b.beat.lines, 'voice');
+        // The remembered voice in his head unless the beat says otherwise (a foe's taunt is spoken aloud, dry).
+        this.dialogue.play(b.beat.lines, b.beat.style ?? 'voice');
         return; // one voice at a time
       } else {
         this.storyScene(b.beat.scene, () => this.endIntro());
@@ -1193,6 +1203,11 @@ export class Engine {
         boss: (enemy) => this.cinema.nameCard(enemy.displayName, enemy.epithet, 3.6),
         name: (enemy) => this.cinema.nameCard(enemy.displayName, enemy.epithet, 1.9, true),
         title: (name, epithet) => this.cinema.nameCard(name, epithet, 2.6, true),
+        horde: () => {
+          const card = this.horde?.def.card;
+          if (card) this.cinema.nameCard(card.name, card.epithet, 2.6, true);
+        },
+        caption: (text, seconds = 3.2) => this.cinema.caption(text, seconds),
       },
       say: (lines) => this.dialogue.play(lines, 'scene'),
     };
@@ -1313,6 +1328,8 @@ export class Engine {
     this.outcomeAt = quest ? 0.4 : VICTORY_DELAY;
     this.hud.clearHint();
     this.hud.showBoss(false);
+    // Whatever was being said in the fight stops with it, as on a defeat: no voice over the victory.
+    this.dialogue.clear();
     this.soundFX.music.play(LEVEL_MUSIC[this.chapter!.level] ?? 'title');
     if (quest) return; // its ending scene follows at once
     const boss = this.finale?.boss ?? this.enemies.find((e) => e.isBoss);
@@ -1335,7 +1352,12 @@ export class Engine {
     this.hud.show(false);
     if (this.outcome === 'defeat') {
       const boss = this.enemies.find((e) => e.isBoss && e.stateMachine.currentState !== 'DEAD');
-      $('defeat-line').textContent = boss ? `${boss.displayName} still stands.` : chapter.defeatLine;
+      $('defeat-line').textContent = boss ? `${boss.displayName} still stands.` : chapter.defeatLine ?? '';
+      // Under a boss still standing, the chapter's own line goes beneath (what his standing costs): in Chapter I and at
+      // Dwarka a boss always stands when the hero falls, so it would otherwise never be read.
+      const sub = $('defeat-sub');
+      sub.textContent = boss ? chapter.defeatLine ?? '' : '';
+      sub.hidden = !sub.textContent;
       this.screens.only('defeat');
       return;
     }
@@ -1369,7 +1391,10 @@ export class Engine {
     this.screens.only('cleared');
   }
 
-  /** The credits over black after the last chapter's ending; the title after them. */
+  /**
+   * The credits over black after the last chapter's ending; the title after them. The chapter's cleared line rises
+   * first (the boss's fall took its place in the victory callout, and the roll takes the chapter-complete screen's).
+   */
   private rollCredits(): void {
     this.cinema.setActive(false);
     this.cinema.setFade(1);
@@ -1379,7 +1404,7 @@ export class Engine {
     this.soundFX.music.dim(false);
     this.soundFX.playAmbience(null);
     this.screens.only('credits');
-    this.credits.start();
+    this.credits.start(this.chapter?.clearedLine);
   }
 
   // ---------------------------------------------------------------------------------------------------- World
@@ -1798,9 +1823,11 @@ export class Engine {
         break;
       case 'play':
         this.updateHints();
-        this.updateBeats();
         this.checkLoss();
         if (this.mode === 'play') this.checkOutcome();
+        // Beats last, and only while the fight is still on: the blow that decides it (a killing blow crossing a boss's
+        // health mark) never starts a line that would play on over the victory.
+        if (this.mode === 'play') this.updateBeats();
         break;
       case 'outro':
       case 'over':
@@ -1815,18 +1842,37 @@ export class Engine {
     }
   }
 
+  /**
+   * The first-fight hints a chapter shows, in order, each with its fight second. The first fights (the prologue and
+   * Chapter I) teach every move they have, on `FIRST_FIGHT_HINTS`' own clock. A later chapter teaches only the moves
+   * it is the first in the campaign to grant from its start (Dwarka's leap), early in its fight: a move an earlier
+   * chapter gave or taught is not taught again, and one a chapter's story teaches brings its own hint.
+   */
+  private planHints(chapter: Chapter): { index: number; at: number }[] {
+    if (chapter.id <= 1) return FIRST_FIGHT_HINTS.map(([at], index) => ({ index, at }));
+    const before = new Set<Ability>();
+    for (const c of CHAPTERS) if (c.id < chapter.id) [...KITS[c.kit].abilities, ...KITS[c.kit].taught].forEach((a) => before.add(a));
+    const fresh = KITS[chapter.kit].abilities.filter((a) => !before.has(a));
+    return FIRST_FIGHT_HINTS
+      .flatMap(([, , needs], index) => (needs && fresh.includes(needs) ? [index] : []))
+      .map((index, k) => ({ index, at: NEW_MOVE_HINT.at + k * NEW_MOVE_HINT.gap }));
+  }
+
   private updateHints(): void {
-    while (this.hintIndex < FIRST_FIGHT_HINTS.length) {
-      const [at, text, needs, moot] = FIRST_FIGHT_HINTS[this.hintIndex];
+    while (this.hintPlan.length) {
+      const { index, at } = this.hintPlan[0];
+      const [, text, needs, moot] = FIRST_FIGHT_HINTS[index];
       // A move he does not have yet is not taught; nor is a hint already seen, or one a better move replaces.
-      if ((needs && !this.player?.can(needs)) || (moot && this.player?.can(moot)) || this.hintsShown.has(this.hintIndex)) {
-        this.hintIndex++;
+      if ((needs && !this.player?.can(needs)) || (moot && this.player?.can(moot)) || this.hintsShown.has(index)) {
+        this.hintPlan.shift();
         continue;
       }
       if (this.fightTime < at) return;
+      this.hintPlan.shift();
+      // "Combat hints" off (turned off mid-fight too): its moment passes unshown.
+      if (!Settings.get().hints) continue;
       this.hud.hint(text, 6);
-      this.hintsShown.add(this.hintIndex);
-      this.hintIndex++;
+      this.hintsShown.add(index);
       break;
     }
   }

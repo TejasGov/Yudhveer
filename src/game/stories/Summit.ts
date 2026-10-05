@@ -99,10 +99,23 @@ let reveal: Reveal | null = null;
 /** A point `up` metres above a mark. */
 const above = (p: THREE.Vector3, up: number) => p.clone().add(v(0, up, 0));
 
+/** Under this share of his health in Andhaka's fight, the guru's voice comes back to him (once a fight). */
+const LOW_HEALTH = 0.35;
+
 export const SUMMIT_STORY: ChapterStory = {
   cast: [
     // Out of sight through the fight (Andhaka has him at the statue's feet); found when it is over.
     { id: 'guru', rig: GURU, at: GURU_MARK, face: GURU_FACE, hidden: true },
+  ],
+
+  beats: [
+    // Hurt badly in the last fight, he hears his guru's first lesson again (the prologue's recording, remembered), so
+    // the ending's "You kept your feet" answers it. Andhaka's fight only: his arrival gives the hero back his health,
+    // and a line spent on the waves would leave the fight that matters without it.
+    {
+      on: { when: (s) => s.actor('andhaka') !== null && s.player.currentHealth / s.player.maxHealth < LOW_HEALTH },
+      lines: [{ speaker: 'Guru', text: 'Breathe. Feet first.', voice: 'prologue_fight_guru_2' }],
+    },
   ],
 
   ending: {

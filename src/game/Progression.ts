@@ -46,13 +46,15 @@ export const KITS: Record<KitId, HeroKit> = {
   // The lathi only, no shield. Strike and slide; the rest the guru's voice teaches him as the fight asks for it.
   // He comes to the baoli in his training clothes; the Devi at its shrine clothes him in the divya kavach before the fight.
   baoli: { id: 'baoli', weapon: 'lathi', abilities: ['dodge', 'combo'], taught: ['charge'], attire: 'training', becomes: 'kavach' },
-  // A very basic sword, and the dhal from the vanara mentor: block, then parry, taught in his sparring.
-  akhada: { id: 'akhada', weapon: 'sword', abilities: ['dodge', 'combo'], taught: ['block', 'parry'], attire: 'kavach' },
+  // A very basic sword, and the dhal from the vanara mentor: block, then parry, taught in his sparring. Shakti (charge),
+  // the guru's lesson in Chapter I, stays his from then on: the guru teaches it, so it never quietly stops working
+  // (docs/STORY.md, "Milestone 1"; it was withheld in II-IV until the audit's S-04, 2026-10-05).
+  akhada: { id: 'akhada', weapon: 'sword', abilities: ['dodge', 'combo', 'charge'], taught: ['block', 'parry'], attire: 'kavach' },
   // The island: he goes down into the caves with the akhada's sword and dhal (block and parry learned there); the
   // mace is what he comes up with.
-  island: { id: 'island', weapon: 'sword', abilities: ['dodge', 'combo', 'block', 'parry'], taught: [], attire: 'kavach' },
-  // The blessed mace in both hands, no shield: heavy blows, and the slam from a run.
-  dwarka: { id: 'dwarka', weapon: 'mace', abilities: ['dodge', 'combo', 'leap'], taught: [], attire: 'kavach' },
+  island: { id: 'island', weapon: 'sword', abilities: ['dodge', 'combo', 'block', 'parry', 'charge'], taught: [], attire: 'kavach' },
+  // The blessed mace in both hands, no shield: heavy blows, the slam from a run, and the guru's Shakti.
+  dwarka: { id: 'dwarka', weapon: 'mace', abilities: ['dodge', 'combo', 'charge', 'leap'], taught: [], attire: 'kavach' },
   // The magical sword from Takshaka, with the dhal: the full kit.
   summit: { id: 'summit', weapon: 'khanda', abilities: ['dodge', 'combo', 'block', 'parry', 'charge', 'leap'], taught: [], attire: 'kavach' },
 };

@@ -8,9 +8,9 @@ Third-party assets in the game, with their licences. The originals and their lic
 Built by `game asset/levels/03_island/build_island.py` from props prepared by `prepare_cave_props.py`. Sources and
 download dates: `game asset/levels/03_island/sources/sources.json`.
 
-### 3D models (Sketchfab)
+### 3D models (Sketchfab, CC BY 4.0)
 
-**Changes made to every model below:** decimated to a game budget, rescaled and re-origined, textures resized
+**Changes made to every model below** (and to the CC0 one after them): decimated to a game budget, rescaled and re-origined, textures resized
 (512 to 1024 px) and recoloured toward the cave's palette (or replaced by a flat colour), metal, roughness and emission
 maps dropped, and the result merged into the level's GLB. Individual changes are noted per model.
 
@@ -29,7 +29,6 @@ maps dropped, and the result merged into the level's GLB. Individual changes are
 | [Brazier](https://sketchfab.com/3d-models/brazier-653f30c424874a5a8ba4d71cef51d94e) | [mSameja](https://sketchfab.com/mSameja) | [CC BY 4.0](http://creativecommons.org/licenses/by/4.0/) | the three braziers (hall, pool). The game's fire burns in its basket. | 2.2k |
 | [diwali diya](https://sketchfab.com/3d-models/diwali-diya-627dea0363f042d3b0c906c90e922aec) | [sinuboy072](https://sketchfab.com/sinuboy072) | [CC BY 4.0](http://creativecommons.org/licenses/by/4.0/) | the clay diyas on the wall shelves and the altar. Its own flame removed (the game's flame burns in its spout); flat clay colours. | 800 |
 | [Medieval Wall Torch](https://sketchfab.com/3d-models/medieval-wall-torch-77db436da2844cbfb4dde0bb9b396835) | [Kigha](https://sketchfab.com/Kigha) | [CC BY 4.0](http://creativecommons.org/licenses/by/4.0/) | the two wall torches. | 1.7k |
-| [Ganesha, 10th - 11th C CE](https://sketchfab.com/3d-models/ganesha-10th-11th-c-ce-375c670515684977b6ec05be115366ac) | [Minneapolis Institute of Art](https://sketchfab.com/artsmia) | [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) | the old idol by the shrine's door. | 9.0k |
 | [Coiled Rope 2](https://sketchfab.com/3d-models/coiled-rope-2-e6fe8fedd3d04b1dac3e32e0dd515cbb) | [TepidGames](https://sketchfab.com/TepidGames) | [CC BY 4.0](http://creativecommons.org/licenses/by/4.0/) | the rope at the landing's mooring post. Flat rope colour. | 1.6k |
 | [Flat rocks](https://sketchfab.com/3d-models/flat-rocks-b76813cc177248418639026b06bc9745) | [DJMaesen](https://sketchfab.com/bumstrum) | [CC BY 4.0](http://creativecommons.org/licenses/by/4.0/) | the black pool's rim, the landing's stepping stones, floor-edge stones. | 410, 556, 348, 128 |
 | [Rubble](https://sketchfab.com/3d-models/rubble-9a180893d6454f68a764e62be3fc5c92) | [Pert Doherty](https://sketchfab.com/pertdoherty) | [CC BY 4.0](http://creativecommons.org/licenses/by/4.0/) | rubble at the walls' feet. | 320 |
@@ -39,7 +38,14 @@ maps dropped, and the result merged into the level's GLB. Individual changes are
 | [Indian dhal (shield), 19th century](https://sketchfab.com/3d-models/indian-dhal-shield-19th-century-fca1088c468c480a845977189d66bf59) | [Pedram Ashoori](https://sketchfab.com/pedramashoori) | [CC BY 4.0](http://creativecommons.org/licenses/by/4.0/) | split dhals in the hall and at the dais. | 1.6k |
 | [Skeleton Sitting](https://sketchfab.com/3d-models/skeleton-sitting-f06c95b499dd465aafe3338fe2b7a30e) | [Buzzie](https://sketchfab.com/Buzzie) | [CC BY 4.0](http://creativecommons.org/licenses/by/4.0/) | a dead seeker slumped against the hall wall. | 7.0k |
 
-The Mia scan (Minneapolis Institute of Art) is CC0 and needs no credit; it is credited as a courtesy.
+### 3D model (Sketchfab, CC0)
+
+| Model | Author | Licence | Used as | Triangles in game |
+|---|---|---|---|---|
+| [Ganesha, 10th - 11th C CE](https://sketchfab.com/3d-models/ganesha-10th-11th-c-ce-375c670515684977b6ec05be115366ac) | [Minneapolis Institute of Art](https://sketchfab.com/artsmia) | [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) | the old idol by the shrine's door. | 9.0k |
+
+The Mia scan (Minneapolis Institute of Art) is CC0 and needs no credit; it is credited as a courtesy, under its own
+heading in the credits roll too (it used to sit under the CC BY one).
 
 The boat at the landing (2026-10-05) is not a download: it is a Meshy 7 model made for the game
 (`game asset/levels/03_island/sources/boat_meshy7.glb`, 15k triangles, prepared as `props/boat.glb`: turned, scaled to
@@ -149,3 +155,49 @@ stomach), Praying.
 
 `public/assets/music/shiva.mp3` (the summit's reveal, "Har Har Mahadev") is generated for this game with ElevenLabs
 Music (flow kxekrrK5hmJeffLuHDBI); the original is `game asset/music/shiva_har_har_mahadev.mp3`.
+
+## Chapter IV, Dwarka (`public/assets/dwarka/dwarka_browser.glb`, `dwarka_horizon_sunset_2k.hdr`)
+
+Built in another session from `game asset/levels/03_dwarka/dwarka.blend` (its notes beside it: `*_NOTES.md`), exported
+for the game by `export_glb_dwarka.py`. Sources, from those notes and the materials' own records in the file:
+
+### Textures, a model's textures and a sky (Poly Haven, CC0)
+
+| Asset | Kind | Used on |
+|---|---|---|
+| [Sandstone Cracks](https://polyhaven.com/a/sandstone_cracks) | texture (its normal map; its colour baked into the level's mineral albedos) | the weathered limestone, the sea-worn rock, the arena's ruined sandstone |
+| [Old Sandstone 02](https://polyhaven.com/a/old_sandstone_02) | texture | the ancient blockwork |
+| [Cliff Side](https://polyhaven.com/a/cliff_side) | texture | the salt-eroded coastal rock, the fort's tidal footings |
+| [Large Sandstone Blocks 01](https://polyhaven.com/a/large_sandstone_blocks_01) | texture | the arena's paving |
+| [Mossy Rock](https://polyhaven.com/a/mossy_rock) (Rob Tuytel) | texture (1k colour and normal) | moss and lichen on the ledges, olive algae in the tide zone |
+| [Tree Small 02](https://polyhaven.com/a/tree_small_02) | a model's bark and leaf textures | the wind-shaped coastal trees and the trailing creepers |
+| [Industrial Sunset 02 Pure Sky](https://polyhaven.com/a/industrial_sunset_02_puresky) | sky (2k HDR) | the sky and its reflections, turned to set the sun over the open sea |
+
+Poly Haven assets are CC0 and need no credit; they are credited as a courtesy. Their authors are on the linked pages
+(the building session recorded only Mossy Rock's).
+
+### Made for the game, or supplied
+
+- **Meshy** (generated for the game): the arena ("The Shattered Sky Arena"), the golden temple, Krishna's statue
+  ("Divine Melody") and the sacred stone gateway (the `source_glb` notes on their nodes).
+- **Supplied by the user:** the coastal fort (`coast fort.glb`) and the moored trading boat (`boat.glb`); their origin is
+  not recorded in the notes (worth confirming in case either needs a credit).
+- **Generated in the building session:** the distant green hills' panorama (an image generator,
+  `E:/hindan/level 2/dwarka_work/mountain_provenance.json`) and the sea's normal map (procedural).
+
+## The other levels
+
+- **Chapter I, the baoli** (`public/assets/levels/moonlit_baoli.glb`, `public/assets/sky/baoli_night_sky_*`): its
+  stone, ground, bark and cloth textures carry Poly Haven's names and form (CC0): Dry Riverbed Rock, Monastery Stone
+  Floor, Rock Face 03, Fort Sandstone, Forrest Ground 01, Stone Path, Sandstone Blocks 08, Jacquard, Bark Brown 02
+  (originals in `game asset/levels/01_baoli/textures/`, with three Poly Haven night skies; which one the game's night
+  sky was made from is not recorded). The foliage, grass, mist, waterfall, lamp-glow, yantra and Kaali sandstone cards
+  were made for the game.
+- **Chapter II, the akhada** (`public/assets/levels/akhada_atrium.glb`): Poly Haven's Red Dirt Mud 01 and Sandstone
+  Cracks (CC0; named in the file), and tree cards baked from a Poly Haven tree (`game asset/levels/02_akhada/
+  THREEJS_NOTES.md`). Its other textures are unnamed in the export; their sources are in the master scene
+  (`level2_forest_atrium.blend`, outside `game asset/`).
+- **Chapter V, the summit** (`public/assets/levels/charnel_ridge.glb`, `public/assets/sky/charnel_*`): no third-party
+  textures. Every surface is baked in Blender from procedural materials (`export_glb_charnel.py`) and the sky
+  panoramas are rendered in Blender (`charnel_ridge_sky_bake.py`).
+- **The prologue and Chapter III:** above.

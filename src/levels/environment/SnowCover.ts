@@ -6,6 +6,12 @@ export interface SnowCover {
   amount: number;
   /** Snow streaking down steep faces, 0..1 (0 = only ledges and tops hold snow). */
   wall: number;
+  /**
+   * Rock whose bake is too coarse to hold up when seen close (the summit's beacon cliff: about three texels a metre, so
+   * one flat colour per face, which read as square patches): this share of its baked colour gives way to `color`
+   * mottled by world-space noise, under the snow. Unset keeps the bake as it is.
+   */
+  breakup?: { color: THREE.ColorRepresentation; amount: number };
 }
 
 const SNOW_COLOR = new THREE.Color(0xdde4ee);
@@ -30,9 +36,21 @@ export function addSnowCover(mat: THREE.MeshToonMaterial, snow: SnowCover): void
     uSnowAmount: { value: snow.amount },
     uSnowWall: { value: snow.wall },
     uSnowColor: { value: SNOW_COLOR },
+    uBreakupColor: { value: new THREE.Color(snow.breakup?.color ?? 0) },
+    uBreakup: { value: snow.breakup?.amount ?? 0 },
   };
-  patchShader(mat, 'snow', (shader) => {
+  // Its own program when the rock is broken up, so the other snowed materials never pay for the extra noise.
+  patchShader(mat, snow.breakup ? 'snow-breakup' : 'snow', (shader) => {
     Object.assign(shader.uniforms, uniforms);
+    if (snow.breakup) {
+      // Straight after the map is read, so the albedo lift (`liftAlbedo`, chained before this) applies to it too.
+      shader.fragmentShader = shader.fragmentShader.replace('#include <map_fragment>', `#include <map_fragment>
+{
+  float grain = snFbm(vSnowWorld * 0.21 + 3.1);
+  float fleck = snNoise(vSnowWorld * 1.7);
+  diffuseColor.rgb = mix(diffuseColor.rgb, uBreakupColor * (0.55 + 0.9 * grain + 0.3 * (fleck - 0.5)), uBreakup);
+}`);
+    }
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', '#include <common>\nvarying vec3 vSnowWorld;\nvarying vec3 vSnowNormal;')
       .replace('#include <begin_vertex>', `#include <begin_vertex>
@@ -43,6 +61,8 @@ vSnowNormal = normalize(mat3(modelMatrix) * objectNormal);`);
 uniform float uSnowAmount;
 uniform float uSnowWall;
 uniform vec3 uSnowColor;
+uniform vec3 uBreakupColor;
+uniform float uBreakup;
 varying vec3 vSnowWorld;
 varying vec3 vSnowNormal;
 ${NOISE_GLSL}`)

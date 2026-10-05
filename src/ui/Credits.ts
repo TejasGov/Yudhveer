@@ -35,9 +35,10 @@ const CREDITS: [string, string[], 'small'?][] = [
     '"Indian Talwar Weapon (low poly)" by Sangam Senapati',
     '"Indian dhal (shield), 19th century" by Pedram Ashoori',
     '"Skeleton Sitting" by Buzzie',
-    '"Ganesha, 10th - 11th C CE", Minneapolis Institute of Art (CC0)',
   ], 'small'],
-  ['Textures: Poly Haven (CC0)', ['Cliff Side, Rocks Ground 02, Rock Boulder Dry'], 'small'],
+  // CC0: no credit is owed, but it is a museum's scan and is named with thanks (docs/ASSET_CREDITS.md).
+  ['Additional 3D model (Sketchfab, CC0)', ['"Ganesha, 10th - 11th C CE", Minneapolis Institute of Art'], 'small'],
+  ["The island's textures: Poly Haven (CC0)", ['Cliff Side, Rocks Ground 02, Rock Boulder Dry'], 'small'],
   // The prologue's village (docs/ASSET_CREDITS.md, "Prologue, the village").
   ['The village', [
     'The mandir: made with Meshy',
@@ -45,6 +46,12 @@ const CREDITS: [string, string[], 'small'?][] = [
     'Textures, Poly Haven (CC0): Clay Plaster and Red Sandstone Wall by Amal Kumar; Reed Roof 04, Dry Ground 01, Aerial Sand, Old Planks 02, Bark Brown 02 by Rob Tuytel',
     'Pots, talwars, a dhal, diyas, rope and rubble: the Sketchfab models above',
     '"Har Har Mahadev": ElevenLabs Music',
+  ], 'small'],
+  // Dwarka (docs/ASSET_CREDITS.md, "Chapter IV, Dwarka").
+  ['Dwarka', [
+    "The arena, the temple, Krishna's statue and the gateway: made with Meshy",
+    'Textures, Poly Haven (CC0): Sandstone Cracks, Old Sandstone 02, Cliff Side, Large Sandstone Blocks 01, Mossy Rock by Rob Tuytel; the bark and leaves of Tree Small 02',
+    'The sky, Poly Haven (CC0): Industrial Sunset 02 Pure Sky',
   ], 'small'],
 ];
 
@@ -55,6 +62,8 @@ const CREDITS: [string, string[], 'small'?][] = [
 export class Credits {
   public readonly root: HTMLElement;
   private readonly roll: HTMLElement;
+  /** The roll's first line, before the name: the last chapter's cleared line (`start`). */
+  private readonly opening: HTMLElement;
   private timer = 0;
   private running = false;
   /** The roll is over, or the player left it. */
@@ -74,7 +83,8 @@ export class Credits {
       if (lang) el.lang = lang;
       return el;
     };
-    this.roll.append(block('credits-native', 'युद्धवीर', 'hi'), block('credits-title', 'Yudhveer'));
+    this.opening = block('credits-opening', '');
+    this.roll.append(this.opening, block('credits-native', 'युद्धवीर', 'hi'), block('credits-title', 'Yudhveer'));
     for (const [heading, names, size] of CREDITS) {
       const group = document.createElement('div');
       group.className = 'credits-group';
@@ -95,9 +105,14 @@ export class Credits {
     document.body.append(this.root);
   }
 
-  /** Starts the roll from the foot of the screen (the ScreenStack shows the section). */
-  public start(): void {
+  /**
+   * Starts the roll from the foot of the screen (the ScreenStack shows the section). `opening`: a line to rise first,
+   * alone, before the name (the summit's "The summit is silent.", which no chapter-complete screen shows).
+   */
+  public start(opening?: string): void {
     this.stop();
+    this.opening.textContent = opening ?? '';
+    this.opening.hidden = !opening;
     this.running = true;
     this.roll.style.animation = 'none';
     void this.roll.offsetWidth; // restart the animation

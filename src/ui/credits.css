@@ -21,6 +21,15 @@
   to { transform: translateY(calc(-100% - 100vh)); }
 }
 
+/* The last chapter's cleared line, alone over black before the name rises. */
+.credits-opening {
+  margin-bottom: 34vh;
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: clamp(24px, 2.4vw, 30px);
+  color: var(--muted);
+}
+
 .credits-native {
   font-family: var(--deva);
   font-size: 24px;

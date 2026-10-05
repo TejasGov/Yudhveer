@@ -19,7 +19,11 @@ interface Flicker { light: THREE.Light; base: number; seed: number; source?: () 
 
 export type LoadProgress = (fraction: number) => void;
 
-/** Frees geometry, materials and every texture they reference below `root`. */
+/**
+ * Frees geometry, materials and every texture they reference below `root`, and the bone textures of its skeletons (a
+ * skinned character's pose lives in a small texture of its own, which no material lists: every character let go used
+ * to leave one on the GPU, audit W-08).
+ */
 export function disposeObject(root: THREE.Object3D): void {
   const materials = new Set<THREE.Material>();
   root.traverse((obj) => {
@@ -27,6 +31,7 @@ export function disposeObject(root: THREE.Object3D): void {
     mesh.geometry?.dispose();
     if (mesh.material) (Array.isArray(mesh.material) ? mesh.material : [mesh.material]).forEach((m) => materials.add(m));
     (obj as THREE.PointLight).shadow?.dispose();
+    (obj as THREE.SkinnedMesh).skeleton?.dispose();
   });
   const textures = new Set<THREE.Texture>();
   materials.forEach((mat) => {

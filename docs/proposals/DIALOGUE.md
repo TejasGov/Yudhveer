@@ -14,6 +14,12 @@ down as 20 voiced recordings (17 rewrites of existing lines, 3 new fight lines),
 two reuses of an existing take), 10 subtitles and 5 card or epithet texts. **Re-record cost: about 3,410 credits**
 for everything recommended, or about 1,110 for Tier 1 alone (see the cost table).
 
+**In the game now** (2026-10-05, after the audit's flow fixes): 96 spoken lines, 66 voiced (65 recordings, as
+`prologue_fight_guru_2` is also the summit's low-health line) and Yudhveer's 30, subtitle only, plus Andhaka's
+recorded laugh. The review above counted the game before Durga's three lines and Andhaka's crowning line were in it
+(91 spoken then); its proposals stand as written. Applied since, all free: D-08's speaker label, D-36's epithet (the
+alternative), D-126's reuse, and the code points under "What the lines rely on in code" (each marked there).
+
 ---
 
 ## Preface
@@ -40,8 +46,8 @@ for everything recommended, or about 1,110 for Tier 1 alone (see the cost table)
   Andhaka's second phase). There is also a free reuse of "Breathe. Feet first." in the final fight, so the motif
   carries from Chapter I to its payoff.
 - **Dropped or reversed:** "With a stick of bamboo?" stays (it answers Durga's first line and sets up her "Not
-  alone."). The Chapter II card stays. No line for Takshaka's arrival. No new Chapter V cleared line (it can never be
-  shown). The epithet renames happen only if their tips move to the callout.
+  alone."). The Chapter II card stays. No line for Takshaka's arrival. No new Chapter V cleared line (it could never be
+  shown; as written, it now opens the credits). The epithet renames happen only if their tips move to the callout.
 
 ### Patterns to avoid
 
@@ -74,13 +80,16 @@ for everything recommended, or about 1,110 for Tier 1 alone (see the cost table)
 
 ### What the lines rely on in code (from the audit, not dialogue changes)
 
-- **`baoli_fight_guru_7` can fire on the killing blow.** Gate it on the Guardian being alive.
+- **`baoli_fight_guru_7` can fire on the killing blow.** Gate it on the Guardian being alive. *Done (2026-10-05): no
+  fight's line starts on the blow that ends it, and a line still playing stops at the victory.*
 - **Durga promises "No evil will pierce it", but the kavach has no effect in play.** Fix the game, not the line:
-  for example, it turns one killing blow per chapter with a gold flash.
+  for example, it turns one killing blow per chapter with a gold flash. *Proposed as a small mechanic in
+  docs/APPROVALS.md ("The kavach's promise"), waiting for your call; not built.*
 - **Fight beats play in the in-head `voice` style, with reverb** (`src/ui/Dialogue.ts`). That suits the remembered
-  guru. The three new boss lines are spoken aloud in the arena, so they need the dry `scene` style.
+  guru. The three new boss lines are spoken aloud in the arena, so they need a dry style. *Done (2026-10-05): a beat
+  can say `style: 'aloud'` (upright, above the HUD, dry); the `scene` style stays the cutscenes'.*
 - **`Summit.ts` has no `beats` yet.** The two summit fight lines need a `beats` array: Andhaka's phase two and the
-  hero's low health.
+  hero's low health. *The low-health beat is in (D-126); Andhaka's phase two waits for its recording (D-125).*
 
 ---
 
@@ -123,6 +132,7 @@ answer at Dwarka becomes a real reveal.
 - **Gameplay value:** none (story). It keeps "A boy with a stick", which Shiva's last line turns round.
 - **Speaker label (free, the user's call):** the subtitle names the hidden shadow "Andhaka". Showing no name keeps the
   mystery, and lets the Guardian say the name first (D-31). STORY.md's table names him, so this is a choice, not a fix.
+  *Done (2026-10-05): captioned "A voice"; the recording and its text are unchanged.*
 - **Voiced** (Andhaka, Roderich): 55 characters, about 132 credits.
 
 #### D-09 · Guru · Prologue ending, shot 9 · `src/game/stories/Prologue.ts:566`
@@ -244,7 +254,8 @@ sword in your hand, and beat you until you can hold it."** / Yudhveer: **"The ak
 - **Recommended:** "Bound keeper of the stepwell"
 - **Or:** "Keeper of the stepwell"
 - **Gameplay value:** foreshadows the guru's "Something is fighting through it".
-- **Text:** free.
+- **Text:** free. *Done (2026-10-05) with the alternative, "Keeper of the stepwell" (the audit's pick); "Bound keeper"
+  is one word away if you prefer it.*
 
 ### Chapter II: the akhada
 
@@ -392,7 +403,7 @@ boils, I am there."**
 - **Or:** "The sea is mine, boy." (a bare taunt, no hint)
 - **Gameplay value:** teaches the tell. Watch for the boil, then slide: his overhead smash lands 1 s after he
   surfaces. Once only, on the first dive.
-- **Voiced, new** (Shalva): 48 characters, about 115 credits. Needs the dry `scene` style, not the in-head `voice`.
+- **Voiced, new** (Shalva): 48 characters, about 115 credits. Needs the dry `aloud` style (its beat's `style: 'aloud'`), not the in-head `voice`.
 
 ### Chapter IV: Shalva falls (his shade)
 
@@ -438,7 +449,7 @@ my sword."** / Yudhveer: "Rest, serpent king. I will carry it to the summit."
 - **Recommended:** "Stand off from me, then, and burn."
 - **Or:** "Keep your distance, manava. My fire is long."
 - **Gameplay value:** tells the player that range is now the danger: close in.
-- **Voiced, new** (Takshaka, Kundan): 34 characters, about 82 credits. Use the `scene` style.
+- **Voiced, new** (Takshaka, Kundan): 34 characters, about 82 credits. Use the `aloud` style.
 
 #### D-91 · Takshaka · Chapter IV ending, the prophecy and the gift · `src/game/stories/Dwarka.ts:388`
 - **Now:** "You will not defeat him, boy... No. I was the fool. You were born to end his reign. Take my sword."
@@ -469,13 +480,14 @@ something. I will thank him on the fire."** / (the hero badly hurt) Guru (rememb
 - **Or:** "Hold still, little goat. This will not take long."
 - **Gameplay value:** marks the phase change (he swings sooner and turns faster) together with the roar, and puts
   the guru's life on the line in the fight itself.
-- **Voiced, new** (Andhaka): 67 characters, about 161 credits. Use the `scene` style.
+- **Voiced, new** (Andhaka): 67 characters, about 161 credits. Use the `aloud` style.
 
 #### D-126 (new use of an existing take) · Guru (remembered) · Chapter V fight, hero under 35 % · new `beats` in `src/game/stories/Summit.ts`
 - **Now:** nothing. The feet motif drops out between Chapter I and its payoff.
 - **Recommended:** "Breathe. Feet first." (voice `prologue_fight_guru_2`; `Voices.preload(storyVoices(...))` loads it)
 - **Gameplay value:** calms the player at low health, and makes "You kept your feet" land a minute later.
-- **Voiced:** free (the in-head `voice` style is right here).
+- **Voiced:** free (the in-head `voice` style is right here). *Done (2026-10-05): in Andhaka's fight only, once (his
+  arrival restores the hero's health, so a line spent on the waves would miss the fight that matters).*
 
 ### Chapter V: the ending and the reveal
 
@@ -563,7 +575,9 @@ home. The last line turns Andhaka's sneer round: the boy with a stick becomes th
   `_5` ("Look up, Yudhveer."); "Guruji?"; "Mahadeva..."; the horde card; Andhaka's epithet "Crowned in the eclipse".
 - **Throughout:** the combat callouts (Marma broken, Evaded, Posture broken, Deflected, Guard broken, Shakti,
   Learned) and the credits' close. The cleared and defeat lines that can never be shown (the prologue's, Chapter I's
-  defeat, Chapter IV's defeat, Chapter V's cleared) need a code fix, not new words.
+  defeat, Chapter IV's defeat, Chapter V's cleared) need a code fix, not new words. *Done (2026-10-05): the prologue's
+  cleared line is a caption over its night shot, Chapter V's opens the credits, the defeat lines sit under "<boss>
+  still stands.", and the prologue's defeat line, which no one could see (he cannot fall there), is gone.*
 
 ---
 
@@ -576,7 +590,7 @@ characters a line (about 36 credits each, about 720 over all 20).
 |---|---|---|---|
 | 1. The spine: the prologue's end, the altar, the summit | `andhaka_prologue_kneel` (55), `prologue_end_guru_1` (35), `island_end_voice_1` (70), `island_end_voice_2` (90), `summit_end_guru_2` (64), `summit_reveal_shiva_1` (66), `summit_reveal_shiva_2` (82) | 462 | about 1,110 |
 | 2. The Guardian and Shalva | `baoli_fight_guru_7` (67), `baoli_end_guardian_1` (40), `_3` (68), `_4` (107), `dwarka_open_shalva_2` (107), `dwarka_fall_shalva_3` (113) | 502 | about 1,205 |
-| 3. New fight lines (each needs a small code hook, `scene` style) | `dwarka_fight_shalva_1` (48), `dwarka_fight_takshaka_1` (34), `summit_fight_andhaka_1` (67) | 149 | about 360 |
+| 3. New fight lines (each needs a small code hook, `aloud` style) | `dwarka_fight_shalva_1` (48), `dwarka_fight_takshaka_1` (34), `summit_fight_andhaka_1` (67) | 149 | about 360 |
 | 4. Optional | `baoli_fight_guru_5` (65), `akhada_train_mentor_4` (71), `akhada_end_mentor_2` (56), `dwarka_end_takshaka_2` (117) | 309 | about 740 |
 | **All 20** | | **1,422** | **about 3,410** (about 4,130 with tags) |
 
@@ -599,6 +613,6 @@ changes reads as a different story.
 4. Change the texts in `src/game/stories/*.ts`, `src/game/Chapters.ts` and the epithets. Cut `summit_end_guru_4` and
    "He will meet it now." (each shot gets a `duration`). Add the new beats: Shalva's first dive and Takshaka's phase
    two in `Dwarka.ts`; Andhaka's phase two and the hero under 35 % in a new `beats` array in `Summit.ts`. The three
-   boss lines use the `scene` style.
+   boss lines use the `aloud` style.
 5. Update STORY.md's line tables (Prologue, Chapter I to V lines), including the new ids and which take is in the
    game.

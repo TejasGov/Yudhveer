@@ -96,11 +96,13 @@ himself: Andhaka has carried his own judge up the mountain.
 | Chapter | Weapon | Shield | Skills unlocked |
 |---|---|---|---|
 | Prologue | Lathi | none | strike (single blows), dodge |
-| I. Baoli | Lathi | none | the guru's teachings, learned during the fight |
+| I. Baoli | Lathi | none | the guru's teachings, learned during the fight: chained blows, Shakti (charge) |
 | II. Hanuman forest | Basic sword | **Dhal, from the vanara mentor** | block, parry |
-| III. Island | **Blessed mace** (two-handed) | none | heavy two-handed blows |
-| IV. Dwarka | Blessed mace (two-handed) | none | (to decide) |
+| III. Island | Basic sword (he wins the **blessed mace** at its end) | dhal | none new: he finds the mace |
+| IV. Dwarka | Blessed mace (two-handed) | none | heavy two-handed blows, the slam out of a run (the leap) |
 | V. Summit | **Magical sword, from Takshaka** | dhal | the full kit |
+
+Shakti, once the guru has taught it, stays his in every chapter after (since 2026-10-05; see "Milestone 1").
 
 ## Placeholders to replace later (the user, with Meshy)
 
@@ -145,12 +147,19 @@ Suggested order: progression system and weapon sets first, then the prologue, th
 | Kit | Weapon | Dhal | Moves | Blows (damage / posture) |
 |---|---|---|---|---|
 | `baoli` (I) | Lathi | no | slide, chained blows; **charge is the guru's lesson (not yet taught)** | 17/26, 22/32, spin 2 x 18/26 |
-| `akhada` (II) | Basic sword | yes | slide, chain, block, parry | 18/20, 24/26, 38/40, leap 44/48 |
-| `dwarka` (IV) | Blessed mace | no | slide, chain, **slam out of a run** | 36/44, 46/54, spin 2 x 38/46, slam 80/90 |
+| `akhada` (II) | Basic sword | yes | slide, chain, charge; block and parry taught in the drill | 18/20, 24/26, 38/40, leap 44/48 |
+| `island` (III) | Basic sword | yes | slide, chain, block, parry, charge | as the akhada's |
+| `dwarka` (IV) | Blessed mace | no | slide, chain, charge, **slam out of a run** | 36/44, 46/54, spin 2 x 38/46, slam 80/90 |
 | `summit` (V) | Magical khanda | yes | everything | 22/25, 30/32, 48/50, leap 55/60 |
 
-- **Decided here:** Dwarka's "skills unlocked" (it said *to decide*) is the mace's slam out of a run. Charge arrives
-  with the magical sword, so it is the one move the summit adds over the akhada's kit besides the leap.
+- **Decided here:** Dwarka's "skills unlocked" (it said *to decide*) is the mace's slam out of a run.
+- **Charge stays (2026-10-05, the audit's S-04):** it was decided here that charge would arrive with the magical sword,
+  so the akhada, the island and Dwarka left it out. But the guru teaches it in Chapter I, and it then quietly stopped
+  working for three chapters with nothing on screen to say why. It is now in every kit after Chapter I. A reversible
+  call (docs/APPROVALS.md, "Audit fixes"): taking it back out is three lines in `Progression.ts`, and would want a line
+  from the vanara to explain it.
+- **A move a chapter is the first to grant** gets its control hint early in that chapter's fight (4 s in), once a
+  session and only with "Combat hints" on: Dwarka's leap is the one (the first fights teach everything else).
 - **Placeholders:** the lathi is a staff built in code (`buildLathi`); the basic sword is the Vetala's notched blade;
   the mace is Shalva's gada at 0.7 scale. The lathi's swings are cut from Mixamo's One Hand Club Combo; the mace's
   from the Mace Attack Combo, Spin Mace Attack and the brute's run-jump attack. The mace is held in the right hand
@@ -158,7 +167,8 @@ Suggested order: progression system and weapon sets first, then the prologue, th
   clips from the Great Sword Pack, held in both hands: see "Milestone 8". Since the audit fixes the lathi is two-handed
   too, on the same clips, and the sword and the khanda have scabbards: see "Holds and hand-offs".)*
 - **Kit keys are not chapter numbers**, so the prologue and the island slot in as new kits (`KitId`) without
-  renumbering anything. The island's kit is the mace again.
+  renumbering anything. The island's kit is the akhada's sword and dhal (see "Milestone 7"); the mace is what he
+  carries out of it.
 - **Two-handed clips arrived** (2026-10-04): Mixamo's Great Sword Pack, 51 clips, in `game asset/characters/animations`
   as `Mace-*` (zip kept in `animations/packs/`), for the mace's own move set in milestone 8.
 - **Known gaps:** the pause screen's controls list still shows every move; the lathi has no guard at all, so Chapter
@@ -177,6 +187,13 @@ scenes themselves), wired up in `Engine` (`storyScene`, `playScene`, `updateBeat
   or `{ when: (s) => ... }`. A beat is either `scene` (a cutscene: the fight stops, as for a boss's arrival, then hands
   back to the follow camera) or `lines` (spoken over the fight without stopping it: the guru's voice in his head). Its
   `run` hook runs as it fires, e.g. to teach the move a line is about.
+- **How a beat's lines are heard** (`style`, 2026-10-05): `voice` by default, the remembered voice in his head (italic,
+  above the HUD, a little of the place's reverb); or `aloud`, said out loud in the arena (upright, in the same place,
+  dry), for a foe's taunt or a boss calling out his own move (DIALOGUE.md's new boss lines). In-fight lines of either
+  kind wait behind each other. A beat's `hint` shows only with "Combat hints" on.
+- **Nothing is said on the blow that ends a fight** (2026-10-05): beats are checked after the outcome, so a killing
+  blow that crosses a boss's health mark starts no line, and a line already playing stops at the victory, as on a
+  defeat (it used to run on through the victory's slow motion).
 - **Scenes** are lists of shots. A shot has a `camera` (keys, or a function of the stage evaluated when the shot
   starts, so it frames people where they stand then), a `duration` (default: as long as its lines take), `ease`,
   `sway`, `fadeIn` / `fadeOut`, `lines` (spoken from `linesAt`, default 0.4 s; the shot holds until the last is done)
@@ -238,7 +255,8 @@ people), `src/entities/Raider.ts`, `src/entities/Extra.ts`; the map is built by
   so faces turned north are lit and anything between the camera and the gate stands against the glow. Its own
   ambience (`village`: evening wind, the fire crackling, goats, a dog, crickets, the aarti bell) and music tonic.
 - **Flow:** the intro shows only the place (`Chapter.introPlaceOnly`), then the opening scene: the lesson, the horn at
-  the gate, the raiders stepping out of the sunset (they wait out of sight until a `show` cue), the guru stepping
+  the gate, the raiders stepping out of the sunset (they wait out of sight until a `show` cue; their card, "Raiders: Out
+  of the desert at dusk", comes up as they do, since the place-only intro has no close-up for it), the guru stepping
   aside. The fight: raiders come in through the gate in waves (9 in all, 3 at a time); the guru's voice twice. **The
   scripted loss** (`ChapterStory.loss`): the hero cannot die (`Player.mortal` off), and once his health is under 30 %,
   or three raiders have fallen, or 75 s have passed, he is beaten (no defeat screen) and the ending plays (reworked
@@ -281,7 +299,7 @@ Every line, for recording (ElevenLabs; the voices are in `game asset/voice/VOICE
 | `prologue_open_yudhveer_2` | Yudhveer | Let them come. | subtitle only |
 | `prologue_fight_guru_1` | Guru (in the fight) | Do not chase them. Let them come to you. | yes |
 | `prologue_fight_guru_2` | Guru (in the fight) | Breathe. Feet first. | yes |
-| `andhaka_prologue_kneel` | Andhaka | A boy with a stick... Your guru's soul will burn before my god. Kneel. | yes |
+| `andhaka_prologue_kneel` | Andhaka (captioned "A voice": the boy cannot see who speaks, and the Baoli Guardian is the first to name him) | A boy with a stick... Your guru's soul will burn before my god. Kneel. | yes |
 | `prologue_end_guru_1` | Guru | Leave the boy. It is me you came for. | yes |
 | `prologue_end_yudhveer_cry` | Yudhveer | Guruji! | subtitle only |
 | `yudhveer_prologue_find` | Yudhveer | Guruji... I will find you. Even if I have to climb to the top of the world. | subtitle only |
@@ -313,7 +331,7 @@ about 70 s, every voiced line and id kept) is told from inside the boy's head on
 | 11 | **Black** (1.8 s) | "Guruji!" |
 | 12 | **Taken** (5.6 s): POV, eyes half open | In the bright gate, shapes going: a raider drags the guru away by the arms, Andhaka goes after, their long shadows reaching back across the ground to the boy. A horn. His eyes close. |
 | 13 | **Black** (1.8 s) | The ringing ebbs and the fire's crackle comes up. Night falls. |
-| 14 | **Later** (6 s): high and wide, slowly closer | Night: indigo sky over a dull red horizon, the roof burning lower and charred, the roofs outside the walls burning, its smoke leaning off across the sky, sparks and ash coming down; the boy in the dust of the circle; the dead where they fell, a wife on her knees by her husband, a son weeping over his father. |
+| 14 | **Later** (6 s): high and wide, slowly closer | Night: indigo sky over a dull red horizon, the roof burning lower and charred, the roofs outside the walls burning, its smoke leaning off across the sky, sparks and ash coming down; the boy in the dust of the circle; the dead where they fell, a wife on her knees by her husband, a son weeping over his father. The chapter's cleared line comes up over it as a quiet caption, "The village is quiet. The guru is gone." (the prologue runs straight on into Chapter I, with no chapter-complete screen to show it). |
 | 14b | **The shrine** (4.2 s): low at the mandir's step, lifting | Its lamps still burning, a woman praying before it; the camera lifts past the bell to the saffron flag against the smoke. |
 | 15 | **He rises** (4.6 s): low, side on, rising with him | Off his face onto his hands and knees, onto one knee, and up (Mixamo "Standing Up", from lying). |
 | 16 | **The vow** (with the line): close, firelit, ash falling | In front of him, the mandir behind him (its lamps, the bell, the flag over his shoulder): "Guruji... I will find you. Even if I have to climb to the top of the world." |
@@ -401,9 +419,11 @@ the hint for a move just learned). The map and the Guardian's fight are unchange
 - **New in the scene system:** `CastMember.ghost` (`{ color, opacity? }`): a cast member drawn pale and see-through
   with its textures kept and a glowing rim, writing depth so the body does not show through itself, casting no shadow.
   The guru is cast as one, hidden until the opening's memory shot.
-- **Decided here:** the Guardian stays the Guardian (its name card and epithet are unchanged); it speaks lying where it
+- **Decided here:** the Guardian stays the Guardian (its name card is unchanged); it speaks lying where it
   fell (no dissolve or rising). The chapter's card lines are unchanged. *(Since 2026-10-05 it speaks as its shade,
-  risen over the body: see "How the dead speak".)*
+  risen over the body: see "How the dead speak". Its epithet is "Keeper of the stepwell", was "Asura of the stepwell":
+  it is the well's own protector, bound, not a demon of it. Falling to it, the defeat screen says "Baoli Guardian still
+  stands." and, under it, the chapter's "The stepwell keeps its guardian.")*
 - **Left for later:** the guru's and the Guardian's lines are unrecorded (Yudhveer's are subtitles only, no voice); the Guardian has no "bound" look in the fight (darkness on it, freed
   light at the end); the ending is framed off the boss's head bone wherever it fell, so an odd fall (in the pool, on the
   steps) can frame less well; the guru's voice in the fight has no ghostly treatment beyond the in-fight italics.
@@ -556,17 +576,18 @@ its lamps, eyes, pool and the mace on the altar), `src/game/stories/Island.ts` (
 `src/entities/IslandMonsters.ts` and `src/entities/characters/IslandMonsters.ts` (the placeholder creatures), an
 `ARROW` projectile (`ProjectileManager.spawnArrow`) and an `island` ambience in `SoundFX`. The map is built by
 `game asset/levels/03_island/build_island.py` (command in `game asset/README.md`), 1.2 MB; dressed on 2026-10-05
-with 23 Sketchfab models and 3 Poly Haven textures (7.5 MB; credits in docs/ASSET_CREDITS.md).
+with 23 Sketchfab models and 3 Poly Haven textures (7.5 MB), then the Meshy boat (8.1 MB, 8,142,180 bytes; credits in
+docs/ASSET_CREDITS.md).
 
 - **Chapter numbers:** the island is inserted as id 3; Dwarka is now id 4 (Chapter IV) and the summit id 5 (Chapter V).
   Level indices (`Chapter.level`, Engine's per-level tables) are unchanged; the island's is 5. Dev: Shift+3 or
   `__debug.chapter(3)` is the island, `__debug.chapter(4)` Dwarka, `__debug.chapter(5)` the summit. Old saves keep
   their number, so a save that had reached Dwarka (3) now opens the island instead.
 - **The kit (decided here):** he goes down with the akhada's sword and dhal (`island` kit: sword, slide, chain, block,
-  parry; block and parry already learned at the akhada) and comes up with the mace. Taking it up in the ending
-  equips the `dwarka` kit on the spot (`Player.equip(KITS.dwarka)` in an essential hook, behind a black hold), so the
-  last shots show him with the mace and Chapter IV starts with it already in hand. The table's "III. Island: blessed
-  mace" is the mace he wins there; he fights the island with the sword.
+  parry, charge; block and parry already learned at the akhada, charge from the guru) and comes up with the mace.
+  Taking it up in the ending equips the `dwarka` kit on the spot (`Player.equip(KITS.dwarka)` in an essential hook,
+  behind a black hold), so the last shots show him with the mace and Chapter IV starts with it already in hand. The
+  weapon table's island row names the mace he wins there; he fights the island with the sword.
 - **The map:** a sea cave where the boat lands, then about 90 m of caves going north and 2.5 m down: the landing (two
   lamps either side of the way in), a winding tunnel, **the hall of bones** (a brazier, the remains of earlier
   seekers, stalagmites for cover), a descent with a torch, **the black pool** (a pit of black water ringed with
@@ -675,6 +696,19 @@ hold in `src/entities/animation/CharacterRig.ts` (`SocketAttachment.twoHanded`).
   too, so a retry starts with the mace. The next chapter's kit equips the khanda properly.
 - **Weather:** it rains (see "Dwarka in the rain").
 - **Shalva dives:** he can go under the flooded stone and burst up beside the hero (see "Shalva's dive").
+- **Moves** (2026-10-05): the kit keeps the guru's Shakti (charge), and Dwarka is the first chapter to grant the leap
+  (the mace's slam out of a run), so its hint ("Sprint with {sprint} and attack to leap in with a falling strike.")
+  comes up 4 s into the fight, once a session, with "Combat hints" on. Falling to Shalva or Takshaka, the defeat screen
+  says "<name> still stands." and, under it, "Dwarka sinks a little further."
+- **The level's file** (`public/assets/dwarka/dwarka_browser.glb`, 2026-10-05, audit W-12): re-exported from
+  `game asset/levels/03_dwarka/dwarka.blend` by `export_glb_dwarka.py` with the first export's own selection, options
+  and touch-ups to the file (the unlit hills, the moss and algae's vertex alpha), now with WebP textures and meshopt
+  geometry as the other levels: 26.3 MB to 11.5 MB. Checked against the old file: the same nodes, meshes, materials
+  and cameras, UVs and colours identical to the byte, positions within 5 cm on the 2.8 km horizon disc and half a
+  millimetre in the arena (16-bit positions, not the exporter's 12). It also loads a little faster here, served from
+  this machine (the chapter about 0.62 s against 0.75 s, its first frame 0.37 s against 0.49 s); over a network the
+  15 MB less to download is what counts (about 2.4 s less at 50 Mbit/s). The old file is in
+  `game asset/levels/03_dwarka/_backup_2026-10-05/`.
 - **Left for later:** the flame burst is the existing naga fire; the mace is laid down across a cut (no laying-down
   clip); the khanda is held in the sword pack's idle without the dhal; the sprint is the mace's run played faster.
 
@@ -741,10 +775,16 @@ effects clock, the credits after the last chapter). The map, Andhaka and his ent
   He has no kneel: he is held at 1.5 s into his `death` clip (sunk to the ground, slumped, his staff in his hand).
   Placeholder until he has a bound or kneeling clip.
 - **Credits:** after the last chapter's ending the chapter-complete screen is replaced by a slow roll over black in the
-  title's type (the Devanagari name, YUDHVEER, then Created by TejasGov; Built with Three.js, Rapier, Vite; Characters:
-  Meshy, Mixamo; Voices, sound and music: ElevenLabs; Places: Blender, Poly Haven; "Thank you for playing."), about 50 s
-  to the music of the title, then the title. "Return to the title" (bottom right; confirm, back or Esc) leaves early.
-  The campaign is still unlocked one past the last chapter, as before.
+  title's type (first, alone, the chapter's cleared line, "The summit is silent." (since 2026-10-05: no screen showed it
+  before); then the Devanagari name, YUDHVEER, Created by TejasGov; Built with Three.js, Rapier, Vite; Characters:
+  Meshy, Mixamo; Voices, sound and music: ElevenLabs; Places: Blender, Poly Haven; the third-party models and textures;
+  "Thank you for playing."), 72 s (`ROLL_SECONDS`) under the reveal's chant and then the title's music, then the title.
+  "Return to the title" (bottom right; confirm, back or Esc) leaves early. The campaign is still unlocked one past the
+  last chapter, as before.
+- **In the last fight** (2026-10-05): when the hero falls under 35 % of his health against Andhaka (not in the waves:
+  Andhaka's arrival gives him his health back), the guru's voice comes back to him once, the prologue's recorded
+  "Breathe. Feet first." (`prologue_fight_guru_2`, the remembered `voice` style), so the ending's "You kept your feet"
+  answers it.
 - **New in the scene system:** `SceneFX` (`tween`, `every`, `onClear`): effects a scene's `run` cues start that play
   out on the game's fixed step (so `__debug.advance` drives them) and are undone when the chapter is left (lights put
   back, meshes freed). `DivineLight`: `intoLight` (someone turns to light and fades), `awaken` (a statue's stone warms,
@@ -753,8 +793,8 @@ effects clock, the credits after the last chapter). The map, Andhaka and his ent
 - **Decided here:** the guru is found slumped, not visibly bound; Shiva speaks in the guru's voice (speaker "Shiva",
   ids `summit_reveal_shiva_*`, to be recorded with the guru's narrator voice); the eclipse passes at the end (only for
   the scene; the map is untouched); the reveal is light and the statue, not a model change.
-- **Left for later:** the lines are unrecorded; no bonds or kneel clip for the captive guru; the yatudhana's model
-  (Meshy) and its own cast and death; a hold-to-skip on the credits rather than a button.
+- **Left for later:** no bonds or kneel clip for the captive guru; the yatudhana's model (Meshy) and its own cast and
+  death; a hold-to-skip on the credits rather than a button. (Every line is recorded: see the table below.)
 - **Testing:** in a dev build, `__debug.chapter(5, false)`, then `__debug.win()` per wave until Andhaka arrives, let
   his entrance play, `__debug.win()` again: the ending, then the credits.
 
@@ -765,6 +805,7 @@ The guru's voice (and Shiva's) is the deep narrator in `game asset/voice/VOICES.
 | Id | Speaker | Text | Trigger | Recorded |
 |---|---|---|---|---|
 | `summit_crown_andhaka_1` | Andhaka | Burn, Agni. Let the gods see their new ruler. | his entrance, raising the crown to his head | yes (option A, approved 2026-10-05) |
+| `prologue_fight_guru_2` | Guru (remembered, in the fight) | Breathe. Feet first. | Andhaka's fight, the hero under 35 % (once) | the prologue's recording, reused (2026-10-05) |
 | `summit_end_guru_1` | Guru (off, from the dais) | Yudhveer. | ending, shot 1 | yes |
 | (no id) | Yudhveer | Guruji? | ending, he turns to the stair | subtitle only |
 | (no id) | Yudhveer | Guruji... you live. | ending, kneeling beside him | subtitle only |
@@ -914,9 +955,11 @@ attire), then he fights the baoli guardian"; the Durga statue "is already in bao
   and the pedestal for the scene (outside the arena's walls; the fight never reaches it). She reads from the arena now,
   and stays lit (halo, eyes) after the scene.
 - **The opening, new shots first** (`BAOLI_STORY.opening`; the old shots follow unchanged):
-  1. From black: low behind the boy, in training clothes, as he climbs between the stone lions to the Devi.
+  1. From black: low behind the boy, in training clothes, as he climbs between the stone lions to the Devi (4.4 s, cut
+     as he nears the mark the next shot puts him on; was 5.6 s).
   2. Side on: he kneels (`kneeling_down`, then `praying_anjali`, palms pressed together before his chest; the lathi is
-     laid aside, hidden).
+     laid aside, hidden; 4.4 s, was 5.2: the long run of cutscenes from the prologue's loss to this fight is 2 s
+     shorter, audit S-07).
   3. Low behind him, the Devi towering over him: her stone warms, a halo kindles behind her head, her eyes open in light
      (`awaken` with a softer key light and warmth for the pale stone, `kindleEyes`).
   4. Up at her face past the lion's mane: her first line.
@@ -1370,6 +1413,29 @@ through his hand to its old one-handed grip (`oneHandGrip`), so the prologue's b
 ease it stands at his side, its top a little ahead of him, its foot by his heel. The prologue's lesson now shows him
 on guard and swinging it in both hands. Not fixed: the charge (Mixamo's "Power Up") draws both fists to his chest,
 and any staff in his hand crosses his head there for a few frames, as before.
+
+## The summit's snow, and memory between chapters (2026-10-05)
+
+Two of the audit's world findings (docs/AUDIT.md, W-15 and W-08), fixed in code.
+
+- **Square patches in the summit's snow and cliffs** (W-15). The bake left the terrain and the vista rock flat-shaded
+  (every face with its own vertices and normal), and the cel ramp then lit each face as a band of its own: the beacon
+  cliff, the far peak and the snow at the stair's foot broke into patches that read as voxels. `Level4_Summit` now
+  smooths those normals at load (`smoothFacets`: creased at 50 degrees, so ledges and ridges keep their edge; the
+  families `Coarse_Basalt_Ash`, `Slate_Silhouette`, `Vista_Pinnacle_Rock`, not the scattered `Joined_*` rocks, the
+  lake's spikes, the stair, the trail or the masonry; about 0.1 s for 344k vertices). The beacon cliff's bake is also
+  too coarse to hold up close (about three texels a metre, one flat colour a face), so its slate is mottled in world
+  space instead (`SnowCover.breakup`: its mean colour, broken up by noise, under the same snow). Re-baking the level
+  was not done: the export bakes every object again, so nothing else would have stayed byte-identical. Captures:
+  `game asset/audit/fixes/fix-flow/w15_before_*`, `w15_after_*`.
+- **Chapter changes no longer leak** (W-08). Each change of chapter (the prologue and Chapter I in turn) left 14
+  geometries and 9 textures on the GPU: the hero's old prop (the lathi, taken off its socket before the old rig was
+  freed, so never freed), the normal maps of every rig let go (only colour maps were freed), and the bone texture of
+  every skinned character (its pose lives in a small texture no material lists). `Character.mountRig` frees the props
+  it replaces, `CharacterRig.dispose` frees everything below the rig through the levels' `disposeObject`, and that
+  frees skeletons' bone textures too. Ten round trips between the prologue and Chapter I now hold at 35 geometries / 51
+  textures and 88 / 67 (they grew by 14 / 9 a round trip), and two passes through all six chapters end where they
+  began.
 
 ## Tools
 

@@ -23,6 +23,10 @@ export interface IntroContext {
     boss(enemy: Enemy): void;
     name(enemy: Enemy): void;
     title(name: string, epithet: string): void;
+    /** The wave chapter's card for its minions (`horde`), for a story that brings them on itself (the prologue's raid). */
+    horde(): void;
+    /** A line of text over the picture, centred and quiet, for `seconds` (the prologue's cleared line over the night). */
+    caption(text: string, seconds?: number): void;
   };
   /** A line spoken over the cutscene (subtitled; voiced if it has a recording). */
   say(lines: Line[]): void;
