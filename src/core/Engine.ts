@@ -763,6 +763,8 @@ export class Engine {
     if (token !== this.loadToken) return;
     levelShare = 1;
     report();
+    // A (re)started chapter puts back what its story changed in the place (the summit's beacon smoulders again).
+    this.levelManager.activeLevel?.cue?.('chapter-start');
 
     // The chapter decides his weapon and moves; a new weapon is a new rig, so it loads with the rest.
     const hero = this.player.equip(KITS[chapter.kit])
@@ -1120,6 +1122,7 @@ export class Engine {
         name: (enemy) => this.cinema.nameCard(enemy.displayName, enemy.epithet, 1.9, true),
         title: (name, epithet) => this.cinema.nameCard(name, epithet, 2.6, true),
       },
+      say: (lines) => this.dialogue.play(lines, 'scene'),
     };
   }
 

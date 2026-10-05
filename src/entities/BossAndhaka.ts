@@ -3,6 +3,7 @@ import { Boss } from './Boss';
 import type { CharacterRig, CharacterDefinition } from './animation/CharacterRig';
 import { SceneManager } from '../core/SceneManager';
 import { Voices } from '../combat/Voices';
+import { LevelManager } from '../levels/LevelManager';
 
 /** His laugh (public/assets/voice): as his smile spreads in the entrance, and as his second phase begins. */
 const LAUGH = 'andhaka_laugh';
@@ -146,6 +147,8 @@ export class BossAndhaka extends Boss {
   public override settleIntro(): void {
     super.settleIntro();
     this.finishEntrance();
+    // However his entrance went (skipped, cut short, or none), he fights crowned, under a burning beacon.
+    LevelManager.getInstance().activeLevel?.cue?.('crowned-settled');
   }
 
   /** Crown on his head, sword in his hand, on guard (the entrance is over, or was cut short). */
@@ -180,6 +183,8 @@ export class BossAndhaka extends Boss {
       if (!e.crowned && t >= e.marks.crowned && def.offhand) {
         e.crowned = true;
         rig.attach(this.shieldMesh, def.offhand);
+        // The crown settles: the place answers (the summit lights its beacon).
+        LevelManager.getInstance().activeLevel?.cue?.('crowned');
       }
       if (!e.gripped && t >= e.marks.grip && def.weapon) {
         e.gripped = true;

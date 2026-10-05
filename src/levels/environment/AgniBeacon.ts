@@ -39,6 +39,7 @@ const BEAM_FRAGMENT = /* glsl */ `
 uniform float uTime;
 uniform float uPulse;
 uniform float uHeight;
+uniform float uReach;
 varying float vH;
 varying float vAngle;
 varying float vRim;
@@ -54,9 +55,12 @@ void main() {
   surge = surge * surge * surge * surge;
   // Full strength low down, a long fade as it climbs into the clouds.
   float fade = smoothstep(0.0, 0.004, vH) * (1.0 - smoothstep(0.18, 1.0, vH));
+  // Once lit, the fire climbs the column: nothing above uReach, a bright surge at its head while it rises.
+  fade *= 1.0 - smoothstep(uReach - 30.0, uReach, y);
+  float head = uReach < uHeight ? exp(-pow((y - uReach + 18.0) / 14.0, 2.0)) * 0.45 : 0.0;
   float rim = clamp(vRim, 0.0, 1.0);
   float core = rim * sqrt(rim); // brightest facing the viewer, soft at the column's edges (no pow() on a maybe-negative)
-  float v = (tongues * 0.7 + wisps * 0.42 + surge * 0.3) * core * fade * uPulse;
+  float v = (tongues * 0.7 + wisps * 0.42 + surge * 0.3 + head) * core * fade * uPulse;
   vec4 c = fireBands(v);
   if (c.a <= 0.0) discard;
   gl_FragColor = vec4(c.rgb * c.a, c.a);
@@ -65,11 +69,12 @@ void main() {
 // Camera-facing flame on the altar (billboarded in the vertex shader).
 const FLAME_VERTEX = /* glsl */ `
 uniform vec2 uSize;
+uniform float uFlame;
 varying vec2 vUv;
 void main() {
   vUv = uv;
   vec4 centre = modelViewMatrix * vec4(0.0, 0.0, 0.0, 1.0);
-  centre.xy += (uv - vec2(0.5, 0.0)) * uSize;
+  centre.xy += (uv - vec2(0.5, 0.0)) * uSize * vec2(mix(1.0, uFlame, 0.6), uFlame);
   gl_Position = projectionMatrix * centre;
 }`;
 const FLAME_FRAGMENT = /* glsl */ `
@@ -97,31 +102,44 @@ attribute vec4 aSeed;
 uniform float uTime;
 uniform float uEmberHeight;
 uniform float uViewportHeight;
+uniform float uEmbers;
 varying float vLife;
+varying float vShow;
 void main() {
   float life = fract(uTime * (0.05 + aSeed.w * 0.05) + aSeed.z);
   vec3 p = vec3((aSeed.x - 0.5) * 3.5, life * uEmberHeight, (aSeed.y - 0.5) * 3.5);
   p.x += sin(uTime * 0.9 + aSeed.w * 30.0) * 1.5 * life + life * life * 14.0;
   p.z += cos(uTime * 0.7 + aSeed.x * 20.0) * 1.5 * life;
   vLife = life;
+  vShow = step(aSeed.w, uEmbers); // a share of the embers: a few while it smoulders, all of them lit
   vec4 mv = modelViewMatrix * vec4(p, 1.0);
   gl_Position = projectionMatrix * mv;
   gl_PointSize = min(0.35 * projectionMatrix[1][1] * 0.5 * uViewportHeight / max(-mv.z, 0.1), 6.0);
 }`;
 const EMBER_FRAGMENT = /* glsl */ `
 varying float vLife;
+varying float vShow;
 void main() {
   float d = length(gl_PointCoord - 0.5);
-  float a = (1.0 - smoothstep(0.0, 0.5, d)) * (1.0 - vLife) * smoothstep(0.0, 0.08, vLife);
+  float a = (1.0 - smoothstep(0.0, 0.5, d)) * (1.0 - vLife) * smoothstep(0.0, 0.08, vLife) * vShow;
   gl_FragColor = vec4(vec3(4.0, 1.2, 0.2) * a, a);
 }`;
 
 const COLUMN_HEIGHT = 520;
+/** Seconds the fire takes to climb the whole column once lit (slow off the altar, then racing into the sky). */
+const CLIMB = 3.2;
+/** Smouldering: the altar's coals, a few embers, a little light. */
+const SMOULDER = { flame: 0.3, pulse: 0.62, embers: 0.12, light: 0.06 };
+
+const smooth = (a: number, b: number, t: number) => THREE.MathUtils.smoothstep(t, a, b);
 
 /**
  * The Ritual Beacon of Agni on the far temple cliff: a living cel-shaded fire column climbing from the altar
  * into the sky, a flickering altar flame, rising embers and the fire light, all sharing one pulse so the
  * column, flame and light breathe together.
+ *
+ * It smoulders (`smoulder`: coals on the altar, no column) until Andhaka is crowned; `ignite` lights it there and then
+ * (the altar flares, the fire races up the column into the sky, the embers and the light come up), `burn` at once.
  */
 export class AgniBeacon {
   public readonly group = new THREE.Group();
@@ -131,7 +149,13 @@ export class AgniBeacon {
     uTime: { value: 0 },
     uPulse: { value: 1 },
     uViewportHeight: { value: 1080 },
+    uFlame: { value: 1 },
+    uEmbers: { value: 1 },
   };
+  /** Metres of the column the fire has climbed. */
+  private readonly reach = { value: COLUMN_HEIGHT };
+  /** Lit or not, and the `update` time it was lit at (NaN: the next update; -Infinity: burning steadily). */
+  private state: { lit: boolean; at: number } = { lit: true, at: -Infinity };
   private readonly light: THREE.PointLight | null;
   private readonly baseLight: number;
 
@@ -152,7 +176,7 @@ export class AgniBeacon {
     const columnGeo = new THREE.CylinderGeometry(3.2, 1.9, COLUMN_HEIGHT, 32, 96, true).translate(0, COLUMN_HEIGHT / 2, 0);
     const column = new THREE.Mesh(columnGeo, new THREE.ShaderMaterial({
       name: 'AgniBeacon_Column',
-      uniforms: { ...this.uniforms, uHeight: { value: COLUMN_HEIGHT } },
+      uniforms: { ...this.uniforms, uHeight: { value: COLUMN_HEIGHT }, uReach: this.reach },
       vertexShader: BEAM_VERTEX,
       fragmentShader: BEAM_FRAGMENT,
       transparent: true,
@@ -205,15 +229,57 @@ export class AgniBeacon {
     this.baseLight = light?.intensity ?? 0;
   }
 
+  /** Coals only: no column, a low red glow on the altar, a few embers. */
+  public smoulder(): void {
+    this.state = { lit: false, at: -Infinity };
+  }
+
+  /** Lights it now: the altar flares and the fire climbs the column into the sky. */
+  public ignite(): void {
+    if (!this.state.lit) this.state = { lit: true, at: NaN };
+  }
+
+  /** Burning steadily, at once (no ignition). */
+  public burn(): void {
+    this.state = { lit: true, at: -Infinity };
+  }
+
+  public get lit(): boolean {
+    return this.state.lit;
+  }
+
   public update(time: number, viewportHeight: number): void {
+    if (Number.isNaN(this.state.at)) this.state.at = time;
     // Layered sines: a slow breath, a fire-like flutter and occasional surges.
     const breath = 0.85 + 0.15 * Math.sin(time * 1.3);
     const flutter = 0.9 + 0.1 * Math.sin(time * 13.7) * Math.sin(time * 7.1 + 1.3);
     const surge = 1 + 0.35 * Math.max(0, Math.sin(time * 0.37) * Math.sin(time * 2.9));
-    const pulse = breath * flutter * surge;
+    let pulse = breath * flutter * surge;
+    let flame = 1;
+    let embers = 1;
+    let light = 1;
+    if (!this.state.lit) {
+      this.reach.value = 0;
+      pulse *= SMOULDER.pulse;
+      flame = SMOULDER.flame;
+      embers = SMOULDER.embers;
+      light = SMOULDER.light;
+    } else {
+      // Since it was lit: the altar flares (a burst taller than its steady flame) and settles; the fire climbs the
+      // column; the embers and the light come up with it.
+      const s = time - this.state.at;
+      const flare = smooth(0, 0.3, s) * (1 - smooth(0.5, 2.2, s));
+      this.reach.value = s >= CLIMB ? COLUMN_HEIGHT : COLUMN_HEIGHT * Math.pow(s / CLIMB, 1.8);
+      flame = SMOULDER.flame + (1 - SMOULDER.flame) * smooth(0, 0.45, s) + 0.75 * flare;
+      pulse *= SMOULDER.pulse + (1 - SMOULDER.pulse) * smooth(0, 0.5, s) + 0.7 * flare;
+      embers = SMOULDER.embers + (1 - SMOULDER.embers) * smooth(0.1, 1.4, s);
+      light = SMOULDER.light + (1 - SMOULDER.light) * smooth(0, 0.4, s) + 1.4 * flare;
+    }
     this.uniforms.uTime.value = time;
     this.uniforms.uPulse.value = pulse;
+    this.uniforms.uFlame.value = flame;
+    this.uniforms.uEmbers.value = embers;
     this.uniforms.uViewportHeight.value = viewportHeight;
-    if (this.light) this.light.intensity = this.baseLight * pulse;
+    if (this.light) this.light.intensity = this.baseLight * pulse * light;
   }
 }

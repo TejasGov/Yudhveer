@@ -10,6 +10,7 @@ import { addSnowCover, type SnowCover } from './environment/SnowCover';
 import { addRimLight, createToonRamp, liftAlbedo, toonifyModel, toToonMaterial } from './environment/ToonRelight';
 import { SceneManager } from '../core/SceneManager';
 import { ParticleFX } from '../combat/ParticleFX';
+import { SoundFX } from '../combat/SoundFX';
 
 const LEVEL_URL = '/assets/levels/charnel_ridge.glb';
 const SKY_URL = '/assets/sky/charnel_eclipse_4096.jpg';
@@ -34,6 +35,13 @@ const BEACON_LIGHT = 'Point_Beacon_Fire';
 // In Blender the fog volume scatters the Agni spot and brazier fires into a warm glow on the dais; without
 // volumetrics they need more direct light to read.
 const WARM_LIGHT_BOOST: Record<string, number> = { Spot_Agni_Beacon: 2.5, Point_Brazier_Fire_E: 1.6, Point_Brazier_Fire_W: 1.6 };
+// The beacon's fires on the dais: the braziers on the pilasters either side of Shiva and the warm spot that throws
+// their light down over the dais and the stair. They smoulder with the beacon until Andhaka is crowned.
+const DAIS_FIRE_LIGHTS = ['Point_Brazier_Fire_E', 'Point_Brazier_Fire_W', 'Spot_Agni_Beacon'];
+/** Smouldering, the braziers keep this share of their light (the spot none) and their flames this much height. */
+const DAIS_SMOULDER = { light: 0.14, flame: 0.3 };
+/** Seconds after the crowning that the dais braziers catch from the beacon. */
+const DAIS_CATCH = 0.25;
 // Albedo gamma per baked family: basalt is near-black (#1C1E22) and needs the most lift.
 const ALBEDO_LIFT: Record<string, number> = {
   Coarse_Basalt_Ash: 0.72, Basalt_Ash_Floor: 0.72, Basalt_Ash_Floor_Crag: 0.72, Monument_Basalt: 0.75,
@@ -97,6 +105,16 @@ export class Level4_Summit extends GLBLevel {
     emberFraction: 0.03,
   });
   private beacon: AgniBeacon | null = null;
+  /** The dais braziers, their flames and the spot (see DAIS_FIRE_LIGHTS); `at`: when they caught (see `cue`). */
+  private daisFire = {
+    lights: [] as { light: THREE.Light; base: number }[],
+    flames: [] as { mesh: THREE.Mesh; scaleY: number; color: THREE.Color }[],
+    points: [] as THREE.Vector3[],
+    lit: false,
+    at: -Infinity,
+    burst: true,
+  };
+  private clock = 0;
   private mist: MistSleeveMaterial | null = null;
   private lakes: WaterRippleMaterial[] = [];
   private scrollers: THREE.Texture[] = [];
@@ -198,6 +216,7 @@ export class Level4_Summit extends GLBLevel {
     if (!light.parent) return;
     if (light.name === BEACON_LIGHT) return; // flickered by the beacon itself
     light.intensity *= WARM_LIGHT_BOOST[light.name] ?? 1;
+    if (DAIS_FIRE_LIGHTS.includes(light.name)) this.daisFire.lights.push({ light, base: light.intensity });
     if (light.getWorldPosition(new THREE.Vector3()).length() > LIVE_LIGHT_RADIUS) {
       light.removeFromParent();
     } else if (!light.userData.flicker && /Brazier|Fire/.test(light.name)) {
@@ -225,7 +244,9 @@ export class Level4_Summit extends GLBLevel {
       }
       if (names.includes('VFX_Brazier_Flame')) {
         box.setFromObject(mesh);
-        this.flamePoints.push(new THREE.Vector3((box.min.x + box.max.x) / 2, box.min.y + 0.15, (box.min.z + box.max.z) / 2));
+        const point = new THREE.Vector3((box.min.x + box.max.x) / 2, box.min.y + 0.15, (box.min.z + box.max.z) / 2);
+        this.daisFire.points.push(point);
+        this.daisFire.flames.push({ mesh, scaleY: mesh.scale.y, color: new THREE.Color() });
       }
       if (names.includes('Skull_Socket_Void')) mesh.castShadow = false;
       if (/^Temple_Deepam/.test(mesh.name)) deepams.push(mesh);
@@ -257,8 +278,71 @@ export class Level4_Summit extends GLBLevel {
       this.group.add(this.beacon.group);
     }
 
+    for (const f of this.daisFire.flames) f.color.copy((f.mesh.material as THREE.MeshBasicMaterial).color);
     this.collectBloom(model);
     this.bloomObjects.push(this.weather.points, ...(this.beacon?.glowing ?? []));
+    this.cue('chapter-start');
+  }
+
+  /**
+   * Story cues: `chapter-start` (the beacon and the dais braziers smoulder: they wait for the king), `crowned` (the
+   * crown settles on Andhaka's head: the beacon flares and its fire races up into the sky, the braziers catch a moment
+   * later and the warm light floods the dais) and `crowned-settled` (his entrance was skipped or cut short: all of it
+   * burning at once).
+   */
+  public cue(name: string): void {
+    const fire = this.daisFire;
+    switch (name) {
+      case 'chapter-start':
+        this.beacon?.smoulder();
+        fire.lit = false;
+        fire.at = -Infinity;
+        break;
+      case 'crowned':
+        if (fire.lit) return;
+        this.beacon?.ignite();
+        fire.lit = true;
+        fire.at = this.clock + DAIS_CATCH;
+        fire.burst = false;
+        SoundFX.getInstance().playFlameBurst();
+        break;
+      case 'crowned-settled':
+        if (fire.lit) return;
+        this.beacon?.burn();
+        fire.lit = true;
+        fire.at = -Infinity;
+        fire.burst = true;
+        break;
+    }
+  }
+
+  /** The dais braziers and the spot, smouldering or lit (with their flare as they catch). */
+  private updateDaisFire(time: number): void {
+    const fire = this.daisFire;
+    const s = time - fire.at;
+    const smooth = (a: number, b: number, t: number) => THREE.MathUtils.smoothstep(t, a, b);
+    const lit = fire.lit ? smooth(0, 0.35, s) : 0;
+    const flare = fire.lit ? smooth(0, 0.25, s) * (1 - smooth(0.45, 1.8, s)) : 0;
+    if (fire.lit && !fire.burst && s >= 0) {
+      fire.burst = true;
+      for (const p of fire.points) {
+        this.particleFX.spawnFlames(p, 28, 0.55);
+        this.particleFX.spawnSparks(p.clone().add(new THREE.Vector3(0, 0.6, 0)), 30, true);
+      }
+    }
+    for (const { light, base } of fire.lights) {
+      // The braziers are flickered (GLBLevel.update) before this; the spot is not.
+      const from = light.name.startsWith('Spot') ? base : light.intensity;
+      const rest = light.name.startsWith('Spot') ? 0 : DAIS_SMOULDER.light;
+      light.intensity = from * (rest + (1 - rest) * lit + 1.1 * flare);
+    }
+    const height = DAIS_SMOULDER.flame + (1 - DAIS_SMOULDER.flame) * lit + 0.7 * flare;
+    for (const f of fire.flames) {
+      f.mesh.scale.y = f.scaleY * height;
+      (f.mesh.material as THREE.MeshBasicMaterial).color.copy(f.color).multiplyScalar(0.35 + 0.65 * lit + 0.5 * flare);
+    }
+    // Flames off the braziers: a few while they smoulder, more as they roar up.
+    for (const p of fire.points) if (Math.random() < 0.12 + 0.48 * lit + 0.4 * flare) this.particleFX.spawnFlames(p, 1, 0.3 + 0.2 * flare);
   }
 
   /** Level-specific conversions; undefined falls through to the default toon conversion. */
@@ -313,7 +397,9 @@ export class Level4_Summit extends GLBLevel {
     const viewportHeight = SceneManager.getInstance().renderer.domElement.height;
     this.sky?.follow(camera);
     this.weather.update(time, camera.position, viewportHeight);
+    this.clock = time;
     this.beacon?.update(time, viewportHeight);
+    this.updateDaisFire(time);
     this.mist?.update(time);
     this.lakes.forEach((l) => l.update(time));
     this.scrollers.forEach((t) => t.offset.set(0, time * 0.9));

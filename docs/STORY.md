@@ -652,6 +652,7 @@ The guru's voice (and Shiva's) is the deep narrator in `game asset/voice/VOICES.
 
 | Id | Speaker | Text | Trigger | Recorded |
 |---|---|---|---|---|
+| (no id yet) | Andhaka | Burn, Agni. Let the gods see their king. | his entrance, the crown settles | subtitle only; a recording awaits approval (docs/APPROVALS.md) |
 | `summit_end_guru_1` | Guru (off, from the dais) | Yudhveer. | ending, shot 1 | yes |
 | (no id) | Yudhveer | Guruji? | ending, he turns to the stair | subtitle only |
 | (no id) | Yudhveer | Guruji... you live. | ending, kneeling beside him | subtitle only |
@@ -680,23 +681,50 @@ little stronger to read through the beard). Fight clips, states and tuning are u
 `src/cinematics/Intros.ts`). When the last rakshasa falls he is found on the dais at the head of Shiva's stair,
 SEATED on a rock throne (built by the summit level from the clip's own "seat" blocks, so it fits him; it stands empty
 through the waves and stays for the ending), his cleaver planted in the stone by his right knee, his crown on the
-throne's taller left stone. His laugh (`andhaka_laugh`, already recorded) plays as the smile begins; no new lines.
+throne's taller left stone. His laugh (`andhaka_laugh`, already recorded) plays as the smile begins. As the crown
+settles the Agni beacon takes fire, and he speaks one line (subtitle only until a recording is approved: see
+docs/APPROVALS.md).
 
 1. **Found** (0 - 2.6 s): from down the stair, low, the king on his rock, laughing (Mixamo's Sitting Laughing).
 2. **The laugh** (2.6 - 4.5 s): closer, from his sword side, as he throws his head back, doubles over and settles
    (into Sitting Idle).
-3. **The smile** (4.5 - 6.25 s): close on his face, looking down the stair at the boy, the Smile shape key full.
+3. **The smile** (4.5 - 6.25 s): close on his face, looking down the stair at the boy, the Smile shape key full. From
+   his eye line on a long lens (about 16 degrees, 2.35 - 2.7 m off), not from below on a wide one.
 4. **The crown** (6.25 - 8.1 s): from his left, his hand takes the crown off the throne's arm and raises it.
-5. **Crowned** (8.1 - 9.75 s): close on his face as he sets it on his own head, bowing to it, grinning.
-6. **He rises** (9.75 - 12 s): low on his sword side, his fist closes on the hilt and he stands (Sit To Stand), the
-   blade coming up out of the stone.
-7. **The roar** (12 s - end): the capture's roar, his name card, then his stance and the fight.
+5. **Crowned** (8.1 - 9.35 s): close on his face from his right (his left arm, raising the crown, stays clear of his
+   face), level with it on a long lens, as he sets the crown on his own head, bowing to it, grinning. As it settles
+   (9.0 s, the clip's "crowned" mark) the beacon takes fire and he says: "Burn, Agni. Let the gods see their king."
+6. **The beacon** (9.35 - 10.55 s): low in front of him, off the line from his head to the beacon: the crowned king
+   under Shiva's statue, the brazier on the west pilaster flared up, and the beacon's fire racing up off the far cliff
+   into the sky behind him. His fist goes to the hilt.
+7. **He rises** (10.55 - 12 s): low on his sword side, he stands (Sit To Stand), the blade coming up out of the stone.
+8. **The roar** (12 s - end): the capture's roar, his name card, then his stance and the fight.
+
+**The beacon waits for the king.** The summit's fires (the Agni beacon on the far temple cliff, `AgniBeacon`; the
+braziers on the pilasters either side of Shiva and the warm spot that throws their light over the dais, in
+`Level4_Summit`) smoulder from the start of the chapter: coals and a few embers on the beacon's altar, no column,
+low brazier flames, the dais dark. When the crown settles BossAndhaka cues the level (`crowned`): the altar flares, the
+fire climbs the column (slow off the altar, racing up into the sky over about 3 s), the embers and the beacon's light
+come up, and a quarter second later the braziers catch with a burst of flame and sparks and the spot floods the dais;
+a flame burst sounds. It burns through the fight and the ending. A skipped or cut-short entrance (or none) lights it
+all at once (`crowned-settled`, from `settleIntro`). Every chapter start, a retry included, cues `chapter-start`: a
+retry restarts the waves, so the beacon smoulders again until his entrance crowns him again (or is skipped).
+
+**His face in the close-ups** (fixed 2026-10-05): Blender's automatic weights had shared his face between the Head and
+neck bones as a smooth gradient (the nose about 55% Head, the mouth 45%, the chin 30%, the beard partly on the spine
+and collarbones). Whenever his head turned on his neck (the seated laugh and idle, the bow to the crown) the brow went
+with the head and the mouth, chin and beard lagged 3 - 4 cm behind: the face drew out by about a tenth of its height
+in the close-ups. `andhaka_face.py` now gives the face and skull wholly to Head and the beard 85% and up (easing back
+to the automatic weights down the throat and at the nape); measured in the smile close-up, the face no longer moves
+against the skull at all (the beard's tip by about 2 cm). The close-ups were also moved up to his eye line and onto
+longer lenses. The Smile shape key is unchanged.
 
 For cutscenes he also carries a calm standing idle (Mixamo's Standing Idle With Axe, `standing_idle_with_axe`,
 `ANDHAKA_CALM_IDLE`); the prologue's silhouette stands in it over the boy instead of the fight's guard shuffle.
 
-- **Testing:** `__debug.chapter(5, false)`, `__debug.win()` per wave until he arrives, then `__debug.advance(s)` and
-  `__yudhveer.sceneManager.render()` to step through the shots.
+- **Testing:** `__debug.chapter(5, false)`, then kill the wave minions only (not Andhaka: `__debug.win()` kills the
+  waiting boss too) until the mode is `intro`, then `__debug.advance(s)` and `__yudhveer.sceneManager.render()` to step
+  through the shots.
 
 ## Standing at ease (2026-10-05)
 

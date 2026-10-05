@@ -7,6 +7,7 @@ import { Boss } from '../entities/Boss';
 import { BossAndhaka } from '../entities/BossAndhaka';
 import type { CameraPose, GameLevel } from '../levels/LevelTypes';
 import { islandEstablishing } from '../levels/Level5_Island';
+import type { Line } from '../ui/Dialogue';
 
 /** What an intro is staged with: the chapter's fighters where they stand, and the cards to show. */
 export interface IntroContext {
@@ -22,9 +23,17 @@ export interface IntroContext {
     name(enemy: Enemy): void;
     title(name: string, epithet: string): void;
   };
+  /** A line spoken over the cutscene (subtitled; voiced if it has a recording). */
+  say(lines: Line[]): void;
 }
 
 const UP = new THREE.Vector3(0, 1, 0);
+
+/**
+ * Andhaka's line as the crown settles and the beacon takes fire (docs/APPROVALS.md: the options; subtitle only until
+ * the user approves a recording, then it gets its `voice` id).
+ */
+const CROWNING_LINE: Line = { speaker: 'Andhaka', text: 'Burn, Agni. Let the gods see their king.', hold: 2.8 };
 const v = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
 
 /** Facing and side unit vectors for a character's heading. */
@@ -339,8 +348,12 @@ function entranceShots(ctx: IntroContext, boss: Boss, entrance: { duration: numb
 /**
  * Andhaka found on his throne (docs/STORY.md, "Andhaka's entrance"), cut to his clip's marks: from down the stair, the
  * seated king laughing; closer as he throws his head back; his smiling face; the crown taken off the throne's arm and
- * raised; close as it comes down onto his head; low on his sword side as he rises with the blade out of the stone; the
- * roar and his name. Each shot frames where his head and hands will be, read off the clip before it plays.
+ * raised; close as it comes down onto his head (the beacon takes fire as it settles: BossAndhaka cues the level); the
+ * beacon behind him, its fire racing into the sky; low on his sword side as he rises with the blade out of the stone;
+ * the roar and his name. Each shot frames where his head and hands will be, read off the clip before it plays.
+ *
+ * The face close-ups are long lenses from his eye line, a little way off: close and low with a wide lens drew his face
+ * out (the nose and beard swelling toward the camera).
  */
 function enthronedEntrance(ctx: IntroContext, boss: BossAndhaka, entrance: { duration: number; marks: Record<string, number> }): Shot[] {
   const b = boss.getPosition().clone();
@@ -355,12 +368,15 @@ function enthronedEntrance(ctx: IntroContext, boss: BossAndhaka, entrance: { dur
   const crownRest = at('LeftHand', m.lift, offset(b, f, -0.5, 0.85, h * 0.36));
   const hilt = at('RightHand', m.grip, offset(b, f, -0.4, -0.95, h * 0.4));
   const up = (p: THREE.Vector3, y: number) => p.clone().addScaledVector(UP, y);
+  // The Agni beacon on the far cliff (Level4_Summit), if this place has one.
+  const beacon = ctx.level.group.getObjectByName('AgniBeacon_Column')?.getWorldPosition(new THREE.Vector3()) ?? null;
   // Shot boundaries (entrance seconds).
   const t1 = 2.6;
   const t2 = m.settle + 1.2;
   const t3 = m.lift - 0.35;
   const t4 = m.crowned - 0.9;
-  const t5 = m.grip - 0.25;
+  const t4b = beacon ? m.crowned + 0.35 : m.grip - 0.25;
+  const t5 = beacon ? m.grip + 0.55 : t4b;
   const t6 = m.roar;
   return [
     // Found: from down the stair, the king on his rock, laughing.
@@ -386,15 +402,15 @@ function enthronedEntrance(ctx: IntroContext, boss: BossAndhaka, entrance: { dur
         { pos: laughing.clone().addScaledVector(f.fwd, 3.9).addScaledVector(f.side, -1.6).addScaledVector(UP, -0.45), look: up(laughing, -0.45), fov: 32 },
       ],
     },
-    // His smiling face, close, looking down the stair at the boy.
+    // His smiling face, close, looking down the stair at the boy: from his eye line on a long lens.
     {
       duration: t3 - t2,
       fadeIn: 0.15,
       ease: ease.out,
-      sway: 0.006,
+      sway: 0.004,
       keys: [
-        { pos: smiling.clone().addScaledVector(f.fwd, 1.8).addScaledVector(f.side, 0.2).addScaledVector(UP, -0.2), look: up(smiling, -0.06), fov: 25 },
-        { pos: smiling.clone().addScaledVector(f.fwd, 1.55).addScaledVector(f.side, 0.14).addScaledVector(UP, -0.18), look: up(smiling, -0.05), fov: 23 },
+        { pos: smiling.clone().addScaledVector(f.fwd, 2.7).addScaledVector(f.side, 0.3).addScaledVector(UP, 0.04), look: up(smiling, 0.03), fov: 16.8 },
+        { pos: smiling.clone().addScaledVector(f.fwd, 2.35).addScaledVector(f.side, 0.21).addScaledVector(UP, 0.04), look: up(smiling, 0.03), fov: 15.3 },
       ],
     },
     // The crown: his hand takes it off the throne's arm and raises it; the camera rises with it from his left.
@@ -408,17 +424,22 @@ function enthronedEntrance(ctx: IntroContext, boss: BossAndhaka, entrance: { dur
         { pos: crowned.clone().addScaledVector(f.fwd, 2.6).addScaledVector(f.side, 1.4).addScaledVector(UP, -0.2), look: up(crowned, 0.3), fov: 34 },
       ],
     },
-    // Close on his face as the crown comes down onto his head.
+    // Close on his face as the crown comes down onto his head (level with it, on a long lens, from his right, so the
+    // left arm raising the crown stays clear of his face). As it settles the beacon takes fire; he speaks.
     {
-      duration: t5 - t4,
+      duration: t4b - t4,
       fadeIn: 0.12,
       ease: ease.out,
-      sway: 0.006,
+      sway: 0.005,
       keys: [
-        { pos: crowned.clone().addScaledVector(f.fwd, 2.7).addScaledVector(f.side, -0.35).addScaledVector(UP, -0.1), look: up(crowned, 0.06), fov: 29 },
-        { pos: crowned.clone().addScaledVector(f.fwd, 2.4).addScaledVector(f.side, -0.28).addScaledVector(UP, -0.1), look: up(crowned, 0.04), fov: 27 },
+        { pos: crowned.clone().addScaledVector(f.fwd, 3.5).addScaledVector(f.side, -1.25).addScaledVector(UP, 0.02), look: up(crowned, 0.1), fov: 22 },
+        { pos: crowned.clone().addScaledVector(f.fwd, 3.1).addScaledVector(f.side, -1.1).addScaledVector(UP, 0.02), look: up(crowned, 0.08), fov: 20.4 },
       ],
+      cues: [{ at: m.crowned + 0.1 - t4, run: () => ctx.say([CROWNING_LINE]) }],
     },
+    // The beacon answers: low before him on his left, the crowned king dark against it, the fire racing up off the far
+    // cliff into the sky behind him; his fist goes to the hilt.
+    ...(beacon ? [beaconShot(crowned, beacon, t5 - t4b)] : []),
     // Low on his sword side: his fist closes on the hilt and he rises, the blade coming up out of the stone.
     {
       duration: t6 - t5,
@@ -443,6 +464,28 @@ function enthronedEntrance(ctx: IntroContext, boss: BossAndhaka, entrance: { dur
       cues: [{ at: 0.6, run: () => ctx.cards.boss(boss) }],
     },
   ];
+}
+
+/**
+ * Low in front of the crowned king, a little off the line from his head to the beacon so the fire climbs beside him,
+ * looking past him and tilting up as it rises.
+ */
+function beaconShot(head: THREE.Vector3, beacon: THREE.Vector3, duration: number): Shot {
+  const toBeacon = beacon.clone().sub(head).setY(0).normalize();
+  const across = new THREE.Vector3(-toBeacon.z, 0, toBeacon.x);
+  const at = (back: number, aside: number, drop: number) =>
+    head.clone().addScaledVector(toBeacon, -back).addScaledVector(across, aside).addScaledVector(UP, -drop);
+  const past = (ahead: number, rise: number) => head.clone().addScaledVector(toBeacon, ahead).addScaledVector(UP, rise);
+  return {
+    duration,
+    fadeIn: 0.1,
+    ease: ease.out,
+    sway: 0.012,
+    keys: [
+      { pos: at(6.8, -1.5, 1.7), look: past(6, 1.6), fov: 44 },
+      { pos: at(6.2, -1.35, 1.9), look: past(6, 3.4), fov: 46 },
+    ],
+  };
 }
 
 /** The slow orbit behind the title screen, per arena. */
