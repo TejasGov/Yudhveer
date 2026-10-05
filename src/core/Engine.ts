@@ -1328,7 +1328,8 @@ export class Engine {
     this.cinema.setActive(false);
     this.cinema.setFade(1);
     this.dialogue.clear();
-    this.soundFX.music.play('title');
+    // The reveal's chant (the summit's ending) plays out under the roll first, then the title's loop.
+    this.soundFX.music.then('title');
     this.soundFX.music.dim(false);
     this.soundFX.playAmbience(null);
     this.screens.only('credits');

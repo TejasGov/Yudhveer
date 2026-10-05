@@ -84,3 +84,65 @@ Poly Haven assets are CC0 and need no credit; they are credited as a courtesy.
 
 - [Cliff](https://sketchfab.com/3d-models/cliff-082da1166a814c6e9c9e6c1b38159e4e) by DJMaesen (CC BY 4.0): a candidate, not in the game.
 - [Fullpillar](https://sketchfab.com/3d-models/fullpillar-917cce56a480404d9c80b74d0214e3f0) by Howling.Wolf (CC BY 4.0): a candidate, not in the game.
+
+## Prologue, the village (`public/assets/levels/village_dusk.glb`, the villagers, the prologue's and summit's clips)
+
+Built by `game asset/levels/00_village/build_village.py` (and, for the people, `game asset/characters/build_character.py`).
+Sources: `game asset/levels/00_village/sources/` (Poly Haven's list in `polyhaven/polyhaven.json`).
+
+### The mandir (Meshy)
+
+The guru's shrine by the south wall is generated for this game with Meshy (Meshy 7, image to 3D from
+`game asset/concepts/mandir_B.png`; `sources/mandir_meshy7.glb`, 18.2k triangles, its 2k colour map), scaled to a
+5.4 m village shrine. Made for the game; no third-party licence.
+
+### Textures (Poly Haven, CC0)
+
+Made into neutral detail maps (divided by their mean colour, mostly desaturated, contrast softened for the cel shading,
+1k or 512 px) and multiplied by the village's own vertex colours.
+
+| Texture | Authors | Licence | Used on |
+|---|---|---|---|
+| [Clay Plaster](https://polyhaven.com/a/clay_plaster) | Amal Kumar | [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) | the mud walls, the huts' plastered walls, the planters |
+| [Reed Roof 04](https://polyhaven.com/a/reed_roof_04) | Rob Tuytel | [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) | the huts' thatch, the haystacks, the baskets, the cart's fodder |
+| [Dry Ground 01](https://polyhaven.com/a/dry_ground_01) | Rob Tuytel | [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) | the courtyard's packed earth and the path |
+| [Aerial Sand](https://polyhaven.com/a/aerial_sand) | Rob Tuytel | [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) | the dunes |
+| [Red Sandstone Wall](https://polyhaven.com/a/red_sandstone_wall) | Amal Kumar | [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) | the gateway, the house, the well, the neem's chabutra |
+| [Old Planks 02](https://polyhaven.com/a/old_planks_02) | Rob Tuytel | [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) | the gate's doors, charpais, the cart, posts, spear shafts |
+| [Bark Brown 02](https://polyhaven.com/a/bark_brown_02) | Rob Tuytel | [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) | the neem and the khejri trees |
+
+(Patterned Clay Wall by Dario Barresi, Dimitrios Savva and Rico Cilliers was downloaded as a candidate and is not used.)
+
+### 3D models reused from the island (Sketchfab, CC BY 4.0)
+
+The village reuses these props as prepared for Chapter III (credited above, with their CC BY lines): "Assorted Old
+Pots" by Kigha (the clay pots by the well, the house and the huts, a water pot dropped on its side), "Indian Talwar
+Weapon (low poly)" by Sangam Senapati and "Indian dhal (shield), 19th century" by Pedram Ashoori (the weapons the fight
+left in the dust), "diwali diya" by sinuboy072 (the lamps on the mandir's plinth), "Coiled Rope 2" by TepidGames (by
+the well), "Rubble" by Pert Doherty (at the broken gate and the burnt hut). Everything else in the village (huts, walls,
+gate, house, charpais, the bullock cart, haystacks, baskets, spears, cloth lines, the tulsi planters, charred beams) is
+built by the script.
+
+### The villagers (Mixamo)
+
+Placeholders for the prologue's villagers, from Adobe Mixamo's free character library (royalty-free for use in games
+under Mixamo's terms; credited as a courtesy), chosen for clothes that could pass for a Rajasthani village (no modern
+dress), rebuilt through the game's pipeline (scaled, decimated where heavy, textures capped at 1k), their clothes
+re-dyed by `villager_dye.py`:
+
+| Mixamo character | In the game | Triangles | Changes |
+|---|---|---|---|
+| Peasant Man | `villager_man.glb` (the son, the dead man) | 4.6k | striped shirt to an off-white kurta, trousers to a dhoti's white, boots to brown |
+| Abe | `villager_elder.glb` (the old men, alive and dead) | 19.3k (from 32k) | purple tunic and trousers to a white kurta and dhoti, yellow sleeves to saffron |
+| Peasant Girl | `villager_woman.glb` (the women, one of them dead) | 5.0k | none (a second woman is the same model tinted) |
+
+Their clips and the hero's new ones are Mixamo animations (downloaded without skin, 30 fps): `Village-` Terrified,
+Crying, Sitting Disbelief, Sad Idle, Hiding, Writhing In Pain, Laying Breathless, Falling Back Death, Falling Forward
+Death, Dying Backwards, Look Behind Run, Crawl Backwards, Sitting Dazed; `Hero-` Kneeling Down, Kneeling Idle,
+Kneeling (one knee), Standing (kneel to stand), Dying (head impact to two knees), Standing Up (from lying on the
+stomach), Praying.
+
+### Music (ElevenLabs)
+
+`public/assets/music/shiva.mp3` (the summit's reveal, "Har Har Mahadev") is generated for this game with ElevenLabs
+Music (flow kxekrrK5hmJeffLuHDBI); the original is `game asset/music/shiva_har_har_mahadev.mp3`.

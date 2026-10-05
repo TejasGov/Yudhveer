@@ -1,7 +1,7 @@
 import './credits.css';
 
 /** Seconds the roll takes from the foot of the screen to the last line gone off the top. */
-const ROLL_SECONDS = 66;
+const ROLL_SECONDS = 72;
 
 /**
  * The credits, in order: a heading (small, saffron) over its names (the serif), or over a long list in a smaller type
@@ -39,6 +39,14 @@ const CREDITS: [string, string[], 'small'?][] = [
     '"Ganesha, 10th - 11th C CE", Minneapolis Institute of Art (CC0)',
   ], 'small'],
   ['Textures: Poly Haven (CC0)', ['Cliff Side, Rocks Ground 02, Rock Boulder Dry'], 'small'],
+  // The prologue's village (docs/ASSET_CREDITS.md, "Prologue, the village").
+  ['The village', [
+    'The mandir: made with Meshy',
+    'Villagers: Mixamo (Peasant Man, Abe, Peasant Girl)',
+    'Textures, Poly Haven (CC0): Clay Plaster and Red Sandstone Wall by Amal Kumar; Reed Roof 04, Dry Ground 01, Aerial Sand, Old Planks 02, Bark Brown 02 by Rob Tuytel',
+    'Pots, talwars, a dhal, diyas, rope and rubble: the Sketchfab models above',
+    '"Har Har Mahadev": ElevenLabs Music',
+  ], 'small'],
 ];
 
 /**

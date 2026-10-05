@@ -192,3 +192,18 @@ boat's cane canopy and pole, the landing's lantern post, the dais and altar (cod
 carved relief), the wall shelves, the dried flowers, the eyes. The torana is a Sanchi-style (Buddhist) gateway: the
 right form, but its carvings are Buddhist; a Hindu torana would need Meshy or a better find. The ending's two camera
 keys behind the altar moved 1 m forward so they stand in front of the new torana (`src/game/stories/Island.ts`).
+
+## The village: Sketchfab props and villagers (blocked: a Sketchfab sign-in in the Browser pane)
+
+The village's dressing and people were approved to come partly from Sketchfab (CC0 / CC BY 4.0 / Sketchfab Standard,
+Indian-looking, in the game's style). The Browser pane this session used was not signed in at sketchfab.com (its
+`/i/users/me` answered 401), so nothing was downloaded from Sketchfab for the village; no credentials were typed and
+no terms accepted. What was done instead: the dressing is code-built in `build_village.py` plus the island's already
+downloaded Sketchfab props (pots, talwars, a dhal, diyas, rope, rubble; credited), and the villagers are Mixamo's
+Peasant Man, Abe and Peasant Girl, re-dyed (docs/STORY.md, "The village and the reveal").
+
+On a sign-in (the user signs in at sketchfab.com in the Browser pane, or a session that has it does the download):
+worth fetching, then preparing like the cave's props (`levels/03_island/prepare_cave_props.py`) and placing in
+`build_village.py`: a bullock cart and a charpai (the code-built ones are the weakest props up close), terracotta matkas
+and a chulha, and Indian villagers in dhoti, kurta and saree if any suit the cel style (to replace the Mixamo
+placeholders). Each needs its licence checked (never NC / ND) and a line in docs/ASSET_CREDITS.md.

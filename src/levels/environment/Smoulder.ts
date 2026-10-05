@@ -8,10 +8,20 @@ import * as THREE from 'three';
  * nothing is drawn.
  */
 
-const PUFFS = 28;
-const MOTES = 220;
-/** Of the motes, how many are sparks (the rest ash). */
-const SPARKS = 90;
+/** Defaults: smoke puffs, motes, and of the motes how many are sparks (the rest ash). See `SmoulderOptions`. */
+const DEFAULT_PUFFS = 28;
+const DEFAULT_MOTES = 220;
+const DEFAULT_SPARKS = 90;
+
+export interface SmoulderOptions {
+  /** Smoke puffs in the column (28). */
+  puffs?: number;
+  /** Sparks and ash flakes in all (220), and how many of them are sparks (90): a second fire's sparks without ash. */
+  motes?: number;
+  sparks?: number;
+  /** Scales the puffs (1): thicker smoke. */
+  puffSize?: number;
+}
 
 const SMOKE_VERTEX = /* glsl */ `
 attribute vec4 aPuff; // xyz centre, w size
@@ -102,13 +112,24 @@ export class Smoulder {
   private readonly points: THREE.Points;
   private readonly moteMaterial: THREE.ShaderMaterial;
   private readonly wind: THREE.Vector3;
+  private readonly nPuffs: number;
+  private readonly nMotes: number;
+  private readonly nSparks: number;
+  private readonly puffSize: number;
 
   /**
    * @param source where the fire burns (the smoke's root), `spread` metres across.
    * @param area the courtyard's half-size (sparks drift and ash falls within it).
    */
-  constructor(private readonly source: THREE.Vector3, private readonly spread: number, private readonly area: number, wind: THREE.Vector3) {
+  constructor(private readonly source: THREE.Vector3, private readonly spread: number, private readonly area: number, wind: THREE.Vector3, options: SmoulderOptions = {}) {
     this.wind = wind.clone();
+    this.nPuffs = options.puffs ?? DEFAULT_PUFFS;
+    this.nMotes = options.motes ?? DEFAULT_MOTES;
+    this.nSparks = Math.min(this.nMotes, options.sparks ?? DEFAULT_SPARKS);
+    this.puffSize = options.puffSize ?? 1;
+    const PUFFS = this.nPuffs;
+    const MOTES = this.nMotes;
+    const SPARKS = this.nSparks;
     this.group.name = 'Smoulder';
 
     const quad = new THREE.InstancedBufferGeometry();
@@ -175,7 +196,7 @@ export class Smoulder {
       vel: new THREE.Vector3((Math.random() - 0.5) * 0.25, 1.1 + Math.random() * 0.5, (Math.random() - 0.5) * 0.25),
       age,
       life: 7 + Math.random() * 4,
-      size: 1.1 + Math.random() * 0.7,
+      size: (1.1 + Math.random() * 0.7) * this.puffSize,
       seed: Math.random(),
     };
   }
@@ -200,6 +221,9 @@ export class Smoulder {
 
   /** Every particle back to a fresh start (a retry). */
   public reset(): void {
+    const PUFFS = this.nPuffs;
+    const MOTES = this.nMotes;
+    const SPARKS = this.nSparks;
     this.amount = 0;
     this.group.visible = false;
     for (let i = 0; i < PUFFS; i++) this.puffs[i] = this.newPuff(Math.random());
@@ -207,6 +231,8 @@ export class Smoulder {
   }
 
   public update(dt: number, camera: THREE.Camera): void {
+    const PUFFS = this.nPuffs;
+    const MOTES = this.nMotes;
     const on = this.amount > 0.001;
     this.group.visible = on;
     if (!on || dt <= 0) return;

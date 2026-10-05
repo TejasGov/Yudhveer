@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { ease, type CameraKey } from '../../cinematics/CinematicDirector';
 import type { ChapterStory, Stage } from '../../cinematics/Scene';
 import { awaken, dawn, intoLight, type StatueMarks } from '../../cinematics/DivineLight';
+import { SceneFX } from '../../cinematics/SceneFX';
 import { ParticleFX } from '../../combat/ParticleFX';
 import { SoundFX } from '../../combat/SoundFX';
 import { GURU } from '../../entities/characters/Village';
@@ -46,10 +47,42 @@ function kneel(s: Stage): void {
   guru.rig?.hold(KNEEL_AT);
 }
 
-/** The boy down on one knee (his crouch). */
+/** The boy goes down on one knee (Mixamo "Kneeling Down", held on the knee once down). */
 function heroKneels(s: Stage): void {
   s.player.stateMachine.changeState('IDLE');
-  s.player.playClip('crouch_idle', { fade: 0.35 });
+  s.player.playClip('kneeling_down', { fade: 0.3, timeScale: 1.15 });
+}
+
+/** On his knees, his palms together before his face (Mixamo "Praying", kneeling), unless he is already praying. */
+function heroPrays(s: Stage): void {
+  if (s.player.rig?.clip === 'praying') return;
+  s.player.playClip('praying', { fade: 0.9 });
+}
+
+/**
+ * Before he kneels to pray he lays his dhal down: it lies on the stone at his side (put back on his arm when the
+ * chapter is left).
+ */
+function layDownShield(s: Stage): void {
+  const hand = s.player.rig?.socket('Socket_Hand_L');
+  if (!hand) return;
+  const h = s.pos('hero');
+  const yaw = s.player.group.rotation.y;
+  for (const item of [...hand.children]) {
+    const home = { position: item.position.clone(), quaternion: item.quaternion.clone(), scale: item.scale.clone() };
+    const scale = item.getWorldScale(new THREE.Vector3());
+    s.level.group.add(item);
+    // Flat on the stone at his left, face up.
+    item.position.copy(h).add(v(Math.cos(yaw) * 0.75, 0.04, -Math.sin(yaw) * 0.75));
+    item.quaternion.setFromEuler(new THREE.Euler(-Math.PI / 2, 0, yaw + 0.4));
+    item.scale.copy(scale);
+    SceneFX.onClear(() => {
+      hand.add(item);
+      item.position.copy(home.position);
+      item.quaternion.copy(home.quaternion);
+      item.scale.copy(home.scale);
+    });
+  }
 }
 
 /** The effects for the reveal, set up dark in the opening black (adding lights rebuilds shaders: not on camera). */
@@ -88,6 +121,7 @@ export const SUMMIT_STORY: ChapterStory = {
             at: 0,
             run: (s) => {
               reveal = { guruToLight: intoLight(s.level.group, s.actor('guru')!), statueWakes: awaken(s.level.group, s.level.group, STATUE) };
+              SoundFX.getInstance().music.prefetch('shiva');
             },
           },
           { at: 1.4, actor: 'hero', play: 'SHEATHE' },
@@ -212,7 +246,16 @@ export const SUMMIT_STORY: ChapterStory = {
         cues: [
           { at: 0, actor: 'guru', face: GURU_FACE },
           { at: 0.5, run: () => reveal?.guruToLight(5.4) },
-          { at: 0.5, run: () => SoundFX.getInstance().playBossPhaseTransition() },
+          // His glory's music (docs/STORY.md, "The village and the reveal"): the conch sounds as the light swells in
+          // him, at once, over the dimmed summit loop; its damru and drums come in as the statue wakes.
+          {
+            at: 0.5,
+            run: () => {
+              const music = SoundFX.getInstance().music;
+              music.dim(false);
+              music.play('shiva', { fadeIn: 0.03 });
+            },
+          },
         ],
         // In front of him and to his west, clear of the boy.
         camera: [
@@ -264,17 +307,23 @@ export const SUMMIT_STORY: ChapterStory = {
         ease: ease.drift,
         sway: 0.012,
         linesAt: 1.4,
+        duration: 5.4,
         cues: [
           { at: 0, actor: 'hero', face: STATUE.feet },
-          { at: 0.5, run: heroKneels },
+          { at: 0, run: layDownShield },
+          { at: 0.3, run: heroKneels },
+          // Down on his knees, he joins his palms before Shiva.
+          { at: 2.4, run: heroPrays },
         ],
         lines: [{ speaker: 'Yudhveer', text: 'Mahadeva...' }],
         camera: (s): CameraKey[] => {
           const h = s.pos('hero');
-          // Low behind him, to his west: the boy small on one knee before the lit feet of the god.
+          // Low behind him, to his west: the boy small, going down before the lit feet of the god; then round in front
+          // of him, the god's light on his face, as he joins his palms.
           return [
             { pos: h.clone().add(v(-2.4, 0.85, 1.8)), look: above(h, 0.95).add(v(0, 0, -0.9)), fov: 40 },
-            { pos: h.clone().add(v(-2.1, 0.8, 1.5)), look: above(h, 1.05).add(v(0, 0, -0.9)), fov: 38 },
+            { pos: h.clone().add(v(-2.1, 0.8, 1.5)), look: above(h, 0.95).add(v(0, 0, -0.9)), fov: 38 },
+            { pos: h.clone().add(v(-1.6, 0.9, -1.5)), look: above(h, 0.85).add(v(0.1, 0, 0)), fov: 38 },
           ];
         },
       },
@@ -287,6 +336,7 @@ export const SUMMIT_STORY: ChapterStory = {
         ease: ease.drift,
         linesAt: 1.2,
         cues: [
+          { at: 0, run: heroPrays },
           { at: 0, run: () => dawn(9, 1.9) },
           { at: 0.1, run: () => SoundFX.getInstance().music.dim(false) },
         ],

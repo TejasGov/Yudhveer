@@ -257,9 +257,9 @@ people), `src/entities/Raider.ts`, `src/entities/Extra.ts`; the map is built by
 - **The guru's model** (2026-10-04): Meshy 7 from `game asset/concepts/guru.png`, 31k triangles, autorigged, his
   staff part of the mesh and bound to his right hand, which is held at rest in every clip (`guru_post.py`). His
   own Mixamo clips: Breathing Idle and Iv Pole Walking (upright, a hand on a pole).
-- **Placeholders:** the raiders are the summit's rakshasas, dyed dust-brown; the roof fire is plain
-  flame cones; the boy's fall and struggle up are pieces of his death clips held or played backwards; the lathi is
-  still built in code.
+- **Placeholders:** the raiders are the summit's rakshasas, dyed dust-brown; the villagers are Mixamo characters
+  re-dyed (see "The village and the reveal"); the lathi is still built in code. (The roof fire's plain cones and the
+  boy's held and reversed death clips were replaced on 2026-10-05: the fire shader, Mixamo's kneel and stand-up.)
 - **Left for later:** the guru has no fight of his own; every prologue line is recorded (2026-10-04). (The courtyard
   now goes from dusk to night in the ending.)
 
@@ -296,11 +296,11 @@ about 70 s, every voiced line and id kept) is told from inside the boy's head on
 
 | # | Shot | What happens |
 |---|---|---|
-| 1 | **The blow** (2 s): low, three-quarters on him, a slow push | Winded and swaying, he does not see the raider step in behind him. The swing lands: a crushing thud, a white flash, the picture jolts out of focus and splits, the ears ring. The roof the raid fired is taking hold. |
-| 2 | **On his knees** (2.8 s): ground level in front of him | He drops into the dust (his fall held on its knees); the edges darken, the focus swims; a slow blink. |
+| 1 | **The blow** (2 s): low, three-quarters on him, a slow push | Winded and swaying, he does not see the raider step in behind him. The swing lands: a crushing thud, a white flash, the picture jolts out of focus and splits, the ears ring; he reels (Mixamo "Dying", head impact to two knees). The roof the raid fired is taking hold; behind him the guru's mandir, an old villager frozen on its step. |
+| 2 | **On his knees** (2.8 s): ground level in front of him | His knees go and he drops into the dust (the clip held as he lands on his knees, settling into Mixamo's "Kneeling Idle"); the edges darken, the focus swims; a slow blink. The haystack by the south-west hut catches from the roof's sparks. |
 | 3 | **His eyes** (5.2 s): POV, head hanging, horizon tipped | The sun sinks behind the west wall and the last light comes low through the gate across the ground. Heavy footfalls (a thud, dust and a jolt each stride); only a pair of feet at the very top of the frame, then a huge head-and-shoulders shadow slides down the light and over him. Raiders step aside. |
 | 4 | **His shadow** (5.6 s): from Andhaka's side, over the boy | The boy kneels in the dark of it; behind him the shadow grows up the south wall with each step, head, shoulders and the cleaver, until it stands over him. Andhaka speaks; his line runs on over the next shots. |
-| 5 | **Keep your feet** (2 s): low, side on | He tries to rise on his lathi, the shadow's gold edge behind him. |
+| 5 | **Keep your feet** (2 s): low, side on | He tries to rise on his lathi (Mixamo "Standing", kneel to stand, held a third of the way up), the shadow's gold edge behind him. |
 | 6 | **The glimpse** (1.3 s): POV, up | His eyes fight into focus for under a second ("Kneel."): the giant against the sunset, the cleaver catching the light in a glint. It swims away again. The guru starts toward them. |
 | 7 | **The fall** (1.2 s): POV tumbling | A blow from behind; the world tips over into the dust and his eyes close. |
 | 8 | **In the dust** (3.6 s): POV, head on its side | His eyes open: Andhaka's feet, blurred; the guru's feet and staff come between them and the guru turns to look down at him. |
@@ -309,9 +309,10 @@ about 70 s, every voiced line and id kept) is told from inside the boy's head on
 | 11 | **Black** (1.8 s) | "Guruji!" |
 | 12 | **Taken** (5.6 s): POV, eyes half open | In the bright gate, shapes going: a raider drags the guru away by the arms, Andhaka goes after, their long shadows reaching back across the ground to the boy. A horn. His eyes close. |
 | 13 | **Black** (1.8 s) | The ringing ebbs and the fire's crackle comes up. Night falls. |
-| 14 | **Later** (6 s): high and wide, slowly closer | Night: indigo sky over a dull red horizon, the roof burning lower, its smoke leaning off across the sky, sparks and ash coming down; the boy alone in the dust of the circle; the fallen raiders where they fell. |
-| 15 | **He rises** (4.6 s): low, side on, rising with him | Out of the dust onto one knee on the lathi, and up. |
-| 16 | **The vow** (with the line): close, firelit, ash falling | "Guruji... I will find you. Even if I have to climb to the top of the world." |
+| 14 | **Later** (6 s): high and wide, slowly closer | Night: indigo sky over a dull red horizon, the roof burning lower and charred, the roofs outside the walls burning, its smoke leaning off across the sky, sparks and ash coming down; the boy in the dust of the circle; the dead where they fell, a wife on her knees by her husband, a son weeping over his father. |
+| 14b | **The shrine** (4.2 s): low at the mandir's step, lifting | Its lamps still burning, a woman praying before it; the camera lifts past the bell to the saffron flag against the smoke. |
+| 15 | **He rises** (4.6 s): low, side on, rising with him | Off his face onto his hands and knees, onto one knee, and up (Mixamo "Standing Up", from lying). |
+| 16 | **The vow** (with the line): close, firelit, ash falling | In front of him, the mandir behind him (its lamps, the bell, the flag over his shoulder): "Guruji... I will find you. Even if I have to climb to the top of the world." |
 | 17 | **The threshold** (10 s): from the path outside the gate, then rising away | He walks out of the burning village toward us, a dark figure in the gateway where Andhaka stood; the fires behind him throw his own long shadow out ahead of him into the desert. He stops on the path; the camera rises over the dunes; fade. |
 
 **How long Andhaka is seen:** clearly, only in shot 6, about 0.7 s in focus (1.3 s in all, the first and last of it
@@ -710,9 +711,15 @@ effects clock, the credits after the last chapter). The map, Andhaka and his ent
   8. The camera rises from where he stood up the statue to its face as the stone warms, a light lifts it out of the
      dark and a slowly turning halo (a prabhavali) kindles behind its head; Andhaka's body crumbles to ash.
   9. From down the stair, the whole god in his light: the first line as Shiva.
-  10. Low behind the boy, small on one knee before the lit feet: "Mahadeva..."
-  11. The eclipse passes (the sky and ambient light rise and the key light warms over 9 s); the camera draws back and up
-      off the dais, the last line, a long fade to black.
+  10. Low behind the boy, small before the lit feet: he lays his dhal down beside him, goes down on his knee (Mixamo
+      "Kneeling Down") and joins his palms in prayer (Mixamo "Praying", kneeling), the camera coming round in front of
+      him: "Mahadeva..."
+  11. The eclipse passes (the sky and ambient light rise and the key light warms over 9 s); he prays on as the camera
+      draws back and up off the dais, the last line, a long fade to black.
+- **His glory's music** (2026-10-05): as the guru turns to light (shot 7) the reveal's own piece starts at once over
+  the dimmed summit loop, `shiva` (see "The village and the reveal"): its conch on the light, its damru and drums as
+  the statue wakes, its chorus as the eclipse passes; it plays on into the credits and hands over to the title's loop
+  when it ends.
 - **The guru on the summit** is a story cast member (`GURU`), out of sight through the fight and found in the ending.
   He has no kneel: he is held at 1.5 s into his `death` clip (sunk to the ground, slumped, his staff in his hand).
   Placeholder until he has a bound or kneeling clip.
@@ -1013,6 +1020,76 @@ second))." Code: `src/entities/BossShalva.ts`.
 - **Tuning note:** his ordinary overhead smash only connects within about 1.8 m (his lunge stops at 2 m), so the burst
   puts him at 1.75 m; left as it was for his other attacks.
 - **Dev:** `__debug.shalvaDive()` sends him under now. Previews: `game asset/previews/shalva_dive_*.jpg`.
+
+## The village and the reveal (2026-10-05)
+
+The user: the prologue's ending "needs better assets, better fire, better textures, and some placeholder people dead
+and alive", proper kneeling and praying clips from Mixamo (the praying also for the final Shiva scene), the village
+"much better with textures and maybe even a mandir", and for the Shiva reveal "a different music, an energetic har
+har mahadev chant with shankh opening and damru beats for his glory".
+
+- **The mandir** (the guru's shrine): Meshy 7 (`game asset/levels/00_village/sources/mandir_meshy7.glb`, from
+  `concepts/mandir_B.png`; 18.2k triangles, 2k colour map), whitewashed and ochre-stained, a pillared porch with its
+  bell, a shikhara, the saffron flag, a shivling inside. Scaled to 5.4 m and set by the south wall west of the axis,
+  its porch facing up the courtyard to the gate (`VILLAGE_MANDIR`), with a box collider, clay diyas burning on its
+  plinth (their own warm light, `Shrine_Lamp`), marigolds and a tulsi. West of the axis so the south wall stays clear
+  behind the boy for the shadow shots; it stands behind him in the blow and on his knees, an old man frozen on its
+  step; at night a woman prays at its lamps (the new shot 14b); the vow is framed against it, and the last shot sees
+  it lit through the gate behind him.
+- **Textures** (Poly Haven, CC0; credits in docs/ASSET_CREDITS.md): mud plaster (Clay Plaster), thatch (Reed Roof
+  04), packed earth (Dry Ground 01, cracked), dunes (Aerial Sand), sandstone (Red Sandstone Wall), wood (Old Planks
+  02), bark (Bark Brown 02). The build makes them neutral detail maps (mean 0.8, mostly desaturated, contrast
+  softened) that multiply the vertex colours, UV'd by a world-space box projection per surface, so the palette and
+  the painted bands stay as they were and the cel ramp still bands the light; the game scales those materials back
+  up (`TEXTURE_GAIN`). The level batches by material (`batchStatic`).
+- **The fire** (`src/levels/environment/FireField.ts`): every flame in the village in one instanced draw. Each fire
+  spot (`Fire_<group>_<n>` empties in the GLB) gets a few tongues (quads turned to the camera about the vertical) and
+  a soft additive glow; a tongue is a teardrop of flame eaten away by scrolling noise, its outline pushed about,
+  cut into three flat bands (deep red rim, orange body, yellow core), premultiplied so the rim reads against a bright
+  sky and the core adds light. Groups (torch, hearth, lamp, roof, hay, far, embers) are lit by uniforms; each group's
+  flicker drives its light (`RaidFire_Light`, `HayFire_Light`), so nothing recompiles when a fire catches. The burning
+  roof is ten spots up the courtyard side of the thatch; the thatch chars round it as it burns (a patch on the thatch
+  material: blackened by a noise-broken radius, embers pulsing in the char, a glowing burning edge); charred beams fallen
+  off it smoulder below. The haystack by the south-west hut catches from its sparks (`setHayFire`) with its own smoke,
+  sparks, char and light; roofs beyond the walls burn (`far`). The roof's smoke column is thicker (40 puffs, larger).
+  Not done: heat haze (it needs its own screen pass; not cheap enough here).
+- **Dressing** (code-built in `build_village.py` unless noted): string charpais (one kicked over against the west wall),
+  a bullock cart with a cracked wheel and slumped bed, haystacks, cane baskets (some tipped or stamped flat), a second
+  cloth line, mandana lozenges round the huts' doors, a layered thatch, a tulsi vrindavan, a gate door hanging off its
+  hinge. What the raid left (spears, broken pots and baskets, a cot kicked over, a dropped water pot, two talwars and a
+  dhal in the dust, rubble, the charred beams) is `Raid_*` in the GLB: hidden through the lesson and the fight, there
+  from the ending on (`setRaidFire`). Reused from the island's Sketchfab props: clay pots, the talwars and dhal, the
+  diyas, a rope coil, rubble.
+- **The villagers** (story cast; `VILLAGER_MAN`, `VILLAGER_ELDER`, `VILLAGER_WOMAN`(`_B`) in
+  `src/entities/characters/Village.ts`): Mixamo's Peasant Man, Abe and Peasant Girl, re-dyed to village cottons
+  (`game asset/characters/villager_dye.py`), with their own `Village-` clips. Seven in the ending: three dead from its
+  first shot (a man on the path from the gate, an old man by the burning hut, a woman by the north-west hut), four
+  alive: at dusk cowering (a woman by the house door, one hidden behind the well, the old man frozen on the mandir's
+  step, the son hiding by the north-west hut); at night mourning (the wife on her knees by her husband, the son
+  weeping over his father, the old man sitting dazed against the house wall, a woman praying at the mandir).
+- **The hero's kneel and prayer** (Mixamo, `Hero-` clips in `yodha.glb`, all its earlier clips kept): Kneeling Down,
+  Kneeling Idle, Kneeling (one knee), Standing (kneel to stand), Dying (head impact to two knees), Standing Up (from
+  lying on the stomach), Praying (kneeling). The prologue uses the head impact, the kneel, the kneel-to-stand and the
+  stand-up (shots 1, 2, 5, 15) in place of the held and reversed death clips; the summit uses Kneeling Down beside the
+  guru (shot 4) and before Shiva, then Praying (shots 10-11).
+- **The reveal's music** (`public/assets/music/shiva.mp3`, ElevenLabs Music, one take, flow kxekrrK5hmJeffLuHDBI; the
+  original in `game asset/music/shiva_har_har_mahadev.mp3`): 60 s. A conch blast over silence (0-2.5 s, ringing away
+  to silence by about 6.3 s), then damru, dhol and tabla driving at a lower level (6.6-20.5 s), the full chorus ("Har
+  Har Mahadev", call and response, drones, bells, brass swells) from about 21 s to the climax, resolving on a last
+  conch and bell from 53.5 s and fading out by 60 s. Levelled by a plain gain to about -15 LUFS (the other loops are
+  -13.6 to -15). A one-shot track (`ONE_SHOT` in SoundFX's Music: no loop, `play(track, { fadeIn })`, `then(track)`
+  to follow it): it starts with a 30 ms fade as the light swells in the guru (shot 7, 0.5 s in), the drums enter as the
+  statue wakes, it ducks under Shiva's lines (the usual voice duck), the chorus lands as the eclipse passes, and it
+  plays on under the credits (`rollCredits` asks for the title's loop `then`), which take it at about 33 s and
+  crossfade to the title when it ends. The phase-surge sound that used to mark the light is dropped (the conch is it).
+- **Perf** (the village, the dev build in a 720 x 567 pane): play, wide over the courtyard: 119 draw calls before,
+  75 after (static batching by material; the raid's debris hidden); the night wide shot: 99 before, 94 after (seven
+  villagers, the fire field and the haystack's smoke added); frame time stayed within about 1.3-2.2 ms either way at
+  that size (it varies more between runs than between versions). The GLB is 3.9 MB, 65k triangles (was 0.8 MB); the
+  villagers 1.2-1.9 MB each.
+- **Testing:** as for the prologue's ending above; `__debug.chapter(5, false)`, the waves killed, then `__debug.win()`
+  in Andhaka's fight for the reveal. Previews: `game asset/previews/village_after_*.jpg`, `summit_pray_*.jpg` (and the
+  `village_before_*` ones).
 
 ## Tools
 

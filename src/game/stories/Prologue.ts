@@ -8,8 +8,8 @@ import { SoundFX } from '../../combat/SoundFX';
 import { Voices } from '../../combat/Voices';
 import { SceneManager } from '../../core/SceneManager';
 import type { Character } from '../../entities/Character';
-import { ANDHAKA_SHADOW, GURU, RAIDER } from '../../entities/characters/Village';
-import { VILLAGE_GATE as GATE, type Level0_Village } from '../../levels/Level0_Village';
+import { ANDHAKA_SHADOW, GURU, RAIDER, VILLAGER_ELDER, VILLAGER_MAN, VILLAGER_WOMAN, VILLAGER_WOMAN_B } from '../../entities/characters/Village';
+import { VILLAGE_GATE as GATE, VILLAGE_MANDIR as MANDIR, type Level0_Village } from '../../levels/Level0_Village';
 
 /*
  * The prologue, "The Last Lesson" (docs/STORY.md, "Prologue", "Milestone 4" and "The prologue's ending"): the lesson at
@@ -48,6 +48,57 @@ const ASIDE = [v(-3.3, 0, 3.0), v(3.0, 0, 3.6), v(3.6, 0, -1.9), v(-3.6, 0, -2.6
 // (Into the gateway, not through it: fighters have bodies and no paths round the gate's pillars. They are gone by the
 // time his eyes open again.)
 const EXIT = [v(-0.8, 0, -9.3), v(0.9, 0, -9.7), v(-0.1, 0, -10.2), v(0.4, 0, -8.6), v(-1.1, 0, -8.4), v(1.2, 0, -8.9)];
+
+/**
+ * The villagers (story cast, placeholders: docs/STORY.md, "The village and the reveal"). The raid's dead lie where they
+ * fell from the start of the ending: a man on the path from the gate, an old man by the burning hut, a woman by the
+ * north-west hut's door. Through the dusk shots the living cower at the edges (behind the well, at the mandir's steps,
+ * by the houses); at night they mourn: the wife kneels by her husband's body, the son weeps over his father, the old
+ * man sits dazed against the house wall, a woman prays at the mandir by its lamps.
+ */
+const DEAD_MAN = v(1.9, 0, -5.2);
+const DEAD_ELDER = v(4.4, 0, -3.3);
+const DEAD_WOMAN = v(-4.9, 0, -4.5);
+/** The courtyard's sides, for the living to face away from the raid. */
+const VILLAGERS: { id: string; dusk: { at: THREE.Vector3; face: THREE.Vector3; clip: string; from?: number }; night: { at: THREE.Vector3; face: THREE.Vector3; clip: string; from?: number } }[] = [
+  // The wife: cowering by the house door at dusk; at night, on her knees by her husband's body.
+  { id: 'v_woman', dusk: { at: v(3.9, 0, 6.6), face: GATE, clip: 'terrified' }, night: { at: DEAD_MAN.clone().add(v(0.95, 0, 0.5)), face: DEAD_MAN, clip: 'kneeling_idle' } },
+  // Another woman: hidden behind the well at dusk; at night kneeling in prayer at the mandir's step, by its lamps.
+  { id: 'v_woman_b', dusk: { at: v(7.6, 0, 3.1), face: v(6.4, 0, 2.0), clip: 'hiding' }, night: { at: MANDIR.clone().add(v(0.15, 0, -0.55)), face: MANDIR.clone().add(v(0.15, 0, 4)), clip: 'praying' } },
+  // The old man: frozen with fear at the mandir's step; at night sitting dazed against the house's wall.
+  { id: 'v_elder', dusk: { at: MANDIR.clone().add(v(1.0, 0, -0.45)), face: GATE, clip: 'terrified', from: 3 }, night: { at: v(5.9, 0, 7.15), face: v(5.9, 0, 0), clip: 'sitting_dazed', from: 2 } },
+  // The son: hiding by the north-west hut at dusk; at night standing over his father's body, weeping.
+  { id: 'v_man', dusk: { at: v(-5.2, 0, -3.7), face: v(-9, 0, -5), clip: 'hiding' }, night: { at: DEAD_ELDER.clone().add(v(1.0, 0, 0.9)), face: DEAD_ELDER, clip: 'crying' } },
+];
+const DEAD: { id: string; at: THREE.Vector3; face: THREE.Vector3; clip: string }[] = [
+  { id: 'v_dead_man', at: DEAD_MAN, face: v(0.6, 0, -9.5), clip: 'falling_forward_death' },
+  { id: 'v_dead_elder', at: DEAD_ELDER, face: v(7.7, 0, -7.3), clip: 'falling_back_death' },
+  { id: 'v_dead_woman', at: DEAD_WOMAN, face: v(-1, 0, -9), clip: 'dying_backwards' },
+];
+
+/** Everyone in the village where the raid left them (the dusk shots: the dead fallen, the living cowering). */
+function villagersAtDusk(): SceneCue[] {
+  return [
+    ...DEAD.flatMap((d): SceneCue[] => [
+      { at: 0, actor: d.id, place: d.at, face: d.face },
+      { at: 0, actor: d.id, show: true },
+      { at: 0, run: (s) => pose(s, d.id, d.clip, { from: 4, fade: 0 }) },
+    ]),
+    ...VILLAGERS.flatMap((w): SceneCue[] => [
+      { at: 0, actor: w.id, place: w.dusk.at, face: w.dusk.face },
+      { at: 0, actor: w.id, show: true },
+      { at: 0, run: (s) => pose(s, w.id, w.dusk.clip, { from: w.dusk.from ?? 0, fade: 0 }) },
+    ]),
+  ];
+}
+
+/** The living after the raid, a long while later (the night shots). */
+function villagersAtNight(): SceneCue[] {
+  return VILLAGERS.flatMap((w): SceneCue[] => [
+    { at: 0, actor: w.id, place: w.night.at, face: w.night.face },
+    { at: 0, run: (s) => pose(s, w.id, w.night.clip, { from: w.night.from ?? 0, fade: 0 }) },
+  ]);
+}
 
 const alive = (s: Stage) => s.enemies.filter((e) => e.stateMachine.currentState !== 'DEAD' && e.group.visible);
 const village = (s: Stage) => s.level as Level0_Village;
@@ -217,6 +268,14 @@ export const PROLOGUE_STORY: ChapterStory = {
     // His men who are not in the fight: the one who brings the boy down, and the one who drags the guru away.
     { id: 'brute', rig: RAIDER, at: v(-6, 0, -16), hidden: true },
     { id: 'bearer', rig: RAIDER, at: v(6, 0, -16), hidden: true },
+    // The villagers, alive and dead (see VILLAGERS, DEAD): out of sight until the ending.
+    { id: 'v_woman', rig: VILLAGER_WOMAN, at: v(3.9, 0, 6.6), hidden: true },
+    { id: 'v_woman_b', rig: VILLAGER_WOMAN_B, at: v(7.6, 0, 3.1), hidden: true },
+    { id: 'v_elder', rig: VILLAGER_ELDER, at: v(-2.4, 0, 6.7), hidden: true },
+    { id: 'v_man', rig: VILLAGER_MAN, at: v(-5.2, 0, -3.7), hidden: true },
+    { id: 'v_dead_man', rig: VILLAGER_MAN, at: DEAD_MAN, hidden: true },
+    { id: 'v_dead_elder', rig: { ...VILLAGER_ELDER, tint: 0xc8bcb0 }, at: DEAD_ELDER, hidden: true },
+    { id: 'v_dead_woman', rig: VILLAGER_WOMAN_B, at: DEAD_WOMAN, hidden: true },
   ],
 
   // The last lesson, at dusk: the guru corrects the boy's stance, the sun is nearly down, then the horn at the gate.
@@ -338,6 +397,7 @@ export const PROLOGUE_STORY: ChapterStory = {
           ...raiders(LOOSE, 'place', 'hero'),
           { at: 0, actor: 'andhaka', place: ANDHAKA_FROM, face: KNEEL },
           { at: 0, actor: 'guru', place: GURU_ASIDE, face: 'hero' },
+          ...villagersAtDusk(),
           { at: 0.05, actor: 'brute', moveTo: BEHIND_HIM, face: 'hero' },
           { at: 0.1, run: (s) => s.actor('brute')?.playClip('standing_melee_attack_horizontal', { fade: 0.2 }) },
           // The roof the raiders fired during the fight takes hold over the next minute.
@@ -352,6 +412,8 @@ export const PROLOGUE_STORY: ChapterStory = {
               ParticleFX.getInstance().spawnDustPuff(s.pos('hero'), 8);
             },
           },
+          // The blow to the head (Mixamo "Dying", head impact to two knees: he reels, then his knees go).
+          { at: 1.0, run: (s) => pose(s, 'hero', 'head_impact_to_knees', { from: 0.15, fade: 0.08 }) },
         ],
         camera: [
           { pos: v(1.5, 1.05, -1.2), look: v(0, 1.15, 1.3), fov: 36 },
@@ -364,9 +426,13 @@ export const PROLOGUE_STORY: ChapterStory = {
         ease: ease.drift,
         sway: 0.02,
         cues: [
-          { at: 0, run: (s) => pose(s, 'hero', 'death_2', { from: 1.05, hold: 2.05, fade: 0.05 }) },
+          // His knees go (the clip's 2.2 - 2.7 s), held there upright, then settling into a kneel.
+          { at: 0, run: (s) => pose(s, 'hero', 'head_impact_to_knees', { from: 1.15, hold: 2.72, fade: 0.05 }) },
+          { at: 2.1, run: (s) => s.actor('hero')?.playClip('kneeling_idle', { fade: 0.7 }) },
           { at: 0.4, actor: 'brute', moveTo: v(-2.0, 0, 2.9), face: 'hero' },
-          { at: 0.95, run: (s) => { SoundFX.getInstance().playBodyFall(0.7); ParticleFX.getInstance().spawnDustPuff(s.pos('hero'), 10); } },
+          { at: 1.5, run: (s) => { SoundFX.getInstance().playBodyFall(0.7); ParticleFX.getInstance().spawnDustPuff(s.pos('hero'), 10); } },
+          // The roof's sparks have caught the haystack by the south-west hut.
+          { at: 0, run: (s) => fade(12, (k) => village(s).setHayFire(0.9 * k), 1) },
           { at: 1.2, run: () => Concussion.daze(0.75, 1.5) },
           { at: 2.3, run: () => Concussion.blink(0.25, 0.2, 0.3) },
         ],
@@ -424,7 +490,8 @@ export const PROLOGUE_STORY: ChapterStory = {
         sway: 0.02,
         cues: [
           { at: 0, run: () => Concussion.daze(0.5, 0.6) },
-          { at: 0.15, run: (s) => pose(s, 'hero', 'two_handed_sword_death_2', { from: 0.55, hold: 0.9, timeScale: 0.45, fade: 0.6 }) },
+          // He gets one foot under him (kneel to stand, held part way up) and can get no further.
+          { at: 0.15, run: (s) => pose(s, 'hero', 'kneel_to_stand', { from: 0.1, hold: 0.62, timeScale: 0.45, fade: 0.5 }) },
         ],
         camera: [
           { pos: v(2.1, 0.62, 1.45), look: v(0, 0.88, 0.95), fov: 30 },
@@ -573,6 +640,7 @@ export const PROLOGUE_STORY: ChapterStory = {
           { at: 0, actor: 'brute', show: false },
           { at: 0, actor: 'bearer', show: false },
           { at: 0, run: (s) => { for (const e of alive(s)) e.group.visible = false; }, essential: true },
+          ...villagersAtNight(),
           {
             at: 0,
             run: (s) => {
@@ -580,8 +648,9 @@ export const PROLOGUE_STORY: ChapterStory = {
               place.setSun(1);
               place.setNight(1);
               place.setGateLight(0);
-              // Burning lower now, a long while after.
+              // Burning lower now, a long while after; the haystack too.
               place.setRaidFire(0.7);
+              place.setHayFire(0.6);
               place.smoulder.amount = 1;
             },
           },
@@ -601,6 +670,19 @@ export const PROLOGUE_STORY: ChapterStory = {
           { pos: v(-5.4, 3.8, 8.2), look: v(2.8, 1.3, -3.2), fov: 44 },
         ],
       },
+      // 14b. The guru's mandir: low at its step, its lamps still burning and a woman praying before it; the camera
+      // lifts past the bell to the saffron flag against the smoke.
+      {
+        duration: 4.2,
+        fadeIn: 0.35,
+        ease: ease.inOut,
+        sway: 0.01,
+        camera: [
+          { pos: MANDIR.clone().add(v(1.6, 0.45, -2.6)), look: MANDIR.clone().add(v(-0.1, 0.9, 1.4)), fov: 38 },
+          { pos: MANDIR.clone().add(v(1.9, 1.3, -3.3)), look: MANDIR.clone().add(v(-0.05, 2.7, 1.6)), fov: 40 },
+          { pos: MANDIR.clone().add(v(2.1, 2.2, -3.9)), look: MANDIR.clone().add(v(0.0, 4.6, 1.8)), fov: 42 },
+        ],
+      },
       // 15. He pushes himself up out of the dust onto one knee, on the lathi, and stands.
       {
         duration: 4.6,
@@ -608,8 +690,9 @@ export const PROLOGUE_STORY: ChapterStory = {
         ease: ease.drift,
         sway: 0.015,
         cues: [
-          { at: 0.2, run: (s) => pose(s, 'hero', 'two_handed_sword_death_2', { reverse: true, from: 2.1, hold: 0.9, timeScale: 0.5, fade: 0.5 }) },
-          { at: 2.9, run: (s) => s.actor('hero')?.playClip('calm_idle', { fade: 1.2 }) },
+          // Up off his face onto his hands and knees, onto one knee, and up (Mixamo "Standing Up", from lying).
+          { at: 0.1, run: (s) => pose(s, 'hero', 'stand_up_from_stomach', { from: 3.4, timeScale: 1.15, fade: 0.4 }) },
+          { at: 4.3, run: (s) => s.actor('hero')?.playClip('calm_idle', { fade: 0.8 }) },
         ],
         camera: [
           { pos: v(2.3, 0.45, 1.75), look: v(0, 0.45, 0.85), fov: 34 },
@@ -625,15 +708,16 @@ export const PROLOGUE_STORY: ChapterStory = {
         linesAt: 1.2,
         cues: [{ at: 0.1, actor: 'hero', play: 'IDLE' }, { at: 0.3, actor: 'hero', face: GATE }],
         lines: [{ speaker: 'Yudhveer', text: 'Guruji... I will find you. Even if I have to climb to the top of the world.' }],
-        // In front of him and off to his right (his idle stance stands side on, chest that way): his face lit by the
-        // burning roof.
+        // In front of him, a little to his side, so the guru's mandir stands behind him: its lamps, the bell in its
+        // porch and the saffron flag over his shoulder; his face lit by the burning roof.
         camera: (s): CameraKey[] => {
-          const face = GATE.clone().sub(s.pos('hero')).setY(0).normalize();
-          const side = v(-face.z, 0, face.x);
-          const look = s.pos('hero').add(v(0, 1.5, 0));
+          const h = s.pos('hero');
+          const toShrine = MANDIR.clone().add(v(0, 0, 1.6)).sub(h).setY(0).normalize();
+          const side = v(-toShrine.z, 0, toShrine.x);
+          const look = h.clone().add(v(0, 1.68, 0)).addScaledVector(side, -0.3);
           return [
-            { pos: s.pos('hero').addScaledVector(face, 1.9).addScaledVector(side, 1.7).setY(1.45), look, fov: 34 },
-            { pos: s.pos('hero').addScaledVector(face, 1.6).addScaledVector(side, 1.45).setY(1.5), look, fov: 31 },
+            { pos: h.clone().addScaledVector(toShrine, -2.4).addScaledVector(side, 0.6).setY(1.4), look, fov: 38 },
+            { pos: h.clone().addScaledVector(toShrine, -2.1).addScaledVector(side, 0.5).setY(1.42), look, fov: 35 },
           ];
         },
       },

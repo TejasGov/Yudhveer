@@ -1634,8 +1634,13 @@ export const MOODS = {
   summit: { tonic: 92.5, pluck: 1.25, pulse: 0 },
 } satisfies Record<string, MusicMood>;
 
-/** The soundtrack's loops (public/assets/music, ElevenLabs, 60 s each). */
-export type Track = 'title' | 'village' | 'baoli' | 'akhada' | 'island' | 'dwarka' | 'summit' | 'boss' | 'andhaka_final';
+/**
+ * The soundtrack (public/assets/music, ElevenLabs, 60 s each): loops, and `shiva`, the summit reveal's piece (a conch,
+ * then damru, dhol and a "Har Har Mahadev" chorus), which plays once (`ONE_SHOT`).
+ */
+export type Track = 'title' | 'village' | 'baoli' | 'akhada' | 'island' | 'dwarka' | 'summit' | 'boss' | 'andhaka_final' | 'shiva';
+/** Pieces that play through once instead of looping (and hand over to whatever `then` names when they end). */
+const ONE_SHOT: ReadonlySet<Track> = new Set<Track>(['shiva']);
 const TRACKS = new Set(trackIds);
 /** Each loop's level, evening out how loud they came out (the akhada's was made quiet). */
 const TRACK_GAIN: Partial<Record<Track, number>> = { akhada: 1.5, baoli: 1.15, title: 1.1, boss: 0.85, andhaka_final: 0.9 };
@@ -1650,6 +1655,7 @@ const FALLBACK: Record<Track, MusicMood> = {
   summit: MOODS.summit,
   boss: { ...MOODS.baoli, pulse: 84 },
   andhaka_final: { ...MOODS.summit, pulse: 84 },
+  shiva: { ...MOODS.summit, pulse: 96 },
 };
 /** Seconds one loop takes to hand over to the next. */
 const CROSSFADE = 1.5;
@@ -1676,6 +1682,9 @@ class Music {
   private readonly failed = new Set<Track>();
   private ducks = 0;
   private dimmed = false;
+  /** What a one-shot piece hands over to when it ends (`then`), and how soon the next `play` may come in (`fadeIn`). */
+  private after: Track | null = null;
+  private nextFadeIn = CROSSFADE;
 
   public connect(ctx: AudioContext, bus: GainNode): void {
     this.ctx = ctx;
@@ -1690,8 +1699,13 @@ class Music {
     return this.wanted;
   }
 
-  /** Crossfades to `track` (null fades out). Asking for the one already playing changes nothing. */
-  public play(track: Track | null): void {
+  /**
+   * Crossfades to `track` (null fades out). Asking for the one already playing changes nothing. `fadeIn` (s) is how fast
+   * it comes in (a piece that opens on a strike wants it near 0); the one playing still fades out over the crossfade.
+   */
+  public play(track: Track | null, o: { fadeIn?: number } = {}): void {
+    this.nextFadeIn = o.fadeIn ?? CROSSFADE;
+    if (track !== this.wanted) this.after = null;
     this.wanted = track;
     if (!this.ctx) return;
     if (track && this.playing?.track === track) return;
@@ -1713,6 +1727,17 @@ class Music {
         else this.play(track); // now known to have failed: the drone
       });
     }
+  }
+
+  /**
+   * Once the one-shot piece now playing (or on its way) ends, crossfade to `track`; with nothing one-shot playing, plays
+   * `track` now. The credits use it so the reveal's chant plays out before the title's loop comes back.
+   */
+  public then(track: Track): void {
+    const p = this.playing;
+    const oneShot = this.wanted && ONE_SHOT.has(this.wanted);
+    if (oneShot && (!p || p.track === this.wanted)) this.after = track;
+    else this.play(track);
   }
 
   /** Starts fetching and decoding a loop that will be wanted soon (a boss's). */
@@ -1758,15 +1783,28 @@ class Music {
     this.decoded.set(track, buffer);
     const src = ctx.createBufferSource();
     src.buffer = buffer;
-    src.loop = true;
+    src.loop = !ONE_SHOT.has(track);
     const gain = ctx.createGain();
     const t = ctx.currentTime;
     gain.gain.setValueAtTime(0.0001, t);
-    gain.gain.linearRampToValueAtTime(TRACK_GAIN[track] ?? 1, t + CROSSFADE);
+    gain.gain.linearRampToValueAtTime(TRACK_GAIN[track] ?? 1, t + Math.max(0.02, this.nextFadeIn));
+    this.nextFadeIn = CROSSFADE;
     src.connect(gain);
     gain.connect(this.out!);
     src.start(t);
-    this.playing = { track, src, gain };
+    const playing = { track, src, gain };
+    this.playing = playing;
+    if (!src.loop) {
+      // Played out: on to what was asked to follow it (or silence).
+      src.onended = () => {
+        if (this.playing !== playing) return;
+        this.playing = null;
+        const next = this.after;
+        this.after = null;
+        this.wanted = null;
+        if (next) this.play(next);
+      };
+    }
   }
 
   private fadeOut(): void {
