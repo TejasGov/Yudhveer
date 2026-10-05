@@ -81,6 +81,13 @@ export interface SocketAttachment {
   blade?: [number, number];
   /** Size of the prop relative to its model (a borrowed weapon cut down or scaled up to suit the wielder). */
   scale?: number;
+  /**
+   * Held in both hands: the other hand's socket (e.g. `Socket_Hand_L`). Each frame the prop turns about its grip so
+   * its +Y runs from that hand through this one, and the haft lies in both fists whatever the clip does with the
+   * wrists. Two-handed clips (the Great Sword Pack) keep the fists ~0.2 m apart; once they are further apart than
+   * that (a one-handed clip, a fall) the prop eases back to its own hold.
+   */
+  twoHanded?: string;
 }
 
 /** An attached prop and the grip orientations it can take (socket-local). */
@@ -89,7 +96,18 @@ interface Mount {
   grip: THREE.Vector3;
   base: THREE.Quaternion;
   byState: Map<CharacterState, THREE.Quaternion>;
+  /** Two-handed: the other hand's socket, and this socket (see `SocketAttachment.twoHanded`). */
+  aim?: { other: THREE.Object3D; socket: THREE.Object3D };
+  /** The hold before the two-handed aim (state rotations ease this; the aim is applied on top each frame). */
+  hold: THREE.Quaternion;
 }
+
+// Fist-to-fist distance (m) under which a two-handed prop is fully aimed through both hands, and over which not at all.
+const TWO_HANDS_NEAR = 0.3;
+const TWO_HANDS_FAR = 0.45;
+const _a = new THREE.Vector3();
+const _b = new THREE.Vector3();
+const _q = new THREE.Quaternion();
 
 export interface CharacterDefinition {
   model: string;
@@ -248,11 +266,15 @@ export class CharacterRig {
       base: orientation(attachment.restWorldRotation),
       byState: new Map(Object.entries(attachment.stateRotations ?? {})
         .map(([state, euler]) => [state as CharacterState, orientation(euler!)])),
+      hold: new THREE.Quaternion(),
     };
+    const other = attachment.twoHanded ? this.socket(attachment.twoHanded) : undefined;
+    if (other) mount.aim = { other, socket };
+    mount.hold.copy(mount.base);
     object.quaternion.copy(mount.base);
     object.position.copy(mount.grip).applyQuaternion(object.quaternion).negate();
     object.scale.setScalar((attachment.scale ?? 1) / socket.getWorldScale(new THREE.Vector3()).x);
-    if (mount.byState.size) this.mounts.push(mount);
+    if (mount.byState.size || mount.aim) this.mounts.push(mount);
     // Props join the cel look: shiny PBR metal next to toon shading reads as glowing.
     object.traverse((obj) => {
       const mesh = obj as THREE.Mesh;
@@ -282,6 +304,7 @@ export class CharacterRig {
     for (let t = 0; t <= clip.duration + 1e-6; t += dt) {
       probe.setTime(t);
       this.root.updateMatrixWorld(true);
+      this.aimTwoHanded();
       tips.push(this.root.worldToLocal(tipOf()));
     }
     probe.stopAllAction();
@@ -327,14 +350,46 @@ export class CharacterRig {
     this.root.scale.setScalar(scale);
   }
 
-  /** Eases props with per-state holds (see `SocketAttachment.stateRotations`) toward the hold for `state`. */
+  /**
+   * Eases props with per-state holds (see `SocketAttachment.stateRotations`) toward the hold for `state`, then turns
+   * two-handed props through both fists of the pose just animated.
+   */
   public updateMounts(state: CharacterState, dt: number): void {
     const t = 1 - Math.exp(-12 * dt);
     for (const m of this.mounts) {
       const target = m.byState.get(state) ?? m.base;
-      if (m.object.quaternion.angleTo(target) < 1e-4) continue;
-      m.object.quaternion.slerp(target, t);
+      if (m.hold.angleTo(target) >= 1e-4) m.hold.slerp(target, t);
+      if (m.aim) continue;
+      m.object.quaternion.copy(m.hold);
       m.object.position.copy(m.grip).applyQuaternion(m.object.quaternion).negate();
+    }
+    if (this.mounts.some((m) => m.aim)) {
+      this.root.updateMatrixWorld(true);
+      this.aimTwoHanded();
+    }
+  }
+
+  /**
+   * Two-handed props: from their hold, the least turn that lays +Y along the line from the other fist through this
+   * one (socket-local), weighted down as the fists part. Needs the rig's world matrices current.
+   */
+  private aimTwoHanded(): void {
+    for (const m of this.mounts) {
+      if (!m.aim) continue;
+      const { socket, other } = m.aim;
+      // The other fist in this socket's space, in metres (sockets can carry the rig's scale).
+      const local = socket.worldToLocal(other.getWorldPosition(_a));
+      const scale = socket.getWorldScale(_b).x / (this.root.getWorldScale(_b).x || 1);
+      const apart = local.length() * scale;
+      const w = 1 - THREE.MathUtils.smoothstep(apart, TWO_HANDS_NEAR, TWO_HANDS_FAR);
+      m.object.quaternion.copy(m.hold);
+      if (w > 0 && apart > 0.02) {
+        const up = _b.set(0, 1, 0).applyQuaternion(m.hold);
+        _q.setFromUnitVectors(up, local.negate().normalize());
+        m.object.quaternion.premultiply(_q.slerp(new THREE.Quaternion(), 1 - w));
+      }
+      m.object.position.copy(m.grip).applyQuaternion(m.object.quaternion).negate();
+      m.object.updateMatrixWorld(true);
     }
   }
 

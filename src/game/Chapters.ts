@@ -6,6 +6,7 @@ import { AKHADA_STORY } from './stories/Akhada';
 import { ISLAND_STORY } from './stories/Island';
 import type { Expedition } from './Expedition';
 import { ISLAND_EXPEDITION } from './IslandExpedition';
+import { DWARKA_STORY } from './stories/Dwarka';
 
 /**
  * The campaign, in order. `level` is the LevelManager index of the arena it is fought in. Ids run on from 0 (the
@@ -108,6 +109,7 @@ export const CHAPTERS: Chapter[] = [
     line: 'The sea is taking the city back. Someone came to finish the work.',
     clearedLine: 'The tide comes in over a quiet city.',
     defeatLine: 'Dwarka sinks a little further.',
+    story: DWARKA_STORY,
   },
   {
     id: 5,

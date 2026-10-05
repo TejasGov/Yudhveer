@@ -812,9 +812,19 @@ export class Engine {
     return this.enemies.every((e) => e.stateMachine.currentState === 'DEAD');
   }
 
-  /** The final boss comes once the field is clear. */
+  /**
+   * The final boss comes once the field is clear, after any story beat that is due (a fallen boss's last words,
+   * Dwarka's Shalva) has had its scene.
+   */
   private updateFinale(): void {
-    if (this.finale && !this.finale.boss && this.fieldCleared()) void this.finaleArrives();
+    if (this.finale && !this.finale.boss && this.fieldCleared() && !this.beatDue()) void this.finaleArrives();
+  }
+
+  /** A story beat whose moment has come but has not played yet. */
+  private beatDue(): boolean {
+    if (!this.beats.length || !this.player) return false;
+    const stage = this.stage();
+    return this.beats.some((b) => !b.fired && triggered(b.beat.on, stage, { time: this.fightTime, learned: this.learnedNow }));
   }
 
   /** The final boss appears where the chapter puts him and gets his own cutscene; then the fight resumes. */

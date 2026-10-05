@@ -79,14 +79,22 @@ const LATHI_STATES: Partial<Record<CharacterState, StateAnimation>> = {
   ATTACK_3: { clip: 'one_hand_club_combo', startAt: 1.85, endAt: 2.65, timeScale: 1.1, timesState: true, fade: 0.1 },
 };
 
-// The mace's are Mixamo's "Mace Attack Combo" (strikes at 0.7, 1.6 and 2.5 s) for the first two blows, "Spin Mace
-// Attack" for the finisher, and the brute's "Standing Melee Run Jump Attack" for the slam out of a run.
+// The mace's are Mixamo's Great Sword Pack ("Mace-" in game asset/characters/animations), held two-handed: the haft
+// is aimed through both fists every frame (`twoHanded`). A wide two-handed sweep, an overhead smash driven down from
+// a crouch, the high spin attack (two blows, travelling ~2 m) as the finisher, and the jump attack for the slam out of
+// a run. Its own idle, walk, run, hit reactions and death keep both hands on the haft between blows.
 const MACE_STATES: Partial<Record<CharacterState, StateAnimation>> = {
-  IDLE: { clip: 'great_sword_strafe_in_place', fade: 0.3 }, // the braced hold Shalva's mace uses
-  ATTACK_1: { clip: 'mace_attack_combo', startAt: 0.35, endAt: 1.35, timeScale: 1.1, timesState: true, fade: 0.1 },
-  ATTACK_2: { clip: 'mace_attack_combo', startAt: 1.35, endAt: 2.25, timeScale: 1.1, timesState: true, fade: 0.1 },
-  ATTACK_3: { clip: 'spin_mace_attack', startAt: 0.05, endAt: 1.5, timeScale: 1.1, timesState: true, rootMotion: true, fade: 0.12 },
-  ATTACK_JUMP: { clip: 'standing_melee_run_jump_attack', startAt: 0.6, endAt: 2.5, timeScale: 1.2, timesState: true, rootMotion: true, fade: 0.12 },
+  IDLE: { clip: 'great_sword_idle', fade: 0.3 },
+  WALK: { clip: 'great_sword_walk', matchSpeed: true },
+  MOVE: { clip: 'great_sword_run_2', matchSpeed: true, fade: 0.22 },
+  SPRINT: { clip: 'great_sword_run_2', matchSpeed: true, fade: 0.25 },
+  ATTACK_1: { clip: 'great_sword_slash', startAt: 0.34, endAt: 1.05, timeScale: 1.05, timesState: true, fade: 0.1 },
+  ATTACK_2: { clip: 'great_sword_slash_3', startAt: 0.35, endAt: 1.3, timeScale: 1.15, timesState: true, fade: 0.1 },
+  ATTACK_3: { clip: 'great_sword_high_spin_attack', startAt: 0.2, endAt: 1.6, timeScale: 1.1, timesState: true, rootMotion: true, fade: 0.12 },
+  ATTACK_JUMP: { clip: 'great_sword_jump_attack', startAt: 0.25, endAt: 1.9, timeScale: 1.2, timesState: true, rootMotion: true, fade: 0.12 },
+  STAGGER: { clip: 'great_sword_impact_2', timeScale: 1.3, timesState: true, fade: 0.05 },
+  DEFLECTED: { clip: 'great_sword_impact', timeScale: 1.3, fade: 0.05 },
+  DEAD: { clip: 'two_handed_sword_death_2', fade: 0.1 },
 };
 
 /**
@@ -95,6 +103,7 @@ const MACE_STATES: Partial<Record<CharacterState, StateAnimation>> = {
  *
  * PLACEHOLDERS to replace with proper models and clips: the lathi (built in code), the basic sword (the Vetala's
  * notched blade), the mace (Shalva's gada, cut down to the hero's size) and the club-combo clips the lathi borrows.
+ * The mace's clips are its own (two-handed, the Great Sword Pack); only its model is borrowed.
  */
 export const WEAPON_SETS: Record<WeaponId, WeaponSet> = {
   lathi: {
@@ -141,10 +150,11 @@ export const WEAPON_SETS: Record<WeaponId, WeaponSet> = {
     definition: heroWith({
       offhand: false,
       states: MACE_STATES,
-      // Shalva's gada, cut down to the hero: a 0.8 m head on a haft held in the fist the build curled.
+      // Shalva's gada, cut down to the hero (1.05 m, gripped 0.23 m up the haft): the right fist under the head, the
+      // left ~0.2 m below it near the butt, the haft laid through both.
       weapon: {
         socket: 'Socket_Hand_R', socketFrame: true, restWorldRotation: [0, 0, 0], grip: [0, 0, 0],
-        model: '/assets/weapons/shalva_gada.glb', blade: [0.5, 1.2], scale: 0.7,
+        model: '/assets/weapons/shalva_gada.glb', blade: [0.5, 1.2], scale: 0.7, twoHanded: 'Socket_Hand_L',
       },
     }),
     // Slow and heavy: every blow costs a beat, and the third and the slam break through anything. The spinning

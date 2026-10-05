@@ -147,7 +147,8 @@ Suggested order: progression system and weapon sets first, then the prologue, th
 - **Placeholders:** the lathi is a staff built in code (`buildLathi`); the basic sword is the Vetala's notched blade;
   the mace is Shalva's gada at 0.7 scale. The lathi's swings are cut from Mixamo's One Hand Club Combo; the mace's
   from the Mace Attack Combo, Spin Mace Attack and the brute's run-jump attack. The mace is held in the right hand
-  only: both hands on the haft needs a clip authored for it.
+  only: both hands on the haft needs a clip authored for it. *(Since milestone 8 the mace has its own two-handed
+  clips from the Great Sword Pack, held in both hands: see "Milestone 8".)*
 - **Kit keys are not chapter numbers**, so the prologue and the island slot in as new kits (`KitId`) without
   renumbering anything. The island's kit is the mace again.
 - **Two-handed clips arrived** (2026-10-04): Mixamo's Great Sword Pack, 51 clips, in `game asset/characters/animations`
@@ -483,6 +484,70 @@ reading time.
 | `island_end_voice_2` | Voice in the shrine | Then it will not grow heavy in your hands. Go to Dwarka. The one who holds it fights with a mace, and has not met its equal. | ending, mace in hand | no |
 | (no id) | Yudhveer | He will meet it now. | ending | subtitle only |
 
+## Milestone 8: Chapter IV, Dwarka (landed)
+
+"Dwarka", chapter id 3 (its numeral follows the island's insertion in milestone 7). Code: `src/game/stories/Dwarka.ts`
+(`DWARKA_STORY`), the mace's move set in `src/entities/characters/YodhaWeapons.ts` (`MACE_STATES`), the two-handed
+hold in `src/entities/animation/CharacterRig.ts` (`SocketAttachment.twoHanded`).
+
+- **The mace's own move set** (kit `dwarka`, and the island's, which shares the `mace` weapon set): Mixamo's Great
+  Sword Pack, 11 of its clips added to `yodha.glb` (7.58 MB to 7.96 MB; command in `game asset/README.md`). Idle
+  `great_sword_idle`; walk `great_sword_walk`; run and sprint `great_sword_run_2` (authored at 3.7 m/s: 0.93x at the
+  run, 1.47x at the sprint); blows: a wide two-handed sweep (`great_sword_slash`, 0.34 to 1.05 s), an overhead smash
+  driven down from a crouch (`great_sword_slash_3`, 0.35 to 1.3 s), the high spin attack as the finisher (two blows,
+  travelling about 2 m), and the jump attack for the slam out of a run (about 3 m); hit reactions
+  `great_sword_impact_2` (stagger) and `great_sword_impact` (deflected); death `two_handed_sword_death_2`. The slide,
+  jump and posture break keep the hero's own clips. Hit windows are measured from the clips as before: sweep
+  0.15-0.37 s, smash 0.32-0.62 s, spin 0.18-0.27 and 0.76-0.89 s, slam 0.6-0.92 s (state seconds). Damage and posture
+  are unchanged (36/44, 46/54, spin 2 x 38/46, slam 80/90).
+- **Both hands on the haft:** the Great Sword clips keep the two fists about 0.2 m apart on one grip (the left below
+  the right) in every frame, but along a line that is not the right fist's own bar. So the mace stays in
+  `Socket_Hand_R` with no grip offset, and each frame (`CharacterRig.updateMounts`, and in `measureStrikes` so the hit
+  windows see it too) it turns about the grip by the least rotation that lays its haft along the line from the left
+  fist through the right. The left hand then lands on the haft 0.2 m below the right, where Shalva's gada (1.05 m at
+  0.7 scale, gripped 0.23 m up) still has haft. When the fists part (over 0.3 m, gone by 0.45 m: the slide, a fall)
+  the mace eases back to the right fist's own hold. Checked in Blender renders of the clips with and without the aim,
+  and in the game (the idle and the smash, close up).
+- **Flow:** the intro, then the **opening**: Shalva on the rosette knows the island's mace and the boy; "Where is my
+  guru?"; Shalva promises the answer if he is beaten, and roars. The fight. **Shalva falls**: a beat scene
+  (`{ fallen: 'shalva' }`) before anything else, in which the dying Shalva tells him the truth: Andhaka burns wise
+  souls before his god to grow great enough to stand against Shiva and take his seat on Kailasha; the guru, "the
+  wisest of them all", is kept for the last fire, on the summit. The guru's being Shiva stays hidden. The sea stirs,
+  the hero turns to it, and Takshaka's own arrival (as before) brings the serpent king up. The **ending**: Takshaka
+  dying; his hundred years serving Andhaka; the recorded prophecy; naga fire, and the khanda stands point down in the
+  stone between them; the hero crouches, takes it (the mace leaves his hands) and stands with it up in the
+  sword-and-dhal idle; "Rest, serpent king. I will carry it to the summit." The camera rises away.
+- **New in the engine (one change):** the final boss now waits for a story beat that is due (`Engine.beatDue`), so a
+  fallen boss's last words play before the next boss comes on.
+- **The sword in the scene** is `yodha_khanda.glb` loaded as a prop, stood in the level and then parented to the right
+  hand socket; an essential hook at the end of the ending (and at the start of the opening) takes it away and gives
+  the mace back, so a skipped scene or a replay of the chapter is left right. The next chapter's kit equips the khanda
+  properly.
+- **Left for later:** Shalva has no voice yet (none in `VOICES.md`), so only the prophecy is recorded; the flame burst
+  is the existing naga fire; the hero lays the mace down out of sight (it simply leaves his hands); the khanda is held
+  in the sword pack's idle without the dhal; the sprint is the mace's run played faster.
+
+### Chapter IV lines
+
+Takshaka's voice is Kundan (`game asset/voice/VOICES.md`). Shalva has no voice yet. Yudhveer is subtitles only.
+
+| Id | Speaker | Text | Trigger | Recorded |
+|---|---|---|---|---|
+| `dwarka_open_shalva_1` | Shalva | So the island gave up its mace. To a boy from a burned village. | opening, the hero walks in | no |
+| (no id) | Yudhveer | Where is my guru? | opening | subtitle only |
+| `dwarka_open_shalva_2` | Shalva | Far beyond your reach, and further every day. Beat me, and I will tell you why he was taken. Fail, and the sea can have you. | opening | no |
+| (no id) | Yudhveer | Then lift your gada. | opening, Shalva roars | subtitle only |
+| `dwarka_fall_shalva_1` | Shalva | Enough. You have earned your answer, boy. Much good may it do you. | Shalva falls | no |
+| `dwarka_fall_shalva_2` | Shalva | Andhaka gathers souls. Wise ones: sages, teachers, the ones a village listens to. He burns them before his god. | Shalva falls | no |
+| (no id) | Yudhveer | To what end? | Shalva falls | subtitle only |
+| `dwarka_fall_shalva_3` | Shalva | Every soul he burns makes him greater. When the fire is high enough, he will stand against Shiva himself, and take his seat on Kailasha. | Shalva falls | no |
+| (no id) | Yudhveer | And my guru? | Shalva falls | subtitle only |
+| `dwarka_fall_shalva_4` | Shalva | The wisest of them all, Andhaka says. He keeps him for the last fire, on the summit. | Shalva falls | no |
+| `dwarka_fall_shalva_5` | Shalva | But you will not live to climb it. The serpent king does not let his prey leave this shore. | Shalva falls, then Takshaka rises | no |
+| `dwarka_end_takshaka_1` | Takshaka | A hundred years I kept the sea for him. I have watched kings kneel to Andhaka, and gods look away. | ending | no |
+| `dwarka_end_takshaka_2` | Takshaka | You will not defeat him, boy... No. I was the fool. You were born to end his reign. Take my sword. | ending, then the sword | yes (`takshaka_prophecy`, levelled to -18 LUFS) |
+| (no id) | Yudhveer | Rest, serpent king. I will carry it to the summit. | ending, the khanda in his hand | subtitle only |
+
 ## Tools
 
 - **ElevenLabs:** voices, character sound effects, music.
@@ -531,7 +596,7 @@ Each milestone is one chat. Start it with: "Read docs/STORY.md, let's do milesto
   shield and parry training, the ending that points to Dwarka.
 - [x] **7. Chapter III, the island:** the new underground lamp-lit map (explorable), mini monster and archer
   placeholders, the blessed mace.
-- [ ] **8. Chapter IV, Dwarka:** the hero with the mace, Shalva mace against mace, the truth about Andhaka,
+- [x] **8. Chapter IV, Dwarka:** the hero with the mace, Shalva mace against mace, the truth about Andhaka,
   Takshaka's prophecy and the sword.
 - [ ] **9. Chapter V, the summit:** the second minion type, the guru-as-Shiva ending cinematic, credits.
 - [ ] **10. Voices and sound:** ElevenLabs voices for every line, real character sound effects, music per chapter.
