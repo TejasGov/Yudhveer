@@ -102,7 +102,7 @@ const MACE_STATES: Partial<Record<CharacterState, StateAnimation>> = {
  * kit allows. The dhal comes with the sword sets only: the lathi and the two-handed mace leave the left hand free.
  *
  * PLACEHOLDERS to replace with proper models and clips: the lathi (built in code), the basic sword (the Vetala's
- * notched blade), the mace (Shalva's gada, cut down to the hero's size) and the club-combo clips the lathi borrows.
+ * notched blade), the mace (the hero's own gada) and the club-combo clips the lathi borrows.
  * The mace's clips are its own (two-handed, the Great Sword Pack); only its model is borrowed.
  */
 export const WEAPON_SETS: Record<WeaponId, WeaponSet> = {
@@ -155,11 +155,11 @@ export const WEAPON_SETS: Record<WeaponId, WeaponSet> = {
     definition: heroWith({
       offhand: false,
       states: MACE_STATES,
-      // Shalva's gada, cut down to the hero (1.05 m, gripped 0.23 m up the haft): the right fist under the head, the
-      // left ~0.2 m below it near the butt, the haft laid through both.
+      // The hero's own gada (game asset/weapons/hero_mace.glb, 1.05 m, gripped 0.23 m up the haft), not Shalva's: the
+      // right fist under the head, the left ~0.2 m below it near the butt, the haft laid through both.
       weapon: {
         socket: 'Socket_Hand_R', socketFrame: true, restWorldRotation: [0, 0, 0], grip: [0, 0, 0],
-        model: '/assets/weapons/shalva_gada.glb', blade: [0.5, 1.2], scale: 0.7, twoHanded: 'Socket_Hand_L',
+        model: '/assets/weapons/hero_mace.glb', blade: [0.42, 0.82], scale: 1, twoHanded: 'Socket_Hand_L',
         // At ease, one-handed by the haft, its head resting by his foot.
         stateRotations: { REST: [0, 0, 1.25] },
       },
