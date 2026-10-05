@@ -163,7 +163,7 @@ Free: one cut (`summit_end_guru_4`), two trims of existing takes, 9 subtitle cha
 yes (per line or per tier): change the texts, trim, record the picked lines with the usual workflow, and update the
 STORY.md tables. The prologue lines wait for the prologue ending's restaging.
 
-## The island cave: new 3D assets (proposal, costs Meshy credits on a yes, nothing generated or downloaded)
+## The island cave: new 3D assets (DONE 2026-10-05: Sketchfab + Poly Haven, no Meshy)
 
 "The cave needs better 3d assets." The cave is 31k triangles, and its props are about 2k triangles of code
 primitives. **docs/proposals/CAVE_ASSETS.md** proposes 14 asset groups (a rock wall kit, stalagmites, skeletons,
@@ -180,3 +180,15 @@ Sketchfab candidates (38 models: 35 CC-BY, 2 CC0, 1 Sketchfab Standard, all down
 On a yes: check the Meshy balance, generate (reading each result in Blender before the next), the user downloads the
 Sketchfab picks, then decimate, retint and place them through `build_island.py` in place of the primitives, with
 colliders, lamps and marks unchanged.
+
+**Approved and done (2026-10-05).** The user: "don't use meshy for cave assets, get as many as you think are necessary
+from sketchfab, i've given you mcp access, cite them properly use poly haven for decent cave stone textures". No Meshy
+credits spent. 25 Sketchfab models downloaded (the user's signed-in session; no Sketchfab MCP was available), 23 used
+(22 CC BY 4.0, 1 CC0), plus 3 Poly Haven textures (CC0); every one credited in the credits roll, docs/ASSET_CREDITS.md
+and `game asset/README.md`. The level is 7.5 MB (was 1.2 MB). Nothing is blocked; no terms or consents were accepted.
+
+Left for a later pass (code-built still, nothing suitable or licensable found, or worth Meshy on a later yes): the
+boat's cane canopy and pole, the landing's lantern post, the dais and altar (code-built, now textured stone with a
+carved relief), the wall shelves, the dried flowers, the eyes. The torana is a Sanchi-style (Buddhist) gateway: the
+right form, but its carvings are Buddhist; a Hindu torana would need Meshy or a better find. The ending's two camera
+keys behind the altar moved 1 m forward so they stand in front of the new torana (`src/game/stories/Island.ts`).

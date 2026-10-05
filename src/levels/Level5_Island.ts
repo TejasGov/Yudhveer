@@ -37,7 +37,9 @@ export const ISLAND = {
 };
 
 const FLAME = /^Flame_/;
-const NO_SHADOW = /^(Flame_|Water_|Eyes_|Stalactites|Props|Cave)/;
+/** No shadows from the flames, water and eyes, the shell, the code-built props, the hanging stalactites, or the
+ *  dressing laid over the rock (`Prop_*`, the pool's rim, the reliefs): only the big pieces a lamp stands beside. */
+const NO_SHADOW = /^(Flame_|Water_|Eyes_|Stalactites|Props|Cave|Prop_|Pool_Rim|Shrine_Relief|Altar_Relief)/;
 /** Point lights the lamps share: the nearest this many lamps are lit (a constant count: no shader recompiles). */
 const LAMP_LIGHTS = 8;
 const LAMP_COLOR = new THREE.Color(1.0, 0.56, 0.24);

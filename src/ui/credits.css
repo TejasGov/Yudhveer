@@ -58,6 +58,13 @@
   color: var(--paper);
 }
 
+/* Third-party attributions: a long list, in a smaller type. */
+.credits-name.credits-small {
+  font-size: clamp(17px, 1.9vw, 21px);
+  line-height: 1.45;
+  color: var(--muted);
+}
+
 .credits-close {
   margin-top: 20vh;
   font-family: var(--serif);

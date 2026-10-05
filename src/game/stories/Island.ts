@@ -147,9 +147,10 @@ export const ISLAND_STORY: ChapterStory = {
           { at: 0.3, actor: 'hero', moveTo: ISLAND.beforeAltar, face: ISLAND.altar },
         ],
         lines: [{ speaker: 'Voice in the shrine', text: 'Lift it, if you do not lift it for yourself.', voice: 'island_end_voice_1' }],
+        // From behind the altar, in front of the torana (its pillars stand at z -77.9 to -78.3, x 0.4 to 0.8).
         camera: [
-          { pos: v(1.1, -0.75, -78.6), look: v(0, -0.65, -74.2), fov: 40 },
-          { pos: v(0.9, -0.8, -78.3), look: v(0, -0.6, -74.4), fov: 37 },
+          { pos: v(1.15, -0.72, -77.62), look: v(0, -0.65, -74.2), fov: 46 },
+          { pos: v(0.95, -0.78, -77.5), look: v(0, -0.6, -74.4), fov: 42 },
         ],
       },
       // Close on the mace in its lamplight.
@@ -238,8 +239,8 @@ export const ISLAND_STORY: ChapterStory = {
         ease: ease.drift,
         cues: [{ at: 0.3, actor: 'hero', moveTo: WAY_OUT }],
         camera: [
-          { pos: v(-1.2, -0.6, -77.8), look: v(0, -1.0, -68), fov: 44 },
-          { pos: v(-1.6, 1.4, -78.4), look: v(0.3, -1.5, -66), fov: 48 },
+          { pos: v(-1.2, -0.6, -77.55), look: v(0, -1.0, -68), fov: 46 },
+          { pos: v(-1.5, 1.2, -77.6), look: v(0.3, -1.5, -66), fov: 50 },
         ],
       },
     ],

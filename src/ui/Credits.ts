@@ -1,15 +1,44 @@
 import './credits.css';
 
 /** Seconds the roll takes from the foot of the screen to the last line gone off the top. */
-const ROLL_SECONDS = 48;
+const ROLL_SECONDS = 66;
 
-/** The credits, in order: a heading (small, saffron) over its names (the serif). */
-const CREDITS: [string, string[]][] = [
+/**
+ * The credits, in order: a heading (small, saffron) over its names (the serif), or over a long list in a smaller type
+ * (`small`: third-party attributions, docs/ASSET_CREDITS.md has them in full with links and the changes made).
+ */
+const CREDITS: [string, string[], 'small'?][] = [
   ['Created by', ['TejasGov']],
   ['Built with', ['Three.js', 'Rapier', 'Vite']],
   ['Characters', ['Meshy', 'Mixamo']],
   ['Voices, sound and music', ['ElevenLabs']],
   ['Places', ['Blender', 'Poly Haven']],
+  ['Additional 3D models (Sketchfab, CC BY 4.0; decimated and retextured)', [
+    '"Cave Rocks" by Splanyic',
+    '"Rockwall" by DJMaesen',
+    '"Stalagmites, Collums and Stalacites" by RBG_illustrations',
+    '"Stalagmite Formation 1" by Kallvin',
+    '"Stalagmite Formation 2" by Kallvin',
+    '"Pile of Skulls" by Abimael Gonzalez',
+    '"Bone Pile" by Kalciumm',
+    '"Buddhist Ceremonial Gateway (Torana)" by EqualizerX',
+    '"Low poly India Temple Wall" by Mega 3D',
+    '"Kutthu Vilakku" by nitheeshkumaarmv',
+    '"Brazier" by mSameja',
+    '"diwali diya" by sinuboy072',
+    '"Medieval Wall Torch" by Kigha',
+    '"Old Boat" by donnichols',
+    '"Coiled Rope 2" by TepidGames',
+    '"Flat rocks" by DJMaesen',
+    '"Rubble" by Pert Doherty',
+    '"Hindu Temple Bell" by Rushat Saiyush J Narayan',
+    '"Assorted Old Pots" by Kigha',
+    '"Indian Talwar Weapon (low poly)" by Sangam Senapati',
+    '"Indian dhal (shield), 19th century" by Pedram Ashoori',
+    '"Skeleton Sitting" by Buzzie',
+    '"Ganesha, 10th - 11th C CE", Minneapolis Institute of Art (CC0)',
+  ], 'small'],
+  ['Textures: Poly Haven (CC0)', ['Cliff Side, Rocks Ground 02, Rock Boulder Dry'], 'small'],
 ];
 
 /**
@@ -39,10 +68,11 @@ export class Credits {
       return el;
     };
     this.roll.append(block('credits-native', 'युद्धवीर', 'hi'), block('credits-title', 'Yudhveer'));
-    for (const [heading, names] of CREDITS) {
+    for (const [heading, names, size] of CREDITS) {
       const group = document.createElement('div');
       group.className = 'credits-group';
-      group.append(block('credits-heading', heading), ...names.map((n) => block('credits-name', n)));
+      const cls = size === 'small' ? 'credits-name credits-small' : 'credits-name';
+      group.append(block('credits-heading', heading), ...names.map((n) => block(cls, n)));
       this.roll.append(group);
     }
     this.roll.append(block('credits-close', 'Thank you for playing.'), block('credits-mark', 'हर हर महादेव', 'hi'));

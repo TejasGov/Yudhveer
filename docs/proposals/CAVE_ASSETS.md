@@ -1,4 +1,4 @@
-# The island cave: better 3D assets (proposal, nothing generated or downloaded)
+# The island cave: better 3D assets (proposal; DONE 2026-10-05 with Sketchfab + Poly Haven, see the end)
 
 The user: "the cave needs better 3d assets, can use meshy/sketchfab for proposals - keep em ready for me to approve".
 
@@ -360,3 +360,15 @@ NonCommercial or NoDerivatives licenses: those were filtered out.
    meshopt). `Level5_Island.ts` needs no change beyond, at most, a `NO_SHADOW` pattern for the new prop names.
 5. Check in the game: the hall fight's draw calls (about 95 now), the frame time, the ending's close-ups on the altar
    and torana, and the opening's boat.
+
+## Done (2026-10-05)
+
+The user chose Sketchfab and Poly Haven, no Meshy. Used: C1 Cave Rocks (split into 3 wall slabs, a boulder and a
+slab) and Rockwall; C2 the Stalagmites/Columns/Stalactites set, Stalagmite Formation 1 and 2; C3 Pile of Skulls, Bone
+Pile, and "Skeleton Sitting" (Buzzie) in place of the Free Pack skeleton; C4 an Indian talwar (Sangam Senapati) and a
+19th-century dhal (Pedram Ashoori), found in place of the European candidates; C5 the Sanchi torana and the temple wall
+relief; C7 Kutthu Vilakku; C8 Brazier (mSameja); C9 diwali diya; C10 Medieval Wall Torch; C11 the Mia Ganesha (CC0);
+C12 Old Boat and Coiled Rope 2; C13 Flat rocks and Rubble; C14 Hindu Temple Bell and Assorted Old Pots. Not used:
+Cliff, Fullpillar, 70 stylized rocks, the puja thali, the hanging lamp, the broken pillar. Textures from Poly Haven:
+Cliff Side (walls), Rocks Ground 02 (floor), Rock Boulder Dry (the shrine's stone). Credits: docs/ASSET_CREDITS.md.
+Result: 184k triangles in the level, 7.5 MB; the hall fight 103 draw calls (was 80), about 0.4 ms more per frame.

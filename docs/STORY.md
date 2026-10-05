@@ -544,7 +544,8 @@ its lamps, eyes, pool and the mace on the altar), `src/game/stories/Island.ts` (
 `src/game/Expedition.ts` (explorable chapters), `src/game/IslandExpedition.ts` (its encounters),
 `src/entities/IslandMonsters.ts` and `src/entities/characters/IslandMonsters.ts` (the placeholder creatures), an
 `ARROW` projectile (`ProjectileManager.spawnArrow`) and an `island` ambience in `SoundFX`. The map is built by
-`game asset/levels/03_island/build_island.py` (command in `game asset/README.md`), 1.2 MB.
+`game asset/levels/03_island/build_island.py` (command in `game asset/README.md`), 1.2 MB; dressed on 2026-10-05
+with 23 Sketchfab models and 3 Poly Haven textures (7.5 MB; credits in docs/ASSET_CREDITS.md).
 
 - **Chapter numbers:** the island is inserted as id 3; Dwarka is now id 4 (Chapter IV) and the summit id 5 (Chapter V).
   Level indices (`Chapter.level`, Engine's per-level tables) are unchanged; the island's is 5. Dev: Shift+3 or
