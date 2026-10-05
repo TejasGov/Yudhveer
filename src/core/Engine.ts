@@ -650,12 +650,18 @@ export class Engine {
   /**
    * Out of the fight (cutscenes, the chapter's start, once it is won or lost) everyone stands at ease: a calm standing
    * idle (`states.REST`), not a guard, and never a walk on the spot (Character.atEase). The story's cast never fights.
-   * Applied as the mode changes (before a cutscene's first cue) and every step (fighters spawned meanwhile).
+   * Applied as the mode changes (before a cutscene's first cue) and every step (fighters spawned meanwhile). A fighter
+   * `onGuard` keeps its stance until the fight starts.
    */
   private applyEase(): void {
     const atEase = this.mode !== 'play' && this.mode !== 'handoff';
-    if (this.player) this.player.atEase = atEase;
-    for (const enemy of this.enemies) enemy.atEase = atEase;
+    // On guard (Character.onGuard) only until the fight it squared up for has started.
+    const ease = (c: Character) => {
+      if (!atEase) c.onGuard = false;
+      c.atEase = atEase && !c.onGuard;
+    };
+    if (this.player) ease(this.player);
+    for (const enemy of this.enemies) ease(enemy);
     for (const extra of this.cast) extra.atEase = true;
   }
 
@@ -948,9 +954,10 @@ export class Engine {
       const extra = new Extra(m.id);
       if (m.silhouette) extra.silhouetteColor = m.silhouette.color;
       if (m.ghost) extra.ghost = m.ghost;
+      if (m.shade) extra.shade = m.shade;
       extra.setPosition(m.at.x, m.at.y, m.at.z);
       if (m.face) extra.group.rotation.y = Math.atan2(m.face.x - m.at.x, m.face.z - m.at.z);
-      extra.group.visible = !m.hidden;
+      extra.appear(!m.hidden, 0);
       this.sceneManager.scene.add(extra.group);
       this.cast.push(extra);
       return extra.attachRig(m.rig).catch((err) => console.error(`[Engine] ${m.id} rig failed to load; keeping the greybox`, err));

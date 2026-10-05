@@ -159,6 +159,7 @@ export class BossAndhaka extends Boss {
     const def = this.rig?.definition;
     if (def?.offhand) this.rig!.attach(this.shieldMesh, def.offhand);
     if (def?.weapon) this.rig!.attach(this.swordMesh, def.weapon);
+    this.onGuard = true; // his stance, not the calm idle, until the fight starts (the over-the-shoulder shot)
     this.stateMachine.changeState('IDLE'); // re-enters IDLE: his stance takes over from the clip
   }
 
@@ -199,6 +200,8 @@ export class BossAndhaka extends Boss {
       }
       if (!e.roared && e.marks.roar !== undefined && t >= e.marks.roar) {
         e.roared = true;
+        // From the roar he stays in his fighting stance (not the calm idle at ease) until the fight starts.
+        this.onGuard = true;
         this.onRoar();
       }
       if (t >= e.duration - 1 / 30) this.finishEntrance();

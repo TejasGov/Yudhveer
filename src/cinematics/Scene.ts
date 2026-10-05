@@ -6,6 +6,8 @@ import type { CharacterDefinition } from '../entities/animation/CharacterRig';
 import type { CharacterState } from '../entities/CharacterStateMachine';
 import type { Player } from '../entities/Player';
 import { Enemy } from '../entities/Enemy';
+import { Extra } from '../entities/Extra';
+import { haunt } from './Shade';
 import type { Chapter } from '../game/Chapters';
 import type { Ability } from '../game/Progression';
 import type { GameLevel } from '../levels/LevelTypes';
@@ -41,6 +43,12 @@ export type SceneCue = { at: number } & (
   | { actor: ActorRef; face: ActorRef | Mark }
   /** Shows or hides a character (one of the cast arriving; raiders gone when the picture comes back). */
   | { actor: ActorRef; show: boolean }
+  /**
+   * A shade (`CastMember.shade`) rises out of the ground and fades in, or sinks and fades away, over `over` seconds
+   * (default 1.6); cold motes drift up off it while it is there. Anyone else is shown or hidden, as `show`. A scene
+   * that ends before it (skipped, settled) leaves the shade there or gone at once.
+   */
+  | { actor: ActorRef; appear: boolean; over?: number }
   /**
    * Runs code. `essential`: it changes the game, not just the picture (teaches a move, opens a gate), so it still
    * runs if the scene is skipped before it.
@@ -120,6 +128,13 @@ export interface CastMember {
    * Chapter I). `opacity` defaults to 0.3.
    */
   ghost?: { color: THREE.ColorRepresentation; opacity?: number };
+  /**
+   * The spirit of someone who has fallen, risen to speak over the body (Shalva, Takshaka, the Baoli Guardian): drawn
+   * as a ghost, washed in `color` with a stronger glow and rim (`opacity` defaults to 0.6), hovering a hand's breadth
+   * off the ground, breathing and flickering faintly. Brought on and off with `appear` cues, which fade it. Its rig is
+   * usually the fallen fighter's without weapons (`shadeOf` in game/Story.ts).
+   */
+  shade?: { color: THREE.ColorRepresentation; opacity?: number };
 }
 
 /** What a chapter tells, and when. */
@@ -203,6 +218,9 @@ export class Stage {
     return typeof target === 'function' ? target(this) : target.clone();
   }
 }
+
+/** Seconds a shade takes to rise and fade in (or sink and fade away) by default. */
+const SHADE_FADE = 1.6;
 
 /** Turning speed for characters turning on cue, rad/s. */
 const TURN_RATE = 6;
@@ -430,7 +448,13 @@ export class SceneRun {
     } else if ('place' in cue) {
       this.staging.place(actor, s.point(cue.place), cue.face !== undefined ? s.point(cue.face) : null);
     } else if ('show' in cue) {
-      actor.group.visible = cue.show;
+      if (actor instanceof Extra) actor.appear(cue.show, 0);
+      else actor.group.visible = cue.show;
+    } else if ('appear' in cue) {
+      if (actor instanceof Extra) {
+        actor.appear(cue.appear, settling ? 0 : cue.over ?? SHADE_FADE);
+        if (cue.appear && !settling && actor.shade) haunt(s.level.group, actor);
+      } else actor.group.visible = cue.appear;
     } else {
       this.staging.face(actor, s.point(cue.face));
     }

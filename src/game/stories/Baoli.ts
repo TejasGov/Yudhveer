@@ -3,7 +3,8 @@ import { ease, type CameraKey } from '../../cinematics/CinematicDirector';
 import type { ChapterStory, Stage } from '../../cinematics/Scene';
 import { Enemy } from '../../entities/Enemy';
 import { GURU } from '../../entities/characters/Village';
-import { twoShot } from '../Story';
+import { BAOLI_GUARDIAN } from '../../entities/characters/BaoliGuardian';
+import { shade, shadeOf, shadeRises, shadeShots, twoShot } from '../Story';
 
 /*
  * Chapter I, the moonlit baoli (STORY.md, "Chapter I" and "Milestone 5"). The raiders took the guru down through the
@@ -23,6 +24,10 @@ const BAOLI_CENTRE = v(0, 0, 0);
 const BAOLI_ENTRY = v(1.5, 0, 12.5);
 const BAOLI_STAND = v(0, 0, 4.5);
 
+/** The Guardian (its enemy id), and the framings for its shade (Story.ts `shadeShots`), on the island's open side. */
+const GUARDIAN = 'baoli_guardian';
+const shadeOn = (s: Stage) => shadeShots(s, shade(GUARDIAN), twoShot(s, 'hero', shade(GUARDIAN), BAOLI_CENTRE).side);
+
 /** Whether the Guardian is in one of these states now. */
 const bossIn = (s: Stage, ...states: string[]) => states.includes(s.actor('boss')?.stateMachine.currentState ?? '');
 
@@ -30,6 +35,8 @@ export const BAOLI_STORY: ChapterStory = {
   cast: [
     // The guru as the boy remembers him: pale, see-through, there for one line and gone.
     { id: 'guru', rig: GURU, at: BAOLI_STAND, hidden: true, ghost: { color: 0x9cbcf0 } },
+    // The Guardian freed: its shade, risen over its body for its last words (Story.ts, "The dead speak").
+    shadeOf(GUARDIAN, BAOLI_GUARDIAN),
   ],
 
   // On the raiders' trail into the stepwell; the bound Guardian rises to block the way down. For a breath the boy
@@ -162,61 +169,51 @@ export const BAOLI_STORY: ChapterStory = {
   ],
 
   // Beaten, the Guardian is itself again: Andhaka bound it; a lathi will not take the boy further; the vanaras of
-  // the Hanuman akhada must teach him first.
+  // the Hanuman akhada must teach him first. It speaks as its shade, freed of the body, and fades as he answers.
   ending: {
     id: 'baoli-ending',
     shots: [
-      // From black: wide on the two of them, the boy walking up to where it lies.
+      // From black: wide on the two of them, the boy walking up to where it lies; its shade rises out of it.
       {
         duration: 3.8,
         fadeIn: 0.9,
         ease: ease.drift,
         cues: [
           { at: 0, actor: 'hero', place: (s) => s.toward('boss', 'hero', Math.min(5.5, s.pos('boss').distanceTo(s.pos('hero')))), face: 'boss' },
-          { at: 0.5, actor: 'hero', moveTo: (s) => s.toward('boss', 'hero', 2.8), face: 'boss' },
+          ...shadeRises(GUARDIAN, 1.4),
+          { at: 0.5, actor: 'hero', moveTo: (s) => s.toward('boss', 'hero', 2.8), face: shade(GUARDIAN) },
         ],
+        // (On the boy and the shade's mark, so all of it rises in the frame.)
         camera: (s): CameraKey[] => {
-          const { side, mid, dir } = twoShot(s, 'hero', 'boss', BAOLI_CENTRE);
+          const { side, mid, dir } = twoShot(s, 'hero', shade(GUARDIAN), BAOLI_CENTRE);
+          const look = mid.clone().addScaledVector(dir, 0.6).add(v(0, 1.1, 0));
           return [
-            { pos: mid.clone().addScaledVector(side, 7.5).add(v(0, 2.6, 0)).addScaledVector(dir, -1), look: mid.clone().add(v(0, 0.7, 0)), fov: 40 },
-            { pos: mid.clone().addScaledVector(side, 6.4).add(v(0, 2.1, 0)), look: mid.clone().add(v(0, 0.7, 0)), fov: 38 },
+            { pos: mid.clone().addScaledVector(side, 8).add(v(0, 2.6, 0)).addScaledVector(dir, -0.4), look, fov: 40 },
+            { pos: mid.clone().addScaledVector(side, 7).add(v(0, 2.2, 0)).addScaledVector(dir, 0.2), look, fov: 38 },
           ];
         },
       },
-      // Low by its head: the darkness gone out of it.
+      // Close on its shade, level with its face: the darkness gone out of it.
       {
         fadeIn: 0.15,
         ease: ease.drift,
         sway: 0.012,
+        cues: [{ at: 0, actor: shade(GUARDIAN), face: 'hero' }],
         lines: [
           { speaker: 'Baoli Guardian', text: 'The dark... it has let go of me.', voice: 'baoli_end_guardian_1' },
           { speaker: 'Baoli Guardian', text: 'Andhaka bound me to this well, to turn back any who followed his men below.', voice: 'baoli_end_guardian_2' },
         ],
-        camera: (s): CameraKey[] => {
-          const { dir, side } = twoShot(s, 'hero', 'boss', BAOLI_CENTRE);
-          const head = s.head('boss');
-          return [
-            { pos: head.clone().addScaledVector(side, 2.4).addScaledVector(dir, -0.6).add(v(0, 0.7, 0)), look: head, fov: 36 },
-            { pos: head.clone().addScaledVector(side, 2.0).addScaledVector(dir, -0.5).add(v(0, 0.6, 0)), look: head, fov: 34 },
-          ];
-        },
+        camera: (s) => shadeOn(s).close(),
       },
-      // Low beside it, up at the boy.
+      // Over its shade's shoulder, down at the boy.
       {
         fadeIn: 0.12,
         ease: ease.out,
         sway: 0.015,
         lines: [{ speaker: 'Yudhveer', text: 'They took my guru that way. I am going after him.' }],
-        camera: (s): CameraKey[] => {
-          const { pa, dir, side } = twoShot(s, 'hero', 'boss', BAOLI_CENTRE);
-          const look = s.head('hero');
-          return [
-            { pos: pa.clone().addScaledVector(dir, 1.6).addScaledVector(side, 1.2).add(v(0, 0.7, 0)), look, fov: 38 },
-            { pos: pa.clone().addScaledVector(dir, 1.4).addScaledVector(side, 1.05).add(v(0, 0.75, 0)), look, fov: 36 },
-          ];
-        },
+        camera: (s) => shadeOn(s).overShade(),
       },
-      // High over his shoulder, down at it, for the last of it.
+      // Over his shoulder, up at its shade, for the last of it.
       {
         fadeIn: 0.12,
         ease: ease.drift,
@@ -225,28 +222,16 @@ export const BAOLI_STORY: ChapterStory = {
           { speaker: 'Baoli Guardian', text: 'Not with a lathi. It has carried you this far. It will not carry you further.', voice: 'baoli_end_guardian_3' },
           { speaker: 'Baoli Guardian', text: 'Go to the Hanuman akhada. Let the vanaras teach you to truly fight. Then follow.', voice: 'baoli_end_guardian_4' },
         ],
-        camera: (s): CameraKey[] => {
-          const { pa, dir, side } = twoShot(s, 'hero', 'boss', BAOLI_CENTRE);
-          const look = s.head('boss').lerp(s.pos('boss').add(v(0, 0.3, 0)), 0.4);
-          return [
-            { pos: pa.clone().addScaledVector(dir, -1.5).addScaledVector(side, 1.3).add(v(0, 2.5, 0)), look, fov: 38 },
-            { pos: pa.clone().addScaledVector(dir, -1.2).addScaledVector(side, 1.2).add(v(0, 2.35, 0)), look, fov: 35 },
-          ];
-        },
+        camera: (s) => shadeOn(s).overHero(),
       },
-      // His answer, close.
+      // His answer, side on to the two of them: its word given, the shade sinks back into the stone and is gone.
       {
         fadeIn: 0.12,
         ease: ease.drift,
         sway: 0.01,
+        cues: [{ at: 1.0, actor: shade(GUARDIAN), appear: false, over: 2.2 }],
         lines: [{ speaker: 'Yudhveer', text: 'Then I will learn. And then I will follow.' }],
-        camera: (s): CameraKey[] => {
-          const look = s.head('hero');
-          return [
-            { pos: s.at('hero', 1.9, -0.9, 1.5), look, fov: 36 },
-            { pos: s.at('hero', 1.65, -0.8, 1.52), look, fov: 33 },
-          ];
-        },
+        camera: (s) => shadeOn(s).side(),
       },
       // He turns back the way he came and walks; the camera stays and rises, and the picture fades.
       {

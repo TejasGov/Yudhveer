@@ -312,7 +312,8 @@ the hint for a move just learned). The map and the Guardian's fight are unchange
   with its textures kept and a glowing rim, writing depth so the body does not show through itself, casting no shadow.
   The guru is cast as one, hidden until the opening's memory shot.
 - **Decided here:** the Guardian stays the Guardian (its name card and epithet are unchanged); it speaks lying where it
-  fell (no dissolve or rising). The chapter's card lines are unchanged.
+  fell (no dissolve or rising). The chapter's card lines are unchanged. *(Since 2026-10-05 it speaks as its shade,
+  risen over the body: see "How the dead speak".)*
 - **Left for later:** the guru's and the Guardian's lines are unrecorded (Yudhveer's are subtitles only, no voice); the Guardian has no "bound" look in the fight (darkness on it, freed
   light at the end); the ending is framed off the boss's head bone wherever it fell, so an odd fall (in the pool, on the
   steps) can frame less well; the guru's voice in the fight has no ghostly treatment beyond the in-fight italics.
@@ -768,6 +769,41 @@ The mechanism (`Character.atEase`, `CharacterState` `REST`):
   the guard after the sword is drawn from the stone stays (a story beat).
 - **Left as is:** the guru's (and the cast vanara's) pole walk is authored at 0.24 m/s and plays at its 2.4x ceiling
   at 1.1 m/s, a quick shuffle; it travels, so it is not on the spot.
+- **On guard** (`Character.onGuard`): a fighter who has squared up for a fight that is about to start keeps his stance
+  out of the fight instead of standing at ease; the Engine clears it as the fight starts. Andhaka sets it at his
+  entrance's roar (and when it finishes), so the last over-the-shoulder shot shows him in his stance, not dropping
+  into `standing_idle_with_axe`. Nobody else uses it.
+
+## How the dead speak (2026-10-05)
+
+The user: when a dead character speaks, show "a blue shadow of them" or frame away from the body, so a corpse is not
+seen talking. Every moment a fallen character speaks, and what it does now:
+
+| Moment | Who | Treatment |
+|---|---|---|
+| Chapter I ending (`baoli-ending`) | the Baoli Guardian, freed | its shade |
+| Chapter IV, Shalva falls (`dwarka-shalva-falls`) | Shalva | his shade |
+| Chapter IV ending (`dwarka-ending`) | Takshaka, dying | his shade |
+
+No one else who speaks is dead: the guru in the prologue is alive when he speaks (and taken, not killed); the guru
+slumped on the summit is alive; Andhaka, the Vetala, the Mayavi and the minions say nothing once they fall.
+
+- **The shade** (`CastMember.shade`, `shadeOf` in `src/game/Story.ts`): the fallen fighter's own model without its
+  weapons, a cast member drawn as a ghost (Extra's `ghostly`): cold blue (`SHADE_BLUE`), 0.6 opacity, lit from within
+  by its own texture (its face and armour read in any light), a soft rim, hovering a hand's breadth up with a slow
+  breath and a faint flicker, cold motes drifting up off it (`src/cinematics/Shade.ts`). It stands over the body
+  (`shadeMark`: between where its feet and head lie, never nearer the hero than half a metre past its feet), turned to
+  the hero.
+- **Coming and going:** an `appear` cue (`{ actor, appear: true | false, over }`): it rises out of the ground through the
+  body as it fades in (`shadeRises`, during the wide shot of the hero walking up, before any line), and sinks and
+  fades away when its words are done: Shalva's as the sea stirs, Takshaka's as the camera rises away at the end, the
+  Guardian's as the boy answers it. Skipped or settled, a scene leaves the shade gone at once.
+- **Framing** (`shadeShots`): over the hero's shoulder up at the shade's face; close on its face, three-quarters on,
+  level with it; over the shade's shoulder down at the hero; side on to the two of them. Each keeps the ground where
+  the body lies below the frame; the body is seen only in the wide shots, lying still, before and after.
+- Lines, voices, timings and beats are unchanged; the hero now faces the shade rather than the body.
+- **Left for later:** the shade's model is the fighter's own (a dedicated spirit look, or a rising clip, could come
+  later); against a bright sky (Dwarka) the shade reads paler than in the baoli's dark.
 
 ## The victory sound, and blood (2026-10-05)
 

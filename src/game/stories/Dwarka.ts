@@ -6,6 +6,9 @@ import { ParticleFX } from '../../combat/ParticleFX';
 import { SoundFX } from '../../combat/SoundFX';
 import { DWARKA_FLOOR_Y } from '../../levels/Level3_Dwarka';
 import { YODHA } from '../../entities/characters/Yodha';
+import { SHALVA } from '../../entities/characters/Shalva';
+import { TAKSHAKA } from '../../entities/characters/Takshaka';
+import { shade, shadeOf, shadeRises, shadeShots } from '../Story';
 
 /*
  * Chapter IV, Dwarka (docs/STORY.md, "Milestone 8"). The hero comes with the island's mace; Shalva taunts him at
@@ -13,10 +16,16 @@ import { YODHA } from '../../entities/characters/Yodha';
  * sea, and dying, sees what the boy is and gives him his sword: the magical khanda the summit is fought with.
  *
  * The sun is low over the sea to the south (+z): faces turned that way are lit, so the cameras stand on that side.
+ *
+ * Both fallen speak as shades (Story.ts, "The dead speak"): a blue spirit rises out of the body and stands over it,
+ * and the cameras frame it and the hero, the body below the frame.
  */
 
 const v = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
 const Y = DWARKA_FLOOR_Y;
+
+/** The shades' framings (Story.ts `shadeShots`), on the sunward side of the line from the hero to the shade. */
+const shadeOn = (s: Stage, fallen: string) => shadeShots(s, shade(fallen), pair(s, 'hero', shade(fallen)).side);
 
 /** Two people facing each other: the line from `a` to `b`, the sunward side of it, the point between them. */
 function pair(s: Stage, a: string, b: string) {
@@ -117,6 +126,9 @@ function settleSword(s: Stage): void {
 // ------------------------------------------------------------------------------------------------- the story
 
 export const DWARKA_STORY: ChapterStory = {
+  // Their shades, for their last words.
+  cast: [shadeOf('shalva', SHALVA), shadeOf('takshaka', TAKSHAKA)],
+
   // Shalva waits on the rosette. He knows the mace, and he knows the boy.
   opening: {
     id: 'dwarka-opening',
@@ -203,14 +215,17 @@ export const DWARKA_STORY: ChapterStory = {
       scene: {
         id: 'dwarka-shalva-falls',
         shots: [
-          // Wide: Shalva down on the stones, the hero walking up to him.
+          // Wide: Shalva down on the stones, the hero walking up to him; his shade rises out of him.
           {
             duration: 3.4,
             fadeIn: 0.5,
             ease: ease.drift,
-            cues: [{ at: 0.6, actor: 'hero', moveTo: (s) => s.toward('shalva', 'hero', 1.9), face: 'shalva' }],
+            cues: [
+              ...shadeRises('shalva', 1.2),
+              { at: 0.6, actor: 'hero', moveTo: (s) => s.toward('shalva', 'hero', 1.9), face: shade('shalva') },
+            ],
             camera: (s): CameraKey[] => {
-              const { pb, mid, side } = pair(s, 'hero', 'shalva');
+              const { pb, mid, side } = pair(s, 'hero', shade('shalva'));
               const look = mid.lerp(pb, 0.45).add(v(0, 0.6, 0));
               return [
                 { pos: look.clone().addScaledVector(side, 7).add(v(0, 2.8, 0)), look, fov: 42 },
@@ -218,11 +233,12 @@ export const DWARKA_STORY: ChapterStory = {
               ];
             },
           },
-          // Down on Shalva, from over the hero's shoulder.
+          // Up at his shade, from over the hero's shoulder.
           {
             fadeIn: 0.12,
             ease: ease.drift,
             sway: 0.012,
+            cues: [{ at: 0, actor: shade('shalva'), face: 'hero' }],
             lines: [
               { speaker: 'Shalva', text: 'Enough. You have earned your answer, boy. Much good may it do you.', voice: 'dwarka_fall_shalva_1' },
               {
@@ -231,31 +247,17 @@ export const DWARKA_STORY: ChapterStory = {
                 voice: 'dwarka_fall_shalva_2',
               },
             ],
-            camera: (s): CameraKey[] => {
-              const { pa, dir, side } = pair(s, 'hero', 'shalva');
-              const look = s.head('shalva');
-              return [
-                { pos: pa.clone().addScaledVector(dir, -1.2).addScaledVector(side, 1.1).add(v(0, 2.3, 0)), look, fov: 38 },
-                { pos: pa.clone().addScaledVector(dir, -1.0).addScaledVector(side, 1.0).add(v(0, 2.2, 0)), look, fov: 35 },
-              ];
-            },
+            camera: (s) => shadeOn(s, 'shalva').overHero(),
           },
-          // Low by Shalva, up at the hero.
+          // Over the shade's shoulder, down at the hero.
           {
             fadeIn: 0.12,
             ease: ease.out,
             sway: 0.012,
             lines: [{ speaker: 'Yudhveer', text: 'To what end?' }],
-            camera: (s): CameraKey[] => {
-              const { pb, dir, side } = pair(s, 'hero', 'shalva');
-              const look = s.head('hero');
-              return [
-                { pos: pb.clone().addScaledVector(dir, -0.5).addScaledVector(side, 1.3).add(v(0, 0.7, 0)), look, fov: 38 },
-                { pos: pb.clone().addScaledVector(dir, -0.6).addScaledVector(side, 1.15).add(v(0, 0.75, 0)), look, fov: 36 },
-              ];
-            },
+            camera: (s) => shadeOn(s, 'shalva').overShade(),
           },
-          // Close on Shalva for the rest of it.
+          // Close on the shade for the rest of it.
           {
             fadeIn: 0.12,
             ease: ease.drift,
@@ -265,29 +267,14 @@ export const DWARKA_STORY: ChapterStory = {
               text: 'Every soul he burns makes him greater. When the fire is high enough, he will stand against Shiva himself, and take his seat on Kailasha.',
               voice: 'dwarka_fall_shalva_3',
             }],
-            camera: (s): CameraKey[] => {
-              const { pb, dir, side } = pair(s, 'hero', 'shalva');
-              const head = s.head('shalva');
-              const look = head.clone().lerp(pb.clone().add(v(0, 0.3, 0)), 0.25);
-              return [
-                { pos: head.clone().addScaledVector(side, 3.2).addScaledVector(dir, -0.8).add(v(0, 1.5, 0)), look, fov: 34 },
-                { pos: head.clone().addScaledVector(side, 2.9).addScaledVector(dir, -0.7).add(v(0, 1.35, 0)), look, fov: 32 },
-              ];
-            },
+            camera: (s) => shadeOn(s, 'shalva').close(),
           },
           {
             fadeIn: 0.12,
             ease: ease.out,
             sway: 0.012,
             lines: [{ speaker: 'Yudhveer', text: 'And my guru?' }],
-            camera: (s): CameraKey[] => {
-              const { pb, dir, side } = pair(s, 'hero', 'shalva');
-              const look = s.head('hero');
-              return [
-                { pos: pb.clone().addScaledVector(dir, -0.6).addScaledVector(side, 1.2).add(v(0, 0.8, 0)), look, fov: 34 },
-                { pos: pb.clone().addScaledVector(dir, -0.7).addScaledVector(side, 1.1).add(v(0, 0.85, 0)), look, fov: 32 },
-              ];
-            },
+            camera: (s) => shadeOn(s, 'shalva').overShade(),
           },
           {
             fadeIn: 0.12,
@@ -301,23 +288,17 @@ export const DWARKA_STORY: ChapterStory = {
               },
               { speaker: 'Shalva', text: 'But you will not live to climb it. The serpent king does not let his prey leave this shore.', voice: 'dwarka_fall_shalva_5' },
             ],
-            camera: (s): CameraKey[] => {
-              const { pb, dir, side } = pair(s, 'hero', 'shalva');
-              const head = s.head('shalva');
-              const look = head.clone().lerp(pb.clone().add(v(0, 0.3, 0)), 0.25);
-              return [
-                { pos: head.clone().addScaledVector(side, 2.9).addScaledVector(dir, -0.7).add(v(0, 1.35, 0)), look, fov: 32 },
-                { pos: head.clone().addScaledVector(side, 2.6).addScaledVector(dir, -0.6).add(v(0, 1.2, 0)), look, fov: 30 },
-              ];
-            },
+            camera: (s) => shadeOn(s, 'shalva').close(0.4),
           },
-          // The sea stirs behind him: a hiss from the water, and the hero turns to it. (Takshaka's own arrival follows.)
+          // The sea stirs behind him: a hiss from the water, and the hero turns to it; Shalva's shade sinks back into
+          // the stones and is gone. (Takshaka's own arrival follows.)
           {
             duration: 2.6,
             fadeIn: 0.15,
             ease: ease.out,
             sway: 0.02,
             cues: [
+              { at: 0, actor: shade('shalva'), appear: false, over: 1.4 },
               { at: 0.2, run: () => SoundFX.getInstance().playRoar(0.7, 'naga') },
               { at: 0.5, actor: 'hero', face: (s) => s.pos('hero').multiplyScalar(-1).setY(Y) },
             ],
@@ -341,7 +322,7 @@ export const DWARKA_STORY: ChapterStory = {
   ending: {
     id: 'dwarka-ending',
     shots: [
-      // Wide: the serpent king down at the arena's edge, the hero walking up to him.
+      // Wide: the serpent king down at the arena's edge, the hero walking up to him; his shade rises out of him.
       {
         duration: 3.6,
         fadeIn: 0.9,
@@ -349,36 +330,31 @@ export const DWARKA_STORY: ChapterStory = {
         cues: [
           { at: 0, run: () => void loadSword().catch(() => undefined) },
           { at: 0, actor: 'hero', place: (s) => s.toward('takshaka', 'hero', Math.min(4.5, s.pos('takshaka').distanceTo(s.pos('hero')))), face: 'takshaka' },
-          { at: 0.5, actor: 'hero', moveTo: (s) => s.toward('takshaka', 'hero', 2.4), face: 'takshaka' },
+          ...shadeRises('takshaka', 1.3),
+          { at: 0.5, actor: 'hero', moveTo: (s) => s.toward('takshaka', 'hero', 2.4), face: shade('takshaka') },
         ],
         camera: (s): CameraKey[] => {
-          const { mid, side } = pair(s, 'hero', 'takshaka');
+          const { mid, side } = pair(s, 'hero', shade('takshaka'));
           return [
             { pos: mid.clone().addScaledVector(side, 7).add(v(0, 2.8, 0)), look: mid.clone().add(v(0, 0.7, 0)), fov: 42 },
             { pos: mid.clone().addScaledVector(side, 6).add(v(0, 2.3, 0)), look: mid.clone().add(v(0, 0.7, 0)), fov: 40 },
           ];
         },
       },
-      // Down on him, over the hero's shoulder.
+      // Up at his shade, over the hero's shoulder.
       {
         fadeIn: 0.12,
         ease: ease.drift,
         sway: 0.012,
+        cues: [{ at: 0, actor: shade('takshaka'), face: 'hero' }],
         lines: [{
           speaker: 'Takshaka',
           text: 'A hundred years I kept the sea for him. I have watched kings kneel to Andhaka, and gods look away.',
           voice: 'dwarka_end_takshaka_1',
         }],
-        camera: (s): CameraKey[] => {
-          const { pa, dir, side } = pair(s, 'hero', 'takshaka');
-          const look = s.head('takshaka');
-          return [
-            { pos: pa.clone().addScaledVector(dir, -1.2).addScaledVector(side, 1.2).add(v(0, 2.4, 0)), look, fov: 38 },
-            { pos: pa.clone().addScaledVector(dir, -1.0).addScaledVector(side, 1.1).add(v(0, 2.3, 0)), look, fov: 35 },
-          ];
-        },
+        camera: (s) => shadeOn(s, 'takshaka').overHero(),
       },
-      // Close on the serpent king: the prophecy, and the gift.
+      // Close on the serpent king's shade: the prophecy, and the gift.
       {
         fadeIn: 0.12,
         ease: ease.drift,
@@ -389,15 +365,7 @@ export const DWARKA_STORY: ChapterStory = {
           text: 'You will not defeat him, boy... No. I was the fool. You were born to end his reign. Take my sword.',
           voice: 'dwarka_end_takshaka_2',
         }],
-        camera: (s): CameraKey[] => {
-          const { pb, dir, side } = pair(s, 'hero', 'takshaka');
-          const head = s.head('takshaka');
-          const look = head.clone().lerp(pb.clone().add(v(0, 0.3, 0)), 0.25);
-          return [
-            { pos: head.clone().addScaledVector(side, 3.4).addScaledVector(dir, -0.8).add(v(0, 1.6, 0)), look, fov: 34 },
-            { pos: head.clone().addScaledVector(side, 3.0).addScaledVector(dir, -0.7).add(v(0, 1.4, 0)), look, fov: 31 },
-          ];
-        },
+        camera: (s) => shadeOn(s, 'takshaka').close(),
       },
       // Naga fire between them, and out of it the sword, standing in the stone.
       {
@@ -442,7 +410,7 @@ export const DWARKA_STORY: ChapterStory = {
         ease: ease.drift,
         sway: 0.01,
         linesAt: 0.5,
-        cues: [{ at: 0, actor: 'hero', face: 'takshaka' }, { at: 0.6, run: lowerSword }],
+        cues: [{ at: 0, actor: 'hero', face: shade('takshaka') }, { at: 0.6, run: lowerSword }],
         lines: [{ speaker: 'Yudhveer', text: 'Rest, serpent king. I will carry it to the summit.' }],
         camera: (s): CameraKey[] => {
           const { pa, dir, side } = pair(s, 'hero', 'takshaka');
@@ -453,12 +421,14 @@ export const DWARKA_STORY: ChapterStory = {
           ];
         },
       },
-      // The camera rises away over the arena and the sea; the picture fades.
+      // The camera rises away over the arena and the sea; the serpent king's shade sinks back into the stone and is
+      // gone, and the picture fades.
       {
         duration: 4.4,
         fadeIn: 0.2,
         fadeOut: 1.6,
         ease: ease.drift,
+        cues: [{ at: 0.3, actor: shade('takshaka'), appear: false, over: 2.2 }],
         camera: (s): CameraKey[] => {
           const { mid, side } = pair(s, 'hero', 'takshaka');
           const look = mid.clone().add(v(0, 0.8, 0));

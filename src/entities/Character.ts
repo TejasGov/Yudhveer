@@ -98,6 +98,12 @@ export class Character extends Entity {
    * it is off, and every state plays exactly its own clip.
    */
   public atEase = false;
+  /**
+   * Stays in its fight stance even out of the fight: it has squared up and the fight is about to start (Andhaka from
+   * his entrance's roar to the first blow). The Engine stands it at ease only while this is off, and clears it as the
+   * fight starts.
+   */
+  public onGuard = false;
   /** Metres per second the character really moved last step (after collision), and how long it has been ~still. */
   private actualSpeed = 0;
   private stillFor = 0;
