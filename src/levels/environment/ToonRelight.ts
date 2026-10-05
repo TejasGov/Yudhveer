@@ -93,9 +93,10 @@ export interface RimLight {
 
 /**
  * Hard-edged anime rim light on a toon material. Uses the smooth geometric normal (not the normal map), so it
- * traces the big carved forms and silhouette cleanly instead of sparkling on surface grain.
+ * traces the big carved forms and silhouette cleanly instead of sparkling on surface grain. Returns the uniforms, so a
+ * level can retint the rim as its light changes (`uRimColor` is the colour times the strength).
  */
-export function addRimLight(mat: THREE.MeshToonMaterial, rim: RimLight): void {
+export function addRimLight(mat: THREE.MeshToonMaterial, rim: RimLight): { uRimColor: THREE.IUniform<THREE.Color>; uRimStart: THREE.IUniform<number> } {
   const uniforms = {
     uRimColor: { value: new THREE.Color(rim.color).multiplyScalar(rim.strength) },
     uRimStart: { value: rim.start },
@@ -108,6 +109,7 @@ export function addRimLight(mat: THREE.MeshToonMaterial, rim: RimLight): void {
 outgoingLight += uRimColor * mix(vec3(1.0), diffuseColor.rgb, 0.5) * smoothstep(uRimStart, uRimStart + 0.04, rimFacing);
 #include <opaque_fragment>`);
   });
+  return uniforms;
 }
 
 /**

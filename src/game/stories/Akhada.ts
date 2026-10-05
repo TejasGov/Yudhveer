@@ -8,25 +8,30 @@ import { SoundFX } from '../../combat/SoundFX';
 import { twoShot } from '../Story';
 
 /*
- * Chapter II, the Hanuman forest akhada at sunset (docs/STORY.md, "Chapter II" and "Milestone 6").
+ * Chapter II, the Hanuman forest akhada, from sunset into night (docs/STORY.md, "Chapter II" and "Milestone 6").
  *
  *   Opening (a cutscene): Yudhveer at sword practice against the old vanara, who knocks him about; the dhal handed
  *     over ("A dhal is not for hiding").
  *   Training (played): the vanara spars with him. Three blows taken on the guard teach the parry; three blows turned
  *     with it end the lesson. The guard and the parry are the akhada kit's `taught` moves, learned here.
- *   Arrival (a cutscene): the Vetala and Mayavi come out of the north end; the vanara stands aside to watch.
+ *   Arrival (a cutscene): the Vetala and Mayavi come out of the north end as night falls and the lamps are lit; the
+ *     vanara stands aside to watch.
  *   The fight, with the vanara calling from the verandah; then the ending: he sends the boy to Dwarka, and warns him
  *     that Shalva's mace will break a sword, which points him at the island.
  *
  * The vanara is two characters with one model: `mentor_spar`, the sparring partner (an Enemy, entities/Vanara.ts,
  * spawned by the Engine), and `mentor`, the story's cast member who takes his place once the lesson is over.
+ *
+ * Time of day is the level's (`Level2_Akhada.cue`): `day` as the opening starts, `dusk` and `twilight` as the lesson
+ * goes on, `nightfall` as the two come out, and `night` (essential) at the arrival's end, so a skipped arrival or a
+ * retry (which settles it) is full night with the lamps burning.
  */
 
 const v = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
 
 /** Where everyone stands. The Engine spawns the sparring vanara and the hidden bosses on these marks. */
 export const AKHADA_MARKS = {
-  /** The training circle, on the north-south line through the oculus' patch of sun. */
+  /** The training circle, on the north-south line through the oculus' shaft of light (the sun, later the moon). */
   hero: v(0, 0, 5.2),
   mentor: v(0, 0, 2.6),
   /** Where the vanara watches the real fight from: the west verandah's edge. */
@@ -123,6 +128,8 @@ export const AKHADA_STORY: ChapterStory = {
           { at: 0, actor: 'hero', place: M.hero, face: M.mentor },
           { at: 0, actor: 'mentor_spar', place: M.mentor, face: M.hero },
           { at: 0, run: (s) => dhal(s, false) },
+          // The sunset, lamps out (a restart from the training comes back to it).
+          { at: 0, run: (s) => s.level.cue?.('day'), essential: true },
           { at: 0.5, actor: 'hero', clip: 'slash_3', timeScale: 1.2 },
           { at: 0.7, run: () => sfx().playSwordSwing(1, 'blade') },
           { at: 0.6, actor: 'mentor_spar', clip: 'standing_melee_attack_horizontal', timeScale: 1.3 },
@@ -217,6 +224,8 @@ export const AKHADA_STORY: ChapterStory = {
       run: (s) => {
         s.player.mortal = false;
         s.player.learn('block');
+        // The light starts to go while they spar.
+        s.level.cue?.('dusk');
       },
       hint: 'Hold {guard} to raise the dhal and take his blows on it.',
       lines: [{ speaker: 'Vanara', text: 'Feet planted. Here it comes.', voice: 'akhada_train_mentor_2' }],
@@ -232,6 +241,7 @@ export const AKHADA_STORY: ChapterStory = {
       run: (s) => {
         drill.blocksAtParry = stats().blocks;
         s.player.learn('parry');
+        s.level.cue?.('twilight');
       },
       hint: 'Press {guard} just as a blow lands to turn it away. Too early, and you only block.',
       lines: [{
@@ -278,13 +288,15 @@ export const AKHADA_STORY: ChapterStory = {
               ];
             },
           },
-          // He turns his head to the north end: two shapes come out of the gold light under the monolith.
+          // He turns his head to the north end: two shapes come out from under the monolith as the night comes down
+          // and the lamps are lit, one pair after another.
           {
             duration: 5.2,
             fadeIn: 0.15,
             ease: ease.drift,
             linesAt: 0.3,
             cues: [
+              { at: 0, run: (s) => s.level.cue?.('nightfall') },
               { at: 0, actor: 'vetala', place: M.vetalaWaits, face: 'hero' },
               { at: 0, actor: 'mayavi', place: M.mayaviWaits, face: 'hero' },
               { at: 0, actor: 'vetala', show: true },
@@ -308,6 +320,8 @@ export const AKHADA_STORY: ChapterStory = {
             ease: ease.inOut,
             linesAt: 0.3,
             cues: [
+              // Full night by now; a skipped or settled arrival lands here at once.
+              { at: 0, run: (s) => s.level.cue?.('night'), essential: true },
               { at: 0, actor: 'hero', face: AKHADA_CENTRE },
               { at: 0.3, actor: 'mentor', moveTo: M.aside, face: AKHADA_CENTRE },
             ],
@@ -408,7 +422,7 @@ export const AKHADA_STORY: ChapterStory = {
           { pos: s.at('mentor', -1.1, -0.95, 1.32), look: s.head('hero'), fov: 34 },
         ],
       },
-      // Side on to the two of them, the sun behind: the island, and the blessed mace.
+      // Side on to the two of them, the lamps behind: the island, and the blessed mace.
       {
         fadeIn: 0.15,
         ease: ease.drift,

@@ -42,8 +42,9 @@ himself: Andhaka has carried his own judge up the mountain.
 
 ### Chapter II: the Hanuman forest akhada (existing map, relit)
 
-- **The look changes:** the same forest area, but no longer the blue and red night lighting. It becomes a
-  **sunset day scene**, warm and cinematically beautiful.
+- **The look changes:** the same forest area, but no longer only the blue and red night lighting. It becomes a
+  **sunset day scene**, warm and cinematically beautiful, while the mentor teaches; time moves on, and by the time the
+  Vetala and Mayavi show up it is the old blue and red night, the akhada's lamps lit (see "Day into night", Milestone 6).
 - **Opening cinematic (not playable):** Yudhveer learning to fight with a sword.
 - **Then gameplay:** an **old vanara (monkey-like) mentor** teaches him. He **gives Yudhveer the shield** and teaches
   him to block and **parry** and to fight properly.
@@ -346,13 +347,31 @@ the relight in `src/levels/Level2_Akhada.ts`.
   floor), a soft blue-violet ambient and hemisphere fill, warm haze, and a sky drawn on a canvas (blue-violet zenith,
   rose, gold at the horizon, the sun low in the north-west behind the monolith, `AKHADA_SUN`). Deepak-warm uplights
   and a sunlit raking spot on the Hanuman bust, a warm rim on its carving; the forest cards keep their authored
-  backlight glow; the distant ranges are shaded as sunset haze, gold on the sun side. Same cel ramp and ink lines;
-  fewer lights than before (the four grazers are gone).
+  backlight glow; the distant ranges are shaded as sunset haze, gold on the sun side. Same cel ramp and ink lines.
+  Since "Day into night" (below) the night is back for the fight, so the four grazers are back too (dark by day).
+- **Day into night** (`Level2_Akhada.cue`): the level keeps both looks, the sunset and the original cobalt and
+  vermillion night (commit 5096e21), and blends them by one time of day `t` (0 sunset, 1 night): key, fill, hemisphere
+  and ambient (colour, intensity, the key's direction and shadow bias), fog, exposure, bloom, vignette, the ink colour,
+  the sky (both canvas skies on one `SkyDome`, crossfaded; the puddles reflect whichever is the more), the ridges, the
+  bust's rim, uplights and raking spot, the canopy's sun glow (gone at night) and the vermillion grazers. Only runs
+  when `t` moves. The lamps are out by day (flames shrunk to nothing and hidden, mural glows and halos off, grazers
+  dark) and are lit as night falls, for the evening aarti: a mirrored pair every half second, the eight brass diyas
+  before the monolith from the middle out, then the tall deepams from the north end down the verandahs, each flame
+  catching with a small flare (a per-lamp size in the flames' vertex shader: the merged flame meshes stay one draw call
+  each) and its light (mural glow, halo, the nearest grazer) rising over a second and a half. Story cues
+  (`src/game/stories/Akhada.ts`): `day` at the opening (essential: a restart from the training comes back to the
+  sunset), `dusk` when the training starts (t eases to 0.18 over 40 s), `twilight` when the parry is taught (0.35 over
+  35 s), `nightfall` as the two come out in the arrival (to 1 over 6 s, the lamps lit over its first 5 s) and `night`
+  (essential) on the arrival's last shot: a skipped arrival, and a retry (which settles the arrival and goes straight
+  to the fight), land on full night with every lamp burning, never mid-transition. From the fight to the ending it is
+  night. The ending's lines say nothing of the sun. **Left for later:** a replay of the chapter in the same session
+  (level still loaded, lesson already passed) shows its place-only intro at night.
 - **Flow:** the intro shows the place only (`introPlaceOnly`), then the **opening**, a non-playable montage: sword
   practice in the sun against the old vanara, who swats the boy about ("Again."), the dhal handed over (the recorded
   `akhada_train_mentor_1`), and the vanara squaring up. Then the **training** (played, not explorable): the vanara
-  spars, and the beats teach as it goes. Then the **arrival** scene: the vanara calls it ("Enough"), the Vetala and
-  Mayavi come out of the north end (name cards), and he walks off to the west verandah to watch. The **fight**, with
+  spars, and the beats teach as it goes, while the light goes toward dusk. Then the **arrival** scene: the vanara calls
+  it ("Enough"), night falls and the lamps are lit as the Vetala and Mayavi come out of the north end (name cards), and
+  he walks off to the west verandah to watch. The **fight**, with
   two lines from him. The **ending** is his scene: Dwarka, Shalva's mace, the island's blessed mace; the boy is brief
   and leaves by the south gateway.
 - **The training:** kit `akhada` now has `block` and `parry` in `taught` (abilities: slide and chain only). The first
