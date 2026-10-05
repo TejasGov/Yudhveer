@@ -7,6 +7,7 @@ import { ISLAND_STORY } from './stories/Island';
 import type { Expedition } from './Expedition';
 import { ISLAND_EXPEDITION } from './IslandExpedition';
 import { DWARKA_STORY } from './stories/Dwarka';
+import { SUMMIT_STORY } from './stories/Summit';
 
 /**
  * The campaign, in order. `level` is the LevelManager index of the arena it is fought in. Ids run on from 0 (the
@@ -122,6 +123,7 @@ export const CHAPTERS: Chapter[] = [
     line: "Under the eclipse, on Shiva's stair, a crown waits for the one who would wear it.",
     clearedLine: 'The summit is silent.',
     defeatLine: 'The rakshasas hold the summit.',
+    story: SUMMIT_STORY,
   },
 ];
 

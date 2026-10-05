@@ -1,0 +1,99 @@
+/* The credits roll (Credits.ts): the title's type over black, rising slowly. Tokens from style.css. */
+
+#credits {
+  background: var(--ink);
+  z-index: 45;
+  overflow: hidden;
+  justify-content: center;
+  animation-duration: 1600ms;
+}
+
+.credits-roll {
+  position: absolute;
+  top: 100%;
+  width: min(640px, calc(100% - 2 * var(--edge)));
+  text-align: center;
+  will-change: transform;
+}
+
+@keyframes credits-roll {
+  from { transform: translateY(0); }
+  to { transform: translateY(calc(-100% - 100vh)); }
+}
+
+.credits-native {
+  font-family: var(--deva);
+  font-size: 24px;
+  color: var(--saffron);
+  opacity: 0.85;
+  margin-bottom: 4px;
+}
+
+.credits-title {
+  font-family: var(--serif);
+  font-weight: 600;
+  font-size: clamp(52px, 8vw, 104px);
+  line-height: 0.92;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  margin-bottom: 26vh;
+}
+
+.credits-group {
+  margin-bottom: 13vh;
+}
+
+.credits-heading {
+  font-size: 15px;
+  color: var(--saffron);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 14px;
+}
+
+.credits-name {
+  font-family: var(--serif);
+  font-size: clamp(28px, 3.6vw, 40px);
+  line-height: 1.3;
+  color: var(--paper);
+}
+
+.credits-close {
+  margin-top: 20vh;
+  font-family: var(--serif);
+  font-style: italic;
+  font-size: 26px;
+  color: var(--muted);
+}
+
+.credits-mark {
+  margin-top: 18px;
+  margin-bottom: 30vh;
+  font-family: var(--deva);
+  font-size: 20px;
+  color: var(--faint);
+}
+
+.credits-menu {
+  position: absolute;
+  right: var(--edge);
+  bottom: var(--edge);
+  opacity: 0.55;
+}
+
+.credits-menu button {
+  font-size: 15px;
+  color: var(--muted);
+  letter-spacing: 0.04em;
+}
+
+.credits-menu button.focused,
+.credits-menu button:hover {
+  color: var(--paper);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .credits-roll {
+    animation-duration: 90s !important;
+  }
+}

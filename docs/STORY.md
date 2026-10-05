@@ -568,6 +568,76 @@ Takshaka's voice is Kundan, Shalva's is Mani (`game asset/voice/VOICES.md`). Yud
 | `dwarka_end_takshaka_2` | Takshaka | You will not defeat him, boy... No. I was the fool. You were born to end his reign. Take my sword. | ending, then the sword | yes (`takshaka_prophecy`, levelled to -18 LUFS) |
 | (no id) | Yudhveer | Rest, serpent king. I will carry it to the summit. | ending, the khanda in his hand | subtitle only |
 
+## Milestone 9: Chapter V, the summit (landed)
+
+"Kailasha Summit", chapter id 5. Code: `SUMMIT_STORY` in `src/game/stories/Summit.ts` (wired in `Chapters.ts`), the
+second minion in `src/entities/Yatudhana.ts` and `src/entities/characters/Yatudhana.ts`, the reveal's light in
+`src/cinematics/DivineLight.ts` on a small new effects clock `src/cinematics/SceneFX.ts`, the credits in
+`src/ui/Credits.ts` and `src/ui/credits.css`; small additions to `src/core/Engine.ts` (a second kind in a horde, the
+effects clock, the credits after the last chapter). The map, Andhaka and his entrance are unchanged.
+
+- **The second minion, the yatudhana** (a sorcerer rakshasa; PLACEHOLDER: Mayavi's model at 0.86 scale, about 1.8 m,
+  tinted ash-grey). A ranged caster: it runs its bridge route like the brutes but leaves it once the hero is within
+  11 m, keeps 5 to 9.5 m off, and throws a single fire bolt (Mayavi's, deflectable back at it) every 3.8 s or so; cornered
+  inside 2.2 m it claws and kicks. Frail: 38 health, 30 posture, its blows at 0.75. The brutes press in while the
+  casters hang back, so the hero has to deflect while crowded or break off to run them down. The waves are now 8 (was
+  6): the third, sixth and eighth are yatudhanas (`Horde.alt`). The intro card's epithet no longer counts them.
+- **The ending** (`summit-ending`, after Andhaka falls and the victory beat):
+  1. From black, high over the arena: Andhaka fallen, the boy sheathes his blade. A voice from the dais: "Yudhveer."
+  2. Low in front of him: he turns up the stair. "Guruji?"
+  3. Over his shoulder up Shiva's stair: at the head of it, at the statue's feet, the guru slumped on the stone,
+     Andhaka's captive. The boy runs up.
+  4. Side on, on the dais: he goes down on one knee beside him; the guru speaks.
+  5. Cut: both on their feet. Over the boy's shoulder on the guru, the statue behind: "You kept your feet" (the
+     prologue's lesson), the boy's answer (his vow).
+  6. Over the boy's shoulder, close: the irony, and "Look up."
+  7. The guru becomes light: his surfaces glow white-gold, a light swells in him, motes rise off him, he fades into it
+     and is gone.
+  8. The camera rises from where he stood up the statue to its face as the stone warms, a light lifts it out of the
+     dark and a slowly turning halo (a prabhavali) kindles behind its head; Andhaka's body crumbles to ash.
+  9. From down the stair, the whole god in his light: the first line as Shiva.
+  10. Low behind the boy, small on one knee before the lit feet: "Mahadeva..."
+  11. The eclipse passes (the sky and ambient light rise and the key light warms over 9 s); the camera draws back and up
+      off the dais, the last line, a long fade to black.
+- **The guru on the summit** is a story cast member (`GURU`), out of sight through the fight and found in the ending.
+  He has no kneel: he is held at 1.5 s into his `death` clip (sunk to the ground, slumped, his staff in his hand).
+  Placeholder until he has a bound or kneeling clip.
+- **Credits:** after the last chapter's ending the chapter-complete screen is replaced by a slow roll over black in the
+  title's type (the Devanagari name, YUDHVEER, then Created by TejasGov; Built with Three.js, Rapier, Vite; Characters:
+  Meshy, Mixamo; Voices, sound and music: ElevenLabs; Places: Blender, Poly Haven; "Thank you for playing."), about 50 s
+  to the music of the title, then the title. "Return to the title" (bottom right; confirm, back or Esc) leaves early.
+  The campaign is still unlocked one past the last chapter, as before.
+- **New in the scene system:** `SceneFX` (`tween`, `every`, `onClear`): effects a scene's `run` cues start that play
+  out on the game's fixed step (so `__debug.advance` drives them) and are undone when the chapter is left (lights put
+  back, meshes freed). `DivineLight`: `intoLight` (someone turns to light and fades), `awaken` (a statue's stone warms,
+  a light, a halo, motes), `dawn` (the place's light rises and warms), `motes`. Lights are added dark in the opening
+  black and only started later, so their shader rebuild is never on camera.
+- **Decided here:** the guru is found slumped, not visibly bound; Shiva speaks in the guru's voice (speaker "Shiva",
+  ids `summit_reveal_shiva_*`, to be recorded with the guru's narrator voice); the eclipse passes at the end (only for
+  the scene; the map is untouched); the reveal is light and the statue, not a model change.
+- **Left for later:** the lines are unrecorded; no bonds or kneel clip for the captive guru; the yatudhana's model
+  (Meshy) and its own cast and death; a hold-to-skip on the credits rather than a button.
+- **Testing:** in a dev build, `__debug.chapter(5, false)`, then `__debug.win()` per wave until Andhaka arrives, let
+  his entrance play, `__debug.win()` again: the ending, then the credits.
+
+### Chapter V lines
+
+The guru's voice (and Shiva's) is the deep narrator in `game asset/voice/VOICES.md`. Yudhveer is subtitles only.
+
+| Id | Speaker | Text | Trigger | Recorded |
+|---|---|---|---|---|
+| `summit_end_guru_1` | Guru (off, from the dais) | Yudhveer. | ending, shot 1 | no |
+| (no id) | Yudhveer | Guruji? | ending, he turns to the stair | subtitle only |
+| (no id) | Yudhveer | Guruji... you live. | ending, kneeling beside him | subtitle only |
+| `summit_end_guru_2` | Guru | I live. He meant my soul for his god, and carried me all the way up the mountain to give it. | ending, kneeling | no |
+| `summit_end_guru_3` | Guru | You kept your feet, Yudhveer. | ending, both standing | no |
+| (no id) | Yudhveer | I said I would find you. Even at the top of the world. | ending, both standing | subtitle only |
+| `summit_end_guru_4` | Guru | He gathered wise souls to throw down Mahadeva. He never asked whose soul he carried up the mountain. | ending, before the light | no |
+| `summit_end_guru_5` | Guru | Look up, Yudhveer. | ending, before the light | no |
+| `summit_reveal_shiva_1` | Shiva | Every lesson was mine to give. Every step was yours to take. | the statue lit | no |
+| (no id) | Yudhveer | Mahadeva... | he kneels before the statue | subtitle only |
+| `summit_reveal_shiva_2` | Shiva | The dark is lifted from the mountain. Go home, Yudhveer, and teach what you have learned. | the eclipse passes, last shot | no |
+
 ## Tools
 
 - **ElevenLabs:** voices, character sound effects, music.
@@ -618,7 +688,7 @@ Each milestone is one chat. Start it with: "Read docs/STORY.md, let's do milesto
   placeholders, the blessed mace.
 - [x] **8. Chapter IV, Dwarka:** the hero with the mace, Shalva mace against mace, the truth about Andhaka,
   Takshaka's prophecy and the sword.
-- [ ] **9. Chapter V, the summit:** the second minion type, the guru-as-Shiva ending cinematic, credits.
+- [x] **9. Chapter V, the summit:** the second minion type, the guru-as-Shiva ending cinematic, credits.
 - [ ] **10. Voices and sound:** ElevenLabs voices for every line, real character sound effects, music per chapter.
   (Effects and music wired; the island track awaits its chapter; remaining: voices for every line.)
 - [ ] **11. Replace placeholders:** the user's Meshy models (mentor, island monsters, second minion, weapons).

@@ -20,6 +20,7 @@ import { Vetala } from '../entities/Vetala';
 import { Mayavi } from '../entities/Mayavi';
 import { BossTakshaka } from '../entities/BossTakshaka';
 import { Rakshasa } from '../entities/Rakshasa';
+import { Yatudhana } from '../entities/Yatudhana';
 import { BossBaoli } from '../entities/BossBaoli';
 import { BossShalva } from '../entities/BossShalva';
 import { BossAndhaka } from '../entities/BossAndhaka';
@@ -32,6 +33,7 @@ import { VETALA } from '../entities/characters/Vetala';
 import { MAYAVI } from '../entities/characters/Mayavi';
 import { TAKSHAKA } from '../entities/characters/Takshaka';
 import { RAKSHASA } from '../entities/characters/Rakshasa';
+import { YATUDHANA } from '../entities/characters/Yatudhana';
 import { SHALVA } from '../entities/characters/Shalva';
 import { ANDHAKA } from '../entities/characters/Andhaka';
 import { RAIDER } from '../entities/characters/Village';
@@ -46,9 +48,11 @@ import { ExpeditionRun, type ExpeditionSpawn } from '../game/Expedition';
 import { CinematicDirector } from '../cinematics/CinematicDirector';
 import { buildIntro, buildArrival, ATTRACT, type IntroContext } from '../cinematics/Intros';
 import { SceneRun, Stage, Staging, storyVoices, triggered, type StoryBeat, type StoryScene } from '../cinematics/Scene';
+import { SceneFX } from '../cinematics/SceneFX';
 import { Hud } from '../ui/Hud';
 import { Cinema } from '../ui/Cinema';
 import { Dialogue } from '../ui/Dialogue';
+import { Credits } from '../ui/Credits';
 import { ScreenStack } from '../ui/Menus';
 import { refreshGlyphs } from '../ui/Glyphs';
 
@@ -123,6 +127,13 @@ interface Horde {
   interval: number;
   /** Shown on the intro's card for the first minion. */
   card: { name: string; epithet: string };
+  /** A second kind mixed into the waves: minion `index` (from 0) is one of these when `is(index)`. */
+  alt?: {
+    is: (index: number) => boolean;
+    minion: (index: number) => Enemy;
+    capsule: { halfHeight: number; radius: number };
+    rig: CharacterDefinition;
+  };
 }
 
 /**
@@ -170,10 +181,12 @@ const HORDES: Record<number, Horde> = {
     minionCapsule: MINION_CAPSULE,
     minionRig: RAKSHASA,
     lanes: [summitLane(1, 0), summitLane(-1, 3.5)],
-    total: 6,
+    total: 8,
     maxAlive: 3,
     interval: 4,
-    card: { name: 'Rakshasas', epithet: 'Six cross the bridges. Their king comes after.' },
+    card: { name: 'Rakshasas', epithet: 'They cross the bridges. Their king comes after.' },
+    // The sorcerers hang back and throw fire while the brutes press in: the third, sixth and eighth to come.
+    alt: { is: (i) => i === 2 || i === 5 || i === 7, minion: (i) => new Yatudhana(`yatudhana_${i + 1}`), capsule: MINION_CAPSULE, rig: YATUDHANA },
   },
 };
 
@@ -265,6 +278,8 @@ export class Engine {
   private readonly cinema = new Cinema();
   private readonly dialogue = new Dialogue();
   private readonly screens = new ScreenStack();
+  /** The roll after the campaign's last scene. */
+  private readonly credits = new Credits();
   private readonly director: CinematicDirector;
   /** Characters walking to their marks in story scenes. */
   private readonly staging = new Staging();
@@ -524,7 +539,9 @@ export class Engine {
     // recapture the mouse from the Esc key, so keyboard players resume with a click.)
     this.screens.onBackAtRoot = (id) => {
       if (id === 'pause' && this.inputManager.device === 'gamepad') void this.resume();
+      if (id === 'credits') this.credits.finish();
     };
+    this.credits.onDone = () => this.enterTitle();
     this.renderSettings();
     Settings.onChange(() => this.renderSettings());
   }
@@ -653,6 +670,7 @@ export class Engine {
   private enterTitle(): void {
     this.loadToken++;
     this.paused = false;
+    this.credits.stop();
     this.director.skip();
     this.dialogue.clear();
     this.dialogue.setPaused(false);
@@ -769,6 +787,7 @@ export class Engine {
     const def = HORDES[chapter.level];
     if (!def) return [];
     this.horde = { def, minions: [], timer: def.interval };
+    if (def.alt) CharacterRig.prefetch(def.alt.rig);
     return def.lanes.slice(0, Math.min(def.lanes.length, def.maxAlive, def.total)).map(() => this.spawnMinion());
   }
 
@@ -777,8 +796,9 @@ export class Engine {
     const h = this.horde!;
     const index = h.minions.length;
     const lane = h.def.lanes[index % h.def.lanes.length];
-    const enemy = h.def.minion(index);
-    this.addFighter(enemy, lane.at, h.def.minionCapsule);
+    const alt = h.def.alt?.is(index) ? h.def.alt : null;
+    const enemy = alt ? alt.minion(index) : h.def.minion(index);
+    this.addFighter(enemy, lane.at, alt?.capsule ?? h.def.minionCapsule);
     enemy.route = lane.route.map((p) => p.clone());
     // Only the opening minions stagger their start; later ones are already spaced by the spawn interval.
     enemy.routeDelay = index < h.def.lanes.length ? lane.delay : 0;
@@ -789,7 +809,7 @@ export class Engine {
     this.hud.add(enemy);
     // A chapter whose opponents arrive in its story keeps the first of them out of sight until a scene's `show` cue.
     const waiting = this.mode === 'loading' && !!this.chapter?.introPlaceOnly;
-    return enemy.attachRig(h.def.minionRig)
+    return enemy.attachRig(alt?.rig ?? h.def.minionRig)
       .catch((err) => console.error(`[Engine] ${enemy.id} rig failed to load; keeping the greybox`, err))
       .finally(() => { enemy.group.visible = !waiting; });
   }
@@ -1225,6 +1245,11 @@ export class Engine {
       void this.startChapter(next.id, { intro: true });
       return;
     }
+    if (!next && chapter.story?.ending) {
+      // The campaign's last scene is over: the credits, then the title.
+      this.rollCredits();
+      return;
+    }
     const s = this.combatSystem.stats;
     const minutes = Math.floor(this.fightTime / 60);
     const seconds = Math.floor(this.fightTime % 60).toString().padStart(2, '0');
@@ -1240,6 +1265,18 @@ export class Engine {
     const nextButton = $('cleared-next') as HTMLButtonElement;
     nextButton.textContent = next ? `Continue to chapter ${next.numeral}` : 'Return to the title';
     this.screens.only('cleared');
+  }
+
+  /** The credits over black after the last chapter's ending; the title after them. */
+  private rollCredits(): void {
+    this.cinema.setActive(false);
+    this.cinema.setFade(1);
+    this.dialogue.clear();
+    this.soundFX.music.play('title');
+    this.soundFX.music.dim(false);
+    this.soundFX.playAmbience(null);
+    this.screens.only('credits');
+    this.credits.start();
   }
 
   // ---------------------------------------------------------------------------------------------------- World
@@ -1282,6 +1319,7 @@ export class Engine {
     this.finale = null;
     this.expedition = null;
     this.staging.clear();
+    SceneFX.clear();
     this.combatDebug.prune(this.player ? [this.player] : []);
     this.projectileManager.clear();
     this.interpolated.clear();
@@ -1337,6 +1375,7 @@ export class Engine {
 
     // Story scenes walk people to their marks (the motor below still resolves them).
     if (this.mode === 'intro') this.staging.update(dt);
+    SceneFX.update(dt);
     player.update(dt);
     this.enemies.forEach((enemy) => enemy.update(dt));
     this.cast.forEach((extra) => extra.update(dt));
