@@ -467,6 +467,11 @@ and a look at the before and after captures in `E:/hindan/game asset/audit/fixes
 | W-06 | Fixed | d506766 | Dwarka: 8 diyas lean and gutter in the storm's wind; two lights. |
 | W-07 | Fixed | d506766 | Takshaka's flame wave: tongues on a forward-bowed arc, bloom, embers, a fading scorch. |
 | W-13, W-14, W-16 | Fixed | d506766 | Gate stone gain lowered; diya flames at the wick; soft edges on the kavach shaft. |
+| C-04 | Fixed | b54586a | Real finger bones on all five fist rigs (the hero 28 to 68 joints): hands close on what they hold, relax when empty, lie flat for prayer. Every socket unchanged to 0.000 mm. |
+| C-06 | Fixed | b54586a | A `praying_anjali` clip: palms pressed together before the sternum (Durga beat, summit, the mandir villager). |
+| C-11 | Fixed | b54586a | Mace grip 6 cm up the haft; the left fist closes 8.5 cm above the butt. |
+| S-15 | Fixed | b54586a | An authored `posture_break` clip: struck, down on one knee, up within 2.5 s. |
+| C-12 | Not done | | The guru's staff arm is held still in every clip, so the asymmetry never shows; re-rigging would redo all his weights. |
 
 ---
 
