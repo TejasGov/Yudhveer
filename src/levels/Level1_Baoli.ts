@@ -19,6 +19,17 @@ const SHADOW_CASTERS = /^(Pillar_|Pedestal_|Statue_|Temple_|Deco_HangingLamps|De
 const SHADOW_RECEIVERS = /^(Arena_Floor|Arena_Steps|Arena_PoolBed|Arena_Yantra|Env_Ground|Env_Pathways|Temple_)/;
 // The Devi (Durga) shrine gets the same pronounced cel treatment as the Level 2 Hanuman monolith.
 const DEITY_STONE = new Set(['Devi_Stone', 'Kaali_Black', 'Kaali_Sandstone']);
+/**
+ * The Devi's shrine on the terrace above the stepwell, ~66 m from the island (the statue, its pedestal, lamps,
+ * offerings and glow, all under one node whose origin is the pedestal's base): twice its modelled size, so the Devi
+ * reads from the arena and stands over the boy who kneels to her (docs/STORY.md, "The divya kavach"). Its lights move
+ * out with it.
+ */
+const SHRINE = 'Kaali_Shrine';
+const SHRINE_SCALE = 2;
+const SHRINE_LIGHTS = ['Kaali_Uplight', 'Kaali_Spot', 'Kaali_Rim'];
+/** The terrace's paving there (game coordinates). */
+const TERRACE_Y = 4.15;
 
 interface Scroller { texture: THREE.Texture; speed: THREE.Vector2 }
 
@@ -76,6 +87,7 @@ export class Level1_Baoli extends GLBLevel {
   }
 
   protected prepareModel(model: THREE.Object3D): void {
+    this.enlargeShrine(model);
     const scrolledMaps = new Set<THREE.Texture>();
     model.traverse((obj) => {
       const mesh = obj as THREE.Mesh;
@@ -97,6 +109,36 @@ export class Level1_Baoli extends GLBLevel {
     });
     toonifyModel(model, this.ramp, (src) => this.toonOverride(src as THREE.MeshStandardMaterial));
     this.collectBloom(model);
+  }
+
+  /**
+   * Scales the Devi's shrine about its base (`SHRINE_SCALE`), with its lights and its pedestal's authored collider,
+   * and lays a floor on the terrace between the stone lions and the pedestal for the scene there (the stepwell's own
+   * colliders stop at the top step; the arena's walls keep the fight off it).
+   */
+  private enlargeShrine(model: THREE.Object3D): void {
+    const shrine = model.getObjectByName(SHRINE);
+    if (!shrine) {
+      console.warn(`[Level1_Baoli] no ${SHRINE} node; the Devi's shrine is left as modelled`);
+      return;
+    }
+    const pivot = shrine.position.clone();
+    shrine.scale.multiplyScalar(SHRINE_SCALE);
+    shrine.traverse((o) => {
+      if (o.userData.collider_radius !== undefined) o.userData.collider_radius *= SHRINE_SCALE;
+      if (o.userData.collider_height !== undefined) o.userData.collider_height *= SHRINE_SCALE;
+    });
+    for (const name of SHRINE_LIGHTS) {
+      const node = model.getObjectByName(name);
+      if (!node || node.parent !== shrine.parent) continue;
+      node.position.sub(pivot).multiplyScalar(SHRINE_SCALE).add(pivot);
+      node.traverse((o) => {
+        const light = o as THREE.PointLight;
+        if (light.isLight && light.distance > 0) light.distance *= SHRINE_SCALE;
+      });
+    }
+    model.updateMatrixWorld(true);
+    this.addStaticBox(new THREE.Vector3(0, TERRACE_Y - 0.5, 57), new THREE.Vector3(13, 0.5, 8));
   }
 
   /** Cel-shading exceptions; undefined falls through to the default toon conversion. */

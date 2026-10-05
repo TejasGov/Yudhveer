@@ -37,6 +37,9 @@ himself: Andhaka has carried his own judge up the mountain.
   a passage they used, and Andhaka's darkness has bound the Baoli Guardian (once the well's protector) to block
   anyone who follows.
 - **Weapon: the lathi only.** No sword, no shield.
+- **The Devi's gift:** before he goes down, he kneels at the shrine of Durga on the terrace above the well; she speaks
+  to him, and her light burns away his training clothes and leaves him in the **divya kavach**, the armour he wears
+  from then on (see "The divya kavach").
 - He fights the Baoli Guardian by **remembering his guru's teachings**: the guru's voice and memories guide him
   through the fight, teaching the basics as he needs them.
 - **Freed by its defeat**, the Guardian tells him a lathi will not carry him further: he must go to the vanaras of
@@ -375,6 +378,8 @@ the hint for a move just learned). The map and the Guardian's fight are unchange
   **Opening:** low behind the boy as he walks in across the island on the raiders' trail toward the dark shape hunched
   at its middle; he tells it to stand aside; it rises and roars (its name card); for a breath his guru stands at his
   shoulder, pale and see-through, and tells him to look at its feet; gone, and over his shoulder into the fight.
+  *(Since 2026-10-05 the opening begins at the Devi's shrine above the well, where he is given the divya kavach:
+  see "The divya kavach".)*
 - **The guru's remembered voice** (in-fight `lines` beats, each once per attempt): the lesson of the gathered blow
   (teaches `charge` through `Player.learn`) once the Guardian is under 60 % or 45 s have passed; "feet first" when the
   boy is under half health; "now" when the Guardian's posture breaks; slide clear when it leaps or starts its
@@ -407,6 +412,10 @@ the hint for a move just learned). The map and the Guardian's fight are unchange
 
 | Id | Speaker | Text | Recorded |
 |---|---|---|---|
+| `baoli_devi_1` (planned) | Durga | You climbed to my door with a stick of bamboo, and a grief too heavy for it. | subtitle only (docs/APPROVALS.md) |
+| `baoli_devi_2` (planned) | Durga | What they carried down this well, they will not keep. Follow it. | subtitle only |
+| (none) | Yudhveer | With a stick of bamboo? | subtitle only |
+| `baoli_devi_3` (planned) | Durga | Not alone. Wear my kavach. It will turn the blow. It will not move your feet; that is yours to do. | subtitle only |
 | (none) | Yudhveer | Their tracks end at the water. There is a way down, under the well. | subtitle only |
 | (none) | Yudhveer | Stand aside. They carried my guru through here. | subtitle only |
 | `baoli_open_guru_1` | Guru (remembered) | Do not look at its size, Yudhveer. Look at its feet. | yes |
@@ -871,6 +880,48 @@ The mechanism (`Character.atEase`, `CharacterState` `REST`):
   out of the fight instead of standing at ease; the Engine clears it as the fight starts. Andhaka sets it at his
   entrance's roar (and when it finishes), so the last over-the-shoulder shot shows him in his stance, not dropping
   into `standing_idle_with_axe`. Nobody else uses it.
+
+## The divya kavach (2026-10-05)
+
+The user: in the village the hero should wear "white and dark orange training attire with bamboo kavach"; in the baoli
+"he then kneels in front of goddess durga's statue, and hears a prophesy and gets granted the divya kavach (his current
+attire), then he fights the baoli guardian"; the Durga statue "is already in baoli map ... make it 2x in size".
+
+- **Two looks** (`Attire` in `src/game/Progression.ts`): `training` (`yodha_training.glb`: white dhoti, dark-orange
+  sash, a bamboo kavach and shoulder guard, cloth wraps; a Meshy 7 model of the same hero, auto-rigged and built with
+  yodha.glb's clips, flags and height, game asset/README.md) and `kavach` (`yodha.glb`, the divya kavach). Each kit
+  names what he wears as its chapter starts: the prologue and Chapter I `training`, the rest `kavach`; Chapter I's kit
+  also says what its story changes him into (`becomes: 'kavach'`).
+- **The change** (`Player.wear`): the kit's `becomes` rig is loaded with the chapter (`Player.ready`, through
+  `Character.prepareRig`: model, props on its sockets, strike windows measured), so the swap in the scene is instant
+  (`Character.mountRig`): same weapon, state, position and facing, and the clip a cue is playing carries on from the
+  same moment. The hero's model and manifest come from `ATTIRE_MODELS` (`src/entities/characters/Yodha.ts`) over the
+  weapon set's definition (`dressed`).
+- **Retries:** the change is an essential cue, so a settled opening (any retry of Chapter I) starts the fight in the
+  kavach, as the fight follows the scene. Replaying Chapter I from the title starts in training clothes again.
+- **The shrine** (`Level1_Baoli.enlargeShrine`): the Devi on her lion (`Statue_Devi`), her pedestal, lamps, offerings
+  and glow, all under the `Kaali_Shrine` node on the terrace ~66 m beyond the island, are scaled 2x about the
+  pedestal's base at load (the statue now stands ~8.7 to 18.7 m up, her face ~16.8 m), with its three lights moved out
+  with it and the pedestal's authored collider doubled. A floor collider is laid on the terrace between the stone lions
+  and the pedestal for the scene (outside the arena's walls; the fight never reaches it). She reads from the arena now,
+  and stays lit (halo, eyes) after the scene.
+- **The opening, new shots first** (`BAOLI_STORY.opening`; the old shots follow unchanged):
+  1. From black: low behind the boy, in training clothes, as he climbs between the stone lions to the Devi.
+  2. Side on: he kneels (`kneeling_down`, then `praying`, hands joined; the lathi is laid aside, hidden).
+  3. Low behind him, the Devi towering over him: her stone warms, a halo kindles behind her head, her eyes open in light
+     (`awaken` with a softer key light and warmth for the pale stone, `kindleEyes`).
+  4. Up at her face past the lion's mane: her first line.
+  5. His face, looking up into her light: her second line; he answers ("With a stick of bamboo?").
+  6. Square on to her: the gift.
+  7. Low three-quarters on, her pedestal behind him: a shaft of light comes down on him, gold motes whirl up, his
+     clothes glow hotter, embers lift off them; a white flash, and he is in the divya kavach (`kavachLight`, the swap at
+     3.3 s); marigold sparks burst and the armour's glow cools as the light lifts.
+  8. Low in front: he rises in the kavach (`kneel_to_stand`), takes up the lathi; fade to black.
+  9. Then as before: in the stepwell, the walk in ("Their tracks end at the water..."), the Guardian rises and roars,
+     the guru's memory, "Feet first, Guruji", and the fight.
+- **Left for later:** Durga's lines are unrecorded (docs/APPROVALS.md has the candidates and the cost); the statue is a
+  simple model, so the close shots of her face are kept medium; the kneel clips are the ones main's yodha.glb gained on
+  2026-10-05 (until a branch has them, the scene falls back to `crouch` / `crouch_idle` and `calm_idle`).
 
 ## How the dead speak (2026-10-05)
 

@@ -12,7 +12,7 @@ const CREDITS: [string, string[], 'small'?][] = [
   ['Built with', ['Three.js', 'Rapier', 'Vite']],
   ['Characters', ['Meshy', 'Mixamo']],
   ['Voices, sound and music', ['ElevenLabs']],
-  ['Places', ['Blender', 'Poly Haven']],
+  ['Places', ['Blender', 'Poly Haven', "Meshy (the island's boat)"]],
   ['Additional 3D models (Sketchfab, CC BY 4.0; decimated and retextured)', [
     '"Cave Rocks" by Splanyic',
     '"Rockwall" by DJMaesen',
@@ -27,7 +27,6 @@ const CREDITS: [string, string[], 'small'?][] = [
     '"Brazier" by mSameja',
     '"diwali diya" by sinuboy072',
     '"Medieval Wall Torch" by Kigha',
-    '"Old Boat" by donnichols',
     '"Coiled Rope 2" by TepidGames',
     '"Flat rocks" by DJMaesen',
     '"Rubble" by Pert Doherty',

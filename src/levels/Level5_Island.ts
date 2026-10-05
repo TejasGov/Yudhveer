@@ -18,9 +18,9 @@ const v = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
 export const ISLAND = {
   /** Where the boat put him ashore, facing the way in. */
   landing: v(0, 0, 2.2),
-  /** The boat at the landing, and the canopy over its stern where the boatman sits. */
+  /** The boat at the landing, and the thatched canopy amidships where the boatman sits. */
   boat: v(1.6, -0.45, 8.6),
-  boatman: v(1.4, 0.35, 9.9),
+  boatman: v(1.6, 0.15, 8.5),
   /** The mouth of the first tunnel, a lamp either side. */
   tunnel: v(0, 0, -3.4),
   /** The hall of bones (first encounter), the black pool (second) and the shrine (third), at floor height. */

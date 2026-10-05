@@ -1,4 +1,5 @@
 import type { CharacterDefinition } from '../animation/CharacterRig';
+import type { Attire } from '../../game/Progression';
 
 /**
  * Yudhveer's protagonist, built by `game asset/characters/build_character.py` from `game asset/characters/yodha.fbx` + `game asset/characters/animations`
@@ -70,4 +71,15 @@ export const YODHA: CharacterDefinition = {
     model: '/assets/weapons/yodha_dhal.glb',
     stateRotations: { WALK: [0, Math.PI / 2, 0], MOVE: [0, Math.PI / 2, 0], SPRINT: [0, Math.PI / 2, 0] },
   },
+};
+
+/**
+ * His two looks (`Attire`, docs/STORY.md "The divya kavach"): the divya kavach is `YODHA`'s own model; the training
+ * clothes (white dhoti, dark-orange sash, bamboo kavach) are `yodha_training.glb`, a Meshy 7 model of the same hero
+ * auto-rigged and built with the same clips, flags and height (game asset/README.md), so every state, socket and
+ * weapon hold above fits it unchanged.
+ */
+export const ATTIRE_MODELS: Record<Attire, Pick<CharacterDefinition, 'model' | 'manifest'>> = {
+  kavach: { model: YODHA.model, manifest: YODHA.manifest },
+  training: { model: '/assets/characters/yodha_training.glb', manifest: '/assets/characters/yodha_training.manifest.json' },
 };

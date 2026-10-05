@@ -297,27 +297,69 @@ export class Character extends Entity {
    * rig's hand sockets, locomotion speeds and attack timings come from the definition and its clips.
    */
   public async attachRig(definition: CharacterDefinition): Promise<CharacterRig> {
+    return this.mountRig(await this.prepareRig(definition));
+  }
+
+  /**
+   * Loads a rig and its props and gets it ready to wear (props on its sockets, strike windows measured) without
+   * touching the character, so `mountRig` can put it on at once (the hero's change of attire mid-scene).
+   */
+  public async prepareRig(definition: CharacterDefinition): Promise<PreparedRig> {
     const [rig, prop, shield] = await Promise.all([
       CharacterRig.load(definition),
       definition.weapon?.build ? Promise.resolve(definition.weapon.build())
         : definition.weapon?.model ? CharacterRig.loadProp(definition.weapon.model) : Promise.resolve(null),
       definition.offhand?.model ? CharacterRig.loadProp(definition.offhand.model) : Promise.resolve(null),
     ]);
-    // Modelled weapons replace the greybox ones everywhere (sockets, sheathing, hit detection).
-    if (prop) {
-      this.swordMesh.removeFromParent();
-      this.swordMesh = prop as THREE.Group;
-    }
-    if (shield) {
-      this.shieldMesh.removeFromParent();
-      this.shieldMesh = shield as THREE.Group;
-    }
-    if (definition.weapon?.blade) this.bladeSpan = definition.weapon.blade;
-    if (definition.weapon && !rig.attach(this.swordMesh, definition.weapon)) {
+    const prepared: PreparedRig = { definition, rig, prop: prop as THREE.Group | null, shield: shield as THREE.Group | null, strikes: null };
+    // With its own props the rig can be measured now; the greybox sword is only lent to it as it is mounted.
+    if (prop && (!definition.offhand || shield)) this.fitProps(prepared);
+    return prepared;
+  }
+
+  /** Puts the props on the prepared rig's sockets, sizes it, and measures its attack clips with them. */
+  private fitProps(p: PreparedRig): void {
+    const { definition, rig } = p;
+    const sword = p.prop ?? this.swordMesh;
+    if (definition.weapon && !rig.attach(sword, definition.weapon)) {
       console.warn(`[Character ${this.id}] rig has no socket ${definition.weapon.socket}`);
     }
-    if (definition.offhand) rig.attach(this.shieldMesh, definition.offhand);
+    if (definition.offhand) rig.attach(p.shield ?? this.shieldMesh, definition.offhand);
     if (definition.scale) rig.applyScale(definition.scale);
+    const blade = definition.weapon?.blade ?? this.bladeSpan;
+    // Hit windows straight from each attack clip's motion (scaled to the state's playback rate and start).
+    const windows = new Map<CharacterState, HitWindow[]>();
+    for (const [state, config] of Object.entries(definition.states) as [CharacterState, NonNullable<typeof definition.states.IDLE>][]) {
+      if (!state.startsWith('ATTACK')) continue;
+      const rate = config.timeScale ?? 1;
+      const start = config.startAt ?? 0;
+      const end = config.endAt ?? Infinity;
+      const spans = rig.measureStrikes(config.clip, () => sword.localToWorld(new THREE.Vector3(0, blade[1], 0)))
+        .filter((s) => s.t1 > start && s.t0 < end)
+        .map((s) => ({ t0: Math.max(0, s.t0 - start) / rate, t1: (Math.min(s.t1, end) - start) / rate }));
+      windows.set(state, spans);
+    }
+    p.strikes = windows;
+  }
+
+  /**
+   * Wears a prepared rig (once: it is the character's from then on), disposing the one it had. `keepPose`: a clip a
+   * cue was playing carries on in the new rig from the same moment (a change of clothes under a flash of light).
+   */
+  public mountRig(p: PreparedRig, keepPose = false): CharacterRig {
+    const { definition, rig } = p;
+    const was = keepPose && this.rig && this.scripted ? { clip: this.rig.clip, time: this.rig.time } : null;
+    // Modelled weapons replace the greybox ones everywhere (sockets, sheathing, hit detection).
+    if (p.prop) {
+      this.swordMesh.removeFromParent();
+      this.swordMesh = p.prop;
+    }
+    if (p.shield) {
+      this.shieldMesh.removeFromParent();
+      this.shieldMesh = p.shield;
+    }
+    if (definition.weapon?.blade) this.bladeSpan = definition.weapon.blade;
+    if (!p.strikes) this.fitProps(p);
     this.primitiveRoot.visible = false;
     this.modelGroup.add(rig.root);
     this.rig?.dispose();
@@ -330,17 +372,9 @@ export class Character extends Entity {
       if (seconds) this.stateMachine[TIMED_STATES[state]!] = seconds;
     }
     this.rig = rig;
-    // Hit windows straight from each attack clip's motion (scaled to the state's playback rate and start).
     this.strikeWindows.clear();
     this.stateMachine.cancelAt = {};
-    for (const [state, config] of Object.entries(definition.states) as [CharacterState, NonNullable<typeof definition.states.IDLE>][]) {
-      if (!state.startsWith('ATTACK')) continue;
-      const rate = config.timeScale ?? 1;
-      const start = config.startAt ?? 0;
-      const end = config.endAt ?? Infinity;
-      const spans = rig.measureStrikes(config.clip, () => this.swordMesh.localToWorld(new THREE.Vector3(0, this.bladeSpan[1], 0)))
-        .filter((s) => s.t1 > start && s.t0 < end)
-        .map((s) => ({ t0: Math.max(0, s.t0 - start) / rate, t1: (Math.min(s.t1, end) - start) / rate }));
+    for (const [state, spans] of p.strikes!) {
       this.strikeWindows.set(state, spans);
       if (this.chainsEarly && spans.length) this.stateMachine.cancelAt[state] = spans[spans.length - 1].t1 + CANCEL_AFTER_STRIKE;
     }
@@ -348,6 +382,7 @@ export class Character extends Entity {
     this.rigKey = null;
     this.lastGroundPos.copy(this.group.position);
     if (this.swordSheathed) this.stowSword(true);
+    if (was?.clip && rig.clipInfo(was.clip)) this.playScripted({ clip: was.clip, fade: 0, startAt: was.time });
     return rig;
   }
 
@@ -740,4 +775,14 @@ export interface HitWindow {
 /** The same angle in (-PI, PI]. */
 export function wrapAngle(a: number): number {
   return a - Math.PI * 2 * Math.round(a / (Math.PI * 2));
+}
+
+/** A rig loaded and fitted with its props, ready to wear (`Character.prepareRig` / `mountRig`). */
+export interface PreparedRig {
+  definition: CharacterDefinition;
+  rig: CharacterRig;
+  prop: THREE.Group | null;
+  shield: THREE.Group | null;
+  /** Hit windows per attack state, measured with the props on (null until they are). */
+  strikes: Map<CharacterState, HitWindow[]> | null;
 }

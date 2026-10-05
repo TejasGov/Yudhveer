@@ -1,8 +1,8 @@
 import * as THREE from 'three';
 import type { CharacterDefinition, StateAnimation } from '../animation/CharacterRig';
 import type { CharacterState } from '../CharacterStateMachine';
-import type { WeaponId } from '../../game/Progression';
-import { YODHA } from './Yodha';
+import type { Attire, WeaponId } from '../../game/Progression';
+import { ATTIRE_MODELS, YODHA } from './Yodha';
 import type { SwingKind, ImpactKind } from '../../combat/SoundFX';
 
 /** What one blow of a weapon does to whoever it lands on. `heavy` blows break through a committed attack. */
@@ -37,6 +37,11 @@ export interface WeaponSet {
   /** Can go in the scabbard (X). A staff or a mace is carried, not sheathed. */
   stowable: boolean;
   sound: WeaponSound;
+}
+
+/** A weapon set's rig on the model of what he wears (the same clips and sockets either way). */
+export function dressed(set: WeaponSet, attire: Attire): CharacterDefinition {
+  return { ...set.definition, ...ATTIRE_MODELS[attire] };
 }
 
 /** A hero rig on `YODHA`'s model, clips and locomotion with the pieces a weapon changes swapped in. */

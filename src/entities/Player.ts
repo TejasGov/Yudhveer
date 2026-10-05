@@ -1,11 +1,11 @@
 import * as THREE from 'three';
-import { Character } from './Character';
+import { Character, type PreparedRig } from './Character';
 import type { CharacterState } from './CharacterStateMachine';
 import { InputManager, type InputState } from '../core/InputManager';
 import { SoundFX } from '../combat/SoundFX';
 import { ParticleFX } from '../combat/ParticleFX';
-import { KITS, Skills, type Ability, type HeroKit } from '../game/Progression';
-import { WEAPON_SETS, type WeaponSet } from './characters/YodhaWeapons';
+import { KITS, Skills, type Ability, type Attire, type HeroKit } from '../game/Progression';
+import { WEAPON_SETS, dressed, type WeaponSet } from './characters/YodhaWeapons';
 
 /** A completed charge (hold Q) empowers this many blows, each dealing this much more damage and posture. */
 const CHARGED_HITS = 3;
@@ -58,6 +58,10 @@ export class Player extends Character {
   /** What he carries and which moves are his, set by the chapter (`equip`). Starts as the first chapter's. */
   public readonly skills = new Skills(KITS.baoli);
   public weapon: WeaponSet = WEAPON_SETS[KITS.baoli.weapon];
+  /** What he wears (the model his rig is built on); set with the kit, changed by the story (`wear`). */
+  public attire: Attire = KITS.baoli.attire;
+  /** His rig in another attire, loaded ahead so the story's change of clothes is instant (`ready`, `wear`). */
+  private wardrobe: { attire: Attire; weapon: WeaponSet; rig: Promise<PreparedRig>; ready: PreparedRig | null } | null = null;
   /** Called when the fight teaches him a move (the engine shows the banner). */
   public onLearned: ((ability: Ability) => void) | null = null;
 
@@ -114,17 +118,54 @@ export class Player extends Character {
   }
 
   /**
-   * Puts him in a chapter's kit: its weapon (and the dhal, if that weapon comes with it) and its moves. Changing
-   * weapon rebuilds his rig, so call it while the chapter loads.
+   * Puts him in a chapter's kit: its weapon (and the dhal, if that weapon comes with it), its moves and what he wears.
+   * Changing weapon or attire rebuilds his rig, so call it while the chapter loads. A kit whose story changes his
+   * attire (`becomes`) has that rig loaded too before this resolves.
    */
   public async equip(kit: HeroKit): Promise<void> {
     this.skills.setKit(kit);
     const set = WEAPON_SETS[kit.weapon];
-    if (set === this.weapon && this.rig) return;
-    // Every chapter starts with the weapon in hand; one that cannot be sheathed never is.
-    this.swordSheathed = false;
-    await this.attachRig(set.definition);
-    this.weapon = set;
+    if (!kit.becomes && this.wardrobe) {
+      // Readied for a change this chapter will not make: let it go.
+      void this.wardrobe.rig.then((p) => p.rig.dispose()).catch(() => undefined);
+      this.wardrobe = null;
+    }
+    const later = kit.becomes ? this.ready(kit.becomes, set) : Promise.resolve();
+    if (set !== this.weapon || kit.attire !== this.attire || !this.rig) {
+      // Every chapter starts with the weapon in hand; one that cannot be sheathed never is.
+      this.swordSheathed = false;
+      await this.attachRig(dressed(set, kit.attire));
+      this.weapon = set;
+      this.attire = kit.attire;
+    }
+    await later.catch((err) => console.error(`[Player] his ${kit.becomes} rig failed to load`, err));
+  }
+
+  /** Loads his rig in `attire` (with `weapon`, by default the one in hand) for a later `wear`. */
+  public ready(attire: Attire, weapon: WeaponSet = this.weapon): Promise<void> {
+    const w = this.wardrobe;
+    if (w && w.attire === attire && w.weapon === weapon) return w.rig.then(() => undefined);
+    w?.rig.then((p) => { if (this.wardrobe !== w) p.rig.dispose(); }).catch(() => undefined);
+    const entry: NonNullable<Player['wardrobe']> = { attire, weapon, rig: this.prepareRig(dressed(weapon, attire)), ready: null };
+    this.wardrobe = entry;
+    return entry.rig.then((p) => { entry.ready = p; });
+  }
+
+  /**
+   * Changes what he wears, at once if that rig was readied (`ready`; a kit's `becomes` is), keeping his weapon,
+   * state and the clip a cue is playing. Not readied, it loads first (and false is returned).
+   */
+  public wear(attire: Attire): boolean {
+    if (attire === this.attire && this.rig) return true;
+    const w = this.wardrobe;
+    if (w?.ready && w.attire === attire && w.weapon === this.weapon) {
+      this.wardrobe = null;
+      this.mountRig(w.ready, true);
+      this.attire = attire;
+      return true;
+    }
+    void this.ready(attire).then(() => this.wear(attire)).catch((err) => console.error(`[Player] could not change into ${attire}`, err));
+    return false;
   }
 
   public handleInput(dt: number, viewYaw: number, foes: readonly Character[] = []): void {

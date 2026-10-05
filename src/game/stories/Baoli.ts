@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { ease, type CameraKey } from '../../cinematics/CinematicDirector';
+import { awaken, kavachLight, kindleEyes, type KavachLight, type StatueMarks } from '../../cinematics/DivineLight';
 import type { ChapterStory, Stage } from '../../cinematics/Scene';
 import { Enemy } from '../../entities/Enemy';
 import { GURU } from '../../entities/characters/Village';
@@ -11,6 +12,9 @@ import { shade, shadeOf, shadeRises, shadeShots, twoShot } from '../Story';
  * old stepwell; Andhaka's darkness has bound its Guardian to stop anyone who follows. The boy has only his lathi and
  * what he remembers of his lessons: the guru's voice comes back to him as the fight asks for it, and teaches him the
  * gathered blow.
+ *
+ * Before he goes down, he kneels at the Devi's shrine on the terrace above the well: Durga speaks to him, and her light
+ * burns away his training clothes and leaves him in the divya kavach (STORY.md, "The divya kavach").
  */
 
 const v = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
@@ -23,6 +27,43 @@ const v = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
 const BAOLI_CENTRE = v(0, 0, 0);
 const BAOLI_ENTRY = v(1.5, 0, 12.5);
 const BAOLI_STAND = v(0, 0, 4.5);
+
+/**
+ * The Devi's shrine on the terrace, ~66 m beyond the island (Level1_Baoli scales it to twice its modelled size): where
+ * the boy comes up the last steps, where he kneels (between the stone lions, ~6 m short of her pedestal), her face and
+ * her eyes (measured off the statue), and what `awaken` lights.
+ */
+const DEVI_APPROACH = v(0.3, 4.15, 50.6);
+const DEVI_KNEEL = v(0, 4.15, 57.5);
+const DEVI_FACE = v(-0.5, 16.8, 68.3);
+const DEVI_EYES: [THREE.Vector3, THREE.Vector3] = [v(-0.66, 17.05, 68.0), v(-0.34, 17.05, 68.0)];
+const DEVI_STATUE: StatueMarks = { head: DEVI_FACE, feet: v(0, 8.7, 64.6), facing: v(0, 0, -1) };
+/** Seconds into the light's shot when his clothes burn away into the kavach; where the prayer clip ends. */
+const KAVACH_AT = 3.3;
+const PRAYED_AT = 1.9;
+
+/**
+ * The Devi's prophecy (docs/STORY.md, "The divya kavach"). Subtitles only until they are recorded; the planned voice
+ * ids are `baoli_devi_1` to `baoli_devi_3` (docs/APPROVALS.md).
+ */
+const DEVI_LINES = [
+  { speaker: 'Durga', text: 'You climbed to my door with a stick of bamboo, and a grief too heavy for it.' },
+  { speaker: 'Durga', text: 'What they carried down this well, they will not keep. Follow it.' },
+  { speaker: 'Durga', text: 'Not alone. Wear my kavach. It will turn the blow. It will not move your feet; that is yours to do.' },
+];
+
+/** The shrine's effects, set up as the scene starts and started on cue. */
+let wake: ((seconds: number) => void) | null = null;
+let eyes: ((seconds: number) => void) | null = null;
+let gift: KavachLight | null = null;
+
+/**
+ * He kneels, prays or rises: one of the Hero- clips, or (a model built without them) the nearest clip it has.
+ * `startAt`: clip seconds to start from.
+ */
+function kneel(s: Stage, clip: string, fallback: string, fade = 0.3, startAt?: number): void {
+  if (!s.player.playClip(clip, { fade, startAt })) s.player.playClip(fallback, { fade });
+}
 
 /** The Guardian (its enemy id), and the framings for its shade (Story.ts `shadeShots`), on the island's open side. */
 const GUARDIAN = 'baoli_guardian';
@@ -39,11 +80,151 @@ export const BAOLI_STORY: ChapterStory = {
     shadeOf(GUARDIAN, BAOLI_GUARDIAN),
   ],
 
-  // On the raiders' trail into the stepwell; the bound Guardian rises to block the way down. For a breath the boy
-  // sees his guru beside him.
+  // At the Devi's shrine above the well he kneels in his training clothes and rises in the divya kavach; then on the
+  // raiders' trail into the stepwell, where the bound Guardian rises to block the way down. For a breath the boy sees
+  // his guru beside him.
   opening: {
     id: 'baoli-opening',
     shots: [
+      // The Devi's shrine on the terrace above the stepwell (docs/STORY.md, "The divya kavach"). From black: low
+      // behind the boy, in his training clothes, as he climbs between the stone lions to the Devi on her lion.
+      {
+        duration: 5.6,
+        fadeIn: 1.0,
+        ease: ease.drift,
+        cues: [
+          { at: 0, actor: 'hero', place: DEVI_APPROACH, face: DEVI_FACE },
+          { at: 0.2, actor: 'hero', moveTo: DEVI_KNEEL, face: DEVI_FACE },
+          // The Devi's eyes and light, set up dark while nothing is lit (their shaders compile off the moment).
+          {
+            at: 0,
+            run: (s) => {
+              wake = awaken(s.level.group, s.level.group, DEVI_STATUE, 'Devi_Stone', 14, 0.25);
+              eyes = kindleEyes(s.level.group, DEVI_EYES, 0.4);
+            },
+          },
+        ],
+        camera: [
+          { pos: v(-2.4, 5.2, 46.4), look: v(0, 9.4, 66), fov: 46 },
+          { pos: v(-1.8, 5.4, 48.8), look: v(0, 10.2, 66), fov: 44 },
+        ],
+      },
+      // Side on, close: he lays the lathi down, kneels, and joins his hands.
+      {
+        duration: 5.2,
+        fadeIn: 0.15,
+        ease: ease.drift,
+        cues: [
+          { at: 0, actor: 'hero', place: DEVI_KNEEL, face: DEVI_FACE },
+          { at: 0.1, run: (s) => { s.player.swordMesh.visible = false; kneel(s, 'kneeling_down', 'crouch'); } },
+          { at: 2.7, run: (s) => kneel(s, 'praying', 'crouch_idle', 0.35) },
+        ],
+        camera: [
+          { pos: v(3.3, 5.25, 55.7), look: v(0, 4.85, 58.0), fov: 40 },
+          { pos: v(2.9, 5.15, 56.0), look: v(0, 4.75, 58.0), fov: 38 },
+        ],
+      },
+      // Low behind him, up at the Devi towering over him: her stone warms, her lamps are answered, her eyes open in light.
+      {
+        duration: 5.4,
+        fadeIn: 0.15,
+        ease: ease.drift,
+        sway: 0.008,
+        cues: [
+          { at: 0.3, run: () => wake?.(4.5) },
+          { at: 1.6, run: () => eyes?.(1.8) },
+        ],
+        camera: [
+          { pos: v(-1.4, 4.6, 49.6), look: v(0, 9.8, 67), fov: 50 },
+          { pos: v(-1.2, 4.65, 50.6), look: v(0, 10.3, 67), fov: 48 },
+        ],
+      },
+      // Up at her face, past the lion's mane, slowly closer: she speaks.
+      {
+        fadeIn: 0.15,
+        ease: ease.drift,
+        sway: 0.006,
+        linesAt: 0.6,
+        lines: [DEVI_LINES[0]],
+        camera: [
+          { pos: v(-3.6, 13.6, 60.6), look: DEVI_FACE.clone().add(v(0, -0.3, 0)), fov: 33 },
+          { pos: v(-3.3, 13.8, 61.3), look: DEVI_FACE.clone().add(v(0, -0.25, 0)), fov: 30 },
+        ],
+      },
+      // His face, looking up into her light, as she tells him what they cannot keep; he answers.
+      {
+        fadeIn: 0.12,
+        ease: ease.drift,
+        sway: 0.008,
+        lines: [DEVI_LINES[1], { speaker: 'Yudhveer', text: 'With a stick of bamboo?' }],
+        camera: (s): CameraKey[] => {
+          const head = s.head('hero');
+          return [
+            { pos: head.clone().add(v(0.75, -0.12, 1.45)), look: head.clone().add(v(0, 0.05, 0)), fov: 34 },
+            { pos: head.clone().add(v(0.65, -0.1, 1.25)), look: head.clone().add(v(0, 0.05, 0)), fov: 32 },
+          ];
+        },
+      },
+      // Her face again, square on to her now: the gift.
+      {
+        fadeIn: 0.12,
+        ease: ease.drift,
+        sway: 0.006,
+        lines: [DEVI_LINES[2]],
+        camera: [
+          { pos: v(-1.6, 15.0, 59.2), look: DEVI_FACE.clone().add(v(0, -0.7, 0)), fov: 36 },
+          { pos: v(-1.4, 15.1, 59.9), look: DEVI_FACE.clone().add(v(0, -0.6, 0)), fov: 33 },
+        ],
+      },
+      // Low, three-quarters on, her pedestal behind him: her light comes down on him; his training clothes burn away in it, and in a white flash he is
+      // clothed in the divya kavach.
+      {
+        duration: 6.4,
+        fadeIn: 0.15,
+        ease: ease.drift,
+        cues: [
+          {
+            at: 0,
+            run: (s) => {
+              gift = kavachLight(s.level.group, s.player);
+              gift.start(6.2, KAVACH_AT, () => undefined);
+            },
+          },
+          // The change itself, essential: a skipped or settled scene (a retry) still leaves him in the kavach.
+          {
+            at: KAVACH_AT,
+            essential: true,
+            run: (s) => {
+              s.player.wear('kavach');
+              s.player.swordMesh.visible = false;
+            },
+          },
+          { at: KAVACH_AT + 0.05, run: (s) => kneel(s, 'praying', 'crouch_idle', 0, PRAYED_AT) },
+        ],
+        camera: [
+          { pos: v(3.4, 5.2, 53.9), look: v(-0.4, 6.0, 59.6), fov: 50 },
+          { pos: v(3.1, 5.15, 54.4), look: v(-0.4, 5.85, 59.4), fov: 48 },
+        ],
+      },
+      // Low in front of him: he rises in the kavach, the light lifting off him, and takes up the lathi.
+      {
+        duration: 4.0,
+        fadeIn: 0.15,
+        fadeOut: 0.7,
+        ease: ease.out,
+        cues: [
+          { at: 0.2, run: (s) => kneel(s, 'kneel_to_stand', 'calm_idle', 0.3) },
+          { at: 1.9, essential: true, run: (s) => { s.player.swordMesh.visible = true; } },
+        ],
+        camera: (s): CameraKey[] => {
+          const p = s.pos('hero');
+          return [
+            { pos: p.clone().add(v(0.9, 0.55, 2.6)), look: p.clone().add(v(0, 1.0, 0)), fov: 40 },
+            { pos: p.clone().add(v(0.75, 0.45, 2.3)), look: p.clone().add(v(0, 1.45, 0)), fov: 40 },
+          ];
+        },
+      },
+      // Down in the stepwell:
       // Low behind him as he walks in across the island toward the dark shape hunched at its middle.
       {
         duration: 6,

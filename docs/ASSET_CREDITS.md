@@ -30,7 +30,6 @@ maps dropped, and the result merged into the level's GLB. Individual changes are
 | [diwali diya](https://sketchfab.com/3d-models/diwali-diya-627dea0363f042d3b0c906c90e922aec) | [sinuboy072](https://sketchfab.com/sinuboy072) | [CC BY 4.0](http://creativecommons.org/licenses/by/4.0/) | the clay diyas on the wall shelves and the altar. Its own flame removed (the game's flame burns in its spout); flat clay colours. | 800 |
 | [Medieval Wall Torch](https://sketchfab.com/3d-models/medieval-wall-torch-77db436da2844cbfb4dde0bb9b396835) | [Kigha](https://sketchfab.com/Kigha) | [CC BY 4.0](http://creativecommons.org/licenses/by/4.0/) | the two wall torches. | 1.7k |
 | [Ganesha, 10th - 11th C CE](https://sketchfab.com/3d-models/ganesha-10th-11th-c-ce-375c670515684977b6ec05be115366ac) | [Minneapolis Institute of Art](https://sketchfab.com/artsmia) | [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/) | the old idol by the shrine's door. | 9.0k |
-| [Old Boat](https://sketchfab.com/3d-models/old-boat-a9ce4ca0cac14f448c72bb94ad193437) | [donnichols](https://sketchfab.com/donnichols) | [CC BY 4.0](http://creativecommons.org/licenses/by/4.0/) | the boat at the landing. Oars left out; a code-built cane canopy added. | 6.0k |
 | [Coiled Rope 2](https://sketchfab.com/3d-models/coiled-rope-2-e6fe8fedd3d04b1dac3e32e0dd515cbb) | [TepidGames](https://sketchfab.com/TepidGames) | [CC BY 4.0](http://creativecommons.org/licenses/by/4.0/) | the rope at the landing's mooring post. Flat rope colour. | 1.6k |
 | [Flat rocks](https://sketchfab.com/3d-models/flat-rocks-b76813cc177248418639026b06bc9745) | [DJMaesen](https://sketchfab.com/bumstrum) | [CC BY 4.0](http://creativecommons.org/licenses/by/4.0/) | the black pool's rim, the landing's stepping stones, floor-edge stones. | 410, 556, 348, 128 |
 | [Rubble](https://sketchfab.com/3d-models/rubble-9a180893d6454f68a764e62be3fc5c92) | [Pert Doherty](https://sketchfab.com/pertdoherty) | [CC BY 4.0](http://creativecommons.org/licenses/by/4.0/) | rubble at the walls' feet. | 320 |
@@ -41,6 +40,11 @@ maps dropped, and the result merged into the level's GLB. Individual changes are
 | [Skeleton Sitting](https://sketchfab.com/3d-models/skeleton-sitting-f06c95b499dd465aafe3338fe2b7a30e) | [Buzzie](https://sketchfab.com/Buzzie) | [CC BY 4.0](http://creativecommons.org/licenses/by/4.0/) | a dead seeker slumped against the hall wall. | 7.0k |
 
 The Mia scan (Minneapolis Institute of Art) is CC0 and needs no credit; it is credited as a courtesy.
+
+The boat at the landing (2026-10-05) is not a download: it is a Meshy 7 model made for the game
+(`game asset/levels/03_island/sources/boat_meshy7.glb`, 15k triangles, prepared as `props/boat.glb`: turned, scaled to
+5.5 m, its 2k map graded), with code-built reed mats round its canopy. It replaced Sketchfab's "Old Boat" by
+donnichols (CC BY 4.0), which is no longer in the game and no longer credited.
 
 In the CC BY form the authors ask for (each model's `license.txt`):
 
@@ -57,7 +61,6 @@ In the CC BY form the authors ask for (each model's `license.txt`):
 - This work is based on "Brazier" (https://sketchfab.com/3d-models/brazier-653f30c424874a5a8ba4d71cef51d94e) by mSameja (https://sketchfab.com/mSameja) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/). Changes: decimated, rescaled, retextured.
 - This work is based on "diwali   diya" (https://sketchfab.com/3d-models/diwali-diya-627dea0363f042d3b0c906c90e922aec) by sinuboy072 (https://sketchfab.com/sinuboy072) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/). Changes: decimated, rescaled, retextured.
 - This work is based on "Medieval Wall Torch" (https://sketchfab.com/3d-models/medieval-wall-torch-77db436da2844cbfb4dde0bb9b396835) by Kigha (https://sketchfab.com/Kigha) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/). Changes: decimated, rescaled, retextured.
-- This work is based on "Old Boat" (https://sketchfab.com/3d-models/old-boat-a9ce4ca0cac14f448c72bb94ad193437) by donnichols (https://sketchfab.com/donnichols) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/). Changes: decimated, rescaled, retextured.
 - This work is based on "Coiled Rope 2" (https://sketchfab.com/3d-models/coiled-rope-2-e6fe8fedd3d04b1dac3e32e0dd515cbb) by TepidGames (https://sketchfab.com/TepidGames) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/). Changes: decimated, rescaled, retextured.
 - This work is based on "Flat rocks" (https://sketchfab.com/3d-models/flat-rocks-b76813cc177248418639026b06bc9745) by DJMaesen (https://sketchfab.com/bumstrum) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/). Changes: decimated, rescaled, retextured.
 - This work is based on "Rubble" (https://sketchfab.com/3d-models/rubble-9a180893d6454f68a764e62be3fc5c92) by Pert Doherty (https://sketchfab.com/pertdoherty) licensed under CC-BY-4.0 (http://creativecommons.org/licenses/by/4.0/). Changes: decimated, rescaled, retextured.

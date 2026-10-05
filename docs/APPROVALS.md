@@ -207,3 +207,36 @@ worth fetching, then preparing like the cave's props (`levels/03_island/prepare_
 `build_village.py`: a bullock cart and a charpai (the code-built ones are the weakest props up close), terracotta matkas
 and a chulha, and Indian villagers in dhoti, kurta and saree if any suit the cel style (to replace the Mixamo
 placeholders). Each needs its licence checked (never NC / ND) and a line in docs/ASSET_CREDITS.md.
+
+## The Devi's prophecy in the baoli: Durga's voice (costs credits on a yes, nothing recorded)
+
+Chapter I now opens at the Devi's shrine above the stepwell (docs/STORY.md, "The divya kavach"): the boy kneels to
+Durga, she speaks, and her light clothes him in the divya kavach. Her three lines are in the game as **subtitles only**
+(`DEVI_LINES` in `src/game/stories/Baoli.ts`, no `voice` yet); the boy answers one line, unvoiced as always.
+
+| Planned id | Speaker | Line | Characters | To record (2 takes) |
+|---|---|---|---|---|
+| `baoli_devi_1` | Durga | You climbed to my door with a stick of bamboo, and a grief too heavy for it. | 76 | about 182 credits |
+| `baoli_devi_2` | Durga | What they carried down this well, they will not keep. Follow it. | 64 | about 154 credits |
+| (none) | Yudhveer | With a stick of bamboo? | (subtitle only) | - |
+| `baoli_devi_3` | Durga | Not alone. Wear my kavach. It will turn the blow. It will not move your feet; that is yours to do. | 98 | about 235 credits |
+| **All** | | | **238** | **about 571 credits** |
+
+Why these words: she sees him as he is (a village boy with a lathi and a grief), she does not name Andhaka or the
+guru, and "they will not keep" what they carried is true in a way he cannot yet understand (the guru is Shiva; no one
+holds him) without giving the summit away. The kavach is her protection, not his strength: "It will not move your
+feet" ties it to the guru's first lesson ("feet first"), which the fight then repeats.
+
+**Voice candidates** (ElevenLabs library, Indian English, female; listed only, nothing generated):
+
+| | Voice | voice_id | Why |
+|---|---|---|---|
+| **A (recommended)** | Moana - Deep & Sophisticated | `mKn4iVyn09DrJ8cFw5Rn` | Deep, resonant, commandingly calm with a warm, polished texture: the most "divine" weight of the three without theatre. |
+| B | India - Husky & Cosmo | `mmSZflZFDoe6qEecRgIO` | Deep and husky, warm and grounded, no high inflections: a darker, earthier Devi. |
+| C | Aakancha - warm, perceptive, deeply human | `unOLncGEZHyisV6yF1a5` | Warm, mature, slightly husky, deliberate pauses: the most motherly; less power, more tenderness. |
+
+Suggested delivery: slow, low, unhurried, a faint reverb in the game (the voice is the stone's), no whisper.
+
+Cost: about 1.2 ElevenLabs credits per character per take, 2 takes: **about 571 credits** for the three lines. On a
+yes: record with the chosen voice (the usual workflow: two takes, loudnorm to -18 LUFS), add `voice: 'baoli_devi_N'`
+to `DEVI_LINES`, add the voice to `game asset/voice/VOICES.md`, and mark them recorded in STORY.md's Chapter I table.
