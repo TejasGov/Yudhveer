@@ -16,7 +16,7 @@ const v = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
  * Framing for two people facing each other: the line from `a` to `b`, the side of it the camera stands on (toward
  * `centre`, the open middle of the arena, so it stays clear of walls), and the point between them.
  */
-function twoShot(s: Stage, a: string, b: string, centre: THREE.Vector3) {
+export function twoShot(s: Stage, a: string, b: string, centre: THREE.Vector3) {
   const pa = s.pos(a);
   const pb = s.pos(b);
   const dir = pb.clone().sub(pa).setY(0);

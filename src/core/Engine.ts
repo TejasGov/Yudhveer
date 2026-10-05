@@ -200,9 +200,15 @@ const FIRST_FIGHT_HINTS: [number, string, Ability?, Ability?][] = [
   [1.5, 'Press {guard} just as a blow lands to deflect it.', 'parry'],
   [10, 'Press {dodge} to slide under a blow. You can slide out of a swing once it has landed.', 'dodge'],
   [18, 'Hold {guard} to keep your guard up. Blocking still wears down your posture.', 'block'],
-  [26, 'Hold {charge} to put your strength into the next three blows.', 'charge'],
+  [26, 'Hold {charge}, standing, until your strength gathers: the next three blows strike harder.', 'charge'],
   [36, 'Sprint with {sprint} and attack to leap in with a falling strike.', 'leap'],
 ];
+
+/**
+ * Seconds of fight after an in-fight line before a beat may start another: the guru's voice never talks over itself
+ * or runs one lesson into the next. A beat whose moment passes while he waits (a posture break) fires the next time.
+ */
+const LINES_GAP = 4;
 
 const ABILITY_NAMES: Record<Ability, string> = {
   dodge: 'The slide',
@@ -261,6 +267,8 @@ export class Engine {
   private beats: { beat: StoryBeat; fired: boolean }[] = [];
   /** Moves taught during this attempt (`learned` triggers). */
   private readonly learnedNow = new Set<Ability>();
+  /** Fight seconds when the last in-fight line was still up (beats' lines keep `LINES_GAP` from it). */
+  private linesEndedAt = -Infinity;
   private container!: HTMLElement;
 
   private mode: Mode = 'boot';
@@ -335,6 +343,7 @@ export class Engine {
     this.player.onLearned = (ability) => {
       this.learnedNow.add(ability);
       this.hud.callout({ text: 'Learned', sub: ABILITY_NAMES[ability], tone: 'gold' });
+      this.hintLearned(ability);
     };
     this.player.group.visible = false;
 
@@ -729,6 +738,7 @@ export class Engine {
     this.beaten = false;
     this.beats = (chapter.story?.beats ?? []).map((beat) => ({ beat, fired: false }));
     this.learnedNow.clear();
+    this.linesEndedAt = -Infinity;
     Voices.preload(storyVoices(chapter.story));
     this.hideLoading();
 
@@ -835,6 +845,7 @@ export class Engine {
     return (chapter.story?.cast ?? []).map((m) => {
       const extra = new Extra(m.id);
       if (m.silhouette) extra.silhouetteColor = m.silhouette.color;
+      if (m.ghost) extra.ghost = m.ghost;
       extra.setPosition(m.at.x, m.at.y, m.at.z);
       if (m.face) extra.group.rotation.y = Math.atan2(m.face.x - m.at.x, m.face.z - m.at.z);
       extra.group.visible = !m.hidden;
@@ -947,13 +958,18 @@ export class Engine {
     if (!this.beats.length || !this.player || this.player.isDown()) return;
     // A final boss still loading in gets his own cutscene first.
     if (this.finale?.boss && !this.finale.boss.group.visible) return;
+    // In-fight lines keep their distance: none starts while another is spoken or until a breath after it.
+    if (this.dialogue.speaking) this.linesEndedAt = this.fightTime;
+    const quiet = this.fightTime - this.linesEndedAt >= LINES_GAP;
     const stage = this.stage();
     for (const b of this.beats) {
-      if (b.fired || !triggered(b.beat.on, stage, { time: this.fightTime, learned: this.learnedNow })) continue;
+      if (b.fired || ('lines' in b.beat && !quiet)) continue;
+      if (!triggered(b.beat.on, stage, { time: this.fightTime, learned: this.learnedNow })) continue;
       b.fired = true;
       b.beat.run?.(stage);
       if ('lines' in b.beat) {
         this.dialogue.play(b.beat.lines, 'voice');
+        return; // one voice at a time
       } else {
         this.storyScene(b.beat.scene, () => this.endIntro());
         if (this.mode !== 'play') return; // one scene at a time
@@ -1524,5 +1540,16 @@ export class Engine {
       this.hintIndex++;
       break;
     }
+  }
+
+  /**
+   * A move just taught mid-fight (the guru's charge, in Chapter I): its first-fight hint now, since the hints in order
+   * passed it by while it was still locked.
+   */
+  private hintLearned(ability: Ability): void {
+    const index = FIRST_FIGHT_HINTS.findIndex(([, , needs]) => needs === ability);
+    if (index < 0 || this.hintsShown.has(index) || !Settings.get().hints) return;
+    this.hud.hint(FIRST_FIGHT_HINTS[index][1], 8);
+    this.hintsShown.add(index);
   }
 }

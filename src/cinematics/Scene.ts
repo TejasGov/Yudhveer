@@ -110,6 +110,11 @@ export interface CastMember {
    * in the prologue).
    */
   silhouette?: { color: THREE.ColorRepresentation };
+  /**
+   * Drawn pale and see-through, washed in `color` with a glowing rim: someone remembered, not there (the guru in
+   * Chapter I). `opacity` defaults to 0.3.
+   */
+  ghost?: { color: THREE.ColorRepresentation; opacity?: number };
 }
 
 /** What a chapter tells, and when. */

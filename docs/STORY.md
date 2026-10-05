@@ -275,6 +275,66 @@ Every line, for recording (ElevenLabs; the voices are in `game asset/voice/VOICE
 | `prologue_end_yudhveer_cry` | Yudhveer | Guruji! | subtitle only |
 | `yudhveer_prologue_find` | Yudhveer | Guruji... I will find you. Even if I have to climb to the top of the world. | subtitle only |
 
+## Milestone 5: Chapter I (landed)
+
+"The Moonlit Baoli", chapter id 1. Code: `BAOLI_STORY` in `src/game/stories/Baoli.ts` (its own file, so the later
+chapters' stories can be written alongside it), wired in `src/game/Chapters.ts`; small additions to
+`src/cinematics/Scene.ts` and `src/entities/Extra.ts` (the ghost) and `src/core/Engine.ts` (spacing of in-fight lines,
+the hint for a move just learned). The map and the Guardian's fight are unchanged.
+
+- **Flow:** the intro shows only the stepwell (`introPlaceOnly`); the Guardian rises in the opening scene instead.
+  **Opening:** low behind the boy as he walks in across the island on the raiders' trail toward the dark shape hunched
+  at its middle; he tells it to stand aside; it rises and roars (its name card); for a breath his guru stands at his
+  shoulder, pale and see-through, and tells him to look at its feet; gone, and over his shoulder into the fight.
+- **The guru's remembered voice** (in-fight `lines` beats, each once per attempt): the lesson of the gathered blow
+  (teaches `charge` through `Player.learn`) once the Guardian is under 60 % or 45 s have passed; "feet first" when the
+  boy is under half health; "now" when the Guardian's posture breaks; slide clear when it leaps or starts its
+  three-blow string; praise for his first three-blow chain; near the end (under 25 %) that something binds it.
+- **Lines keep their distance** (Engine, `LINES_GAP`): a beat's lines never start while another in-fight line is up,
+  nor within 4 s of fight after one; a beat whose moment passes while it waits (a posture break) fires the next time.
+  Only one beat's lines start per frame, so the order of `beats` is their priority. The prologue's two beats follow
+  the same rule.
+- **Charge** is Q (pad: its charge button), held while standing for 1.6 s; the three blows after it strike harder.
+  The guru's line says it in his words ("Stand, and gather your strength. Hold it until it is whole, then strike.");
+  the first-fight hint now reads "Hold {charge}, standing, until your strength gathers: the next three blows strike
+  harder." The hints in order skip it while it is locked, so learning it shows its hint at once (`hintLearned`, once
+  per session, if hints are on). A retry after learning it keeps it (saved per kit) and the hint comes at 26 s as
+  before; the guru still says the lesson.
+- **Ending:** from black, the boy walks up to the fallen Guardian; freed, it says Andhaka bound it to the well to turn
+  back anyone who followed; he says he is going after his guru; not with a lathi: go to the Hanuman akhada, let the
+  vanaras teach him to truly fight, then follow; "Then I will learn. And then I will follow."; he turns back the way he
+  came and the picture fades into the chapter-complete screen.
+- **New in the scene system:** `CastMember.ghost` (`{ color, opacity? }`): a cast member drawn pale and see-through
+  with its textures kept and a glowing rim, writing depth so the body does not show through itself, casting no shadow.
+  The guru is cast as one, hidden until the opening's memory shot.
+- **Decided here:** the Guardian stays the Guardian (its name card and epithet are unchanged); it speaks lying where it
+  fell (no dissolve or rising). The chapter's card lines are unchanged.
+- **Left for later:** the guru's and the Guardian's lines are unrecorded (Yudhveer's are subtitles only, no voice); the Guardian has no "bound" look in the fight (darkness on it, freed
+  light at the end); the ending is framed off the boss's head bone wherever it fell, so an odd fall (in the pool, on the
+  steps) can frame less well; the guru's voice in the fight has no ghostly treatment beyond the in-fight italics.
+
+### Chapter I lines
+
+| Id | Speaker | Text | Recorded |
+|---|---|---|---|
+| (none) | Yudhveer | Their tracks end at the water. There is a way down, under the well. | subtitle only |
+| (none) | Yudhveer | Stand aside. They carried my guru through here. | subtitle only |
+| `baoli_open_guru_1` | Guru (remembered) | Do not look at its size, Yudhveer. Look at its feet. | no |
+| (none) | Yudhveer | Feet first, Guruji. | subtitle only |
+| `baoli_fight_guru_1` | Guru (in the fight; his first three-blow chain) | Good. Let each blow open the way for the next. | no |
+| `baoli_fight_guru_2` | Guru (in the fight; the Guardian leaps or starts its string) | Do not stand under the great blows. Slide clear, then answer. | no |
+| `baoli_fight_guru_3` | Guru (in the fight; under half health) | Breathe. Feet first. A man off his feet strikes nothing. | no |
+| `baoli_fight_guru_4` | Guru (in the fight; Guardian under 60 % or 45 s: teaches charge) | Now the lesson you would never sit still for. | no |
+| `baoli_fight_guru_5` | Guru (in the fight, follows 4) | Stand, and gather your strength. Hold it until it is whole, then strike. | no |
+| `baoli_fight_guru_6` | Guru (in the fight; its posture breaks) | It reels. Now, Yudhveer! | no |
+| `baoli_fight_guru_7` | Guru (in the fight; Guardian under 25 %) | It was not always this. Something dark binds it. Set it free. | no |
+| `baoli_end_guardian_1` | Baoli Guardian | The dark... it has let go of me. | no |
+| `baoli_end_guardian_2` | Baoli Guardian | Andhaka bound me to this well, to turn back any who followed his men below. | no |
+| (none) | Yudhveer | They took my guru that way. I am going after him. | subtitle only |
+| `baoli_end_guardian_3` | Baoli Guardian | Not with a lathi. It has carried you this far. It will not carry you further. | no |
+| `baoli_end_guardian_4` | Baoli Guardian | Go to the Hanuman akhada. Let the vanaras teach you to truly fight. Then follow. | no |
+| (none) | Yudhveer | Then I will learn. And then I will follow. | subtitle only |
+
 ## Tools
 
 - **ElevenLabs:** voices, character sound effects, music.
@@ -318,7 +378,7 @@ Each milestone is one chat. Start it with: "Read docs/STORY.md, let's do milesto
 - [x] **3. Story delivery:** dialogue and subtitle system, cinematic cutscene tools for story beats (beyond intros),
   voice line playback.
 - [x] **4. Prologue:** the small village arena, goons, the scripted loss, the guru taken, Andhaka's silhouette.
-- [ ] **5. Chapter I rework:** lathi fight, the guru's remembered teachings, the freed Guardian's words.
+- [x] **5. Chapter I rework:** lathi fight, the guru's remembered teachings, the freed Guardian's words.
 - [ ] **6. Chapter II rework:** the sunset relight, the sword-training cinematic, the vanara mentor (placeholder),
   shield and parry training, the ending that points to Dwarka.
 - [ ] **7. Chapter III, the island:** the new underground lamp-lit map (explorable), mini monster and archer

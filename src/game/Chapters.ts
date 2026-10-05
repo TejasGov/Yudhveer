@@ -1,6 +1,7 @@
 import type { KitId } from './Progression';
 import type { ChapterStory } from '../cinematics/Scene';
 import { AKHADA_STORY, PROLOGUE_STORY } from './Story';
+import { BAOLI_STORY } from './stories/Baoli';
 
 /**
  * The campaign, in order. `level` is the LevelManager index of the arena it is fought in. Ids run on from 0 (the
@@ -57,6 +58,9 @@ export const CHAPTERS: Chapter[] = [
     line: 'Something old keeps the water here.',
     clearedLine: 'The water is still again.',
     defeatLine: 'The stepwell keeps its guardian.',
+    story: BAOLI_STORY,
+    // The Guardian rises in the opening scene, not the intro.
+    introPlaceOnly: true,
   },
   {
     id: 2,
