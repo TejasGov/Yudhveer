@@ -136,8 +136,7 @@ export const AKHADA_STORY: ChapterStory = {
 
 /*
  * The village at dusk (STORY.md, "Prologue"). The sun goes down behind the north gate (-z), so faces turned north are
- * lit and anything between the camera and the gate stands against the glow. The guru is a placeholder model and
- * Andhaka is only ever his silhouette (characters/Village.ts).
+ * lit and anything between the camera and the gate stands against the glow. Andhaka is only ever his silhouette (characters/Village.ts).
  */
 
 /** The training circle (the north gate is GATE), and where the guru waits out the fight (by the neem tree). */

@@ -103,7 +103,7 @@ himself: Andhaka has carried his own judge up the mountain.
 - The island's mini monsters and archer monsters (Chapter III).
 - The second minion type on the summit (Chapter V).
 - The lathi, the basic sword and the blessed mace models (to source or make).
-- Village characters and the guru (prologue).
+- Village characters (prologue). The guru is done (Meshy 7, 2026-10-04).
 
 ## What has to be built
 
@@ -246,8 +246,11 @@ folder's README).
 - **New in the scene system:** `ChapterStory.cast`, characters who are in the story but not the fight (no body, no
   AI), loaded with the chapter and addressed by id in cues; a `show` cue; triggers `heroBelow` and `any`; a level can
   take story cues (`GameLevel.cue`, the village's `raid-fire`). Weapon trails are cleared when a scene starts.
-- **Placeholders:** the guru is the Vetala's model, unarmed and tinted pale (it still reads as a hooded fighter; the
-  user makes the guru in Meshy); the raiders are the summit's rakshasas, dyed dust-brown; the roof fire is plain
+- **The guru's model** (2026-10-04): Meshy 7 from `game asset/concepts/guru.png`, 31k triangles, autorigged, his
+  staff part of the mesh and bound to his right hand, which is held at rest in every clip (`guru_post.py`). His
+  clips are borrowed from the fighters' packs (Yodha's idle and walk), so he stands and walks a little like a fighter
+  until calm old-man Mixamo clips replace them.
+- **Placeholders:** the raiders are the summit's rakshasas, dyed dust-brown; the roof fire is plain
   flame cones; the kneel is the hero's crouch idle; the lathi is still built in code.
 - **Left for later:** the courtyard keeps its dusk light after the raid (no time-of-day change); the guru has no fight
   of his own; the prologue's lines below are unrecorded except Andhaka's and Yudhveer's vow.
