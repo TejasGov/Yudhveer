@@ -3,6 +3,9 @@ import type { ChapterStory } from '../cinematics/Scene';
 import { PROLOGUE_STORY } from './Story';
 import { BAOLI_STORY } from './stories/Baoli';
 import { AKHADA_STORY } from './stories/Akhada';
+import { ISLAND_STORY } from './stories/Island';
+import type { Expedition } from './Expedition';
+import { ISLAND_EXPEDITION } from './IslandExpedition';
 
 /**
  * The campaign, in order. `level` is the LevelManager index of the arena it is fought in. Ids run on from 0 (the
@@ -30,6 +33,8 @@ export interface Chapter {
   introPlaceOnly?: boolean;
   /** Once over, the campaign runs straight on into the next chapter's intro (no chapter-complete screen). */
   continues?: boolean;
+  /** An explorable chapter: encounters along the map and a goal to reach (src/game/Expedition.ts). */
+  expedition?: Expedition;
 }
 
 export const CHAPTERS: Chapter[] = [
@@ -79,9 +84,24 @@ export const CHAPTERS: Chapter[] = [
   },
   {
     id: 3,
+    level: 5,
+    kit: 'island',
+    numeral: 'III',
+    name: 'The Island',
+    native: 'द्वीप',
+    place: 'The caves under the island',
+    line: 'Something blessed is kept in the dark. Something keeps it.',
+    clearedLine: 'The blessed mace is his.',
+    defeatLine: 'The dark keeps the mace.',
+    story: ISLAND_STORY,
+    introPlaceOnly: true,
+    expedition: ISLAND_EXPEDITION,
+  },
+  {
+    id: 4,
     level: 3,
     kit: 'dwarka',
-    numeral: 'III',
+    numeral: 'IV',
     name: 'Dwarka',
     native: 'द्वारका',
     place: "Krishna's city, at the edge of the sea",
@@ -90,10 +110,10 @@ export const CHAPTERS: Chapter[] = [
     defeatLine: 'Dwarka sinks a little further.',
   },
   {
-    id: 4,
+    id: 5,
     level: 4,
     kit: 'summit',
-    numeral: 'IV',
+    numeral: 'V',
     name: 'Kailasha Summit',
     native: 'कैलाश शिखर',
     place: 'The charnel ridge, under the eclipse',

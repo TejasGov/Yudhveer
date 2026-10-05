@@ -15,7 +15,7 @@ export type WeaponId = 'lathi' | 'sword' | 'mace' | 'khanda';
  */
 export type Ability = 'dodge' | 'combo' | 'block' | 'parry' | 'charge' | 'leap';
 
-export type KitId = 'prologue' | 'baoli' | 'akhada' | 'dwarka' | 'summit';
+export type KitId = 'prologue' | 'baoli' | 'akhada' | 'island' | 'dwarka' | 'summit';
 
 export interface HeroKit {
   id: KitId;
@@ -33,6 +33,9 @@ export const KITS: Record<KitId, HeroKit> = {
   baoli: { id: 'baoli', weapon: 'lathi', abilities: ['dodge', 'combo'], taught: ['charge'] },
   // A very basic sword, and the dhal from the vanara mentor: block, then parry, taught in his sparring.
   akhada: { id: 'akhada', weapon: 'sword', abilities: ['dodge', 'combo'], taught: ['block', 'parry'] },
+  // The island: he goes down into the caves with the akhada's sword and dhal (block and parry learned there); the
+  // mace is what he comes up with.
+  island: { id: 'island', weapon: 'sword', abilities: ['dodge', 'combo', 'block', 'parry'], taught: [] },
   // The blessed mace in both hands, no shield: heavy blows, and the slam from a run.
   dwarka: { id: 'dwarka', weapon: 'mace', abilities: ['dodge', 'combo', 'leap'], taught: [] },
   // The magical sword from Takshaka, with the dhal: the full kit.

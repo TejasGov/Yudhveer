@@ -5,6 +5,7 @@ import type { Player } from '../entities/Player';
 import type { Enemy } from '../entities/Enemy';
 import { Boss } from '../entities/Boss';
 import type { CameraPose, GameLevel } from '../levels/LevelTypes';
+import { islandEstablishing } from '../levels/Level5_Island';
 
 /** What an intro is staged with: the chapter's fighters where they stand, and the cards to show. */
 export interface IntroContext {
@@ -243,6 +244,8 @@ const ESTABLISHING: Record<number, (ctx: IntroContext) => Shot[]> = {
       ],
     },
   ],
+  // The island: in from the night sea to the boat at the landing, then down the first tunnel (Level5_Island).
+  5: islandEstablishing,
 };
 
 /**

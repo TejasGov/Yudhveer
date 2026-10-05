@@ -406,6 +406,83 @@ The vanara mentor's voice is Rusty Malone (`game asset/voice/VOICES.md`). Yudhve
 | `akhada_end_mentor_4` | Vanara | Out past the city, on an island, a blessed mace lies waiting. Old things keep it. Take it from them first. Then go to Shalva. | ending | yes |
 | `akhada_end_mentor_5` | Vanara | And keep the dhal up, boy. | ending, as he walks out | yes |
 
+## Milestone 7: Chapter III, the island (landed)
+
+"The Island", chapter id 3 (level 5), between the akhada and Dwarka. Code: `src/levels/Level5_Island.ts` (the map,
+its lamps, eyes, pool and the mace on the altar), `src/game/stories/Island.ts` (`ISLAND_STORY`),
+`src/game/Expedition.ts` (explorable chapters), `src/game/IslandExpedition.ts` (its encounters),
+`src/entities/IslandMonsters.ts` and `src/entities/characters/IslandMonsters.ts` (the placeholder creatures), an
+`ARROW` projectile (`ProjectileManager.spawnArrow`) and an `island` ambience in `SoundFX`. The map is built by
+`game asset/levels/03_island/build_island.py` (command in `game asset/README.md`), 1.2 MB.
+
+- **Chapter numbers:** the island is inserted as id 3; Dwarka is now id 4 (Chapter IV) and the summit id 5 (Chapter V).
+  Level indices (`Chapter.level`, Engine's per-level tables) are unchanged; the island's is 5. Dev: Shift+3 or
+  `__debug.chapter(3)` is the island, `__debug.chapter(4)` Dwarka, `__debug.chapter(5)` the summit. Old saves keep
+  their number, so a save that had reached Dwarka (3) now opens the island instead.
+- **The kit (decided here):** he goes down with the akhada's sword and dhal (`island` kit: sword, slide, chain, block,
+  parry; block and parry already learned at the akhada) and comes up with the mace. Taking it up in the ending
+  equips the `dwarka` kit on the spot (`Player.equip(KITS.dwarka)` in an essential hook, behind a black hold), so the
+  last shots show him with the mace and Chapter IV starts with it already in hand. The table's "III. Island: blessed
+  mace" is the mace he wins there; he fights the island with the sword.
+- **The map:** a sea cave where the boat lands, then about 90 m of caves going north and 2.5 m down: the landing (two
+  lamps either side of the way in), a winding tunnel, **the hall of bones** (a brazier, the remains of earlier
+  seekers, stalagmites for cover), a descent with a torch, **the black pool** (a pit of black water ringed with
+  stones, ripples spreading on it, braziers on the dry side), a last tunnel, and **the shrine** (a dais, the altar
+  with the mace on red cloth, a stone torana, two brass deepastambhas). Three dead-end alcoves hold eyes. The cave
+  is one shell: a union of ellipsoids voxel-remeshed, roughened, pressed flat onto the path's floor heights, turned
+  inward and painted with vertex colours; it is its own trimesh collider. The arena bounds are a single wall across
+  the landing, keeping him out of the sea; the pool has an invisible drum round it.
+- **Light:** almost none but the lamps (20 flames, exported as `Lamp_*` empties); the 8 nearest to the camera share a
+  fixed pool of 8 point lights (flickering, no shadows; a constant count so nothing recompiles), plus moonlight at the
+  mouth and a gold glow on the mace. Black fog between (`FogExp2` 0.05), a faint cold key, heavy vignette. Eyes in
+  the alcoves shine through the fog, blink, and go out when he comes within 7 m. Ambience `island`: drips, the
+  lamps, a stone falling, wind in the tunnels, something long dragging itself over wet rock; music `island`. Static
+  props are batched (about 95 draw calls in the hall fight, shadows and post included).
+- **Explorable chapter (`Chapter.expedition`):** encounters start as he reaches their place (or when an earlier one is
+  down to N standing), each with a callout; the chapter is won at the goal (before the altar) once every encounter
+  is cleared ("Not while its keepers stand." until then), and its ending plays at once (no victory slow-motion).
+  A cleared encounter with a checkpoint is where a retry starts him (this session; a fresh start from the menu
+  forgets it). `__debug.win()` kills everyone present and completes the expedition.
+- **Encounters:** the hall: 5 runts out of the dark at its edges. The pool: 2 archers (across the water and by the
+  way on) and 3 runts. The shrine: 2 archers either side of the dais and 4 runts; when they are down to 2, 2 more
+  runts come down the tunnel behind him. Checkpoints after the hall and the pool.
+- **Creatures (PLACEHOLDERS, their own files):** *cave runts* (mini monsters): the rakshasa at 0.6 scale (1.1 m),
+  dyed pale, 24 health, fast (5.4 m/s), quicker swings, light blows; each closes in on its own side of him so a pack
+  surrounds him. *Cave archers*: Mayavi at 0.85 scale, dyed moss-dark, 50 health; they keep 6 to 12 m off, circle,
+  back off, and every 3 to 4.6 s draw (a fire-glow gathers in the hand and the telegraph sounds, 0.85 s) and loose a
+  shaft of fire (13 damage; slide under it, block it or parry it back); only with a clear line to him (a ray against
+  the rock), otherwise they come round; cornered (under 2.4 m), they claw. A hit during the draw cancels the shot.
+- **Story:** the opening on the landing (the boatman, unseen under his boat's canopy, will go no further); his own
+  thoughts over the walk; the voice in the shrine as he enters and when the keepers are down; the extraction: he
+  steps up to the altar, the voice, the picture goes dark as he lifts it, then he stands with the mace raised, the
+  voice sends him to Dwarka, and he walks back up the way he came. Yudhveer is subtitles only.
+- **Left for later:** the creatures' real models and a bow (the archers cast with Mayavi's clip); a clip for lifting
+  the mace (the reach is the crouch idle, the lift is hidden in the dark); no map or compass (the way is linear);
+  the boatman is never seen.
+
+### Chapter III lines
+
+For recording (ElevenLabs). A recording goes in `public/assets/voice/<id>.mp3`; until then the line is shown for its
+reading time.
+
+| Id | Speaker | Text | Trigger | Recorded |
+|---|---|---|---|---|
+| `island_open_boatman_1` | Boatman | This is as far as my boat goes. Whatever is kept on this island, it keeps for itself. | opening | no |
+| (no id) | Yudhveer | They say a mace lies down there. A blessed one. | opening | subtitle only |
+| `island_open_boatman_2` | Boatman | They say it. Men have gone down to fetch it. I have rowed them here, and I have rowed back alone. | opening | no |
+| (no id) | Yudhveer | Then wait for me until the tide turns. | opening | subtitle only |
+| `island_open_boatman_3` | Boatman | I will wait. Mind the lamps. No one lights them, and they never go out. | opening | no |
+| (no id) | Yudhveer (walking) | Still burning. Who keeps these lamps? | the first tunnel | subtitle only |
+| (no id) | Yudhveer (walking) | Small, and many. So this is where the others ended. | the hall's runts all down | subtitle only |
+| (no id) | Yudhveer (walking) | Something moves in the water. Keep to the stone. | near the black pool | subtitle only |
+| (no id) | Yudhveer (walking) | Warm air, and ghee burning. The shrine is close. | the last tunnel, pool cleared | subtitle only |
+| `island_shrine_voice_1` | Voice in the shrine | Many have come down for it. None has carried it up. | the shrine's door | no |
+| `island_shrine_voice_2` | Voice in the shrine | Come, then. Come and lift it, if you can. | the shrine's keepers all down | no |
+| `island_end_voice_1` | Voice in the shrine | Lift it, if you do not lift it for yourself. | ending, before the altar | no |
+| (no id) | Yudhveer | Not for myself. For my guru, and against the ones who took him. | ending | subtitle only |
+| `island_end_voice_2` | Voice in the shrine | Then it will not grow heavy in your hands. Go to Dwarka. The one who holds it fights with a mace, and has not met its equal. | ending, mace in hand | no |
+| (no id) | Yudhveer | He will meet it now. | ending | subtitle only |
+
 ## Tools
 
 - **ElevenLabs:** voices, character sound effects, music.
@@ -452,7 +529,7 @@ Each milestone is one chat. Start it with: "Read docs/STORY.md, let's do milesto
 - [x] **5. Chapter I rework:** lathi fight, the guru's remembered teachings, the freed Guardian's words.
 - [x] **6. Chapter II rework:** the sunset relight, the sword-training cinematic, the vanara mentor (placeholder),
   shield and parry training, the ending that points to Dwarka.
-- [ ] **7. Chapter III, the island:** the new underground lamp-lit map (explorable), mini monster and archer
+- [x] **7. Chapter III, the island:** the new underground lamp-lit map (explorable), mini monster and archer
   placeholders, the blessed mace.
 - [ ] **8. Chapter IV, Dwarka:** the hero with the mace, Shalva mace against mace, the truth about Andhaka,
   Takshaka's prophecy and the sword.

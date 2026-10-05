@@ -107,7 +107,7 @@ const VOWELS = {
 };
 
 /** A place's sound: its reverb, the ground underfoot, and its ambience. */
-export type Ambience = 'village' | 'baoli' | 'akhada' | 'dwarka' | 'summit';
+export type Ambience = 'village' | 'baoli' | 'akhada' | 'island' | 'dwarka' | 'summit';
 type Surface = 'stone' | 'earth' | 'snow';
 
 const SPACES: Record<Ambience, { seconds: number; damp: number; send: number; surface: Surface }> = {
@@ -117,6 +117,8 @@ const SPACES: Record<Ambience, { seconds: number; damp: number; send: number; su
   baoli: { seconds: 3.2, damp: 0.35, send: 0.3, surface: 'stone' },
   // A jungle clearing: short, soft.
   akhada: { seconds: 1.3, damp: 0.75, send: 0.16, surface: 'earth' },
+  // Caves under the island: rock all round, long and dark, every sound coming back from somewhere unseen.
+  island: { seconds: 3.6, damp: 0.5, send: 0.34, surface: 'stone' },
   // A sea-facing court: open, some stone.
   dwarka: { seconds: 1.8, damp: 0.55, send: 0.2, surface: 'stone' },
   // A mountain top: huge, dark.
@@ -502,6 +504,19 @@ export class SoundFX {
         every([30, 50], (at) => this.templeBell(at, 1.6, rand(-0.5, 0.5)), 18);
         break;
       }
+      case 'island': {
+        // The caves: the sea breathing far behind, air moving through the tunnels, water dripping into pools, the
+        // lamps' flames, a stone falling somewhere, and something large that drags itself through the dark.
+        run.layers.push(this.layer({ color: 'brown', filter: 'lowpass', freq: 90, gain: 0.07, sway: 0.04 }));
+        run.layers.push(this.layer({ color: 'pink', filter: 'bandpass', freq: 260, q: 6, gain: 0.03, sway: 0.05, sweep: 90 }));
+        every([0.4, 1.8], (at) => this.drip(at));
+        every([2.5, 6], (at) => this.drip(at + 0.03));
+        every([0.3, 1.2], (at) => this.crackle(at));
+        every([12, 26], (at) => this.stoneFall(at), 7);
+        every([18, 38], (at) => this.slither(at), 10);
+        every([9, 16], (at) => this.gust(at), 4);
+        break;
+      }
       case 'dwarka': {
         // Dwarka on the sea: waves breaking below the walls, wind off the water, gulls, and a shankh from the
         // temple now and then.
@@ -786,6 +801,27 @@ export class SoundFX {
   /** A gust: the wind rising through the rocks and dropping. */
   private gust(at: number): void {
     this.noise({ color: 'pink', filter: 'bandpass', from: 300, peak: rand(900, 1400), to: 380, q: 3, duration: rand(3.5, 6), gain: rand(0.12, 0.2), attack: 1.6, delay: at, pan: rand(-0.6, 0.6), amb: true });
+  }
+
+  /** A few stones knocked loose somewhere in the dark, rattling down. */
+  private stoneFall(at: number): void {
+    const pan = rand(-0.9, 0.9);
+    const n = 3 + Math.floor(Math.random() * 5);
+    let d = 0;
+    for (let i = 0; i < n; i++) {
+      d += rand(0.06, 0.28);
+      this.noise({ color: 'white', filter: 'bandpass', from: rand(700, 1600), to: 400, q: 3, duration: 0.05, gain: rand(0.02, 0.05), attack: 0.002, delay: at + d, pan, wet: 0.9, amb: true });
+    }
+    this.thump(80, 0.4, 0.04, { delay: at + d, pan, amb: true });
+  }
+
+  /** Something long dragging itself over wet rock, out of sight: a slow scrape and hiss that comes and goes. */
+  private slither(at: number): void {
+    const pan = rand(-0.8, 0.8);
+    const len = rand(2.5, 4.5);
+    this.noise({ color: 'pink', filter: 'bandpass', from: 1800, peak: 3200, to: 1500, q: 1.5, duration: len, gain: rand(0.025, 0.04), attack: len * 0.4, delay: at, pan, wet: 0.7, amb: true });
+    this.noise({ color: 'brown', filter: 'lowpass', from: 160, peak: 260, to: 120, duration: len, gain: 0.05, attack: len * 0.5, delay: at, pan, wet: 0.6, amb: true });
+    if (Math.random() < 0.5) this.noise({ color: 'white', filter: 'highpass', from: 4200, to: 5200, duration: 1.1, gain: 0.02, attack: 0.3, delay: at + len * 0.7, pan: -pan * 0.5, wet: 0.8, amb: true });
   }
 
   /** Lightning now, thunder after (sooner and sharper the closer it is). */

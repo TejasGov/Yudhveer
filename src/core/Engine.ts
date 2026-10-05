@@ -42,6 +42,7 @@ import type { Character } from '../entities/Character';
 import { separateFighters } from '../physics/CharacterMotor';
 import { CHAPTERS, LAST_CHAPTER, chapterById, chapterTitle, type Chapter } from '../game/Chapters';
 import { KITS, type Ability } from '../game/Progression';
+import { ExpeditionRun, type ExpeditionSpawn } from '../game/Expedition';
 import { CinematicDirector } from '../cinematics/CinematicDirector';
 import { buildIntro, buildArrival, ATTRACT, type IntroContext } from '../cinematics/Intros';
 import { SceneRun, Stage, Staging, storyVoices, triggered, type StoryBeat, type StoryScene } from '../cinematics/Scene';
@@ -193,9 +194,9 @@ const FINALES: Record<number, Finale> = {
 };
 
 /** Each arena's music: the village (the prologue), the stepwell, the akhada, Dwarka, the summit. Bosses bring their own. */
-const LEVEL_MUSIC: Record<number, Track> = { 0: 'village', 1: 'baoli', 2: 'akhada', 3: 'dwarka', 4: 'summit' };
+const LEVEL_MUSIC: Record<number, Track> = { 0: 'village', 1: 'baoli', 2: 'akhada', 3: 'dwarka', 4: 'summit', 5: 'island' };
 /** Each arena's ambience and reverb: the village, the stepwell, the jungle akhada, the sea at Dwarka, the mountain. */
-const LEVEL_AMBIENCE: Record<number, Ambience> = { 0: 'village', 1: 'baoli', 2: 'akhada', 3: 'dwarka', 4: 'summit' };
+const LEVEL_AMBIENCE: Record<number, Ambience> = { 0: 'village', 1: 'baoli', 2: 'akhada', 3: 'dwarka', 4: 'summit', 5: 'island' };
 
 /**
  * The first fights (the prologue, then Chapter I) teach the basics, one line at a time: fight seconds, text, the move
@@ -302,6 +303,8 @@ export class Engine {
   private horde: { def: Horde; minions: Enemy[]; timer: number } | null = null;
   /** The chapter's final boss, while he is still to come (`boss` null) and once he is here. */
   private finale: { def: Finale; boss: Enemy | null } | null = null;
+  /** An explorable chapter's encounters and goal (the island), while one is under way. */
+  private expedition: ExpeditionRun | null = null;
   private readonly handoff = { pos: new THREE.Vector3(), quat: new THREE.Quaternion(), fov: 45, t: 0 };
 
   private isRunning = false;
@@ -414,8 +417,8 @@ export class Engine {
         e.preventDefault();
         this.combatDebug.toggle();
       }
-      // Dev shortcut: Shift+0..4 jumps straight into a chapter's fight (0: the prologue).
-      if (import.meta.env.DEV && e.shiftKey && /^Digit[0-4]$/.test(e.code)) {
+      // Dev shortcut: Shift+0..5 jumps straight into a chapter's fight (0: the prologue).
+      if (import.meta.env.DEV && e.shiftKey && /^Digit[0-5]$/.test(e.code)) {
         void this.startChapter(parseInt(e.code.slice(5), 10), { intro: false });
       }
     });
@@ -748,12 +751,15 @@ export class Engine {
     this.learnedNow.clear();
     this.linesEndedAt = -Infinity;
     Voices.preload(storyVoices(chapter.story));
+    this.expedition = chapter.expedition ? new ExpeditionRun(chapter.expedition, chapter.id, options.intro) : null;
+    for (const e of chapter.expedition?.encounters ?? []) for (const s of e.spawns) CharacterRig.prefetch(s.rig);
     this.hideLoading();
 
     if (options.intro) this.playIntro(chapter);
     else {
       // No cutscenes on a retry: the opening scene's marks and hooks still apply.
       if (chapter.story?.opening) this.storyScene(chapter.story.opening, () => {}, false);
+      this.resumeExpedition();
       this.beginFight(true);
     }
   }
@@ -846,6 +852,40 @@ export class Engine {
     this.cinema.setActive(true);
     this.soundFX.music.dim(true);
     this.director.play(buildArrival(this.introContext(this.chapter!), enemy), () => this.endIntro());
+  }
+
+  /** A retry of an explorable chapter starts the hero at the last checkpoint he reached. */
+  private resumeExpedition(): void {
+    const at = this.expedition?.resumePoint();
+    if (!at || !this.player) return;
+    this.player.setPosition(at.at.x, at.at.y, at.at.z);
+    this.player.group.rotation.y = Math.atan2(at.face.x - at.at.x, at.face.z - at.at.z);
+    this.interpolated.clear();
+    this.sceneManager.resetFollowCamera(this.player.getPosition(), this.player.group.rotation.y);
+  }
+
+  /** Explorable chapters: opponents come out as the hero reaches each encounter's place. */
+  private updateExpedition(): void {
+    if (!this.expedition || !this.player) return;
+    const { start, hint } = this.expedition.update(this.player.getPosition(), this.enemies);
+    for (const encounter of start) {
+      if (encounter.callout) this.hud.callout({ ...encounter.callout, tone: 'red' });
+      for (const spawn of encounter.spawns) void this.spawnFoe(spawn);
+    }
+    if (hint) this.hud.hint(hint, 4);
+  }
+
+  /** One of an encounter's opponents, where it waits, facing the hero; hidden until its model is ready. */
+  private spawnFoe(spawn: ExpeditionSpawn): Promise<unknown> {
+    const enemy = spawn.make(spawn.id);
+    this.addFighter(enemy, spawn.at, spawn.capsule);
+    enemy.faceTowards(spawn.face ?? this.player!.getPosition());
+    enemy.group.visible = false;
+    this.enemies.push(enemy);
+    this.hud.add(enemy);
+    return enemy.attachRig(spawn.rig)
+      .catch((err) => console.error(`[Engine] ${enemy.id} rig failed to load; keeping the greybox`, err))
+      .finally(() => { enemy.group.visible = true; });
   }
 
   /** The chapter story's cast, where it first stands (hidden if it comes on later); loaded with the chapter. */
@@ -1134,15 +1174,18 @@ export class Engine {
       this.slowMotion(0.4, 1.2);
       return;
     }
-    if (this.enemies.length === 0 || !this.fieldCleared()) return;
+    // An explorable chapter is won at its goal (the island's altar), not when the last opponent falls.
+    const quest = this.expedition;
+    if (quest ? !quest.complete : this.enemies.length === 0 || !this.fieldCleared()) return;
     if (this.finale && !this.finale.boss) return; // the final boss is still to come
     this.setMode('outro');
     this.outcome = 'victory';
-    this.outcomeAt = VICTORY_DELAY;
+    this.outcomeAt = quest ? 0.4 : VICTORY_DELAY;
     this.hud.clearHint();
     this.hud.showBoss(false);
-    this.soundFX.playLevelClear();
     this.soundFX.music.play(LEVEL_MUSIC[this.chapter!.level] ?? 'title');
+    if (quest) return; // its ending scene follows at once
+    this.soundFX.playLevelClear();
     const boss = this.finale?.boss ?? this.enemies.find((e) => e.isBoss);
     this.hud.callout({ text: boss ? `${boss.displayName} has fallen` : this.chapter!.clearedLine, tone: 'pale' });
     this.slowMotion(0.3, 1.6);
@@ -1227,6 +1270,7 @@ export class Engine {
     this.cast = [];
     this.horde = null;
     this.finale = null;
+    this.expedition = null;
     this.staging.clear();
     this.combatDebug.prune(this.player ? [this.player] : []);
     this.projectileManager.clear();
@@ -1296,6 +1340,7 @@ export class Engine {
       this.fightTime += dt;
       this.updateHorde(dt);
       this.updateFinale();
+      this.updateExpedition();
     }
   }
 
@@ -1392,6 +1437,8 @@ export class Engine {
       e.currentHealth = 0;
       e.stateMachine.changeState('DEAD');
     }
+    // An explorable chapter: as if he had reached its goal (the island's ending puts him at the altar).
+    this.expedition?.finish();
   }
 
   /** Dev: back to real time after `debugShot` / `debugAdvance` / `debugStep`. */

@@ -5,6 +5,7 @@ import { Level1_Baoli } from './Level1_Baoli';
 import { Level2_Akhada } from './Level2_Akhada';
 import { Level3_Dwarka } from './Level3_Dwarka';
 import { Level4_Summit } from './Level4_Summit';
+import { Level5_Island } from './Level5_Island';
 import type { GameLevel, LevelAtmosphere } from './LevelTypes';
 import { SceneManager } from '../core/SceneManager';
 
@@ -14,6 +15,7 @@ const LEVELS: Record<number, () => GameLevel> = {
   2: () => new Level2_Akhada(),
   3: () => new Level3_Dwarka(),
   4: () => new Level4_Summit(),
+  5: () => new Level5_Island(),
 };
 
 /** Any Blender GLB swapped in from the dev console (`__yudhveer.levelManager.loadGLBModel(url)`), lit like the level it replaces. */

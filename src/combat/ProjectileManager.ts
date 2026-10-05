@@ -7,7 +7,7 @@ import { SceneManager } from '../core/SceneManager';
 
 export interface Projectile {
   id: string;
-  type: 'CHAKRAM' | 'FLAME_WAVE' | 'ORB';
+  type: 'CHAKRAM' | 'FLAME_WAVE' | 'ORB' | 'ARROW';
   mesh: THREE.Object3D;
   position: THREE.Vector3;
   velocity: THREE.Vector3;
@@ -118,6 +118,43 @@ export class ProjectileManager {
     this.soundFX.playMagicBolt();
   }
 
+  /**
+   * A shaft of fire from a cave archer (Chapter III): fast and straight at `targetPos`, its burning head first.
+   * Deflectable like the others.
+   */
+  public spawnArrow(origin: THREE.Vector3, targetPos: THREE.Vector3, ownerId: string): void {
+    if (!this.scene) return;
+    const group = new THREE.Group();
+    group.position.copy(origin);
+    // Along local +Z: a dark shaft, and an unlit burning head (it blooms) at the front.
+    const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.75, 5), new THREE.MeshBasicMaterial({ color: 0x2a1a10 }));
+    shaft.rotation.x = Math.PI / 2;
+    shaft.position.z = -0.2;
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 6), new THREE.MeshBasicMaterial({ color: new THREE.Color(2.4, 0.9, 0.2) }));
+    head.scale.set(1, 1, 2.2);
+    head.position.z = 0.2;
+    group.add(shaft, head);
+    this.scene.add(group);
+    SceneManager.getInstance().postFX.addBloom(head);
+    const dir = new THREE.Vector3().subVectors(targetPos, origin).normalize();
+    group.lookAt(origin.clone().add(dir));
+    this.projectiles.push({
+      id: `arrow_${Date.now()}_${Math.random()}`,
+      type: 'ARROW',
+      mesh: group,
+      position: group.position,
+      velocity: dir.multiplyScalar(17),
+      radius: 0.22,
+      damage: 13,
+      postureDamage: 20,
+      life: 0,
+      maxLife: 2.2,
+      ownerId,
+      isParried: false,
+    });
+    this.soundFX.playSwordSwing(1.6, 'blade');
+  }
+
   public spawnFlameWave(origin: THREE.Vector3, forwardDir: THREE.Vector3, ownerId: string): void {
     if (!this.scene) return;
 
@@ -180,6 +217,10 @@ export class ProjectileManager {
         const pulse = 1 + Math.sin(p.life * 30) * 0.12;
         p.mesh.scale.setScalar(pulse);
         if (Math.random() < 0.6) this.particleFX.spawnSparks(p.position, 1, false);
+      } else if (p.type === 'ARROW') {
+        // Point along the flight (a parried shaft turns round); a few sparks off its burning head.
+        p.mesh.lookAt(p.position.x + p.velocity.x, p.position.y + p.velocity.y, p.position.z + p.velocity.z);
+        if (Math.random() < 0.35) this.particleFX.spawnSparks(p.position, 1, false);
       } else if (p.type === 'FLAME_WAVE') {
         p.mesh.scale.addScalar(0.8 * dt);
         this.particleFX.spawnFlames(p.position, 4, 0.8);
