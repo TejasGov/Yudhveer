@@ -24,6 +24,7 @@ export class MiniMonster extends Enemy {
   constructor(id: string) {
     super(id, 0x6a6e5a);
     this.displayName = 'Cave runt';
+    this.blood = 'ichor';
     this.maxHealth = 24;
     this.currentHealth = 24;
     this.maxMarma = 22;
@@ -91,6 +92,7 @@ export class ArcherMonster extends Enemy {
   constructor(id: string) {
     super(id, 0x3f4a33);
     this.displayName = 'Cave archer';
+    this.blood = 'ichor';
     this.maxHealth = 50;
     this.currentHealth = 50;
     this.maxMarma = 45;

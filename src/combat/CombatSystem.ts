@@ -4,6 +4,7 @@ import { Player, CHARGED_MULTIPLIER } from '../entities/Player';
 import { Enemy } from '../entities/Enemy';
 import { HitboxManager } from './HitboxManager';
 import { ParticleFX } from './ParticleFX';
+import { BloodFX } from './BloodFX';
 import { SoundFX } from './SoundFX';
 import { SceneManager } from '../core/SceneManager';
 import type { Character } from '../entities/Character';
@@ -206,7 +207,14 @@ export class CombatSystem {
       this.triggerHitStop(0.3, 0.06);
     } else {
       this.soundFX.playHitImpact(player.weapon.sound.impact);
-      this.particleFX.spawnSparks(hitPoint, heavy ? 45 : 25, charged);
+      // With blood on, the red sparks of a flesh blow give way to it (a charged blow keeps its gold).
+      const blood = BloodFX.getInstance();
+      const bleeds = blood.enabled && enemy.blood !== 'none';
+      if (!bleeds || charged) this.particleFX.spawnSparks(hitPoint, heavy ? 45 : 25, charged);
+      if (bleeds) {
+        const dir = enemy.getPosition().clone().sub(player.getPosition());
+        blood.spill(hitPoint, dir, damage, enemy.blood, enemy.group.position.y, enemy.currentHealth <= 0);
+      }
       this.sceneManager.triggerScreenShake(heavy ? 0.4 : 0.2, heavy ? 0.24 : 0.16);
       this.triggerHitStop(0.06, heavy || blow.heavy ? 0.15 : 0.1);
     }
@@ -262,7 +270,11 @@ export class CombatSystem {
     if (broken && player.stateMachine.currentState !== 'DEAD') this.callout({ text: 'Posture broken', tone: 'red' });
 
     this.soundFX.playHitImpact(enemy.impactSound);
-    this.particleFX.spawnSparks(hitPoint, 30, false);
+    const blood = BloodFX.getInstance();
+    if (!blood.enabled) this.particleFX.spawnSparks(hitPoint, 30, false);
+    if (blood.enabled) {
+      blood.spill(hitPoint, player.getPosition().clone().sub(enemy.getPosition()), damage, 'red', player.group.position.y, player.currentHealth <= 0);
+    }
     this.sceneManager.triggerScreenShake(0.35, 0.22);
     // No stun-lock: a stagger (and a short grace after it) is not restarted by the rest of a combo, so the player
     // always gets a window to guard, parry or get out.

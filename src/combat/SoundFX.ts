@@ -29,6 +29,19 @@ const SAMPLE_GAIN = {
 export type Sample = keyof typeof SAMPLE_GAIN;
 const SAMPLES = new Set(sampleIds);
 
+/**
+ * How a won chapter sounds (`playLevelClear`), both synthesized here:
+ * - `ghanta`: a great temple bell struck once over a deep drum, struck again softer as it rings (a boss), with a
+ *   drone under it that settles from Pa to Sa. Restrained: one weighty strike and its long ring.
+ * - `shankha`: two strokes of the drum, then a low conch blown long, rising into its note, a small bell as it dies.
+ *   More ceremonial, closer to a temple's call.
+ */
+export type VictoryStinger = 'ghanta' | 'shankha';
+/** The one that plays. The other stays here to switch to. */
+export const VICTORY_STINGER: VictoryStinger = 'ghanta';
+/** How much was won: a chapter's fight, a boss felled, or the last of the campaign (Andhaka on the summit). */
+export type VictoryGrade = 'clear' | 'boss' | 'final';
+
 /** A weapon's whoosh: steel, a staff, or something heavy (a mace, a gada). */
 export type SwingKind = 'blade' | 'lathi' | 'heavy';
 /** What a blow lands like. */
@@ -249,7 +262,66 @@ export class SoundFX {
   }
 
   private ready(): AudioContext | null {
-    return this.ctx && this.ctx.state === 'running' ? this.ctx : null;
+    return this.ctx && (this.rendering || this.ctx.state === 'running') ? this.ctx : null;
+  }
+
+  /** True while `renderOffline` has the building blocks pointed at an offline context. */
+  private rendering = false;
+
+  /**
+   * Dev and tests: renders what `play` schedules into a buffer instead of the speakers, through the same buses and the
+   * current place's reverb (and the master compressor, if `compress`). Nothing reaches the live mix.
+   */
+  public async renderOffline(play: (fx: SoundFX) => void, seconds: number, compress = true): Promise<AudioBuffer> {
+    const rate = 48000;
+    const ctx = new OfflineAudioContext(2, Math.ceil(rate * seconds), rate);
+    const live = { ctx: this.ctx, master: this.master, sfx: this.sfxBus, amb: this.ambBus, reverb: this.reverb, reverbIn: this.reverbIn, noise: this.noise_ };
+    const master = ctx.createGain();
+    if (compress) {
+      const compressor = ctx.createDynamicsCompressor();
+      compressor.threshold.value = -14;
+      compressor.ratio.value = 4;
+      master.connect(compressor);
+      compressor.connect(ctx.destination);
+    } else {
+      master.connect(ctx.destination);
+    }
+    const space = SPACES[this.wantedAmbience ?? 'akhada'];
+    const reverb = ctx.createConvolver();
+    reverb.buffer = makeImpulse(ctx, space.seconds, space.damp);
+    const reverbIn = ctx.createGain();
+    reverbIn.connect(reverb);
+    reverb.connect(master);
+    const sfx = ctx.createGain();
+    const amb = ctx.createGain();
+    amb.gain.value = 0.7;
+    sfx.connect(master);
+    amb.connect(master);
+    const send = ctx.createGain();
+    send.gain.value = space.send;
+    sfx.connect(send);
+    send.connect(reverbIn);
+    this.ctx = ctx as unknown as AudioContext;
+    this.master = master;
+    this.sfxBus = sfx;
+    this.ambBus = amb;
+    this.reverb = reverb;
+    this.reverbIn = reverbIn;
+    this.noise_ = makeNoise(ctx);
+    this.rendering = true;
+    try {
+      play(this);
+    } finally {
+      this.rendering = false;
+      this.ctx = live.ctx;
+      this.master = live.master;
+      this.sfxBus = live.sfx;
+      this.ambBus = live.amb;
+      this.reverb = live.reverb;
+      this.reverbIn = live.reverbIn;
+      this.noise_ = live.noise;
+    }
+    return ctx.startRendering();
   }
 
   // --- Building blocks ----------------------------------------------------------------------------------------
@@ -1006,9 +1078,163 @@ export class SoundFX {
     this.tone({ type: 'sine', freq: 990, gain: 0.05, duration: 0.3, delay: 0.04 });
   }
 
-  /** The chapter is won: a rising bell chord. */
-  public playLevelClear(): void {
-    [261.6, 329.6, 392, 523.3].forEach((f, i) => this.tone({ type: 'sine', freq: f, gain: 0.2, duration: 2.4, delay: i * 0.14, wet: 0.4 }));
+  /**
+   * The fight is won (see `VictoryStinger`). Weightier for a boss, weightiest for the last one. The music dips under
+   * it and comes back up as the bell rings out.
+   */
+  public playLevelClear(grade: VictoryGrade = 'boss', stinger: VictoryStinger = VICTORY_STINGER): void {
+    if (!this.ready()) return;
+    const hold = stinger === 'ghanta' ? this.victoryGhanta(grade) : this.victoryShankha(grade);
+    if (this.rendering) return;
+    const release = this.music.duck();
+    window.setTimeout(release, hold * 1000);
+  }
+
+  /** The bell: returns how long the music should stay down (s). */
+  private victoryGhanta(grade: VictoryGrade): number {
+    // The bell's prime; its hum an octave below is the drone's Sa.
+    const base = grade === 'final' ? 165 : grade === 'boss' ? 196 : 220;
+    const sa = base / 2;
+    const big = grade === 'clear' ? 0.75 : 1;
+    let at = 0;
+    if (grade === 'final') {
+      // A first stroke of the drum alone, then drum and bell together.
+      this.bassDrum(0, 1.15, 0.24);
+      at = 0.34;
+    }
+    this.bassDrum(at, grade === 'clear' ? 0.95 : 1.15, (grade === 'final' ? 0.3 : 0.36) * big);
+    this.greatBell(at, base, 0.7 * big);
+    if (grade !== 'clear') this.greatBell(at + (grade === 'final' ? 2.1 : 1.75), base, 0.42, 0.6);
+    // The drone: Pa first, then Sa, where it rests.
+    const len = grade === 'final' ? 3.2 : grade === 'boss' ? 2.4 : 1.6;
+    this.swell(at + 0.1, sa * 1.5, 0.05 * big, 0.6, 0.5, 0.7);
+    this.swell(at + 0.9, sa, 0.06 * big, 0.9, len, 1.6);
+    if (grade === 'final') this.conch(at + 1.1, base, 0.45, 3.2);
+    return at + (grade === 'clear' ? 2.2 : 3);
+  }
+
+  /** The conch: returns how long the music should stay down (s). */
+  private victoryShankha(grade: VictoryGrade): number {
+    const note = grade === 'final' ? 165 : grade === 'boss' ? 185 : 196;
+    const big = grade === 'clear' ? 0.75 : 1;
+    // Dha ... DHUM: the second stroke the heavier (a third for the last).
+    const strokes = grade === 'clear' ? [0] : grade === 'boss' ? [0, 0.26] : [0, 0.24, 0.5];
+    strokes.forEach((d, i) => this.bassDrum(d, i === strokes.length - 1 ? 1.15 : 1, (i === strokes.length - 1 ? 0.42 : 0.28) * big));
+    const at = strokes[strokes.length - 1] + 0.18;
+    const len = grade === 'final' ? 3.6 : grade === 'boss' ? 3 : 2.2;
+    this.conch(at, note, big, len);
+    this.swell(at + 0.3, note / 2, 0.06 * big, 1, len - 0.6, 1.4);
+    if (grade === 'final') this.greatBell(at, note * 1.2, 0.6);
+    this.ring(note * 2.5, [1, 1.19, 1.5, 2, 2.52, 3.01], [3.6, 3, 2.6, 2, 1.5, 1], 0.07, { delay: at + len - 0.4, wet: 0.7 });
+    return at + len;
+  }
+
+  /**
+   * A great bronze temple bell (ghanta) struck at `at`: the hum an octave below the prime, the prime, the bell's minor
+   * third, fifth and octave and the shimmer above, each ringing for its own time and each a close pair beating slowly
+   * (the "wah" of a big bell), over the clapper's knock. `decay` shortens it.
+   */
+  private greatBell(at: number, prime: number, gain: number, decay = 1): void {
+    const partials: [number, number, number][] = [
+      // ratio to the prime, level, seconds to fade out
+      [0.5, 0.1, 10],
+      [1, 0.14, 8],
+      [1.183, 0.12, 7],
+      [1.506, 0.08, 6],
+      [2, 0.12, 6],
+      [2.66, 0.06, 4],
+      [3.01, 0.05, 3.5],
+      [4.14, 0.03, 2.2],
+      [5.43, 0.02, 1.4],
+      [6.8, 0.01, 0.8],
+    ];
+    const p: Placement = { delay: at, wet: 0.65 };
+    for (const [ratio, level, seconds] of partials) {
+      const f = vary(prime * ratio, 0.003);
+      const beat = rand(0.6, 1.8);
+      this.tone({ type: 'sine', freq: f, gain: level * gain, attack: 0.002, duration: seconds * decay, ...p });
+      this.tone({ type: 'sine', freq: f + beat, gain: level * gain * 0.55, attack: 0.002, duration: seconds * decay * 0.9, ...p });
+    }
+    // The clapper: a dull knock on the bronze.
+    this.noise({ color: 'white', filter: 'bandpass', from: 2600, to: 1100, q: 1.4, duration: 0.09, gain: 0.22 * gain, attack: 0.001, ...p });
+    this.noise({ color: 'pink', filter: 'lowpass', from: 900, to: 200, duration: 0.18, gain: 0.12 * gain, attack: 0.001, ...p });
+  }
+
+  /**
+   * A big low drum (the bass head of a dhol, a nagara): the skin's pitch drops fast into a deep boom that dies slowly,
+   * with the slap of the stroke on top. `size` above 1 is bigger and lower.
+   */
+  private bassDrum(at: number, size: number, gain: number): void {
+    const ctx = this.ready();
+    if (!ctx) return;
+    const t = ctx.currentTime + at;
+    const f = 72 / size;
+    const osc = ctx.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(f * 2.3, t);
+    osc.frequency.exponentialRampToValueAtTime(f, t + 0.07);
+    osc.frequency.exponentialRampToValueAtTime(f * 0.86, t + 1.4 * size);
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(gain, t + 0.004);
+    g.gain.setTargetAtTime(0.0001, t + 0.05, 0.32 * size);
+    osc.connect(g);
+    this.place(g, { wet: 0.35 });
+    osc.start(t);
+    osc.stop(t + 2.2 * size);
+    // The head's overtone and the stroke's slap.
+    this.tone({ type: 'triangle', freq: f * 2.6, to: f * 1.4, gain: gain * 0.45, attack: 0.002, duration: 0.4, delay: at, filter: { type: 'lowpass', freq: 600 } });
+    this.noise({ color: 'brown', filter: 'lowpass', from: 1500, to: 100, duration: 0.45, gain: gain * 0.55, attack: 0.002, delay: at, wet: 0.4 });
+    this.noise({ color: 'white', filter: 'bandpass', from: 1100, to: 400, q: 1, duration: 0.05, gain: gain * 0.12, attack: 0.001, delay: at });
+  }
+
+  /**
+   * A shankha blown low: breath first, then the shell's note rising into place, held, and falling a little as the
+   * breath gives out. A buzzing source through the shell's formants, with the reedy harmonics of a horn.
+   */
+  private conch(at: number, note: number, gain: number, seconds: number): void {
+    this.voice({
+      pitch: [[0, note * 0.93], [0.4, note], [seconds - 0.5, note * 1.006], [seconds, note * 0.95]],
+      duration: seconds, gain: 0.32 * gain, vowel: VOWELS.u, toVowel: VOWELS.o, breath: 0.12, grit: 0.5, attack: 0.45,
+      size: 0.9, delay: at, wet: 0.55,
+    });
+    for (const [ratio, level] of [[1, 0.08], [2, 0.036], [3, 0.016]] as const) {
+      this.tone({
+        type: 'sawtooth', freq: note * 0.93 * ratio, to: note * ratio, gain: level * gain, attack: 0.5, duration: seconds,
+        delay: at, wet: 0.55, filter: { type: 'lowpass', freq: 1100 },
+      });
+    }
+    this.noise({ color: 'pink', filter: 'bandpass', from: 900, to: 1400, q: 1.5, duration: 0.6, gain: 0.05 * gain, attack: 0.2, delay: at });
+  }
+
+  /** A held drone note: swells in over `attack`, holds, and lets go over `release` (s). */
+  private swell(at: number, freq: number, gain: number, attack: number, hold: number, release: number): void {
+    const ctx = this.ready();
+    if (!ctx) return;
+    const t = ctx.currentTime + at;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.linearRampToValueAtTime(gain, t + attack);
+    g.gain.setValueAtTime(gain, t + attack + hold);
+    g.gain.setTargetAtTime(0.0001, t + attack + hold, release / 4);
+    const lp = ctx.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.value = 800;
+    lp.connect(g);
+    const end = t + attack + hold + release * 1.5;
+    for (const [type, ratio, level] of [['triangle', 1, 1], ['sine', 0.5, 0.45], ['sawtooth', 1, 0.2]] as const) {
+      const osc = ctx.createOscillator();
+      osc.type = type;
+      osc.frequency.value = freq * ratio;
+      osc.detune.value = rand(-4, 4);
+      const lg = ctx.createGain();
+      lg.gain.value = level;
+      osc.connect(lg);
+      lg.connect(lp);
+      osc.start(t);
+      osc.stop(end);
+    }
+    this.place(g, { wet: 0.5 });
   }
 
   /** The player falls: a low bell, slowly fading. */
@@ -1063,7 +1289,7 @@ function setPitch(param: AudioParam, points: [number, number][], t: number, k: n
 }
 
 /** Two seconds of white, pink and brown noise. */
-function makeNoise(ctx: AudioContext): Record<NoiseColor, AudioBuffer> {
+function makeNoise(ctx: BaseAudioContext): Record<NoiseColor, AudioBuffer> {
   const length = ctx.sampleRate * 2;
   const make = (fill: (data: Float32Array) => void) => {
     const buffer = ctx.createBuffer(1, length, ctx.sampleRate);
@@ -1101,7 +1327,7 @@ function makeNoise(ctx: AudioContext): Record<NoiseColor, AudioBuffer> {
 }
 
 /** A stereo room tail: decaying noise, darker (`damp`) as it goes. */
-function makeImpulse(ctx: AudioContext, seconds: number, damp: number): AudioBuffer {
+function makeImpulse(ctx: BaseAudioContext, seconds: number, damp: number): AudioBuffer {
   const rate = ctx.sampleRate;
   const length = Math.floor(rate * seconds);
   const buffer = ctx.createBuffer(2, length, rate);

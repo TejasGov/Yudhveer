@@ -7,6 +7,7 @@ import { Settings, Progress, type GameSettings } from './Settings';
 import { LevelManager } from '../levels/LevelManager';
 import { disposeObject } from '../levels/GLBLevel';
 import { ParticleFX } from '../combat/ParticleFX';
+import { BloodFX } from '../combat/BloodFX';
 import { SoundFX, type Track, type Ambience } from '../combat/SoundFX';
 import { CombatSystem } from '../combat/CombatSystem';
 import { CombatDebug } from '../combat/CombatDebug';
@@ -743,6 +744,7 @@ export class Engine {
     this.setMode('loading');
     this.outcome = null;
     this.clearEnemies();
+    BloodFX.getInstance().clear();
     this.player.group.visible = false;
 
     const kicker = chapterTitle(chapter);
@@ -1243,8 +1245,9 @@ export class Engine {
     this.hud.showBoss(false);
     this.soundFX.music.play(LEVEL_MUSIC[this.chapter!.level] ?? 'title');
     if (quest) return; // its ending scene follows at once
-    this.soundFX.playLevelClear();
     const boss = this.finale?.boss ?? this.enemies.find((e) => e.isBoss);
+    const last = !CHAPTERS.some((c) => c.id === this.chapter!.id + 1);
+    this.soundFX.playLevelClear(last ? 'final' : boss ? 'boss' : 'clear');
     this.hud.callout({ text: boss ? `${boss.displayName} has fallen` : this.chapter!.clearedLine, tone: 'pale' });
     this.slowMotion(0.3, 1.6);
   }

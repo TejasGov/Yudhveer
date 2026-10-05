@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { BloodFX } from './BloodFX';
 
 interface SparkParticle {
   position: THREE.Vector3;
@@ -182,6 +183,7 @@ export class ParticleFX {
     scene.add(this.dustPoints);
     scene.add(this.flamePoints);
     scene.add(this.mistPoints);
+    BloodFX.getInstance().init(scene);
   }
 
   /**
@@ -356,6 +358,7 @@ export class ParticleFX {
    */
   public update(dt: number): void {
     const gravity = -18;
+    BloodFX.getInstance().update(dt);
 
     // 1. Update Sparks
     for (let i = this.sparks.length - 1; i >= 0; i--) {

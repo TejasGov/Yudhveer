@@ -25,3 +25,89 @@ Cost: about 1.2 ElevenLabs credits per character per take, 2 takes (the usual wo
 LUFS). On a yes: record the chosen line as `summit_andhaka_crowned`, add `voice: 'summit_andhaka_crowned'` to
 `CROWNING_LINE`, drop its `hold` (the recording sets the length), and list it in STORY.md's Chapter V lines.
 
+
+## Victory sound: which of the two (no cost)
+
+"The sfx when player wins is too childish." The old one was a C-major arpeggio of four pure sine tones (C4 E4 G4 C5,
+0.14 s apart, 2.4 s), a bright music-box chime. It is replaced by two synthesized stingers (no credits; `SoundFX.ts`,
+`VICTORY_STINGER`), each in three weights: a chapter of waves, a boss felled, and the last victory (Andhaka on the
+summit). The music dips under it (to 40 %) and comes back as the bell rings out.
+
+- **`ghanta` (default):** one deep drum stroke and a great bronze temple bell struck with it, ringing long (its hum an
+  octave below, its minor third and fifth, each partial a slowly beating pair, the clapper's knock); for a boss the
+  bell is struck again, softer, 1.75 s later; under it a low drone that settles from Pa to Sa. The last victory adds a
+  lone drum stroke before the strike and a low conch under the ring. Energy mostly 80-250 Hz (centroid ~150 Hz),
+  peak about -1.5 dBFS before the master compressor, audible for ~5-6 s.
+- **`shankha`:** two drum strokes (dha ... DHUM; three for the last), then a low conch blown long (rising into its
+  note, held 2.2-3.6 s, sagging as the breath gives out) over a drone, and a small temple bell as it dies. More
+  ceremonial; brighter (centroid ~230 Hz in the held part).
+
+To hear them in a dev build (after a click so audio is running): `__debug.victory('boss', 'ghanta')`,
+`__debug.victory('final', 'shankha')`, and so on. **On a yes to `shankha`:** change `VICTORY_STINGER` in
+`src/combat/SoundFX.ts`. Nothing else changes.
+
+**Option, costs credits (not generated):** a recorded stinger from ElevenLabs Sound Effects, if the synth is not
+enough. Prompts (duration set to 6 s, prompt influence ~0.5), two takes each as with the voices:
+
+1. `victory_ghanta`: "A single strike of a huge ancient bronze temple bell in a stone mountain shrine, deep and dark,
+   long shimmering decay, with one low ceremonial drum hit at the same moment, solemn, no melody, cinematic"
+2. `victory_shankha`: "A low conch shell horn blown once, long and mournful, rising into its note, over a single deep
+   dhol drum stroke, a small brass temple bell at the end, solemn Indian temple, dark, cinematic, no melody"
+3. `victory_final`: "Ancient Indian temple at night after a great battle: three slow deep war drum strokes, a huge
+   bronze bell struck once, a long low conch call over it, reverberating across mountains, solemn and weighty"
+
+Estimated cost: about 40 credits per second of audio with the duration set, so 6 s x 2 takes x 3 prompts is about
+**1,440 credits** (check the rate shown in the ElevenLabs account before generating). On a yes: generate, the user
+picks a take each, they go to `public/assets/sfx/` and `playLevelClear` plays them (the synth kept as the fallback,
+as with every other effect).
+
+## Blood (proposal; prototype built, off)
+
+"There needs to be some blood effect also." Three approaches, from lightest to heaviest:
+
+**A. Toon blood sprays and ground splats (recommended; prototype built).** On a landed blow, hard-edged dark ink drops
+spray off along the blade's line (away from the attacker), more and faster for more damage and on a killing blow;
+at Full a splat lands on the ground beyond the victim (1, or 2 on a kill), spreads in over a quarter second, lies
+7 s, then dries away from its edges. Drops are flat discs with a darker rim and no glow (normal blending), splats a
+cut-out shape with a hard edge: it reads like the ink outlines and flat shading of the rest of the game, not like
+realistic gore. The red sparks of a flesh blow give way to it (a charged blow keeps its gold sparks; parries,
+blocks and glancing blows are unchanged).
+- *Perf:* two draw calls in all, whatever is on screen (one `Points` for up to 400 drops, one `InstancedMesh` for
+  up to 32 splats); fixed buffers, rewritten each frame like the existing sparks, dust and flames (one draw call
+  each), the same cost class as what is already there.
+- *Effort:* done as a prototype (`src/combat/BloodFX.ts`, ~300 lines). For release: a gore option in Settings and the
+  options menu, splats laid on the real ground (a downward ray; today they sit at the victim's feet height, so on a
+  slope or a step they can float or sink a little), and a final pass on colours per level lighting.
+
+**B. Hurt vignette and weapon stains.** A dark-red pulse at the screen's edge when the hero takes a heavy blow (the
+HUD already flashes on `onPlayerHurt`), and blood building up on the blade over a fight (a decal or a tint ramp on the
+weapon's material), wiped when sheathed. Perf: one full-screen pass already exists for the vignette; the stain is a
+uniform per weapon. Effort: about a day; the stain needs each weapon's UVs checked. Good alongside A, weak alone.
+
+**C. Wounds on bodies and dismemberment.** Decals projected onto the skinned characters, severed limbs. Perf: decals
+on skinned meshes need their own skinning (a draw call per wound) and the rigs were not built for it. Effort: weeks.
+Does not fit the tone (mythic, grounded, not splatter) or the cel look. Not recommended.
+
+**Who bleeds what** (`Enemy.blood`): men and the hero, rakshasas, asuras and Andhaka: dark red (#2a0303 to #520909).
+Takshaka and the island's cave creatures: a green-black ichor (#0a1207 to #1f2c12). The Vetala (a ghost riding a
+corpse): no blood, a puff of grey grave-ash that rises and drifts, and no splat. The old vanara (sparring, his
+teacher): nothing.
+
+**Gore setting:** Off / Low / Full (`GoreLevel`), for ratings and taste. Low: fewer, smaller drops and no splats.
+Full: as above. A rating board looks for exactly this switch; Off should leave only the sparks the game has today.
+
+**Recommendation:** A, with B's hurt vignette, the setting defaulting to Low (Full one click away). Then decide
+weapon stains after playing with it.
+
+**The prototype** is in the build but **off** (`BLOOD_DEFAULT = 'off'` in `src/combat/BloodFX.ts`), so nothing
+changes until a yes. In a dev build: `__debug.blood(true)` (Full), `__debug.blood('low')`, `__debug.blood(false)`.
+Screenshots (summit, rakshasas; the colour of the second and third set was forced on the same rakshasa to show it):
+- `E:\hindan\game asset\previews\blood_full_red_spray.jpg` (Full, a spray just after the blow)
+- `E:\hindan\game asset\previews\blood_full_red_kill.jpg` (Full, splats after a killing blow, and the hero's own)
+- `E:\hindan\game asset\previews\blood_full_red_ground.jpg` (Full, two light blows)
+- `E:\hindan\game asset\previews\blood_low_red_spray.jpg` (Low)
+- `E:\hindan\game asset\previews\blood_full_ichor_spray.jpg`, `blood_full_ichor_ground.jpg` (ichor)
+- `E:\hindan\game asset\previews\blood_ash_spray.jpg` (the Vetala's ash)
+
+On a yes: set the default (Low recommended), add the Gore option to the options menu and `Settings`, ground the
+splats with a ray, and build the hurt vignette if wanted.

@@ -769,6 +769,20 @@ The mechanism (`Character.atEase`, `CharacterState` `REST`):
 - **Left as is:** the guru's (and the cast vanara's) pole walk is authored at 0.24 m/s and plays at its 2.4x ceiling
   at 1.1 m/s, a quick shuffle; it travels, so it is not on the spot.
 
+## The victory sound, and blood (2026-10-05)
+
+- **Victory:** "the sfx when player wins is too childish." The old C-major sine arpeggio is gone. `playLevelClear`
+  now plays a synthesized temple stinger (`VICTORY_STINGER` in `src/combat/SoundFX.ts`): `ghanta` (default), a deep
+  drum stroke and a great bronze bell ringing long over a drone settling Pa to Sa, or `shankha`, drum strokes and a
+  long low conch. Three weights: `clear` (a chapter of waves), `boss`, `final` (the last chapter, Andhaka). The music
+  dips under it. The island (an explorable chapter) still has none: its ending scene follows at once with its own
+  card hit. Dev: `__debug.victory(grade, stinger)` plays one, `__debug.renderVictory(grade, stinger)` renders it
+  offline and reports level and spectrum (`src/combat/AudioDebug.ts`). The choice, and an optional recorded
+  (ElevenLabs) version, are in docs/APPROVALS.md.
+- **Blood:** proposed in docs/APPROVALS.md; a prototype (`src/combat/BloodFX.ts`: toon ink drops along the blow and
+  ground splats that dry away; red, a naga's green-black ichor, a ghost's ash, per `Enemy.blood`) is built but OFF
+  (`BLOOD_DEFAULT`) until the user decides. Dev: `__debug.blood(true | 'low' | false)`.
+
 ## Tools
 
 - **ElevenLabs:** voices, character sound effects, music.

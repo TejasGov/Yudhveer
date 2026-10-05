@@ -4,6 +4,7 @@ import { CharacterMotor } from '../physics/CharacterMotor';
 import type { CharacterState } from './CharacterStateMachine';
 import { SoundFX, type SwingKind, type ImpactKind } from '../combat/SoundFX';
 import { ParticleFX } from '../combat/ParticleFX';
+import type { BloodKind } from '../combat/BloodFX';
 
 /** What an enemy's AI needs to know about the one it is fighting. */
 export interface FightTarget {
@@ -30,6 +31,8 @@ export class Enemy extends Character {
   /** How its weapon sounds: the whoosh of a swing, and the blow when it lands on the hero. */
   public swingSound: SwingKind = 'blade';
   public impactSound: ImpactKind = 'blade';
+  /** What a blow draws from it (BloodFX, off until approved): red, a naga's ichor, a ghost's ash, or nothing. */
+  public blood: BloodKind = 'red';
   /**
    * Waypoints to run along before joining the fight (minions crossing bridges), level coordinates. The AI follows
    * them and ignores its target until the last one, or until the target comes within `ROUTE_BREAK` metres.

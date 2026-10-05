@@ -30,6 +30,7 @@ export class BossTakshaka extends Boss {
       roarRange: 16,
     });
     this.displayName = 'Takshaka';
+    this.blood = 'ichor';
     this.epithet = 'King of the nagas';
     this.maxHealth = 460;
     this.currentHealth = 460;

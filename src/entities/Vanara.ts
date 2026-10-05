@@ -12,6 +12,7 @@ export class VanaraMentor extends Enemy {
   constructor(id: string) {
     super(id, 0x8a7a68);
     this.displayName = 'Old Vanara';
+    this.blood = 'none'; // sparring with the teacher draws no blood
     this.epithet = 'Teacher of the Hanuman akhada';
     this.maxHealth = 100;
     this.currentHealth = 100;
