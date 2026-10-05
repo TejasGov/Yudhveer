@@ -449,6 +449,27 @@ Dialogue line rewrites and costs are in `docs/proposals/DIALOGUE.md`. V3-02, V3-
 
 ---
 
+## Fix status
+
+Updated as each fix batch lands on main. "Fixed" means merged after a re-check by the orchestrator (typecheck, build,
+and a look at the before and after captures in `E:/hindan/game asset/audit/fixes/`).
+
+| Finding | Status | Commit | Notes |
+|---|---|---|---|
+| W-01 | Fixed | d506766 | The four particle systems draw; sparks are white-hot streaks, flames teardrops, embers sparks. |
+| W-11 | Fixed | d506766 | Spawning is rate x game time (`Emitter`); nothing while paused. |
+| W-17 | Fixed | d506766 | `__debug.advance` ticks the level on its own clock. |
+| W-02, V2-01, W-09 | Fixed | d506766 | Island flames in FireField; lamp lights off the rock, gentler falloff. The buried shelf diyas are drawn out onto a ledge (the real fix belongs in `build_island.py`). |
+| W-03, W-10 | Fixed | d506766 | Summit deepams in dark bronze with wick flames; braziers smoulder as coals and catch into fire. |
+| Summit lanterns | Partly | d506766 | No `Lantern_Flame` meshes exist; the vista-shrine lantern heads got a warm glow. |
+| W-04 | Fixed | d506766 | Baoli: every near flame in FireField, no ink outline; near glow halos fade within 1.5-6 m. |
+| W-05 | Fixed | d506766 | Akhada: 16 deepams in FireField with the grow-in kept; flickering grazers; two faint amber lights. |
+| W-06 | Fixed | d506766 | Dwarka: 8 diyas lean and gutter in the storm's wind; two lights. |
+| W-07 | Fixed | d506766 | Takshaka's flame wave: tongues on a forward-bowed arc, bloom, embers, a fading scorch. |
+| W-13, W-14, W-16 | Fixed | d506766 | Gate stone gain lowered; diya flames at the wick; soft edges on the kavach shaft. |
+
+---
+
 ## Fire and light inventory
 
 Every flame and light source the world track found, with its verdict. "Pyramid" means a static or barely animated low-poly mesh flame. Light verdicts are the auditor's; flame verdicts were re-checked by the verifier except where noted.
