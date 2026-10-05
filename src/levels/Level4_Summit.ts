@@ -13,6 +13,13 @@ import { ParticleFX } from '../combat/ParticleFX';
 
 const LEVEL_URL = '/assets/levels/charnel_ridge.glb';
 const SKY_URL = '/assets/sky/charnel_eclipse_4096.jpg';
+/**
+ * Where Andhaka stands up from his throne at the head of Shiva's stair (Engine's FINALES), facing down the stair (+z).
+ * The throne is built behind it from his entrance clip's "seat" blocks (andhaka_intro.py measures them off his seated
+ * body), so the rock always fits the model.
+ */
+export const ANDHAKA_THRONE = new THREE.Vector3(0, 4.05, -9.6);
+const ANDHAKA_MANIFEST = '/assets/characters/andhaka.manifest.json';
 // From game asset/levels/04_summit/web_sky/sky_manifest.json (three axes, from the sky bake origin).
 const ECLIPSE_DIR = new THREE.Vector3(0.0, 0.35112, -0.93633);
 const FLASHES = [
@@ -122,6 +129,68 @@ export class Level4_Summit extends GLBLevel {
     this.atmosphere.environment = this.bakeEnvironment(envSource);
     envSource.dispose();
     this.atmosphere.background = new THREE.Color(0x0a0b0e); // the dome draws the sky
+    await this.buildThrone();
+  }
+
+  /**
+   * Andhaka's throne: a rough basalt seat with a taller stone at its left (where his crown waits), snow on its tops,
+   * empty through the waves; he is found sitting on it. Colliders stop short of its front, clear of his body.
+   */
+  private async buildThrone(): Promise<void> {
+    let blocks: { centre: [number, number, number]; size: [number, number, number] }[] | undefined;
+    try {
+      const manifest = await (await fetch(ANDHAKA_MANIFEST)).json();
+      blocks = manifest.clips?.coronation?.seat;
+    } catch {
+      blocks = undefined;
+    }
+    if (!blocks?.length) return;
+    const basalt = new THREE.MeshStandardMaterial({ name: 'Andhaka_Throne', color: 0x2e3036, roughness: 0.9 });
+    const mat = toToonMaterial(basalt, this.ramp);
+    basalt.dispose();
+    liftAlbedo(mat, 0.75);
+    addSnowCover(mat, { amount: 0.7, wall: 0.25 });
+    // A fixed seed, so the rock is the same every visit.
+    let seed = 7;
+    const rand = () => ((seed = (seed * 16807) % 2147483647) / 2147483647) * 2 - 1;
+    for (const block of blocks) {
+      const [w, h, d] = block.size;
+      const geo = new THREE.BoxGeometry(w, h, d, 5, 4, 4);
+      const pos = geo.attributes.position as THREE.BufferAttribute;
+      const jitter = new Map<string, THREE.Vector3>();
+      for (let i = 0; i < pos.count; i++) {
+        // Shared corners move together (the box's faces are split), so the rock stays closed.
+        const key = `${pos.getX(i).toFixed(3)},${pos.getY(i).toFixed(3)},${pos.getZ(i).toFixed(3)}`;
+        if (!jitter.has(key)) {
+          const top = pos.getY(i) > h / 2 - 1e-3;
+          const bottom = pos.getY(i) < -h / 2 + 1e-3;
+          // Rough faces, the top a little narrower than the foot and its edges knocked off: weathered stone.
+          const u = (pos.getY(i) + h / 2) / h;
+          const edge = top && (Math.abs(pos.getX(i)) > w / 2 - 1e-3 || Math.abs(pos.getZ(i)) > d / 2 - 1e-3) ? 0.06 : 0;
+          jitter.set(key, new THREE.Vector3(
+            rand() * 0.07 - Math.sign(pos.getX(i)) * 0.07 * u,
+            bottom ? 0 : rand() * (top ? 0.035 : 0.06) - edge,
+            rand() * 0.07 - Math.sign(pos.getZ(i)) * 0.07 * u,
+          ));
+        }
+        const j = jitter.get(key)!;
+        pos.setXYZ(i, pos.getX(i) + j.x, pos.getY(i) + j.y, pos.getZ(i) + j.z);
+      }
+      const faceted = geo.toNonIndexed();
+      geo.dispose();
+      faceted.computeVertexNormals();
+      const rock = new THREE.Mesh(faceted, mat);
+      rock.name = 'Andhaka_Throne';
+      rock.position.set(ANDHAKA_THRONE.x + block.centre[0], ANDHAKA_THRONE.y - 0.05 + block.centre[1], ANDHAKA_THRONE.z + block.centre[2]);
+      rock.castShadow = rock.receiveShadow = true;
+      this.group.add(rock);
+      // Collider: the block less 0.2 m off its front (toward his standing place).
+      const trim = 0.2;
+      this.addStaticBox(
+        new THREE.Vector3(rock.position.x, rock.position.y, rock.position.z - trim / 2),
+        new THREE.Vector3(w / 2, h / 2, Math.max(0.05, d / 2 - trim / 2)),
+      );
+    }
   }
 
   protected override prepareExportedLight(light: THREE.Light): void {

@@ -4,6 +4,7 @@ import type { Chapter } from '../game/Chapters';
 import type { Player } from '../entities/Player';
 import type { Enemy } from '../entities/Enemy';
 import { Boss } from '../entities/Boss';
+import { BossAndhaka } from '../entities/BossAndhaka';
 import type { CameraPose, GameLevel } from '../levels/LevelTypes';
 import { islandEstablishing } from '../levels/Level5_Island';
 
@@ -279,6 +280,7 @@ export function buildArrival(ctx: IntroContext, boss: Enemy): Shot[] {
  * sword side as he sinks to the hilt and draws, then the roar and his name from his sword side.
  */
 function entranceShots(ctx: IntroContext, boss: Boss, entrance: { duration: number; marks: Record<string, number> }): Shot[] {
+  if (boss instanceof BossAndhaka && entrance.marks.lift !== undefined) return enthronedEntrance(ctx, boss, entrance);
   const b = boss.getPosition().clone();
   const h = boss.visualHeight();
   const f = frame(boss.group.rotation.y);
@@ -326,6 +328,115 @@ function entranceShots(ctx: IntroContext, boss: Boss, entrance: { duration: numb
       sway: 0.02,
       keys: [
         // From his sword side, looking across him: the snow behind him, not the dark statue.
+        { pos: offset(b, f, 4.6, -3.8, h * 0.22), look: offset(b, f, 0, 0.5, h * 0.66), fov: 42 },
+        { pos: offset(b, f, 4.0, -3.2, h * 0.3), look: offset(b, f, 0, 0.4, h * 0.7), fov: 39 },
+      ],
+      cues: [{ at: 0.6, run: () => ctx.cards.boss(boss) }],
+    },
+  ];
+}
+
+/**
+ * Andhaka found on his throne (docs/STORY.md, "Andhaka's entrance"), cut to his clip's marks: from down the stair, the
+ * seated king laughing; closer as he throws his head back; his smiling face; the crown taken off the throne's arm and
+ * raised; close as it comes down onto his head; low on his sword side as he rises with the blade out of the stone; the
+ * roar and his name. Each shot frames where his head and hands will be, read off the clip before it plays.
+ */
+function enthronedEntrance(ctx: IntroContext, boss: BossAndhaka, entrance: { duration: number; marks: Record<string, number> }): Shot[] {
+  const b = boss.getPosition().clone();
+  const h = boss.visualHeight();
+  const f = frame(boss.group.rotation.y);
+  const m = entrance.marks;
+  const at = (bone: 'Head' | 'LeftHand' | 'RightHand', t: number, fallback: THREE.Vector3) => boss.entrancePoint(bone, t) ?? fallback;
+  const seatedHead = offset(b, f, -0.55, 0, h * 0.7);
+  const laughing = at('Head', 1.2, seatedHead);
+  const smiling = at('Head', (m.settle + m.lift) / 2 + 0.4, seatedHead);
+  const crowned = at('Head', m.crowned, seatedHead);
+  const crownRest = at('LeftHand', m.lift, offset(b, f, -0.5, 0.85, h * 0.36));
+  const hilt = at('RightHand', m.grip, offset(b, f, -0.4, -0.95, h * 0.4));
+  const up = (p: THREE.Vector3, y: number) => p.clone().addScaledVector(UP, y);
+  // Shot boundaries (entrance seconds).
+  const t1 = 2.6;
+  const t2 = m.settle + 1.2;
+  const t3 = m.lift - 0.35;
+  const t4 = m.crowned - 0.9;
+  const t5 = m.grip - 0.25;
+  const t6 = m.roar;
+  return [
+    // Found: from down the stair, the king on his rock, laughing.
+    {
+      duration: t1,
+      fadeIn: 0.4,
+      ease: ease.drift,
+      sway: 0.01,
+      keys: [
+        { pos: offset(b, f, 7.6, -1.3, 1.3), look: up(laughing, -0.75), fov: 34 },
+        { pos: offset(b, f, 6.4, -1.0, 1.45), look: up(laughing, -0.6), fov: 31 },
+      ],
+      cues: [{ at: 0, run: () => boss.playIntro() }],
+    },
+    // Closer, from his sword side, as the laugh takes him and he settles.
+    {
+      duration: t2 - t1,
+      fadeIn: 0.15,
+      ease: ease.drift,
+      sway: 0.012,
+      keys: [
+        { pos: laughing.clone().addScaledVector(f.fwd, 4.3).addScaledVector(f.side, -1.9).addScaledVector(UP, -0.55), look: up(laughing, -0.55), fov: 34 },
+        { pos: laughing.clone().addScaledVector(f.fwd, 3.9).addScaledVector(f.side, -1.6).addScaledVector(UP, -0.45), look: up(laughing, -0.45), fov: 32 },
+      ],
+    },
+    // His smiling face, close, looking down the stair at the boy.
+    {
+      duration: t3 - t2,
+      fadeIn: 0.15,
+      ease: ease.out,
+      sway: 0.006,
+      keys: [
+        { pos: smiling.clone().addScaledVector(f.fwd, 1.8).addScaledVector(f.side, 0.2).addScaledVector(UP, -0.2), look: up(smiling, -0.06), fov: 25 },
+        { pos: smiling.clone().addScaledVector(f.fwd, 1.55).addScaledVector(f.side, 0.14).addScaledVector(UP, -0.18), look: up(smiling, -0.05), fov: 23 },
+      ],
+    },
+    // The crown: his hand takes it off the throne's arm and raises it; the camera rises with it from his left.
+    {
+      duration: t4 - t3,
+      fadeIn: 0.15,
+      ease: ease.inOut,
+      sway: 0.01,
+      keys: [
+        { pos: crownRest.clone().addScaledVector(f.fwd, 2.4).addScaledVector(f.side, 1.3).addScaledVector(UP, 0.35), look: up(crownRest, 0.15), fov: 34 },
+        { pos: crowned.clone().addScaledVector(f.fwd, 2.6).addScaledVector(f.side, 1.4).addScaledVector(UP, -0.2), look: up(crowned, 0.3), fov: 34 },
+      ],
+    },
+    // Close on his face as the crown comes down onto his head.
+    {
+      duration: t5 - t4,
+      fadeIn: 0.12,
+      ease: ease.out,
+      sway: 0.006,
+      keys: [
+        { pos: crowned.clone().addScaledVector(f.fwd, 2.7).addScaledVector(f.side, -0.35).addScaledVector(UP, -0.1), look: up(crowned, 0.06), fov: 29 },
+        { pos: crowned.clone().addScaledVector(f.fwd, 2.4).addScaledVector(f.side, -0.28).addScaledVector(UP, -0.1), look: up(crowned, 0.04), fov: 27 },
+      ],
+    },
+    // Low on his sword side: his fist closes on the hilt and he rises, the blade coming up out of the stone.
+    {
+      duration: t6 - t5,
+      fadeIn: 0.12,
+      ease: ease.drift,
+      sway: 0.015,
+      keys: [
+        { pos: offset(b, f, 2.6, -3.3, 0.55), look: up(hilt, 0.1), fov: 40 },
+        { pos: offset(b, f, 3.2, -3.6, 0.8), look: offset(b, f, 0, -0.3, h * 0.62), fov: 42 },
+      ],
+    },
+    // The roar and his name, from his sword side looking across him: the snow behind him, not the dark statue.
+    {
+      duration: entrance.duration - t6 + 0.4,
+      fadeIn: 0.12,
+      ease: ease.out,
+      sway: 0.02,
+      keys: [
         { pos: offset(b, f, 4.6, -3.8, h * 0.22), look: offset(b, f, 0, 0.5, h * 0.66), fov: 42 },
         { pos: offset(b, f, 4.0, -3.2, h * 0.3), look: offset(b, f, 0, 0.4, h * 0.7), fov: 39 },
       ],

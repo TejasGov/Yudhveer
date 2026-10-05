@@ -9,26 +9,39 @@ const LAUGH = 'andhaka_laugh';
 
 /** Below this share of health he enters his second phase. */
 const PHASE_2_AT = 0.5;
-/** His entrance clip (characters/Andhaka.ts): smile, crown, sword. */
+/** His entrance clip (characters/Andhaka.ts): seated laughing, the smile, the crown, rising with the sword. */
 const ENTRANCE = 'coronation';
-/** The bone that carries the crown until it reaches his head. */
-const CROWN_HAND = 'mixamorigLeftHand';
+/** The bone that carries the crown from the throne to his head (the auto-rigged model's name, then Mixamo's). */
+const CROWN_HAND = ['LeftHand', 'mixamorigLeftHand'];
 
 const smoothstep = (a: number, b: number, t: number) => THREE.MathUtils.smoothstep(t, a, b);
 
 /**
- * Chapter IV final boss, Andhaka, the asura of darkness who climbed Kailasha (the Mahishasura model). He arrives once
- * his rakshasas have fallen: he smiles, crowns himself and draws his cleaver from the stone of Shiva's dais. Heavy
+ * Chapter V final boss, Andhaka, the asura of darkness who climbed Kailasha. He is found once his rakshasas have
+ * fallen, seated on a rock on Shiva's dais, laughing; he smiles, crowns himself and rises, drawing his cleaver from the
+ * stone. Heavy
  * cuts, an overhead chop, a three-blow string and a leap; below half health he roars and comes faster. Light blows
  * thrown into his swing glance off his hide (`armorDamage`): he is beaten by waiting out his blow and striking after it.
  *
- * The entrance is one authored clip whose marks say when the crown leaves his hands for his head ("crowned") and when
- * his fist closes on the planted sword ("grip"). Until then the crown rides his left hand and the sword stands in the
- * ground, each placed where the clip will have it at its mark, so the hand-overs are seamless.
+ * The entrance is one authored clip whose marks say when his left hand takes the crown off the throne's arm ("lift"),
+ * when it leaves his hand for his head ("crowned") and when his fist closes on the planted sword ("grip"). The crown
+ * rests where his hand will take it, then rides his hand; the sword stands in the stone where his fist will close.
+ * Each is placed where the clip will have it at its mark, so the hand-overs are seamless.
  */
 export class BossAndhaka extends Boss {
   public phase = 1;
-  private entrance: { marks: Record<string, number>; duration: number; laughed: boolean; crowned: boolean; gripped: boolean; drawn: boolean; roared: boolean } | null = null;
+  private entrance: {
+    marks: Record<string, number>;
+    duration: number;
+    hand: THREE.Object3D;
+    inHand: THREE.Matrix4;
+    laughed: boolean;
+    lifted: boolean;
+    crowned: boolean;
+    gripped: boolean;
+    drawn: boolean;
+    roared: boolean;
+  } | null = null;
   /** The face's Smile morph target on each mesh that has it. */
   private readonly smile: { mesh: THREE.Mesh; index: number }[] = [];
   private smileLevel = 0;
@@ -80,26 +93,53 @@ export class BossAndhaka extends Boss {
     return info?.marks ? { duration: info.duration, marks: info.marks } : null;
   }
 
-  /** The entrance: the crown into his hands, the sword into the stone, and the clip from its start. */
+  private crownHand(): THREE.Object3D | undefined {
+    for (const name of CROWN_HAND) {
+      const bone = this.rig?.root.getObjectByName(name);
+      if (bone) return bone;
+    }
+    return undefined;
+  }
+
+  /**
+   * Where one of his bones (either rig's naming) will be in the world `time` seconds into his entrance, for the
+   * cutscene's framing; null without the entrance. Call before the entrance plays (it poses the rig for a moment).
+   */
+  public entrancePoint(bone: 'Head' | 'Hips' | 'LeftHand' | 'RightHand', time: number): THREE.Vector3 | null {
+    const rig = this.rig;
+    const node = rig?.root.getObjectByName(bone) ?? rig?.root.getObjectByName(`mixamorig${bone}`);
+    if (!rig || !node || !rig.clipInfo(ENTRANCE)) return null;
+    this.group.updateMatrixWorld(true);
+    return rig.sampleAt(ENTRANCE, time, () => node.getWorldPosition(new THREE.Vector3())) ?? null;
+  }
+
+  /** The entrance: the crown on the throne's arm, the sword in the stone, and the clip from its start. */
   public override playIntro(): number {
     const rig = this.rig;
     const entrance = this.scriptedEntrance();
-    const hand = rig?.root.getObjectByName(CROWN_HAND);
+    const hand = this.crownHand();
     if (!rig || !entrance || !hand) return super.playIntro();
     this.hasRoared = true;
     const { marks } = entrance;
     const crown = this.shieldMesh;
     const sword = this.swordMesh;
     this.group.updateMatrixWorld(true);
-    // Where the crown will be in his hand when it reaches his head, and where his fist will close on the sword.
+    // Where the crown will be in his hand when it reaches his head; where that puts it as his hand takes it off the
+    // throne; and where his fist will close on the sword.
     const inHand = rig.sampleAt(ENTRANCE, marks.crowned, () => hand.matrixWorld.clone().invert().multiply(crown.matrixWorld));
+    const lift = marks.lift ?? 0;
+    const resting = inHand && rig.sampleAt(ENTRANCE, lift, () => this.group.matrixWorld.clone().invert().multiply(hand.matrixWorld).multiply(inHand));
     const planted = rig.sampleAt(ENTRANCE, marks.grip, () => this.group.matrixWorld.clone().invert().multiply(sword.matrixWorld));
-    if (!inHand || !planted) return super.playIntro();
-    place(crown, hand, inHand);
-    place(sword, this.group, planted);
+    if (!inHand || !resting || !planted) return super.playIntro();
+    if (lift > 0) place(crown, this.group, resting);
+    else place(crown, hand, inHand);
+    if (marks.grip > 0) place(sword, this.group, planted);
     this.stateMachine.changeState('IDLE');
     this.playScripted({ clip: ENTRANCE, fade: 0 });
-    this.entrance = { marks, duration: entrance.duration, laughed: false, crowned: false, gripped: false, drawn: false, roared: false };
+    this.entrance = {
+      marks, duration: entrance.duration, hand, inHand,
+      laughed: false, lifted: lift <= 0, crowned: false, gripped: marks.grip <= 0, drawn: false, roared: false,
+    };
     return entrance.duration;
   }
 
@@ -133,6 +173,10 @@ export class BossAndhaka extends Boss {
         e.laughed = true;
         this.laugh();
       }
+      if (!e.lifted && t >= e.marks.lift) {
+        e.lifted = true;
+        place(this.shieldMesh, e.hand, e.inHand);
+      }
       if (!e.crowned && t >= e.marks.crowned && def.offhand) {
         e.crowned = true;
         rig.attach(this.shieldMesh, def.offhand);
@@ -157,14 +201,15 @@ export class BossAndhaka extends Boss {
     this.updateSmile(dt);
   }
 
-  /** The smile spreads as the entrance begins and stays as a smirk; in the fight it never quite leaves. */
+  /** The smile spreads as he laughs and stays through his crowning; as he rises it eases to a smirk that never leaves. */
   private updateSmile(dt: number): void {
     const e = this.entrance;
     const rig = this.rig;
     let target = 0.2;
     if (e && rig?.clip === ENTRANCE) {
       const t = rig.time;
-      target = smoothstep(e.marks.smile, e.marks.smile + 0.9, t) * (1 - 0.5 * smoothstep(e.marks.grip, e.marks.grip + 1.2, t));
+      const rise = e.marks.rise ?? e.marks.grip;
+      target = smoothstep(e.marks.smile, e.marks.smile + 0.9, t) * (1 - 0.5 * smoothstep(rise, rise + 1.2, t));
     } else if (this.stateMachine.currentState === 'DEAD') {
       target = 0;
     }

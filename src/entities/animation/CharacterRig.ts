@@ -16,6 +16,11 @@ export interface ClipInfo {
   airborne?: { takeoff: number; landing: number };
   /** Named moments in composite clips (s), e.g. the sheathe's "sheathed". */
   marks?: Record<string, number>;
+  /**
+   * Authored clips played seated: the blocks of what he sits on, character-local (x right, y up, z forward; metres,
+   * before the definition's scale), so a level can build it where he will sit (Andhaka's throne).
+   */
+  seat?: { centre: [number, number, number]; size: [number, number, number] }[];
 }
 
 export interface CharacterManifest {

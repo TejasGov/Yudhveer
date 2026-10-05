@@ -1,6 +1,6 @@
 import type { CharacterDefinition } from '../animation/CharacterRig';
 import { RAKSHASA } from './Rakshasa';
-import { ANDHAKA } from './Andhaka';
+import { ANDHAKA, ANDHAKA_CALM_IDLE } from './Andhaka';
 
 /*
  * The prologue's people (docs/STORY.md, "Prologue"). Every one of them is an existing model standing in until its own
@@ -38,6 +38,10 @@ export const GURU: CharacterDefinition = {
 
 /**
  * Andhaka as the prologue shows him: the summit's model and his cleaver, but no crown (he crowns himself on Kailasha;
- * that is his reveal). The story draws him as a silhouette (`CastMember.silhouette`), so his face is never seen.
+ * that is his reveal). The story draws him as a silhouette (`CastMember.silhouette`), so his face is never seen. He
+ * does not fight here: standing over the boy he takes his calm idle, not the fight's guard shuffle.
  */
-export const ANDHAKA_SHADOW: CharacterDefinition = (({ offhand: _crown, ...rest }) => rest)(ANDHAKA);
+export const ANDHAKA_SHADOW: CharacterDefinition = (({ offhand: _crown, ...rest }) => ({
+  ...rest,
+  states: { ...rest.states, IDLE: { clip: ANDHAKA_CALM_IDLE, fade: 0.4 } },
+}))(ANDHAKA);

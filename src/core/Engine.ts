@@ -36,6 +36,7 @@ import { RAKSHASA } from '../entities/characters/Rakshasa';
 import { YATUDHANA } from '../entities/characters/Yatudhana';
 import { SHALVA } from '../entities/characters/Shalva';
 import { ANDHAKA } from '../entities/characters/Andhaka';
+import { ANDHAKA_THRONE } from '../levels/Level4_Summit';
 import { RAIDER } from '../entities/characters/Village';
 import { MENTOR } from '../entities/characters/Akhada';
 import { AKHADA_MARKS } from '../game/stories/Akhada';
@@ -144,6 +145,8 @@ interface Finale extends Omit<Spawn, 'at'> {
   at: THREE.Vector3 | ((hero: THREE.Vector3) => THREE.Vector3);
   /** His fight's music (the boss theme if not given). */
   music?: Track;
+  /** A point he faces as he arrives (the hero if not given): an entrance staged on a fixed set piece. */
+  face?: THREE.Vector3;
 }
 
 const v3 = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
@@ -202,8 +205,12 @@ const FINALES: Record<number, Finale> = {
     capsule: NAGA_CAPSULE,
     rig: TAKSHAKA,
   },
-  // The summit: at the top of Shiva's stair, on the dais (4 m up), facing down toward the arena.
-  4: { make: () => new BossAndhaka('andhaka'), at: v3(0, 4.05, -9.6), capsule: ANDHAKA_CAPSULE, rig: ANDHAKA, music: 'andhaka_final' },
+  // The summit: at the top of Shiva's stair, on the dais (4 m up), facing straight down the stair toward the arena: he
+  // is found seated on the rock throne behind that spot (Level4_Summit's ANDHAKA_THRONE) and rises from it.
+  4: {
+    make: () => new BossAndhaka('andhaka'), at: ANDHAKA_THRONE.clone(), face: ANDHAKA_THRONE.clone().setZ(10),
+    capsule: ANDHAKA_CAPSULE, rig: ANDHAKA, music: 'andhaka_final',
+  },
 };
 
 /** Each arena's music: the village (the prologue), the stepwell, the akhada, Dwarka, the summit. Bosses bring their own. */
@@ -856,7 +863,7 @@ export class Engine {
     this.soundFX.music.play(f.def.music ?? 'boss');
     const at = typeof f.def.at === 'function' ? f.def.at(this.player!.getPosition()) : f.def.at;
     this.addFighter(enemy, at, f.def.capsule);
-    enemy.faceTowards(this.player!.getPosition());
+    enemy.faceTowards(f.def.face ?? this.player!.getPosition());
     enemy.group.visible = false;
     this.enemies.push(enemy);
     this.hud.add(enemy);

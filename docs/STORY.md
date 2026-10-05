@@ -26,7 +26,8 @@ himself: Andhaka has carried his own judge up the mountain.
 - **The guru appears to be killed** in the raid. In truth he is **captured**.
 - Behind the raid stands a huge figure with a great sword: **Andhaka, seen only as a silhouette**. He is never shown
   in the face here, only his size and his blade against the light. The mystery stays until the summit, where his
-  entrance (the smile, the crown, the sword drawn from the stone) reveals him at last.
+  entrance (found seated on his rock throne, laughing; the smile; the crown; rising with the sword drawn from the
+  stone) reveals him at last.
 - Yudhveer sets out after him.
 
 ### Chapter I: the Moonlit Baoli (existing map)
@@ -662,6 +663,40 @@ The guru's voice (and Shiva's) is the deep narrator in `game asset/voice/VOICES.
 | (no id) | Yudhveer | Mahadeva... | he kneels before the statue | subtitle only |
 | `summit_reveal_shiva_2` | Shiva | The dark is lifted from the mountain. Go home, Yudhveer, and teach what you have learned. | the eclipse passes, last shot | yes |
 
+## Andhaka's model and entrance (2026-10-05)
+
+"We can't compromise on the final boss quality." Andhaka is now the user's 100k-triangle model
+(`game asset/characters/sources/andhaka_100k.glb`, the same design as before at far higher fidelity; it has no crown
+of its own, so the crown stays the prop he puts on). The old model (the prototype's Mahishasura, adopted) had a
+slightly broken rig; the new one is auto-rigged from markers with Mixamo-named finger bones, its weights checked at
+the shoulders, wrists and hips in the attacks, the death, the crouch and sitting (a drape over his left shoulder
+and down his back is kept off the arm and the thigh, so it neither flies up with the arm nor swings out like a tail
+when he sits). All ~102k triangles are kept; the colour map stays 4k, normal and metal / roughness 2k (WebP), 8.8 MB
+in all with 17 clips (was 5.5 MB). The face's Smile shape key is ported (the mouth is split finer, the grin a
+little stronger to read through the beard). Fight clips, states and tuning are unchanged.
+
+**The entrance** (`coronation`, `game asset/characters/andhaka_intro.py`; framed by `enthronedEntrance` in
+`src/cinematics/Intros.ts`). When the last rakshasa falls he is found on the dais at the head of Shiva's stair,
+SEATED on a rock throne (built by the summit level from the clip's own "seat" blocks, so it fits him; it stands empty
+through the waves and stays for the ending), his cleaver planted in the stone by his right knee, his crown on the
+throne's taller left stone. His laugh (`andhaka_laugh`, already recorded) plays as the smile begins; no new lines.
+
+1. **Found** (0 - 2.6 s): from down the stair, low, the king on his rock, laughing (Mixamo's Sitting Laughing).
+2. **The laugh** (2.6 - 4.5 s): closer, from his sword side, as he throws his head back, doubles over and settles
+   (into Sitting Idle).
+3. **The smile** (4.5 - 6.25 s): close on his face, looking down the stair at the boy, the Smile shape key full.
+4. **The crown** (6.25 - 8.1 s): from his left, his hand takes the crown off the throne's arm and raises it.
+5. **Crowned** (8.1 - 9.75 s): close on his face as he sets it on his own head, bowing to it, grinning.
+6. **He rises** (9.75 - 12 s): low on his sword side, his fist closes on the hilt and he stands (Sit To Stand), the
+   blade coming up out of the stone.
+7. **The roar** (12 s - end): the capture's roar, his name card, then his stance and the fight.
+
+For cutscenes he also carries a calm standing idle (Mixamo's Standing Idle With Axe, `standing_idle_with_axe`,
+`ANDHAKA_CALM_IDLE`); the prologue's silhouette stands in it over the boy instead of the fight's guard shuffle.
+
+- **Testing:** `__debug.chapter(5, false)`, `__debug.win()` per wave until he arrives, then `__debug.advance(s)` and
+  `__yudhveer.sceneManager.render()` to step through the shots.
+
 ## Tools
 
 - **ElevenLabs:** voices, character sound effects, music.
@@ -688,7 +723,8 @@ The guru's voice (and Shiva's) is the deep narrator in `game asset/voice/VOICES.
   (public/assets/music: title, village, baoli, akhada, island, dwarka, summit, boss, andhaka_final) crossfade per
   chapter and boss (`LEVEL_MUSIC` and `Finale.music` in Engine), dip under voices and in cutscenes; Andhaka laughs
   (voice/andhaka_laugh) as his entrance smile begins and at his second phase.
-- Andhaka's in-game entrance at the summit (smile, crown, sword from the stone) is the reveal of his face.
+- Andhaka's in-game entrance at the summit (seated laughing, the smile, the crown, rising with the sword from the
+  stone) is the reveal of his face. See "Andhaka's model and entrance".
 - **Yudhveer has no voice** (2026-10-05): his lines are subtitles only, with no `voice` id and no recording. Every
   other speaker is voiced. His old takes are kept in `game asset/voice/unused_yudhveer/`.
 

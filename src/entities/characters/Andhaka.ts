@@ -1,13 +1,16 @@
 import type { CharacterDefinition } from '../animation/CharacterRig';
 
 /**
- * Chapter IV final boss, Andhaka: a 3.15 m crowned asura king with a lion-hilted cleaver (the Mahishasura model from
- * `warrior prototype/`, its fitted Mixamo skeleton with fingers adopted by `game asset/characters/adopt_rig.py`).
- * Built with real motion capture for everything he does in the fight, a Smile shape key (andhaka_face.py) and his
- * entrance, `coronation`, authored from captures plus IK (andhaka_post.py / andhaka_intro.py):
+ * Chapter V final boss, Andhaka: a 3.15 m asura king with a lion-hilted cleaver and a crown (both separate props). The
+ * model is the user's 100k-triangle sculpt (`game asset/characters/sources/andhaka_100k.glb`, 2026-10-05), auto-rigged
+ * with finger bones by `autorig.py` (rigs/andhaka100k.markers.json), kept whole (no decimation). Real motion capture
+ * for everything he does in the fight, a Smile shape key (andhaka_face.py), his seated entrance `coronation` authored
+ * from Mixamo's Sitting Laughing / Sitting Idle / Sit To Stand plus IK (andhaka_post.py / andhaka_intro.py), and a calm
+ * standing idle for cutscenes:
  *
- *   blender -b --factory-startup --python build_character.py -- rigs/level4_final_boss.rigged.glb animations
- *           <out>/andhaka.glb --fingers --extras andhaka_face.py --post andhaka_post.py --clips "<see the README>"
+ *   blender -b --factory-startup --python build_character.py -- rigs/andhaka100k.rigged.glb animations <out>/andhaka.glb
+ *           --fingers --height 3.15 --texture 2048 --texture-color 4096 --extras andhaka_face.py --post andhaka_post.py
+ *           --clips "<see the README>"
  *
  * The crown rides the offhand slot (Socket_Crown on his head); the entrance moves it and the sword at its marks.
  */
@@ -48,3 +51,9 @@ export const ANDHAKA: CharacterDefinition = {
     model: '/assets/weapons/andhaka_crown.glb',
   },
 };
+
+/**
+ * His calm standing idle for cutscenes (not the fight, whose IDLE is a guard shuffle): Mixamo's "Standing Idle With
+ * Axe" (`Andhaka-Standing Idle With Axe.fbx`), a broad, still, menacing stance with the weapon hand low.
+ */
+export const ANDHAKA_CALM_IDLE = 'standing_idle_with_axe';
