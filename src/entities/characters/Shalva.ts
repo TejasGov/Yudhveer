@@ -6,7 +6,10 @@ import type { CharacterDefinition } from '../animation/CharacterRig';
  * `rigs/level3_boss_mace.markers.json`), then built with the brute and mace clips (run from `game asset/characters`):
  *
  *   blender -b --factory-startup --python build_character.py -- rigs/level3_boss_mace.rigged.glb animations
- *           <out>/shalva.glb --prefixes "Boss1-,All-" --height 2.6 --fists --clips "orc_idle"
+ *           <out>/shalva.glb --prefixes "Boss1-,All-" --height 2.6 --fists
+ *           --finger-markers rigs/level3_boss_mace.fingers.json --clips "orc_idle"
+ *
+ * His hands have finger bones: the right closes on the gada's haft, the empty left hangs relaxed (CharacterRig).
  *
  * His gada is `level 3 boss mace weapon.fbx` through prepare_weapon.py --hafted.
  */

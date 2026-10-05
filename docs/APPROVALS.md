@@ -330,3 +330,30 @@ captures in `game asset/audit/fixes/fix-fire/`. Calls made on the way, each a co
   `Fire_lamp_*` empties moved. The originals are in `game asset/levels/00_village/_backup_2026-10-05/`.
 - **Known, unchanged:** ink lines of what stands behind a flame still draw over it (the ink pass reads depth, and
   flames write none); it was so in the village before.
+
+### The hands: C-04, C-06, C-11, S-15 (done), C-12 (not done)
+
+No credits, downloads or sign-ins were needed. Judgement calls, made while the user was away:
+
+- **C-04: real finger bones, not a better baked curl.** The decision rule's first path worked. The hero's mesh has
+  clearly separate fingers and thumb (gaps between all of them in a top view), so bones deform cleanly; the same held
+  for the training model, the vanara, the Guardian and Shalva. Markers per model are in
+  `game asset/characters/rigs/<name>.fingers.json`, read off top-view renders with a centimetre grid. The fallback
+  (path 2) was not needed. Every socket is unchanged to 0.000 mm (`game asset/audit/fixes/fix-hands/socket_check.txt`).
+- **The grips are set in code, not baked into the clips:** each frame a hand closes on what its socket holds, the
+  other hand on a two-handed haft, relaxes when empty, and lies flat when the clip is marked `"hands": "flat"`. That
+  needs no per-weapon or per-clip tables. There is one fist per model, round a bar about 2 cm in radius (3.4 cm on the
+  3.2 m Guardian), which fits every haft and grip in the game (1.7 to 3.6 cm). A per-weapon pose can be added later.
+- **GLB size:** the clips' constant finger channels are pruned after export (the game sets the fingers). The new bones
+  and poses still add a little: yodha.glb 8.25 to 8.51 MB, yodha_training 4.52 to 4.74, vanara 3.73 to 3.90, Guardian
+  3.83 to 4.01, Shalva 3.46 to 3.64.
+- **The villager woman at the mandir** (C-06's check) has Mixamo's own fingers, but her Praying is a V of open palms
+  touching only at the heel. She now gets the same anjali (`--post anjali_post.py`; nothing else in her model changed).
+- **S-15:** an authored `posture_break` clip (struck, down on one knee, up again: 2.47 s) instead of a section of Head
+  Impact To Knees. That clip falls to both knees, face down, and takes 4.5 s; the state lasts 2.5 s.
+- **C-11:** the grip moved 6 cm up the haft, as suggested; the left fist now closes 8.5 cm above the butt.
+- **C-12 not done:** the guru's staff arm is held at rest in every clip (`guru_post.py`), so the 3.7 cm shoulder
+  asymmetry never shows. Re-rigging him would re-solve all his heat weights, which "only if nothing else changes" rules
+  out.
+- **Seen, not mine:** with the fists closed, the basic sword's grip being 8.8 cm off the socket (C-03) shows more in
+  chapters II and III: the red grip sits beside the fist. The weapon-grips fix covers it.

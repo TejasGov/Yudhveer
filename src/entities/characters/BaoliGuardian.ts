@@ -6,7 +6,10 @@ import type { CharacterDefinition } from '../animation/CharacterRig';
  * with the Boss1- clips (run from `game asset/characters`):
  *
  *   blender -b --factory-startup --python build_character.py -- rigs/level1_boss.rigged.glb animations
- *           <out>/baoli_guardian.glb --prefixes "Boss1-" --height 3.2 --fists --clips "orc_idle"
+ *           <out>/baoli_guardian.glb --prefixes "Boss1-" --height 3.2 --fists
+ *           --finger-markers rigs/level1_boss.fingers.json --clips "orc_idle"
+ *
+ * His hands have finger bones: the right closes on the talwar's grip, the empty left hangs relaxed (CharacterRig).
  */
 export const BAOLI_GUARDIAN: CharacterDefinition = {
   model: '/assets/characters/baoli_guardian.glb',

@@ -2883,7 +2883,8 @@
   "praying": {
    "source": "Hero-Praying.fbx",
    "duration": 1.9333,
-   "loop": false
+   "loop": false,
+   "hands": "flat"
   },
   "stand_up_from_stomach": {
    "source": "Hero-Stand Up From Stomach.fbx",
@@ -11991,6 +11992,174 @@
    },
    "marks": {
     "sheathed": 1.2667
+   }
+  },
+  "praying_anjali": {
+   "source": "authored (anjali_post.py): Praying, the arms laid by IK into anjali (palms together, 15 cm before the sternum)",
+   "duration": 1.9333,
+   "loop": false,
+   "hands": "flat"
+  },
+  "posture_break": {
+   "source": "authored (yodha_post.py): Head Impact To Knees 0.35-2.2 s, Kneeling Down 1.3-1.95 s, Kneel To Stand 0.25-1.6 s, sped up and blended",
+   "duration": 2.4667,
+   "loop": false
+  }
+ },
+ "hands": {
+  "poses": [
+   "hand_fist",
+   "hand_relaxed",
+   "hand_flat"
+  ],
+  "fist": {
+   "Left": {
+    "bar_radius_mm": 19.0,
+    "socket_to_palm_mm": 7.0,
+    "fingers": {
+     "Index": {
+      "bend_deg": [
+       85.5,
+       75.5,
+       39.5
+      ],
+      "gap_mm": [
+       6.0,
+       2.2,
+       2.1,
+       -0.5,
+       -0.5
+      ],
+      "half_thick_mm": 5.9
+     },
+     "Middle": {
+      "bend_deg": [
+       48.0,
+       106.0,
+       51.0
+      ],
+      "gap_mm": [
+       10.0,
+       4.6,
+       5.3,
+       0.2,
+       -0.5
+      ],
+      "half_thick_mm": 7.4
+     },
+     "Ring": {
+      "bend_deg": [
+       31.5,
+       89.5,
+       54.0
+      ],
+      "gap_mm": [
+       5.5,
+       1.7,
+       3.8,
+       -0.2,
+       -0.5
+      ],
+      "half_thick_mm": 4.5
+     },
+     "Pinky": {
+      "bend_deg": [
+       28.5,
+       53.0,
+       33.5
+      ],
+      "gap_mm": [
+       2.1,
+       0.1,
+       2.0,
+       -0.4,
+       -0.4
+      ],
+      "half_thick_mm": 6.7
+     }
+    },
+    "thumb": {
+     "turn_in_deg": 13.0,
+     "swing_deg": 60.0,
+     "curl_deg": 7.5,
+     "tip_miss_mm": 58.5,
+     "bar_gap_mm": 0.1,
+     "half_thick_mm": 9.2
+    }
+   },
+   "Right": {
+    "bar_radius_mm": 19.9,
+    "socket_to_palm_mm": 8.0,
+    "fingers": {
+     "Index": {
+      "bend_deg": [
+       72.5,
+       89.0,
+       30.5
+      ],
+      "gap_mm": [
+       4.4,
+       3.3,
+       8.2,
+       3.2,
+       -0.5
+      ],
+      "half_thick_mm": 3.9
+     },
+     "Middle": {
+      "bend_deg": [
+       73.5,
+       103.5,
+       40.0
+      ],
+      "gap_mm": [
+       9.5,
+       4.5,
+       4.9,
+       0.3,
+       -0.5
+      ],
+      "half_thick_mm": 6.8
+     },
+     "Ring": {
+      "bend_deg": [
+       1.5,
+       114.5,
+       42.0
+      ],
+      "gap_mm": [
+       8.6,
+       7.5,
+       12.3,
+       4.5,
+       -0.6
+      ],
+      "half_thick_mm": 7.2
+     },
+     "Pinky": {
+      "bend_deg": [
+       36.0,
+       58.0,
+       37.5
+      ],
+      "gap_mm": [
+       4.8,
+       1.1,
+       0.9,
+       -0.5,
+       0.6
+      ],
+      "half_thick_mm": 6.3
+     }
+    },
+    "thumb": {
+     "turn_in_deg": 6.0,
+     "swing_deg": 56.0,
+     "curl_deg": 17.5,
+     "tip_miss_mm": 47.6,
+     "bar_gap_mm": -0.1,
+     "half_thick_mm": 6.5
+    }
    }
   }
  }

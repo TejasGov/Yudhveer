@@ -8,6 +8,10 @@ import type { Attire } from '../../game/Progression';
  * relaxed standing "Idle", Stance-Calm Idle) for standing at ease (`--clips`, see game asset/README.md). Clip ids are
  * the file names minus their prefix, in snake_case ("Yodha-attack (2).fbx" -> attack_2).
  *
+ * His hands have finger bones (`--finger-markers rigs/yodha.fingers.json`, game asset/characters/hands.py): each closes
+ * on what its socket holds, hangs relaxed when empty, and both lie flat in prayer (CharacterRig). `--post yodha_post.py`
+ * adds `praying_anjali` (palms pressed together before his chest) and `posture_break` (struck, down on one knee, up).
+ *
  * Every clip of the pack is in the model, so a state can be pointed at a different variant without a rebuild:
  * idle_2..4, run (the pack's own), walk_2 / run_2 (backwards), strafe..strafe_4, turn, 180_turn, slash_2..5,
  * attack_2, kick, casting, crouch*, death_2, slide_run (the slide). States without a fitting clip use the closest one (marked PLACEHOLDER).
@@ -47,15 +51,18 @@ export const YODHA: CharacterDefinition = {
     DRAW: { clip: 'sheathe', timeScale: 1.6, timesState: true, reverse: true },
     STAGGER: { clip: 'impact_3', timeScale: 1.3, timesState: true, fade: 0.05 },
     DEFLECTED: { clip: 'impact_2', timeScale: 1.3, fade: 0.05 },
-    POSTURE_BROKEN: { clip: 'crouch_idle', fade: 0.2 }, // PLACEHOLDER: no kneel / stagger-down clip
+    // Struck and reeling, down on one knee and back up, in the state's 2.5 s (authored by game asset/characters/
+    // yodha_post.py from Head Impact To Knees, Kneeling Down and Kneel To Stand).
+    POSTURE_BROKEN: { clip: 'posture_break', fade: 0.12 },
     DEAD: { clip: 'death', fade: 0.1 },
   },
   // Walk, run and sprint are authored at 1.26, 3.13 and 4.73 m/s. Playback stays within ~1.1-1.2x: sped-up cycles
   // are what make a run look frantic and weightless.
   locomotion: { walkSpeed: 1.5, moveSpeed: 3.4, sprintSpeed: 5.4 },
   // His khanda and dhal (game asset/weapons/main character sword.glb / main character shield.glb through
-  // game asset/characters/prepare_weapon.py / prepare_shield.py), held in fists curled by the build
-  // (--fists): each grip socket's +Y runs along the fist's bar toward the thumb and +Z out of the back of the hand,
+  // game asset/characters/prepare_weapon.py / prepare_shield.py), held in the fists his finger bones close round them
+  // (--fists --finger-markers; CharacterRig closes a hand on what its socket holds): each grip socket's +Y runs along
+  // the fist's bar toward the thumb and +Z out of the back of the hand,
   // so the sword needs no rotation (blade up out of the thumb side). The dhal is turned half round so its face looks
   // off the front of the fist: measured in the game, that squares it to the enemy in guard (0.96), idle and hit
   // reactions, the hold the sword-and-shield clips were authored for. The walk, run and sprint were authored for a

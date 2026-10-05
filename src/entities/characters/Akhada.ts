@@ -14,7 +14,9 @@ import type { CharacterDefinition } from '../animation/CharacterRig';
  * Built from `game asset/characters`:
  *
  *   blender -b --factory-startup --python build_character.py -- rigs/vanara.rigged.glb animations <out>/vanara.glb
- *           --height 1.75 --fists --post vanara_post.py --clips "<see the README>"
+ *           --height 1.75 --fists --finger-markers rigs/vanara.fingers.json --post vanara_post.py --clips "<see the README>"
+ *
+ * His hands have finger bones: they close on the staff (the left too while the staff lies through both fists).
  *
  * Both the sparring partner (`entities/Vanara.ts`) and the story's cast member (`MENTOR_CAST`) use this model.
  */

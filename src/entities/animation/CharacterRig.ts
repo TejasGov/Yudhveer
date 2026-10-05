@@ -21,6 +21,28 @@ export interface ClipInfo {
    * before the definition's scale), so a level can build it where he will sit (Andhaka's throne).
    */
   seat?: { centre: [number, number, number]; size: [number, number, number] }[];
+  /** Both hands take this finger pose while the clip plays, whatever they hold (prayer: `flat`). See `HandPose`. */
+  hands?: HandPose;
+}
+
+/**
+ * The finger poses a rig built with finger bones of its own (game asset/characters/hands.py, `--finger-markers`) carries
+ * as `hand_<pose>` clips: closed round the haft in the hand's socket, hanging relaxed, laid flat. Each frame a hand that
+ * holds a prop closes, an empty one relaxes, and a clip marked `hands: 'flat'` (prayer) lays both flat.
+ */
+export type HandPose = 'fist' | 'relaxed' | 'flat';
+const HAND_POSES: HandPose[] = ['fist', 'relaxed', 'flat'];
+const FINGER_NODE = /^(Left|Right)Hand(Thumb|Index|Middle|Ring|Pinky)\d$/;
+/** How quickly a hand eases into its new pose (1/s): most of the way in about a fifth of a second. */
+const HAND_RATE = 14;
+
+/** One hand's finger bones and their poses (all in the bones' order), and the socket whose props close it. */
+interface Hand {
+  bones: THREE.Object3D[];
+  poses: Record<HandPose, THREE.Quaternion[]>;
+  /** What the fingers show now, eased toward the pose wanted (null until the first frame). */
+  shown: THREE.Quaternion[] | null;
+  socket: THREE.Object3D | undefined;
 }
 
 export interface CharacterManifest {
@@ -104,8 +126,11 @@ interface Mount {
   grip: THREE.Vector3;
   base: THREE.Quaternion;
   byState: Map<CharacterState, THREE.Quaternion>;
-  /** Two-handed: the other hand's socket, and this socket (see `SocketAttachment.twoHanded`). */
-  aim?: { other: THREE.Object3D; socket: THREE.Object3D };
+  /**
+   * Two-handed: the other hand's socket, this socket (see `SocketAttachment.twoHanded`), and how fully it is laid
+   * through both fists now (0-1; the other hand closes on it as much).
+   */
+  aim?: { other: THREE.Object3D; socket: THREE.Object3D; weight: number };
   /** The hold before the two-handed aim (state rotations ease this; the aim is applied on top each frame). */
   hold: THREE.Quaternion;
 }
@@ -116,6 +141,7 @@ const TWO_HANDS_FAR = 0.45;
 const _a = new THREE.Vector3();
 const _b = new THREE.Vector3();
 const _q = new THREE.Quaternion();
+const _hq = new THREE.Quaternion();
 
 export interface CharacterDefinition {
   model: string;
@@ -181,6 +207,8 @@ export class CharacterRig {
   private readonly mounts: Mount[] = [];
   /** The definition's `scale`, applied once props are attached (see `applyScale`). */
   private scale = 1;
+  /** Finger bones and poses (see `HandPose`), for a rig built with them; null otherwise (the clips move any fingers). */
+  private readonly hands: Hand[] | null;
   /**
    * Dev counter for the jitter probe (`__debug.jitter`): looping clips started over from their first frame while still
    * visibly blended in, each one a pop of the pose and a restarted stride.
@@ -195,7 +223,18 @@ export class CharacterRig {
     this.root = gltf.scene;
     this.root.name = `CharacterRig_${manifest.model}`;
     this.mixer = new THREE.AnimationMixer(this.root);
+    // Finger poses: read once, and the fingers left out of every other clip, so the hands are set per frame instead.
+    const handClips = new Map<HandPose, THREE.AnimationClip>();
     for (const clip of gltf.animations) {
+      const pose = clip.name.startsWith('hand_') ? (clip.name.slice(5) as HandPose) : null;
+      if (pose && HAND_POSES.includes(pose)) handClips.set(pose, clip);
+    }
+    this.hands = handClips.size === HAND_POSES.length ? this.readHands(handClips) : null;
+    for (const clip of gltf.animations) {
+      if (clip.name.startsWith('hand_')) continue;
+      if (this.hands) {
+        clip.tracks = clip.tracks.filter((t) => !FINGER_NODE.test(THREE.PropertyBinding.parseTrackName(t.name).nodeName));
+      }
       const info = manifest.clips[clip.name];
       const action = this.mixer.clipAction(clip);
       if (info && !info.loop) {
@@ -260,6 +299,60 @@ export class CharacterRig {
     });
   }
 
+  /** Each hand's finger bones and their poses, from the build's `hand_*` clips (the first key of each bone's track). */
+  private readHands(clips: Map<HandPose, THREE.AnimationClip>): Hand[] {
+    return (['Right', 'Left'] as const).map((side) => {
+      const names = clips.get('fist')!.tracks
+        .map((t) => THREE.PropertyBinding.parseTrackName(t.name))
+        .filter((p) => p.propertyName === 'quaternion' && FINGER_NODE.test(p.nodeName) && p.nodeName.startsWith(side))
+        .map((p) => p.nodeName)
+        .filter((n) => this.root.getObjectByName(n));
+      const poses = {} as Record<HandPose, THREE.Quaternion[]>;
+      for (const pose of HAND_POSES) {
+        const tracks = new Map(clips.get(pose)!.tracks.map((t) => [t.name, t.values]));
+        poses[pose] = names.map((n) => {
+          const v = tracks.get(`${n}.quaternion`);
+          return v ? new THREE.Quaternion(v[0], v[1], v[2], v[3]) : this.root.getObjectByName(n)!.quaternion.clone();
+        });
+      }
+      return { bones: names.map((n) => this.root.getObjectByName(n)!), poses, shown: null, socket: this.socket(`Socket_Hand_${side[0]}`) };
+    });
+  }
+
+  /**
+   * Sets the fingers of each hand (rigs built with finger bones, see `HandPose`), eased toward what it does now: both
+   * flat while the clip asks for it (prayer), otherwise closed on what it holds and relaxed when empty.
+   */
+  private updateHands(dt: number): void {
+    if (!this.hands) return;
+    const flat = !!this.current && this.manifest.clips[this.current.config.clip]?.hands === 'flat';
+    const k = 1 - Math.exp(-HAND_RATE * dt);
+    for (const hand of this.hands) {
+      const grip = flat ? 0 : this.gripOf(hand);
+      const first = !hand.shown;
+      const shown = (hand.shown ??= hand.bones.map(() => new THREE.Quaternion()));
+      hand.bones.forEach((bone, i) => {
+        if (flat) _hq.copy(hand.poses.flat[i]);
+        else _hq.copy(hand.poses.relaxed[i]).slerp(hand.poses.fist[i], grip);
+        if (first) shown[i].copy(_hq);
+        else shown[i].slerp(_hq, k);
+        bone.quaternion.copy(shown[i]);
+      });
+    }
+  }
+
+  /** How far a hand closes (0 open, 1 a fist): round a prop shown in its socket, or a two-handed haft laid through it. */
+  private gripOf(hand: Hand): number {
+    const socket = hand.socket;
+    if (!socket) return 0;
+    if (socket.children.some((c) => c.visible)) return 1;
+    let grip = 0;
+    for (const m of this.mounts) {
+      if (m.aim?.other === socket && m.object.visible && m.object.parent === m.home) grip = Math.max(grip, m.aim.weight);
+    }
+    return grip;
+  }
+
   public clipInfo(name: string): ClipInfo | undefined {
     return this.manifest.clips[name];
   }
@@ -291,7 +384,7 @@ export class CharacterRig {
       hold: new THREE.Quaternion(),
     };
     const other = attachment.twoHanded ? this.socket(attachment.twoHanded) : undefined;
-    if (other) mount.aim = { other, socket };
+    if (other) mount.aim = { other, socket, weight: 0 };
     mount.hold.copy(mount.base);
     object.quaternion.copy(mount.base);
     object.position.copy(mount.grip).applyQuaternion(object.quaternion).negate();
@@ -398,7 +491,9 @@ export class CharacterRig {
    */
   private aimTwoHanded(): void {
     for (const m of this.mounts) {
-      if (!m.aim || m.object.parent !== m.home) continue;
+      if (!m.aim) continue;
+      m.aim.weight = 0;
+      if (m.object.parent !== m.home) continue;
       const { socket, other } = m.aim;
       // The other fist in this socket's space, in metres (sockets can carry the rig's scale).
       const local = socket.worldToLocal(other.getWorldPosition(_a));
@@ -407,6 +502,7 @@ export class CharacterRig {
       const w = 1 - THREE.MathUtils.smoothstep(apart, TWO_HANDS_NEAR, TWO_HANDS_FAR);
       m.object.quaternion.copy(m.hold);
       if (w > 0 && apart > 0.02) {
+        m.aim.weight = w;
         const up = _b.set(0, 1, 0).applyQuaternion(m.hold);
         _q.setFromUnitVectors(up, local.negate().normalize());
         m.object.quaternion.premultiply(_q.slerp(new THREE.Quaternion(), 1 - w));
@@ -543,6 +639,7 @@ export class CharacterRig {
     }
     this.updateFades(dt);
     this.mixer.update(dt);
+    this.updateHands(dt);
     if (!cur || !this.drivesRootMotion()) return null;
     const curve = this.manifest.clips[cur.config.clip].rootMotion!;
     const t = cur.action.time;

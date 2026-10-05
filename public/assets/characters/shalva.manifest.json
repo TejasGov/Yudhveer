@@ -5060,5 +5060,162 @@
     0.0
    ]
   }
+ },
+ "hands": {
+  "poses": [
+   "hand_fist",
+   "hand_relaxed",
+   "hand_flat"
+  ],
+  "fist": {
+   "Left": {
+    "bar_radius_mm": 20.4,
+    "socket_to_palm_mm": 25.8,
+    "fingers": {
+     "Index": {
+      "bend_deg": [
+       31.5,
+       83.5,
+       45.5
+      ],
+      "gap_mm": [
+       7.1,
+       2.5,
+       4.0,
+       -0.5,
+       -0.4
+      ],
+      "half_thick_mm": 8.1
+     },
+     "Middle": {
+      "bend_deg": [
+       27.5,
+       78.0,
+       62.5
+      ],
+      "gap_mm": [
+       4.8,
+       -0.5,
+       4.1,
+       0.2,
+       2.6
+      ],
+      "half_thick_mm": 7.4
+     },
+     "Ring": {
+      "bend_deg": [
+       31.0,
+       44.5,
+       35.5
+      ],
+      "gap_mm": [
+       4.6,
+       -0.5,
+       1.7,
+       0.2,
+       3.2
+      ],
+      "half_thick_mm": 8.2
+     },
+     "Pinky": {
+      "bend_deg": [
+       31.5,
+       0.5,
+       13.0
+      ],
+      "gap_mm": [
+       32.7,
+       24.9,
+       17.6,
+       11.1,
+       4.9
+      ],
+      "half_thick_mm": 12.7
+     }
+    },
+    "thumb": {
+     "turn_in_deg": 1.0,
+     "swing_deg": 57.0,
+     "curl_deg": 22.5,
+     "tip_miss_mm": 43.6,
+     "bar_gap_mm": 9.8,
+     "half_thick_mm": 17.3
+    }
+   },
+   "Right": {
+    "bar_radius_mm": 20.5,
+    "socket_to_palm_mm": 25.0,
+    "fingers": {
+     "Index": {
+      "bend_deg": [
+       24.5,
+       98.5,
+       23.5
+      ],
+      "gap_mm": [
+       7.3,
+       5.9,
+       11.3,
+       3.4,
+       -0.5
+      ],
+      "half_thick_mm": 9.2
+     },
+     "Middle": {
+      "bend_deg": [
+       27.0,
+       68.0,
+       57.5
+      ],
+      "gap_mm": [
+       5.3,
+       -0.5,
+       2.8,
+       0.2,
+       3.5
+      ],
+      "half_thick_mm": 9.9
+     },
+     "Ring": {
+      "bend_deg": [
+       46.0,
+       20.0,
+       32.0
+      ],
+      "gap_mm": [
+       9.0,
+       2.3,
+       -0.5,
+       1.5,
+       7.0
+      ],
+      "half_thick_mm": 9.8
+     },
+     "Pinky": {
+      "bend_deg": [
+       13.0,
+       20.5,
+       23.5
+      ],
+      "gap_mm": [
+       4.0,
+       -0.5,
+       0.4,
+       0.2,
+       3.4
+      ],
+      "half_thick_mm": 18.9
+     }
+    },
+    "thumb": {
+     "turn_in_deg": 1.0,
+     "swing_deg": 53.0,
+     "curl_deg": 20.0,
+     "tip_miss_mm": 52.1,
+     "bar_gap_mm": 13.6,
+     "half_thick_mm": 15.3
+    }
+   }
+  }
  }
 }

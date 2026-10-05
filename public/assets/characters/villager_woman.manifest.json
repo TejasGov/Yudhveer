@@ -367,7 +367,8 @@
   "praying": {
    "source": "Hero-Praying.fbx",
    "duration": 1.9333,
-   "loop": false
+   "loop": false,
+   "hands": "flat"
   },
   "calm_idle": {
    "source": "Stance-Calm Idle.fbx",
@@ -5500,6 +5501,12 @@
    "source": "Village-Writhing In Pain.fbx",
    "duration": 5.6667,
    "loop": false
+  },
+  "praying_anjali": {
+   "source": "authored (anjali_post.py): Praying, the arms laid by IK into anjali (palms together, 15 cm before the sternum)",
+   "duration": 1.9333,
+   "loop": false,
+   "hands": "flat"
   }
  }
 }

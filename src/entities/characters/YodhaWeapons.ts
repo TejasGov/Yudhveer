@@ -161,9 +161,10 @@ export const WEAPON_SETS: Record<WeaponId, WeaponSet> = {
       offhand: false,
       states: MACE_STATES,
       // The hero's own gada (game asset/weapons/hero_mace.glb, 1.05 m, gripped 0.23 m up the haft), not Shalva's: the
-      // right fist under the head, the left ~0.2 m below it near the butt, the haft laid through both.
+      // right fist 6 cm further up the haft toward the head, so the left, ~0.2 m below it, closes on the haft with a
+      // hand's breadth of it below (not on the butt), the haft laid through both.
       weapon: {
-        socket: 'Socket_Hand_R', socketFrame: true, restWorldRotation: [0, 0, 0], grip: [0, 0, 0],
+        socket: 'Socket_Hand_R', socketFrame: true, restWorldRotation: [0, 0, 0], grip: [0, 0.06, 0],
         model: '/assets/weapons/hero_mace.glb', blade: [0.42, 0.82], scale: 1, twoHanded: 'Socket_Hand_L',
         // At ease, one-handed by the haft, its head resting by his foot.
         stateRotations: { REST: [0, 0, 1.25] },

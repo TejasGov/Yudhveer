@@ -63,8 +63,9 @@ const DEAD_WOMAN = v(-4.9, 0, -4.5);
 const VILLAGERS: { id: string; dusk: { at: THREE.Vector3; face: THREE.Vector3; clip: string; from?: number }; night: { at: THREE.Vector3; face: THREE.Vector3; clip: string; from?: number } }[] = [
   // The wife: cowering by the house door at dusk; at night, on her knees by her husband's body.
   { id: 'v_woman', dusk: { at: v(3.9, 0, 6.6), face: GATE, clip: 'terrified' }, night: { at: DEAD_MAN.clone().add(v(0.95, 0, 0.5)), face: DEAD_MAN, clip: 'kneeling_idle' } },
-  // Another woman: hidden behind the well at dusk; at night kneeling in prayer at the mandir's step, by its lamps.
-  { id: 'v_woman_b', dusk: { at: v(7.6, 0, 3.1), face: v(6.4, 0, 2.0), clip: 'hiding' }, night: { at: MANDIR.clone().add(v(0.15, 0, -0.55)), face: MANDIR.clone().add(v(0.15, 0, 4)), clip: 'praying' } },
+  // Another woman: hidden behind the well at dusk; at night kneeling in prayer at the mandir's step, by its lamps, her
+  // palms pressed together (anjali: Praying with the arms laid by IK, game asset/characters/anjali_post.py).
+  { id: 'v_woman_b', dusk: { at: v(7.6, 0, 3.1), face: v(6.4, 0, 2.0), clip: 'hiding' }, night: { at: MANDIR.clone().add(v(0.15, 0, -0.55)), face: MANDIR.clone().add(v(0.15, 0, 4)), clip: 'praying_anjali' } },
   // The old man: frozen with fear at the mandir's step; at night sitting dazed against the house's wall.
   { id: 'v_elder', dusk: { at: MANDIR.clone().add(v(1.0, 0, -0.45)), face: GATE, clip: 'terrified', from: 3 }, night: { at: v(5.9, 0, 7.15), face: v(5.9, 0, 0), clip: 'sitting_dazed', from: 2 } },
   // The son: hiding by the north-west hut at dusk; at night standing over his father's body, weeping.

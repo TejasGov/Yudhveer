@@ -63,6 +63,11 @@ function kneel(s: Stage, clip: string, fallback: string, fade = 0.3, startAt?: n
   if (!s.player.playClip(clip, { fade, startAt })) s.player.playClip(fallback, { fade });
 }
 
+/** His prayer: palms pressed together before his chest (anjali), or Mixamo's Praying in a build without it. */
+function prayer(s: Stage): string {
+  return s.player.rig?.clipInfo('praying_anjali') ? 'praying_anjali' : 'praying';
+}
+
 /** The Guardian (its enemy id), and the framings for its shade (Story.ts `shadeShots`), on the island's open side. */
 const GUARDIAN = 'baoli_guardian';
 const shadeOn = (s: Stage) => shadeShots(s, shade(GUARDIAN), twoShot(s, 'hero', shade(GUARDIAN), BAOLI_CENTRE).side);
@@ -115,7 +120,7 @@ export const BAOLI_STORY: ChapterStory = {
         cues: [
           { at: 0, actor: 'hero', place: DEVI_KNEEL, face: DEVI_FACE },
           { at: 0.1, run: (s) => { s.player.swordMesh.visible = false; kneel(s, 'kneeling_down', 'crouch'); } },
-          { at: 2.7, run: (s) => kneel(s, 'praying', 'crouch_idle', 0.35) },
+          { at: 2.7, run: (s) => kneel(s, prayer(s), 'crouch_idle', 0.35) },
         ],
         camera: [
           { pos: v(3.3, 5.25, 55.7), look: v(0, 4.85, 58.0), fov: 40 },
@@ -199,7 +204,7 @@ export const BAOLI_STORY: ChapterStory = {
               s.player.swordMesh.visible = false;
             },
           },
-          { at: KAVACH_AT + 0.05, run: (s) => kneel(s, 'praying', 'crouch_idle', 0, PRAYED_AT) },
+          { at: KAVACH_AT + 0.05, run: (s) => kneel(s, prayer(s), 'crouch_idle', 0, PRAYED_AT) },
         ],
         camera: [
           { pos: v(3.4, 5.2, 53.9), look: v(-0.4, 6.0, 59.6), fov: 50 },

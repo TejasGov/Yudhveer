@@ -53,10 +53,14 @@ function heroKneels(s: Stage): void {
   s.player.playClip('kneeling_down', { fade: 0.3, timeScale: 1.15 });
 }
 
-/** On his knees, his palms together before his face (Mixamo "Praying", kneeling), unless he is already praying. */
+/**
+ * On his knees, his palms pressed together before his chest (anjali: Mixamo's kneeling "Praying" with the arms laid by
+ * IK, game asset/characters/anjali_post.py; plain "Praying" in a build without it), unless he is already praying.
+ */
 function heroPrays(s: Stage): void {
-  if (s.player.rig?.clip === 'praying') return;
-  s.player.playClip('praying', { fade: 0.9 });
+  const clip = s.player.rig?.clipInfo('praying_anjali') ? 'praying_anjali' : 'praying';
+  if (s.player.rig?.clip === clip) return;
+  s.player.playClip(clip, { fade: 0.9 });
 }
 
 /**

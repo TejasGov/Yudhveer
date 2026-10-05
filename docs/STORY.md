@@ -648,7 +648,9 @@ hold in `src/entities/animation/CharacterRig.ts` (`SocketAttachment.twoHanded`).
   fist through the right. The left hand then lands on the haft 0.2 m below the right, where Shalva's gada (1.05 m at
   0.7 scale, gripped 0.23 m up) still has haft. When the fists part (over 0.3 m, gone by 0.45 m: the slide, a fall)
   the mace eases back to the right fist's own hold. Checked in Blender renders of the clips with and without the aim,
-  and in the game (the idle and the smash, close up).
+  and in the game (the idle and the smash, close up). *(Since the audit fixes the hero's own gada is held 6 cm further
+  up the haft, `grip: [0, 0.06, 0]`, so his left fist closes on the haft about 8.5 cm above its butt instead of on the
+  butt; see "The hands".)*
 - **Testing:** `__debug.chapter(4, false)` then `__debug.win()` plays Shalva's fall; `__debug.win()` again, once
   Takshaka is up, plays the ending.
 - **Flow:** the intro, then the **opening**: Shalva on the rosette knows the island's mace and the boy; "Where is my
@@ -721,8 +723,8 @@ effects clock, the credits after the last chapter). The map, Andhaka and his ent
      dark and a slowly turning halo (a prabhavali) kindles behind its head; Andhaka's body crumbles to ash.
   9. From down the stair, the whole god in his light: the first line as Shiva.
   10. Low behind the boy, small before the lit feet: he lays his dhal down beside him, goes down on his knee (Mixamo
-      "Kneeling Down") and joins his palms in prayer (Mixamo "Praying", kneeling), the camera coming round in front of
-      him: "Mahadeva..."
+      "Kneeling Down") and joins his palms in prayer (`praying_anjali`: Mixamo's kneeling "Praying" with the palms
+      pressed together before his chest; see "The hands"), the camera coming round in front of him: "Mahadeva..."
   11. The eclipse passes (the sky and ambient light rise and the key light warms over 9 s); he prays on as the camera
       draws back and up off the dais, the last line, a long fade to black.
 - **His glory's music** (2026-10-05): as the guru turns to light (shot 7) the reveal's own piece starts at once over
@@ -907,7 +909,8 @@ attire), then he fights the baoli guardian"; the Durga statue "is already in bao
   and stays lit (halo, eyes) after the scene.
 - **The opening, new shots first** (`BAOLI_STORY.opening`; the old shots follow unchanged):
   1. From black: low behind the boy, in training clothes, as he climbs between the stone lions to the Devi.
-  2. Side on: he kneels (`kneeling_down`, then `praying`, hands joined; the lathi is laid aside, hidden).
+  2. Side on: he kneels (`kneeling_down`, then `praying_anjali`, palms pressed together before his chest; the lathi is
+     laid aside, hidden).
   3. Low behind him, the Devi towering over him: her stone warms, a halo kindles behind her head, her eyes open in light
      (`awaken` with a softer key light and warmth for the pale stone, `kindleEyes`).
   4. Up at her face past the lion's mane: her first line.
@@ -1178,7 +1181,8 @@ har mahadev chant with shankh opening and damru beats for his glory".
   Kneeling Idle, Kneeling (one knee), Standing (kneel to stand), Dying (head impact to two knees), Standing Up (from
   lying on the stomach), Praying (kneeling). The prologue uses the head impact, the kneel, the kneel-to-stand and the
   stand-up (shots 1, 2, 5, 15) in place of the held and reversed death clips; the summit uses Kneeling Down beside the
-  guru (shot 4) and before Shiva, then Praying (shots 10-11).
+  guru (shot 4) and before Shiva, then Praying (shots 10-11). *(Since the audit fixes the prayer is `praying_anjali`,
+  palms together, for him and for the woman at the mandir; see "The hands".)*
 - **The reveal's music** (`public/assets/music/shiva.mp3`, ElevenLabs Music, one take, flow kxekrrK5hmJeffLuHDBI; the
   original in `game asset/music/shiva_har_har_mahadev.mp3`): 60 s. A conch blast over silence (0-2.5 s, ringing away
   to silence by about 6.3 s), then damru, dhol and tabla driving at a lower level (6.6-20.5 s), the full chorus ("Har
@@ -1255,6 +1259,41 @@ This pass (audit batches 6 and 7) puts every flame in the game in the village's 
   more ticking `levelManager.update` by hand). Captures: `game asset/audit/fixes/fix-fire/` (`before_*`, `after*_*`,
   `final_*` pairs 0.2 s apart). Cost, at 1024 x 768 on the audit's machine: GPU time within 0.07 ms of before in every
   level's view, draw calls down where meshes went (the island 115 to 84, the baoli 187 to 164).
+
+## The hands (2026-10-05, audit fixes)
+
+The audit (docs/AUDIT.md, C-04) found that no model built with `--fists` had a closed fist: the curl the build baked
+into the mesh stopped at about 90 degrees, an open claw with a straight thumb, so every haft sat across fingertips or
+an open palm, and prayer (C-06) was two claws at the chin. The user asked that the hero's hand be properly rigged.
+
+- **Finger bones** (game asset/characters/hands.py, `build_character.py --finger-markers`): the hero in both looks,
+  the vanara, the Baoli Guardian and Shalva now have Mixamo-named finger bones (68 joints on the hero, was 28),
+  placed from markers read off each model's hand (`rigs/<name>.fingers.json`), their weights shared out by shape.
+  Nothing is baked into the mesh any more, and every hand socket (and the hero's scabbard socket) is exactly where it
+  was: weapon holds are unchanged. Heights, triangles, textures and every clip are kept.
+- **Each hand, every frame** (`CharacterRig`, from the model's `hand_fist`, `hand_relaxed` and `hand_flat` poses): a
+  hand that holds something in its socket closes on it (a fist round a haft about 2 cm in radius on the hero, the
+  thumb across); a two-handed haft closes the other hand too, as far as the haft is laid through it (the mace, the
+  vanara's staff); an empty hand hangs relaxed; a clip marked `"hands": "flat"` (the prayers) lays both flat. Each
+  change eases over about a fifth of a second. Hiding a prop opens the hand (the lathi laid aside at the shrine, the
+  dhal laid down at the summit). Models without these poses (Andhaka, whose clips move his own fingers; the guru; the
+  villagers) are untouched.
+- **Anjali** (`praying_anjali`, game asset/characters/anjali_post.py): Mixamo's kneeling Praying with both arms laid by
+  IK so the palms press together, flat, about 15 cm before the sternum, fingers up and a little forward. The hero
+  prays so at the Devi's shrine (both looks, through the change of clothes) and before Shiva; the woman praying at the
+  village mandir too (she has Mixamo's own fingers, already straight). `Baoli.ts` and `Summit.ts` fall back to Praying
+  in a model without it.
+- **The posture break** (`posture_break`, yodha_post.py): the hero's POSTURE_BROKEN played `crouch_idle`, a
+  placeholder. Now he is struck and reels back, drops to one knee and gets up again, all in the state's 2.5 s (Head
+  Impact To Knees to where his knees go, the last of Kneeling Down, Kneel To Stand; cut, sped up and blended).
+- **The mace** (C-11): the right fist 6 cm further up the haft (`grip: [0, 0.06, 0]` in `YodhaWeapons.ts`), so the
+  left closes on the haft with 8.5 cm of it below, not on the butt.
+- **Evidence:** Blender before / after close-ups (fists on a bar, flat hands, prayer) in
+  `game asset/audit/fixes/fix-hands/blender/`; in-game captures of every held weapon, both prayers and the posture
+  break in `game asset/audit/fixes/fix-hands/` (`before_*` and `after_*`).
+- **Left as is:** the basic sword's hold (C-03, the grip 8.8 cm off the socket) and the sheathed blade (C-05) are
+  separate fixes; the fists close where the sockets are. The guru's shoulder (C-12) is not changed (see
+  docs/APPROVALS.md).
 
 ## Tools
 
