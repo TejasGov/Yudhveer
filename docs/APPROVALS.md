@@ -127,3 +127,39 @@ Screenshots (summit, rakshasas; the colour of the second and third set was force
 
 On a yes: set the default (Low recommended), add the Gore option to the options menu and `Settings`, ground the
 splats with a ray, and build the hurt vignette if wanted.
+
+## Dialogue pass: rewrites of the weakest lines (proposal, costs credits on a yes, nothing recorded)
+
+"Some dialogues are too AI slop and hamper the narrative." Every line was reviewed (91 spoken, plus 53 card, callout,
+epithet and hint texts). 37 are flagged, with 1-2 rewrites each, in **docs/proposals/DIALOGUE.md**. The 15 most
+damaging come first: Shiva's two lines and the guru's summit lines, Andhaka's prologue line (it gives away Dwarka's
+reveal), the island's worthiness exchange, Shalva's exposition, the Guardian, Takshaka's "born to end his reign".
+
+| Tier | Voiced lines | Characters | To record (2 takes) |
+|---|---|---|---|
+| 1 (climax, island, prologue) | 7 | 492 | about 1,180 credits |
+| 2 (Dwarka, baoli) | 7 | 621 | about 1,490 credits |
+| 3 (optional, akhada) | 2 | 139 | about 335 credits |
+| **All** | **16** | **1,252** | **about 3,005 credits** (about 3,580 with direction tags) |
+
+Free: one cut (`summit_end_guru_4`), two trims of existing takes, 9 subtitle changes, 9 card or epithet changes. On a
+yes (per line or per tier): change the texts, trim, record the picked lines with the usual workflow, and update the
+STORY.md tables. The prologue lines wait for the prologue ending's restaging.
+
+## The island cave: new 3D assets (proposal, costs Meshy credits on a yes, nothing generated or downloaded)
+
+"The cave needs better 3d assets." The cave is 31k triangles, and its props are about 2k triangles of code
+primitives. **docs/proposals/CAVE_ASSETS.md** proposes 14 asset groups (a rock wall kit, stalagmites, skeletons,
+Indian weapons, the shrine's torana, altar and deepastambhas, braziers, diya niches, torches, a nagakal and broken
+idol, the boat and rope, rubble, offerings). Each has a placement, a triangle budget, a Meshy prompt and 2-3
+Sketchfab candidates (38 models: 35 CC-BY, 2 CC0, 1 Sketchfab Standard, all downloadable).
+
+- **Meshy (recommended: the 8 Indian-specific and hero pieces, meshy-7, 2 options each at about 30 credits):**
+  about **480 credits** (+ about 6-12 for the torana's concept image); about 730 with the 4 optional items.
+- **Sketchfab (recommended: 15 free downloads, for the generic rock, bones, torches and rubble):** 14 need a credit
+  line (listed in the doc), and the user downloads them (a login is needed).
+- Result: about 180-220k triangles for the level, a GLB of about 6-9 MB (the other levels are 10-13 MB).
+
+On a yes: check the Meshy balance, generate (reading each result in Blender before the next), the user downloads the
+Sketchfab picks, then decimate, retint and place them through `build_island.py` in place of the primitives, with
+colliders, lamps and marks unchanged.
