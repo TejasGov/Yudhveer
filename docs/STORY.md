@@ -383,28 +383,28 @@ The vanara mentor's voice is Rusty Malone (`game asset/voice/VOICES.md`). Yudhve
 
 | Id | Speaker | Text | Trigger | Recorded |
 |---|---|---|---|---|
-| `akhada_open_mentor_1` | Vanara | Again. | opening, the first parried cut | no |
-| `akhada_open_mentor_2` | Vanara | You strike where I was, boy. Strike where I will be. | opening, the spinning cut that misses | no |
+| `akhada_open_mentor_1` | Vanara | Again. | opening, the first parried cut | yes |
+| `akhada_open_mentor_2` | Vanara | You strike where I was, boy. Strike where I will be. | opening, the spinning cut that misses | yes |
 | (no id) | Yudhveer | Again. | opening, at it once more | subtitle only |
 | `akhada_train_mentor_1` | Vanara | Hmph. You swing like a farmer, boy. Here. A dhal is not for hiding. Meet the blow... and turn it away. | opening, the dhal handed over | yes (`mentor_ch2_dhal`) |
-| `akhada_open_mentor_3` | Vanara | Raise it. I will come at you, and you will hold. | opening, last shot | no |
-| `akhada_train_mentor_2` | Vanara | Feet planted. Here it comes. | training starts (the guard taught) | no |
-| `akhada_train_mentor_3` | Vanara | The dhal does nothing hanging at your side. Raise it! | training, two blows taken unguarded | no |
-| `akhada_train_mentor_4` | Vanara | Good. You can stand. Now the harder thing: do not wait for the blow. Meet it as it falls, and turn it. | training, three blocks (the parry taught) | no |
-| `akhada_train_mentor_5` | Vanara | Hah! There. Again. | training, first parry | no |
-| `akhada_train_mentor_6` | Vanara | Too soon, and you are only hiding. Wait for it... then meet it. | training, four more blocks and no parry | no |
-| `akhada_arrive_mentor_1` | Vanara | Enough. You will do... for a farmer. | arrival, three parries | no |
-| `akhada_arrive_mentor_2` | Vanara | Hm. You did not climb this hill alone, boy. | arrival, the two come out | no |
-| `akhada_arrive_mentor_3` | Vanara | These two are yours. Show me what the dhal is for. | arrival, last shot | no |
-| `akhada_fight_mentor_1` | Vanara (in the fight) | Fire turns on a dhal like any blade. Send it back to him. | two blows taken in the boss fight | no |
-| `akhada_fight_mentor_2` | Vanara (in the fight) | One. Do not stand there admiring it. | the Vetala falls | no |
-| `akhada_end_mentor_1` | Vanara | Hm. Not a farmer, then. | ending | no |
+| `akhada_open_mentor_3` | Vanara | Raise it. I will come at you, and you will hold. | opening, last shot | yes |
+| `akhada_train_mentor_2` | Vanara | Feet planted. Here it comes. | training starts (the guard taught) | yes |
+| `akhada_train_mentor_3` | Vanara | The dhal does nothing hanging at your side. Raise it! | training, two blows taken unguarded | yes |
+| `akhada_train_mentor_4` | Vanara | Good. You can stand. Now the harder thing: do not wait for the blow. Meet it as it falls, and turn it. | training, three blocks (the parry taught) | yes |
+| `akhada_train_mentor_5` | Vanara | Hah! There. Again. | training, first parry | yes |
+| `akhada_train_mentor_6` | Vanara | Too soon, and you are only hiding. Wait for it... then meet it. | training, four more blocks and no parry | yes |
+| `akhada_arrive_mentor_1` | Vanara | Enough. You will do... for a farmer. | arrival, three parries | yes |
+| `akhada_arrive_mentor_2` | Vanara | Hm. You did not climb this hill alone, boy. | arrival, the two come out | yes |
+| `akhada_arrive_mentor_3` | Vanara | These two are yours. Show me what the dhal is for. | arrival, last shot | yes |
+| `akhada_fight_mentor_1` | Vanara (in the fight) | Fire turns on a dhal like any blade. Send it back to him. | two blows taken in the boss fight | yes |
+| `akhada_fight_mentor_2` | Vanara (in the fight) | One. Do not stand there admiring it. | the Vetala falls | yes |
+| `akhada_end_mentor_1` | Vanara | Hm. Not a farmer, then. | ending | yes |
 | (no id) | Yudhveer | Where did they take my guru? | ending | subtitle only |
-| `akhada_end_mentor_2` | Vanara | Not from me. Go to Dwarka, if you would know why your village burned. | ending | no |
-| `akhada_end_mentor_3` | Vanara | Shalva holds it now. His mace has broken better blades than yours. Better than mine. A sword will not be enough. | ending | no |
+| `akhada_end_mentor_2` | Vanara | Not from me. Go to Dwarka, if you would know why your village burned. | ending | yes |
+| `akhada_end_mentor_3` | Vanara | Shalva holds it now. His mace has broken better blades than yours. Better than mine. A sword will not be enough. | ending | yes |
 | (no id) | Yudhveer | Then what will? | ending | subtitle only |
-| `akhada_end_mentor_4` | Vanara | Out past the city, on an island, a blessed mace lies waiting. Old things keep it. Take it from them first. Then go to Shalva. | ending | no |
-| `akhada_end_mentor_5` | Vanara | And keep the dhal up, boy. | ending, as he walks out | no |
+| `akhada_end_mentor_4` | Vanara | Out past the city, on an island, a blessed mace lies waiting. Old things keep it. Take it from them first. Then go to Shalva. | ending | yes |
+| `akhada_end_mentor_5` | Vanara | And keep the dhal up, boy. | ending, as he walks out | yes |
 
 ## Tools
 
