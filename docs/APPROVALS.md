@@ -266,3 +266,31 @@ were tuned differently from the proposals; each is one constant, and worth a loo
 On a choice: change the constant named (`LOCOMOTION.turnAccel` and `ASSIST` in `src/entities/Player.ts`, the
 classification in `CombatSystem.resolvePlayerHitOnEnemy`, `IMPACTS` in `src/core/ImpactCamera.ts`), re-run
 `__debug.jitterScenario('S2')` and play a fight.
+
+## Dwarka's tide (2026-10-05): BUILT; tuning choices open (no cost)
+
+"Yes build the tides": the sea now has a tide, Gerstner swells, shore foam from a baked shoreline, a wet band on the
+rock, raindrops on the water and a boat that rides it (docs/STORY.md, "Dwarka's tide"; screenshots
+`game asset/previews/dwarka_tide_*.jpg`). Nothing spent or downloaded. Choices to weigh, each a one-line change:
+
+1. **How far and how fast the tide goes.** Now 0.34 m either side, a full cycle every 96 s (so a fight sees it creep
+   up and back), from low water at the start. At high water the low reef shelves round the islets go awash with
+   lace foam; at low water their footings show (`dwarka_tide_high*.jpg`, `dwarka_tide_low*.jpg`). Options: smaller
+   (0.25 m, the reefs never quite cover) or slower (3 minutes, a tide you notice only across a long fight).
+2. **How big the swells are.** Up to ~0.6 m above and below the tide where they add up: a storm heave, visible as long
+   bands in the sunset's glitter and in the water climbing the rock (`dwarka_tide_foam_lap_a/b.jpg`, 1.5 s apart). Could
+   be calmer (half) if it reads as too rough for a harbour.
+3. **The foam's look.** Two soft-edged tones of grey-white (a thin line on the rock, broken wash beyond it, lines rolling
+   in), dimmed for the storm. Could be whiter, or one tone only (more cel), or without the rolling lines.
+4. **A graphics setting.** There is none yet; the sea has `'full'`, `'low'` and `'flat'` (`Level3_Dwarka.seaQuality`,
+   dev `__debug.tide({ quality })`). Suggest a Settings entry "Graphics: High / Low" that sets the sea to `'low'` and
+   the rain to `'low'` together. Not added (it is a menu change).
+5. **Integrated graphics are unmeasured.** On this machine (RX 9060 XT, 1080p) the sea costs 0.05 ms in the fight's view
+   (less than before: 0.12) and ~0.21-0.23 ms where it fills the screen (before: 0.13-0.17). An integrated GPU is
+   perhaps 5-10x slower, so the open-sea shots might cost ~0.5 ms more there; `'low'` takes about a third off. Worth a
+   check on a laptop before release.
+6. **The boat.** It rides the swells and the tide now, but as exported it sits on its side floats with the keel clear
+   of the water (unchanged). Option: sink it ~0.3 m so the hull meets the sea.
+7. **Where the shoreline is baked.** At load, from the level's own rock (~0.1 s, once, no file to keep in step with
+   the .blend). The alternative is a texture baked in Blender and shipped (no load cost, but it must be re-baked
+   whenever the islands change). Kept at load.

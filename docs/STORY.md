@@ -1010,6 +1010,61 @@ ground, walking ripples". Chapter IV now plays in a storm, every scene and the f
 - **Dev:** `__debug.rain('low')` thins the rain to a third (and the splashes), `__debug.rain(false)` stops it (the
   stone stays wet), `__debug.rain()` full. There is no graphics setting yet; this is where a low setting would hook in.
 
+## Dwarka's tide (2026-10-05)
+
+The user asked how GPU-heavy fake tides in Dwarka's sea would be, then: "yes build the tides". Built as recommended:
+a tide, Gerstner swells and baked-map shore foam; no depth-buffer foam, no planar reflections, no FFT ocean. Code:
+`src/levels/environment/LivingSea.ts` (the sea, the shoreline bake, the tide line on the rock, `seaHeight`), wired in
+`src/levels/Level3_Dwarka.ts`.
+
+- **The tide:** the whole sea rises and falls 0.34 m either side of a mean 6 cm under the authored sea level, once
+  every 96 s, from low water as the chapter opens (so it creeps up the rocks through the fight). At its height the
+  lowest shelves round the islets (the "broken tidal reefs and ruin footings") are just awash; at its ebb their
+  footings show. The horizon disc rises and falls with it and stays flat.
+- **Swells:** four Gerstner waves rolling in from the open sea to the south onto the islands (44, 27, 16.5 and 10.5 m
+  long; 0.3, 0.17, 0.085 and 0.04 m high; deep-water speeds slowed to 0.82): a heave, not a chop. They are drawn on a
+  camera-centred grid (161 x 161 vertices, 51k triangles) whose cells are 0.5 m under the camera and grow outward to
+  reach the horizon disc, snapped to 1 m steps so it does not swim; they die out toward the edge of the sea's 700 m
+  square, where it meets the flat horizon disc without a seam. Normals come from the waves' derivatives per vertex
+  (a per-pixel copy doubled the sea's cost where it fills the screen) with the export's scrolling normal maps on top.
+  The exported 441-vertex plane is hidden; its material (roughness 0.42 in the rain, the scrolling normals, the sky
+  reflection) is the sea's.
+- **Shore foam:** baked at load from the level's own rock (~0.1 s, once): the land seen straight down, then the signed
+  distance from the waterline with the sea at four levels (-0.85 to 0.85 m), packed in one 512 x 512 texture over every
+  islet (0.66 m a texel). The shader picks between the four by the water's live height there, so the foam follows the
+  line where the water actually meets the rock as the tide and each swell move it: a thin, gapped line of white against
+  the rock, a broken wash beyond it that spreads out as a crest runs up and draws back in the trough, and one or two
+  broken lines rolling in behind. Soft-edged bands (two tones of grey-white, never pure white in the storm). Where the
+  water only just covers a flat shelf it breaks into thin threads of lace instead of lying as a sheet. The exported
+  surf ring (a fixed mesh 8 cm above the old sea level) is hidden.
+- **The wet band:** the shore rock (coastal rock, sea-worn rock, limestone, blockwork, the fort's tidal footings, the
+  algae and moss on them) is darker and glossier from the water up to where the tide stood a little while ago: the
+  line follows the flood at once and lags the ebb (drying 6 mm a second), so by low water there is half a metre or so
+  of dark, glossy rock above the sea, soaked darkest just above the water where the swell still washes. The line
+  wanders a little with the rock. Only near the sea; the arena (7.6 m up) is untouched.
+- **Rain on the water:** raindrop rings in the sea's normals within ~45 m of the camera (the floor's own rings, scaled
+  up to the sea), off when the rain is off.
+- **What floats:** the moored trading boat rides the sea (`seaHeight`, the CPU copy of the swells, sampled under its
+  middle, fore and aft and to either side): up and down with the tide and the swells, pitching and rolling a degree or
+  so, eased like a laden hull. The boat ends of its mooring ropes go up and down with it. (It sits on its side floats
+  with its keel clear of the water, as exported; that is unchanged.)
+- **Gameplay is untouched:** the arena floor, its collider and the walls do not move; the fight is 7.6 m above the
+  sea. Shalva's dive goes under the rain-flooded arena stone, not the sea, so it, the floor's splashes, footfalls and
+  `playSplash` keep the floor's height. Nothing else in the chapter floats or is placed on the sea.
+- **Quality:** there is no graphics setting yet. `Level3_Dwarka.seaQuality`: `'full'` (the default), `'low'` (a 13k
+  triangle grid, the foam's rim alone, no raindrops on the sea, no clearcoat) and `'flat'` (as low, and no swells; the
+  tide and the rim stay). A graphics setting would set this and `rain('low')` together.
+- **Cost** (1920 x 1080, AMD RX 9060 XT, GPU timer queries, the sea drawn and not drawn on alternate frames, median of
+  ~150 pairs): the gameplay view mid-fight 0.12 ms for the old sea, 0.05 ms now (the sea is drawn after the land, so
+  the depth test skips it under the islets and the arena); the wide shot of the islands 0.13 -> ~0.21 ms; the sunset
+  shot over open water 0.17 -> ~0.23 ms (low: ~0.14). Whole frames: 2.21 -> 2.14 ms, 2.32 -> ~2.40 ms, 2.09 -> ~2.15
+  ms. Draw calls one fewer (80, 92, 78), triangles +50k (the grid). The sea's update and the boat: 0.007 ms a frame.
+  The shared GPU made single runs noisy (about +/- 0.05 ms). Not measured on integrated graphics.
+- **Dev:** `__debug.tide({ level: 0.3 })` holds the tide there (metres from the authored sea level; `level: null` lets
+  it run), `speed` scales its pace (the wet band dries at the same pace), `swell` the swells' size (0: flat),
+  `quality` the sea's setting; `__debug.tide()` reports the level, the wet band's top and where the tide is in its
+  cycle. Screenshots: `game asset/previews/dwarka_tide_*.jpg`.
+
 ## The victory sound, and blood (2026-10-05)
 
 - **Victory:** "the sfx when player wins is too childish." The old C-major sine arpeggio is gone. `playLevelClear`

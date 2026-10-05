@@ -6,13 +6,11 @@ import type { Character } from '../../entities/Character';
 // Wet stone: darker, glossier, and pocked with raindrop rings in its normals.
 // ---------------------------------------------------------------------------------------------------------------
 
-/** Shared by every wetted material: the rain's clock. */
-const rainClock = { value: 0 };
+/** Shared by every wetted material (and the sea's rain): the rain's clock. */
+export const rainClock = { value: 0 };
 
-const RAIN_RIPPLES = /* glsl */ `
-uniform float uRainTime;
-uniform float uRainRipple;
-varying vec3 vRainWorld;
+/** The raindrop rings' slope at a point (metres): needs `uniform float uRainTime` declared before it. */
+export const RAIN_SLOPE = /* glsl */ `
 float rainHash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
 // Raindrops landing: in every cell of a grid one drop at a time, its ring spreading and dying; two offset grids.
 vec2 rainSlope(vec2 p) {
@@ -33,6 +31,12 @@ vec2 rainSlope(vec2 p) {
   }
   return s;
 }`;
+
+const RAIN_RIPPLES = /* glsl */ `
+uniform float uRainTime;
+uniform float uRainRipple;
+varying vec3 vRainWorld;
+${RAIN_SLOPE}`;
 
 export interface WetOptions {
   /** Albedo multiplier (rain darkens stone). */

@@ -56,6 +56,14 @@ window.addEventListener('DOMContentLoaded', async () => {
         if (active instanceof Level3_Dwarka) active.setRain(rain);
         return rain;
       },
+      // Dwarka's sea: `tide({ level: 0.4 })` holds the tide there (metres from mean sea level; `level: null` lets it
+      // run), `speed` scales the tide's pace, `swell` the swells' size (0: flat), `quality` the grid ('full', 'low',
+      // 'flat'). `tide()` reports the sea's state.
+      tide: (opts: Parameters<Level3_Dwarka['debugTide']>[0] = {}) => {
+        if (opts.quality) Level3_Dwarka.seaQuality = opts.quality;
+        const active = engine.levelManager.activeLevel;
+        return active instanceof Level3_Dwarka ? active.debugTide(opts) : null;
+      },
       // The jitter probe (docs/proposals/JITTER.md): `jitter({ seconds, mode, hero })` measures the fight as it stands;
       // `jitterScenario('S1')` loads a scripted scenario first (`jitterScenario()` lists them).
       jitter: (options?: ProbeOptions) => probe.run(options),

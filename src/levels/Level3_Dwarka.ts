@@ -5,6 +5,7 @@ import type { LevelAtmosphere } from './LevelTypes';
 import { RainField, type RainLevel } from './environment/RainField';
 import { StormSky } from './environment/StormSky';
 import { Footfalls, GroundSplashes, tickWetMaterials, wetten } from './environment/WetGround';
+import { LivingSea, seaHeight, tidemark, type SeaQuality, type TideDebug } from './environment/LivingSea';
 import { SceneManager } from '../core/SceneManager';
 import { ParticleFX } from '../combat/ParticleFX';
 import { SoundFX } from '../combat/SoundFX';
@@ -21,6 +22,10 @@ import { BloodFX } from '../combat/BloodFX';
  * rain round the camera, the stone dark and glossy with raindrop rings in it, splashes on the floor, and ripples and
  * spray wherever anyone steps, lands, falls or brings a weapon down. Distant lightning and thunder come with the
  * ambience (SoundFX 'dwarka'), never over a line.
+ *
+ * The sea lives (docs/STORY.md, "Dwarka's tide"): a slow tide creeps up and down the islets' rock, long swells heave
+ * through it, foam hugs the shores and laps in and out with both, the rock is dark and glossy where the water has just
+ * been, and the moored boat rides it (`LivingSea`).
  */
 const LEVEL_URL = '/assets/dwarka/dwarka_browser.glb';
 const SKY_URL = '/assets/dwarka/dwarka_horizon_sunset_2k.hdr';
@@ -44,6 +49,16 @@ const OCEAN = /Ocean|Water_Surface/i;
 const GROWTH = /Moss_Patches|Algae_Patches/;
 const HILLS = /Hills|Backdrop/i;
 const BOAT = 'DW_Coastal_Trading_Boat';
+/** The ropes from the boat to the quay: their boat ends ride up and down with it. */
+const MOORINGS = 'DW_Harbor_Moorings';
+/** The exported sea: its water plane (rebuilt as the living sea), the flat horizon disc round it, and its surf ring. */
+const SEA_PLANE = 'BR_Ocean_Surface';
+const SEA_HORIZON = 'BR_Ocean_Horizon';
+const SEA_SURF = 'BR_Batch_07_Shoreline_Foam';
+/** Never part of the shoreline the sea's foam follows: the sea, the sky, haze, and foliage that overhangs the water. */
+const NOT_SHORE = /Ocean|Foam|Haze|Mist|Dust|Backdrop|Hills|Leaves|Grass|Creeper|Trunks|Pennant|Moorings|Boat|Diya|Gold_Accents/i;
+/** Rock the sea washes: the tide leaves its wet band on these (only near the water; the arena is far above it). */
+const SHORE_ROCK = /^DW_(Salt_Eroded_Coastal_Rock_PolyHaven|Sea_Worn_Rock|Weathered_Limestone_PolyHaven|Ancient_Blockwork_PolyHaven|Fort_Tidal_Foundations|Tidal_Olive_Algae_PolyHaven|Photographic_Moss_Lichen_PolyHaven)$/;
 /** Replaced by the runtime dust below (it drifts; the baked one can't). */
 const BAKED_DUST = 'DW_Subtle_Rim_Dust_Motes';
 const DUST_COUNT = 150;
@@ -55,6 +70,32 @@ const STONE = /^DW_(Arena_Ruined_Sandstone|Weathered_Limestone_PolyHaven|Ancient
 /** Drops in the rain's near and far boxes, and the floor's splash slots. */
 const RAIN_DROPS = { near: 5200, far: 2600 };
 const SPLASH_SLOTS = { raindrops: 360, impacts: 64 };
+
+/** The boat lies along x (17.5 m by 6): the sea is sampled this far fore and aft, and to either side. */
+const BOAT_HALF_LENGTH = 7;
+const BOAT_HALF_BEAM = 2.5;
+const BOAT_TILT = new THREE.Euler();
+/** The mooring ropes run from the quay (z -78.7) to the boat (z -70): their ends from here on ride with the boat. */
+const MOORING_QUAY_Z = -77.5;
+const MOORING_BOAT_Z = -72;
+
+/** Lifts a material's vertices by the boat's heave, fully at the boat's end of the ropes and not at all at the quay. */
+function rideWithBoat(material: THREE.Material): { value: number } {
+  const heave = { value: 0 };
+  const previous = material.onBeforeCompile;
+  material.onBeforeCompile = (shader, renderer) => {
+    previous?.call(material, shader, renderer);
+    shader.uniforms.uBoatHeave = heave;
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nuniform float uBoatHeave;')
+      .replace('#include <begin_vertex>', `#include <begin_vertex>
+transformed.y += uBoatHeave * smoothstep(${MOORING_QUAY_Z.toFixed(1)}, ${MOORING_BOAT_Z.toFixed(1)}, (modelMatrix * vec4(transformed, 1.0)).z);`);
+  };
+  const key = material.customProgramCacheKey.bind(material);
+  material.customProgramCacheKey = () => `${key()}|boat-heave`;
+  material.needsUpdate = true;
+  return heave;
+}
 
 export class Level3_Dwarka extends GLBLevel {
   public readonly id = 3;
@@ -82,7 +123,11 @@ export class Level3_Dwarka extends GLBLevel {
   };
 
   private waterNormals: THREE.Texture[] = [];
-  private boat: { object: THREE.Object3D; baseY: number; baseRoll: number } | null = null;
+  private boat: { object: THREE.Object3D; base: THREE.Vector3; turn: THREE.Quaternion; heave: number; pitch: number; roll: number } | null = null;
+  private moorings: { uniform: { value: number } } | null = null;
+  /** The sea's grid for every Dwarka loaded from now on (dev: `__debug.tide({ quality: 'low' })`). */
+  public static seaQuality: SeaQuality = 'full';
+  public sea: LivingSea | null = null;
   private dust: THREE.Points | null = null;
   private dustOrigins = new Float32Array(DUST_COUNT * 3);
   /** The rain's density for every Dwarka loaded from now on (dev: `__debug.rain('low')`). */
@@ -126,12 +171,17 @@ export class Level3_Dwarka extends GLBLevel {
 
     // Wet stone mirrors the sky more than the scene's dim environment allows.
     const envMap = this.atmosphere.environment ? { texture: this.atmosphere.environment, rotation: this.atmosphere.environmentRotation } : undefined;
+    const seaParts: { ocean: THREE.Mesh | null; horizon: THREE.Mesh | null; surf: THREE.Mesh | null; land: THREE.Mesh[] } = { ocean: null, horizon: null, surf: null, land: [] };
     model.traverse((obj) => {
       const mesh = obj as THREE.Mesh;
       if (!mesh.isMesh) return;
       const name = mesh.name;
       if (name === BAKED_DUST) mesh.visible = false;
-      if (name === BOAT) this.boat = { object: mesh, baseY: mesh.position.y, baseRoll: mesh.rotation.x };
+      if (name === BOAT) this.boat = { object: mesh, base: mesh.position.clone(), turn: mesh.quaternion.clone(), heave: 0, pitch: 0, roll: 0 };
+      if (name === SEA_PLANE) seaParts.ocean = mesh;
+      else if (name === SEA_HORIZON) seaParts.horizon = mesh;
+      else if (name === SEA_SURF) seaParts.surf = mesh;
+      else if (!NOT_SHORE.test(name)) seaParts.land.push(mesh);
       const atmospheric = ATMOSPHERIC.test(name);
       const decal = DECAL.test(name);
       mesh.castShadow = SHADOW_CASTERS.test(name) && !atmospheric && !decal;
@@ -147,6 +197,8 @@ export class Level3_Dwarka extends GLBLevel {
         else if (PUDDLES.test(material.name)) wetten(material, { darken: 0.8, roughness: 0.03, envMapIntensity: 0.9, envMap, ripples: 1.1 });
         else if (WET_MARGINS.test(material.name)) wetten(material, { darken: 0.75, roughness: 0.2, envMapIntensity: 0.5, envMap, ripples: 0 });
         else if (STONE.test(material.name)) wetten(material, { darken: 0.74, roughness: 0.5, envMapIntensity: 0.3, envMap, ripples: 0 });
+        if (SHORE_ROCK.test(material.name)) tidemark(material);
+        if (name === MOORINGS) this.moorings = { uniform: rideWithBoat(material) };
         if (material.transparent) {
           material.depthWrite = false;
           material.forceSinglePass = true;
@@ -173,9 +225,28 @@ export class Level3_Dwarka extends GLBLevel {
       }
     });
 
+    if (seaParts.ocean) {
+      this.sea = new LivingSea({ ...seaParts, ocean: seaParts.ocean }, SceneManager.getInstance().renderer, Level3_Dwarka.seaQuality);
+      this.ownedTextures.add(this.sea.shore).add(this.sea.noise);
+      this.group.add(this.sea.mesh);
+    }
+
     this.collectBloom(model);
     this.addDust();
     this.addRain();
+  }
+
+  /** The sea: 'full', 'low' (a quarter of the triangles, simpler foam, no raindrops on it) or 'flat' (no swells either). */
+  public setSeaQuality(quality: SeaQuality): void {
+    Level3_Dwarka.seaQuality = quality;
+    this.sea?.setQuality(quality);
+  }
+
+  /** Dev (`__debug.tide`): hold the tide at a level (null: let it run), change its pace, scale the swells. */
+  public debugTide(opts: TideDebug & { quality?: SeaQuality }): LivingSea['state'] | null {
+    if (opts.quality) this.setSeaQuality(opts.quality);
+    this.sea?.debug(opts);
+    return this.sea?.state ?? null;
   }
 
   /** The storm's three draws: the cloud deck, the rain, and the splashes on the floor. */
@@ -202,6 +273,7 @@ export class Level3_Dwarka extends GLBLevel {
     Level3_Dwarka.rainLevel = level;
     this.rain?.setLevel(level);
     this.splashes?.setRaindrops(level === 'full' ? 1 : level === 'low' ? 0.35 : 0);
+    this.sea?.setRain(level === 'full' ? 1 : level === 'low' ? 0.5 : 0);
   }
 
   private splashSound(strength: number): void {
@@ -218,6 +290,7 @@ export class Level3_Dwarka extends GLBLevel {
     this.rain = null;
     this.sky = null;
     this.splashes = null;
+    this.sea = null;
     super.dispose();
   }
 
@@ -252,12 +325,10 @@ export class Level3_Dwarka extends GLBLevel {
   public override update(time: number, dt: number, camera: THREE.Camera): void {
     super.update(time, dt, camera);
     this.updateStorm(dt, camera);
-    // The sea's normals drift; the boat heaves 1.8 cm and rolls a fraction of a degree.
+    // The sea's normals drift; the tide and the swells move it; the boat rides them.
     for (const normal of this.waterNormals) normal.offset.set((time * 0.002) % 1, (time * 0.0011) % 1);
-    if (this.boat) {
-      this.boat.object.position.y = this.boat.baseY + Math.sin(time * 0.65) * 0.018;
-      this.boat.object.rotation.x = this.boat.baseRoll + Math.sin(time * 0.43) * 0.0015;
-    }
+    this.sea?.update(dt, camera);
+    this.rideBoat(dt);
     if (this.dust) {
       const pos = this.dust.geometry.attributes.position as THREE.BufferAttribute;
       const a = pos.array as Float32Array;
@@ -267,6 +338,27 @@ export class Level3_Dwarka extends GLBLevel {
       }
       pos.needsUpdate = true;
     }
+  }
+
+  /**
+   * The moored boat rides the sea: up and down with the tide and the swells under its middle, pitching and rolling with
+   * the slope between bow and stern and from side to side, all eased (a laden hull answers slowly). Its mooring ropes'
+   * boat ends go with it.
+   */
+  private rideBoat(dt: number): void {
+    const boat = this.boat;
+    if (!boat || dt <= 0) return;
+    const { x, z } = boat.base;
+    const heave = seaHeight(x, z);
+    const pitch = Math.atan2(seaHeight(x + BOAT_HALF_LENGTH, z) - seaHeight(x - BOAT_HALF_LENGTH, z), BOAT_HALF_LENGTH * 2);
+    const roll = -Math.atan2(seaHeight(x, z + BOAT_HALF_BEAM) - seaHeight(x, z - BOAT_HALF_BEAM), BOAT_HALF_BEAM * 2);
+    const k = 1 - Math.exp(-dt * 1.6);
+    boat.heave += (heave - boat.heave) * k;
+    boat.pitch += (pitch * 0.7 - boat.pitch) * k;
+    boat.roll += (roll * 0.7 - boat.roll) * k;
+    boat.object.position.y = boat.base.y + boat.heave;
+    boat.object.quaternion.setFromEuler(BOAT_TILT.set(boat.roll, 0, boat.pitch)).multiply(boat.turn);
+    if (this.moorings) this.moorings.uniform.value = boat.heave;
   }
 
   /** The storm runs on game time (it hangs while paused); a lightning flash is read off the sky light it raises. */
