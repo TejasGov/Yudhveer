@@ -2,6 +2,12 @@ import * as THREE from 'three';
 import { HDRLoader } from 'three/examples/jsm/loaders/HDRLoader.js';
 import { GLBLevel } from './GLBLevel';
 import type { LevelAtmosphere } from './LevelTypes';
+import { RainField, type RainLevel } from './environment/RainField';
+import { StormSky } from './environment/StormSky';
+import { Footfalls, GroundSplashes, tickWetMaterials, wetten } from './environment/WetGround';
+import { SceneManager } from '../core/SceneManager';
+import { ParticleFX } from '../combat/ParticleFX';
+import { SoundFX } from '../combat/SoundFX';
 
 /**
  * Level 3: Dwarka, Krishna's sea city at sunset - a ruined circular arena on an island among temple islands, the
@@ -9,6 +15,11 @@ import type { LevelAtmosphere } from './LevelTypes';
  * exported with its own browser notes (`game asset/levels/03_dwarka/BROWSER_NOTES.md`, `browser/scene-config.js`), whose
  * light rig, sky orientation, material rules and arena coordinates this follows. Unlike the other arenas it
  * keeps its authored PBR look (no cel shading or ink); the fight uses the campaign's follow camera.
+ *
+ * It rains (docs/STORY.md, "Dwarka in the rain"): a storm deck over the sunset, the light cooler and lower, slanted
+ * rain round the camera, the stone dark and glossy with raindrop rings in it, splashes on the floor, and ripples and
+ * spray wherever anyone steps, lands, falls or brings a weapon down. Distant lightning and thunder come with the
+ * ambience (SoundFX 'dwarka'), never over a line.
  */
 const LEVEL_URL = '/assets/dwarka/dwarka_browser.glb';
 const SKY_URL = '/assets/dwarka/dwarka_horizon_sunset_2k.hdr';
@@ -35,22 +46,32 @@ const BOAT = 'DW_Coastal_Trading_Boat';
 /** Replaced by the runtime dust below (it drifts; the baked one can't). */
 const BAKED_DUST = 'DW_Subtle_Rim_Dust_Motes';
 const DUST_COUNT = 150;
+/** The wet stone: the arena's paving and ruined sandstone, the limestone and blockwork round it, and the puddles. */
+const PAVING = /^DW_Arena_Weathered_Paving$/;
+const PUDDLES = /^DW_Arena_Shallow_Rain_Puddles$/;
+const WET_MARGINS = /^DW_Arena_Damp_Stone$/;
+const STONE = /^DW_(Arena_Ruined_Sandstone|Weathered_Limestone_PolyHaven|Ancient_Blockwork_PolyHaven)$/;
+/** Drops in the rain's near and far boxes, and the floor's splash slots. */
+const RAIN_DROPS = { near: 5200, far: 2600 };
+const SPLASH_SLOTS = { raindrops: 360, impacts: 64 };
 
 export class Level3_Dwarka extends GLBLevel {
   public readonly id = 3;
   public readonly title = 'Level 3: Dwarka';
   public readonly subtitle = 'The sea city at sunset';
   public readonly atmosphere: LevelAtmosphere = {
-    background: new THREE.Color(0xb8aaa0),
-    backgroundIntensity: 0.34,
+    background: new THREE.Color(0x7d8690),
+    // The storm: the sunset dimmed behind the cloud deck, rain haze closing in on the far islands, a cooler fill and
+    // a low, weak sun (the front bounce light below is cooled with it).
+    backgroundIntensity: 0.18,
     environment: null,
-    environmentIntensity: 0.34,
-    fog: { color: 0xb8aaa0, near: 220, far: 2200 },
+    environmentIntensity: 0.24,
+    fog: { color: 0x7a838c, near: 120, far: 1700 },
     // A broad, shadowless fill approximates the coastal sky bounce (the front bounce light is added below).
     ambient: { color: 0xffffff, intensity: 0 },
-    hemi: { sky: 0xd2d6cc, ground: 0x67604b, intensity: 0.35 },
-    key: { color: 0xffbb7a, intensity: 0.5, direction: SUN_POSITION.clone().sub(SUN_TARGET).normalize(), normalBias: 0.05 },
-    exposure: 1.3,
+    hemi: { sky: 0xb4bfcc, ground: 0x4f524f, intensity: 0.42 },
+    key: { color: 0xf0b88c, intensity: 0.34, direction: SUN_POSITION.clone().sub(SUN_TARGET).normalize(), normalBias: 0.05 },
+    exposure: 1.25,
     toneMapping: 'agx',
     environmentRotation: new THREE.Euler().setFromQuaternion(ENVIRONMENT_QUATERNION),
     clip: { near: 0.25, far: 5000 },
@@ -63,6 +84,13 @@ export class Level3_Dwarka extends GLBLevel {
   private boat: { object: THREE.Object3D; baseY: number; baseRoll: number } | null = null;
   private dust: THREE.Points | null = null;
   private dustOrigins = new Float32Array(DUST_COUNT * 3);
+  /** The rain's density for every Dwarka loaded from now on (dev: `__debug.rain('low')`). */
+  public static rainLevel: RainLevel = 'full';
+  private rain: RainField | null = null;
+  private sky: StormSky | null = null;
+  private splashes: GroundSplashes | null = null;
+  private footfalls: Footfalls | null = null;
+  private lastSplashSound = 0;
 
   constructor() {
     super(LEVEL_URL);
@@ -76,7 +104,7 @@ export class Level3_Dwarka extends GLBLevel {
     this.killPlaneY = DWARKA_FLOOR_Y - 6;
     // The fight uses the same over-the-shoulder follow camera as every other chapter (the export's side-on
     // CAM_Fighting_Stage is not used: one camera across the campaign).
-    const front = new THREE.DirectionalLight(0xffd6a0, 0.95);
+    const front = new THREE.DirectionalLight(0xd4d2cc, 0.7);
     front.name = 'Dwarka_Front_Bounce';
     front.position.set(-35, 35, 55);
     front.target.position.set(-15, 12, -25);
@@ -95,6 +123,8 @@ export class Level3_Dwarka extends GLBLevel {
     // The fight plane (radius 10.8) as a 1 m thick disc whose top is the floor.
     this.addStaticCylinder(new THREE.Vector3(0, DWARKA_FLOOR_Y - 0.5, 0), 0.5, SAFE_RADIUS + 0.4);
 
+    // Wet stone mirrors the sky more than the scene's dim environment allows.
+    const envMap = this.atmosphere.environment ? { texture: this.atmosphere.environment, rotation: this.atmosphere.environmentRotation } : undefined;
     model.traverse((obj) => {
       const mesh = obj as THREE.Mesh;
       if (!mesh.isMesh) return;
@@ -112,6 +142,10 @@ export class Level3_Dwarka extends GLBLevel {
       if (decal) mesh.renderOrder = DEEP_DECAL.test(name) ? 3 : 2;
       for (const material of (Array.isArray(mesh.material) ? mesh.material : [mesh.material]) as THREE.MeshStandardMaterial[]) {
         if (!material) continue;
+        if (PAVING.test(material.name)) wetten(material, { darken: 0.52, roughness: 0.34, envMapIntensity: 0.55, envMap, ripples: 0.45 });
+        else if (PUDDLES.test(material.name)) wetten(material, { darken: 0.8, roughness: 0.03, envMapIntensity: 0.9, envMap, ripples: 1.1 });
+        else if (WET_MARGINS.test(material.name)) wetten(material, { darken: 0.75, roughness: 0.2, envMapIntensity: 0.5, envMap, ripples: 0 });
+        else if (STONE.test(material.name)) wetten(material, { darken: 0.74, roughness: 0.5, envMapIntensity: 0.3, envMap, ripples: 0 });
         if (material.transparent) {
           material.depthWrite = false;
           material.forceSinglePass = true;
@@ -121,6 +155,8 @@ export class Level3_Dwarka extends GLBLevel {
           material.polygonOffsetFactor = -1;
           material.polygonOffsetUnits = -1;
         }
+        // The rain roughens the sea: a softer, greyer glitter.
+        if (OCEAN.test(name)) material.roughness = 0.42;
         if (OCEAN.test(name) && material.normalMap && !material.userData.runtimeWater) {
           material.normalMap = material.normalMap.clone();
           material.normalMap.wrapS = material.normalMap.wrapT = THREE.RepeatWrapping;
@@ -138,6 +174,47 @@ export class Level3_Dwarka extends GLBLevel {
 
     this.collectBloom(model);
     this.addDust();
+    this.addRain();
+  }
+
+  /** The storm's three draws: the cloud deck, the rain, and the splashes on the floor. */
+  private addRain(): void {
+    this.sky = new StormSky(0x4c535c, 0x7c838b, (this.atmosphere.fog as { color: number }).color, SUN_POSITION.clone().sub(SUN_TARGET));
+    this.rain = new RainField(RAIN_DROPS);
+    this.splashes = new GroundSplashes({ floorY: DWARKA_FLOOR_Y, arenaRadius: 12.2, ...SPLASH_SLOTS });
+    this.group.add(this.sky.mesh, this.rain.mesh, this.splashes.mesh);
+    this.setRain(Level3_Dwarka.rainLevel);
+    // Every dust puff on the floor (landings, slides, roars, leaps) is water thrown up instead.
+    ParticleFX.getInstance().onGroundImpact = (origin, count) => {
+      if (Math.abs(origin.y - DWARKA_FLOOR_Y) > 0.5 || !this.splashes) return false;
+      const strength = THREE.MathUtils.clamp(count / 7, 1.2, 5);
+      if (!this.splashes.add(origin.x, origin.z, strength)) return false;
+      this.splashSound(strength);
+      return true;
+    };
+  }
+
+  /** Rain density: 'full', 'low' (a third of the drops and splashes) or 'off' (the stone stays wet). */
+  public setRain(level: RainLevel): void {
+    Level3_Dwarka.rainLevel = level;
+    this.rain?.setLevel(level);
+    this.splashes?.setRaindrops(level === 'full' ? 1 : level === 'low' ? 0.35 : 0);
+  }
+
+  private splashSound(strength: number): void {
+    const now = performance.now();
+    if (strength < 1.4 || now - this.lastSplashSound < 90) return;
+    this.lastSplashSound = now;
+    SoundFX.getInstance().playSplash(strength);
+  }
+
+  public override dispose(): void {
+    ParticleFX.getInstance().onGroundImpact = null;
+    this.footfalls = null;
+    this.rain = null;
+    this.sky = null;
+    this.splashes = null;
+    super.dispose();
   }
 
   /** Sparse dust drifting around the arena rim, as in the export's preview. */
@@ -170,6 +247,7 @@ export class Level3_Dwarka extends GLBLevel {
 
   public override update(time: number, dt: number, camera: THREE.Camera): void {
     super.update(time, dt, camera);
+    this.updateStorm(dt, camera);
     // The sea's normals drift; the boat heaves 1.8 cm and rolls a fraction of a degree.
     for (const normal of this.waterNormals) normal.offset.set((time * 0.002) % 1, (time * 0.0011) % 1);
     if (this.boat) {
@@ -185,5 +263,24 @@ export class Level3_Dwarka extends GLBLevel {
       }
       pos.needsUpdate = true;
     }
+  }
+
+  /** The storm runs on game time (it hangs while paused); a lightning flash is read off the sky light it raises. */
+  private updateStorm(dt: number, camera: THREE.Camera): void {
+    if (!this.rain || !this.sky || !this.splashes) return;
+    const sm = SceneManager.getInstance();
+    const flash = THREE.MathUtils.clamp((sm.hemiLight.intensity / this.atmosphere.hemi.intensity - 1) / 4, 0, 1);
+    tickWetMaterials(dt);
+    this.sky.update(dt, camera, flash);
+    this.rain.update(dt, camera as THREE.PerspectiveCamera, sm.renderer.domElement.height, flash);
+    this.splashes.update(dt, camera, flash);
+    const scene = this.group.parent;
+    if (!this.footfalls && scene) {
+      this.footfalls = new Footfalls(scene, this.splashes, DWARKA_FLOOR_Y, {
+        step: (s) => SoundFX.getInstance().playWetStep(s),
+        splash: (s) => this.splashSound(s),
+      });
+    }
+    this.footfalls?.update(dt);
   }
 }

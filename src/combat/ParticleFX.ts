@@ -48,6 +48,12 @@ interface MistParticle {
 export class ParticleFX {
   private static instance: ParticleFX | null = null;
   public scene: THREE.Scene | null = null;
+  /**
+   * Something struck the ground here (a landing, a slide, a roar, a leap: every dust puff), `count` its size. A level
+   * whose ground answers (Dwarka's wet stone splashes) listens while it is loaded, and returns true where no dust
+   * should rise (water splashes instead).
+   */
+  public onGroundImpact: ((origin: THREE.Vector3, count: number) => boolean) | null = null;
 
   // Sparks
   private sparks: SparkParticle[] = [];
@@ -264,6 +270,7 @@ export class ParticleFX {
    * Spawn dust puff for jump landings or heavy footfalls
    */
   public spawnDustPuff(origin: THREE.Vector3, count = 12): void {
+    if (this.onGroundImpact?.(origin, count)) return;
     for (let i = 0; i < count; i++) {
       if (this.dustPuffs.length >= this.dustMaxCount) {
         this.dustPuffs.shift();

@@ -6,6 +6,7 @@ import { CharacterRig, type CharacterDefinition, type StateAnimation } from './a
 import { CharacterMotor, DEFAULT_MOTOR, type MotorOptions } from '../physics/CharacterMotor';
 import { PhysicsWorld } from '../core/PhysicsWorld';
 import type RAPIER from '@dimforge/rapier3d-compat';
+import { ACTORS } from './ActorRegistry';
 
 const UP = new THREE.Vector3(0, 1, 0);
 // State-machine timers an animated character sets from its clip lengths (when the state is marked `timesState`).
@@ -112,6 +113,7 @@ export class Character extends Entity {
     super(id);
 
     this.stateMachine = new CharacterStateMachine();
+    ACTORS.set(this.group, this);
     this.primitiveRoot = new THREE.Group();
     this.modelGroup.add(this.primitiveRoot);
 
@@ -566,6 +568,12 @@ export class Character extends Entity {
   /** True while the current state's clip moves the character itself (scripted lunges should stand down). */
   public rigDrivesMotion(state: CharacterState): boolean {
     return !!this.rig?.definition.states[state]?.rootMotion;
+  }
+
+  /** Where the weapon's business end is now (world), into `out`; nothing allocated (read every frame on wet ground). */
+  public weaponTipInto(out: THREE.Vector3): THREE.Vector3 {
+    this.swordMesh.updateWorldMatrix(true, false);
+    return this.swordMesh.localToWorld(out.set(0, this.bladeSpan[1], 0));
   }
 
   public getWeaponPoints(): { tip: THREE.Vector3; hilt: THREE.Vector3 } {

@@ -26,6 +26,22 @@ LUFS). On a yes: record the chosen line as `summit_andhaka_crowned`, add `voice:
 `CROWNING_LINE`, drop its `hold` (the recording sets the length), and list it in STORY.md's Chapter V lines.
 
 
+## Dwarka's rain: a recorded rain bed (option, costs credits, not generated)
+
+Chapter IV now plays in a storm (docs/STORY.md, "Dwarka in the rain"). Its rain, thunder and splashes are synthesized
+(filtered noise, no credits) and work. A recording would make the steady downpour sound more like real rain on stone
+and sea; the thunder and splashes are fine synthesized. If wanted, ElevenLabs Sound Effects, two takes each:
+
+| Sound | Prompt | Length |
+|---|---|---|
+| `amb_dwarka_rain` (a loop) | Steady heavy rain on wet stone paving and open sea, close patter of drops on stone and puddles, soft wind gusts, distant surf, no thunder, no music, seamless loop | 22 s |
+| `amb_dwarka_thunder` | Distant thunder rolling over the sea, a soft crack far away then a long low rumble fading out, no rain | 8 s |
+
+Estimated cost: about 40 credits per second with the duration set, so (22 + 8) s x 2 takes is about **2,400
+credits** (check the rate shown in the account before generating). On a yes: generate both, the user picks a take
+each, loudnorm to -18 LUFS, put them in public/assets/sfx, and the `'dwarka'` ambience loops the rain under the
+synthesized patter (dropping the synthesized hiss layers) and plays the thunder recording in place of the synth.
+
 ## Victory sound: which of the two (no cost)
 
 "The sfx when player wins is too childish." The old one was a C-major arpeggio of four pure sine tones (C4 E4 G4 C5,

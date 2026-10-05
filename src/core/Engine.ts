@@ -344,6 +344,7 @@ export class Engine {
     this.combatSystem.onCallout = (c) => this.hud.callout(c);
     this.combatSystem.onPlayerHurt = () => this.hud.hurt();
     this.soundFX.onLightning = (strength) => this.sceneManager.flash(strength);
+    this.soundFX.hushed = () => this.dialogue.speaking;
     this.projectileManager.onPlayerContact = (result) => {
       if (result === 'hit') {
         this.combatSystem.stats.hitsTaken++;

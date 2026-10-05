@@ -172,8 +172,10 @@ export class SoundFX {
   private wantedAmbience: Ambience | null = null;
   private samples = new Map<Sample, AudioBuffer>();
   public readonly music = new Music();
-  /** Lightning, `delay` seconds before its thunder is heard (the summit). */
+  /** Lightning, `delay` seconds before its thunder is heard (the summit, Dwarka's storm). */
   public onLightning: ((strength: number) => void) | null = null;
+  /** True while someone is speaking: the rarer weather (Dwarka's thunder) holds off. */
+  public hushed: (() => boolean) | null = null;
 
   private constructor() {
     Settings.onChange(() => this.applyVolumes());
@@ -590,13 +592,18 @@ export class SoundFX {
         break;
       }
       case 'dwarka': {
-        // Dwarka on the sea: waves breaking below the walls, wind off the water, gulls, and a shankh from the
-        // temple now and then.
+        // Dwarka on the sea, in the rain: the downpour's hiss on stone and water (a bright wash, a fuller body that
+        // swells with the gusts, a low roar off the sea), single drops pattering close by, waves breaking below the
+        // walls, gusts, far thunder now and then (never over a line), and a shankh from the temple, rarely.
         run.layers.push(this.layer({ color: 'brown', filter: 'lowpass', freq: 220, gain: 0.08, sway: 0.08 }));
-        run.layers.push(this.layer({ color: 'pink', filter: 'bandpass', freq: 600, q: 0.6, gain: 0.03, sway: 0.05, sweep: 200 }));
+        run.layers.push(this.layer({ color: 'white', filter: 'highpass', freq: 4200, gain: 0.03, sway: 0.11 }));
+        run.layers.push(this.layer({ color: 'pink', filter: 'bandpass', freq: 1500, q: 0.45, gain: 0.07, sway: 0.06, sweep: 500 }));
+        run.layers.push(this.layer({ color: 'pink', filter: 'lowpass', freq: 520, gain: 0.05, sway: 0.04 }));
+        every([0.04, 0.14], (at) => this.raindrop(at));
         every([5.5, 9], (at) => this.wave(at), 0.5);
-        every([7, 18], (at) => this.gull(at));
-        every([40, 70], (at) => this.shankh(at), 12);
+        every([7, 15], (at) => this.rainGust(at), 3);
+        every([28, 55], (at) => { if (!this.hushed?.()) this.thunder(at, 0.75); }, 14);
+        every([60, 100], (at) => this.shankh(at), 25);
         break;
       }
       case 'summit': {
@@ -896,9 +903,25 @@ export class SoundFX {
     if (Math.random() < 0.5) this.noise({ color: 'white', filter: 'highpass', from: 4200, to: 5200, duration: 1.1, gain: 0.02, attack: 0.3, delay: at + len * 0.7, pan: -pan * 0.5, wet: 0.8, amb: true });
   }
 
-  /** Lightning now, thunder after (sooner and sharper the closer it is). */
-  private thunder(at: number): void {
-    const near = Math.random();
+  /** A few drops striking close by: tiny ticks on stone and water. */
+  private raindrop(at: number): void {
+    const n = 1 + Math.floor(Math.random() * 3);
+    for (let i = 0; i < n; i++) {
+      const f = rand(2400, 6000);
+      this.noise({ color: 'white', filter: 'bandpass', from: f, to: f * 0.7, q: 4, duration: rand(0.012, 0.03), gain: rand(0.008, 0.028), attack: 0.001, delay: at + rand(0, 0.1), pan: rand(-0.9, 0.9), amb: true });
+    }
+  }
+
+  /** A gust driving the rain: the hiss swells and brightens, then falls back. */
+  private rainGust(at: number): void {
+    const len = rand(3, 5.5);
+    this.noise({ color: 'white', filter: 'bandpass', from: 1800, peak: rand(3200, 4500), to: 2000, q: 0.8, duration: len, gain: rand(0.05, 0.09), attack: len * 0.4, delay: at, pan: rand(-0.5, 0.5), amb: true });
+    this.noise({ color: 'pink', filter: 'bandpass', from: 380, peak: rand(800, 1100), to: 420, q: 2, duration: len, gain: rand(0.05, 0.08), attack: len * 0.45, delay: at, pan: rand(-0.6, 0.6), amb: true });
+  }
+
+  /** Lightning now, thunder after (sooner and sharper the closer it is); `far` keeps it in the distance (0..1). */
+  private thunder(at: number, far = 0): void {
+    const near = Math.random() * (1 - far);
     const lag = 0.25 + (1 - near) * 1.6;
     const pan = rand(-0.6, 0.6);
     const strength = 0.4 + near * 0.6;
@@ -950,6 +973,25 @@ export class SoundFX {
     const usual = kind === 'lathi' ? 1.25 : kind === 'heavy' ? 0.62 : 0.95;
     if (this.sample(`swing_${kind}`, { rate: Math.max(0.8, Math.min(1.2, 1 + (pitch / usual - 1) * 0.35)) })) return;
     this.noise({ duration: 0.22, gain: 0.22, attack: 0.05, filter: 'bandpass', from: 400 * pitch, peak: 1400 * pitch, to: 300 * pitch, q: 3 });
+  }
+
+  /** A foot coming down in water on stone (`strength` ~0.6 walking to ~1.4 sprinting). */
+  public playWetStep(strength = 1): void {
+    const k = Math.min(1.5, strength);
+    this.noise({ color: 'white', filter: 'bandpass', from: rand(1500, 2200), peak: rand(2600, 3400), to: 900, q: 1.4, duration: 0.09 + 0.03 * k, gain: 0.04 + 0.05 * k, attack: 0.004, pan: rand(-0.1, 0.1) });
+    this.noise({ color: 'pink', filter: 'lowpass', from: 700, to: 180, duration: 0.07, gain: 0.05 * k, attack: 0.002 });
+  }
+
+  /** Something heavy into the water on the stone: a landing, a body, a mace (`strength` ~1.5 to 5). */
+  public playSplash(strength = 3): void {
+    const k = Math.min(5, strength) / 5;
+    this.noise({ color: 'white', filter: 'bandpass', from: 900, peak: 2400, to: 700, q: 0.9, duration: 0.25 + 0.35 * k, gain: 0.08 + 0.14 * k, attack: 0.006, wet: 0.3 });
+    this.noise({ color: 'white', filter: 'highpass', from: 3000, to: 5200, duration: 0.5 + 0.5 * k, gain: 0.02 + 0.05 * k, attack: 0.05, delay: 0.06, wet: 0.4 });
+    // The drops thrown up, falling back.
+    for (let i = 0; i < 3 + Math.round(5 * k); i++) {
+      const f = rand(1800, 4200);
+      this.noise({ color: 'white', filter: 'bandpass', from: f, to: f * 0.7, q: 4, duration: 0.025, gain: rand(0.01, 0.03), attack: 0.001, delay: 0.2 + rand(0, 0.35 + 0.3 * k), pan: rand(-0.6, 0.6) });
+    }
   }
 
   /** The hero's slide along the ground. */

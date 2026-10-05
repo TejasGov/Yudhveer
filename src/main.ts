@@ -1,6 +1,7 @@
 import './style.css';
 import { Engine } from './core/Engine';
 import { BloodFX, type GoreLevel } from './combat/BloodFX';
+import { Level3_Dwarka } from './levels/Level3_Dwarka';
 import { SoundFX, VICTORY_STINGER, type VictoryGrade, type VictoryStinger } from './combat/SoundFX';
 
 window.addEventListener('DOMContentLoaded', async () => {
@@ -32,6 +33,14 @@ window.addEventListener('DOMContentLoaded', async () => {
       blood: (on: boolean | GoreLevel = true) => {
         BloodFX.getInstance().level = on === true ? 'full' : on === false ? 'off' : on;
         return BloodFX.getInstance().level;
+      },
+      // Dwarka's rain: `rain('low')` thins it to a third, `rain(false)` stops it (the stone stays wet), `rain()` full.
+      rain: (level: boolean | 'low' = true) => {
+        const rain = level === true ? 'full' : level === false ? 'off' : level;
+        Level3_Dwarka.rainLevel = rain;
+        const active = engine.levelManager.activeLevel;
+        if (active instanceof Level3_Dwarka) active.setRain(rain);
+        return rain;
       },
       victory: (grade?: VictoryGrade, stinger?: VictoryStinger) => SoundFX.getInstance().playLevelClear(grade, stinger),
       renderVictory: async (grade: VictoryGrade = 'boss', stinger: VictoryStinger | 'chime' = VICTORY_STINGER, compress = true) => {

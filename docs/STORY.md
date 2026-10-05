@@ -571,6 +571,7 @@ hold in `src/entities/animation/CharacterRig.ts` (`SocketAttachment.twoHanded`).
   hand socket; an essential hook at the end of the ending (and at the start of the opening) takes it away and gives
   the mace back, so a skipped scene or a replay of the chapter is left right. The next chapter's kit equips the khanda
   properly.
+- **Weather:** it rains (see "Dwarka in the rain").
 - **Left for later:** the flame burst is the existing naga fire; the hero lays the mace down out of sight (it simply leaves his hands); the khanda is held
   in the sword pack's idle without the dhal; the sprint is the mace's run played faster.
 
@@ -803,7 +804,48 @@ slumped on the summit is alive; Andhaka, the Vetala, the Mayavi and the minions 
   the body lies below the frame; the body is seen only in the wide shots, lying still, before and after.
 - Lines, voices, timings and beats are unchanged; the hero now faces the shade rather than the body.
 - **Left for later:** the shade's model is the fighter's own (a dedicated spirit look, or a rising clip, could come
-  later); against a bright sky (Dwarka) the shade reads paler than in the baoli's dark.
+  later); against a bright sky the shade reads paler than in the baoli's dark (Dwarka's storm grade helps).
+
+## Dwarka in the rain (2026-10-05)
+
+The user: "the dwarka scene needs to have rain, and also rain dependent effects like water splashing on the arena
+ground, walking ripples". Chapter IV now plays in a storm, every scene and the fight. Code: `src/levels/Level3_Dwarka.ts`
+(the grade, materials and wiring), `src/levels/environment/RainField.ts`, `StormSky.ts` and `WetGround.ts`.
+
+- **The look:** a storm deck over the sunset (`StormSky`: a camera-centred dome over the HDR sky, dark grey and heavy
+  overhead, one long break low over the sun where the sunset still glows, the rain haze below the horizon so the sea's
+  far edge melts into it). The grade is cooler and lower: sky 0.18, environment 0.24, exposure 1.25, a weaker warm sun
+  (0.34), a grey-blue fill, grey rain haze closing in from 120 to 1700 m, the front bounce light cooled to grey. Still
+  Dwarka: the statue, temples and boat read in the opening wide; Shalva, Takshaka and their blue shades read against
+  the grey (the shades better than against the old bright sky).
+- **Rain** (`RainField`, one draw): 7,800 slanted streaks, each a camera-facing quad moved entirely in the vertex
+  shader through boxes that travel and wrap round the camera, so nothing is uploaded per frame. A near box (26 x 16 x
+  26 m, fine pale blue-grey streaks, faded out within ~2 m of the lens) and a far one set out ahead of the camera (110 x
+  46 x 110 m, longer and wider), so wide shots get a curtain of rain and close-ups stay clear. Never thinner than a
+  pixel (thinner streaks fade instead of shimmering). The wind gusts and swings; the streaks slant with it.
+- **Wet stone** (`wetten`): the arena paving darker (x0.52) and glossy (roughness 0.34) with its own reflection of the
+  sky; the five puddles near mirrors; the damp margins, the ruined sandstone, limestone and blockwork darkened and
+  less rough. The paving and puddles carry raindrop rings in their normals (two offset grids of drops, faded beyond
+  ~15 m). The sea is rougher (0.42), its glitter softer.
+- **Splashes** (`GroundSplashes`, one instanced draw): 360 raindrop splash slots (a ring and, close up, a little crown
+  of drops), placed and timed in the shader round where the camera looks, and kept to the arena floor; plus 64 ripples
+  for things that touch the water: footsteps (two rings, a small spray when running), landings and slides (bigger,
+  three rings, churned water), a body falling (Shalva, at 0.75 s into his death), and blows brought down to the ground
+  (where a downswing bottoms out within half a metre of the floor: the mace's slam is the biggest, 4.8). Every dust
+  puff on the floor (landings, slides, roars, leaps: `ParticleFX.onGroundImpact`) is water thrown up instead, so
+  Takshaka's arrival roar raises a burst at his feet.
+- **Who splashes** (`Footfalls`): every visible character in the scene (found through `ACTORS`, a weak map from scene
+  group to character): by its toe bones (a foot coming down while moving), or every 0.85 m without them; shades and
+  remembered figures do not touch the water.
+- **Sound** (SoundFX `'dwarka'`, synthesized, no credits): the downpour (a bright hiss, a fuller body that swells with
+  the gusts, a low roar off the sea), single drops pattering close by, rain gusts, the waves as before, the shankh
+  rarer, the gulls gone. Distant thunder every 28-55 s with a soft lightning flash (the sky light, the cloud deck and
+  the rain flare), never while a line is up (`SoundFX.hushed`). The hero's steps splash (`playWetStep`); landings, falls
+  and the slam splash (`playSplash`). A recorded rain bed is an option in docs/APPROVALS.md.
+- **Cost:** 3 draw calls and ~19k triangles; at 1080p the frame was within noise of before (~8 ms either way in the
+  test view); the level's update is ~0.02 ms. Nothing allocated per frame.
+- **Dev:** `__debug.rain('low')` thins the rain to a third (and the splashes), `__debug.rain(false)` stops it (the
+  stone stays wet), `__debug.rain()` full. There is no graphics setting yet; this is where a low setting would hook in.
 
 ## The victory sound, and blood (2026-10-05)
 
