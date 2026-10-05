@@ -31,8 +31,8 @@ export const KITS: Record<KitId, HeroKit> = {
   prologue: { id: 'prologue', weapon: 'lathi', abilities: ['dodge'], taught: [] },
   // The lathi only, no shield. Strike and slide; the rest the guru's voice teaches him as the fight asks for it.
   baoli: { id: 'baoli', weapon: 'lathi', abilities: ['dodge', 'combo'], taught: ['charge'] },
-  // A very basic sword, and the dhal from the vanara mentor: block and parry.
-  akhada: { id: 'akhada', weapon: 'sword', abilities: ['dodge', 'combo', 'block', 'parry'], taught: [] },
+  // A very basic sword, and the dhal from the vanara mentor: block, then parry, taught in his sparring.
+  akhada: { id: 'akhada', weapon: 'sword', abilities: ['dodge', 'combo'], taught: ['block', 'parry'] },
   // The blessed mace in both hands, no shield: heavy blows, and the slam from a run.
   dwarka: { id: 'dwarka', weapon: 'mace', abilities: ['dodge', 'combo', 'leap'], taught: [] },
   // The magical sword from Takshaka, with the dhal: the full kit.

@@ -161,7 +161,8 @@ export class Hud {
       plate.posture.broken = state === 'POSTURE_BROKEN';
       this.projected.copy(enemy.getPosition()).setY(enemy.getPosition().y + enemy.visualHeight() + 0.35).project(camera);
       const onScreen = this.projected.z < 1 && Math.abs(this.projected.x) < 1.1 && Math.abs(this.projected.y) < 1.1;
-      const visible = state !== 'DEAD' && onScreen && near < PLATE_RANGE;
+      // Someone still waiting out of sight for the story to bring them on has no plate yet.
+      const visible = state !== 'DEAD' && enemy.group.visible && onScreen && near < PLATE_RANGE;
       if (visible) {
         const x = (this.projected.x * 0.5 + 0.5) * w;
         const y = (-this.projected.y * 0.5 + 0.5) * h;

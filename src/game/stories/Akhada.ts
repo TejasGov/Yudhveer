@@ -1,0 +1,454 @@
+import * as THREE from 'three';
+import { ease, type CameraKey } from '../../cinematics/CinematicDirector';
+import type { ChapterStory, SceneShot, Stage } from '../../cinematics/Scene';
+import type { Enemy } from '../../entities/Enemy';
+import { MENTOR } from '../../entities/characters/Akhada';
+import { CombatSystem } from '../../combat/CombatSystem';
+import { SoundFX } from '../../combat/SoundFX';
+import { twoShot } from '../Story';
+
+/*
+ * Chapter II, the Hanuman forest akhada at sunset (docs/STORY.md, "Chapter II" and "Milestone 6").
+ *
+ *   Opening (a cutscene): Yudhveer at sword practice against the old vanara, who knocks him about; the dhal handed
+ *     over ("A dhal is not for hiding").
+ *   Training (played): the vanara spars with him. Three blows taken on the guard teach the parry; three blows turned
+ *     with it end the lesson. The guard and the parry are the akhada kit's `taught` moves, learned here.
+ *   Arrival (a cutscene): the Vetala and Mayavi come out of the north end; the vanara stands aside to watch.
+ *   The fight, with the vanara calling from the verandah; then the ending: he sends the boy to Dwarka, and warns him
+ *     that Shalva's mace will break a sword, which points him at the island.
+ *
+ * The vanara is two characters with one model: `mentor_spar`, the sparring partner (an Enemy, entities/Vanara.ts,
+ * spawned by the Engine), and `mentor`, the story's cast member who takes his place once the lesson is over.
+ */
+
+const v = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
+
+/** Where everyone stands. The Engine spawns the sparring vanara and the hidden bosses on these marks. */
+export const AKHADA_MARKS = {
+  /** The training circle, on the north-south line through the oculus' patch of sun. */
+  hero: v(0, 0, 5.2),
+  mentor: v(0, 0, 2.6),
+  /** Where the vanara watches the real fight from: the west verandah's edge. */
+  aside: v(-8, 0, 5.5),
+  /** The Vetala and Mayavi wait out of sight at the north end, by the monolith, and come out from there... */
+  vetalaWaits: v(5, 0, -10.5),
+  mayaviWaits: v(-5, 0, -11),
+  /** ...to where they stand to fight. */
+  vetala: v(2.5, 0, -2.8),
+  mayavi: v(-3.2, 0, -5.5),
+};
+const M = AKHADA_MARKS;
+
+/** The akhada's open middle, and the south gateway the hero leaves by. */
+const AKHADA_CENTRE = v(0, 0, -4);
+const AKHADA_GATE = v(0, 0, 40);
+
+/**
+ * The lesson, across one visit to the chapter (a session): once it has been passed, a retry goes straight to the
+ * fight. `hitsAtArrival` and `blocksAtParry` are tallies at the moment a stage of it began.
+ */
+const drill = { done: false, hitsAtArrival: 0, blocksAtParry: 0 };
+const stats = () => CombatSystem.getInstance().stats;
+const sfx = () => SoundFX.getInstance();
+
+/** The hero's dhal, on his arm or not (it is handed to him in the opening). */
+function dhal(s: Stage, on: boolean): void {
+  s.player.shieldMesh.visible = on;
+}
+
+/**
+ * The lesson is over: the cast's vanara takes the sparring one's place (the sparring one leaves the fight, out of
+ * sight on the verandah), the hero has his breath and both moves back, and from now on he can fall.
+ */
+function endLesson(s: Stage): void {
+  drill.done = true;
+  drill.hitsAtArrival = stats().hitsTaken;
+  const spar = s.actor('mentor_spar');
+  if (spar) {
+    spar.group.visible = false;
+    spar.currentHealth = 0;
+    spar.stateMachine.changeState('DEAD');
+  }
+  dhal(s, true);
+  s.player.learn('block');
+  s.player.learn('parry');
+  s.player.mortal = true;
+  s.player.currentHealth = s.player.maxHealth;
+  s.player.currentMarma = 0;
+}
+
+/** A medium close-up of an enemy from its front quarter, drifting in, with its name card. */
+function closeUp(id: 'vetala' | 'mayavi', clip: string, side: 1 | -1): SceneShot {
+  return {
+    duration: 2.9,
+    fadeIn: 0.15,
+    ease: ease.out,
+    sway: 0.02,
+    cues: [
+      { at: 0, actor: id, place: M[id], face: 'hero' },
+      { at: 0, actor: id, play: 'IDLE' },
+      { at: 0.2, actor: id, clip },
+      { at: 0.4, run: (s) => { const e = s.actor(id); if (e) s.cards.name(e as Enemy); } },
+    ],
+    camera: (s): CameraKey[] => {
+      const h = s.height(id);
+      return [
+        { pos: s.at(id, h * 1.7, side * h * 0.7, h * 0.62), look: s.at(id, 0, 0, h * 0.62), fov: 36 },
+        { pos: s.at(id, h * 1.4, side * h * 0.45, h * 0.72), look: s.at(id, 0, 0, h * 0.7), fov: 34 },
+      ];
+    },
+  };
+}
+
+export const AKHADA_STORY: ChapterStory = {
+  cast: [
+    // The vanara once the lesson is over: out of sight until then (the sparring one is him meanwhile).
+    { id: 'mentor', rig: MENTOR, at: M.aside, face: AKHADA_CENTRE, hidden: true },
+  ],
+
+  // Sword practice in the evening sun, a montage: the boy swings, the old vanara swats him aside, again and again;
+  // then he hands over the dhal and squares up to teach it.
+  opening: {
+    id: 'akhada-opening',
+    shots: [
+      // Side on in the patch of sun: a cut, parried and answered; the boy rocks back.
+      {
+        duration: 3.6,
+        fadeIn: 1.0,
+        ease: ease.drift,
+        sway: 0.015,
+        linesAt: 2.2,
+        cues: [
+          { at: 0, actor: 'hero', place: M.hero, face: M.mentor },
+          { at: 0, actor: 'mentor_spar', place: M.mentor, face: M.hero },
+          { at: 0, run: (s) => dhal(s, false) },
+          { at: 0.5, actor: 'hero', clip: 'slash_3', timeScale: 1.2 },
+          { at: 0.7, run: () => sfx().playSwordSwing(1, 'blade') },
+          { at: 0.6, actor: 'mentor_spar', clip: 'standing_melee_attack_horizontal', timeScale: 1.3 },
+          { at: 1.05, run: () => sfx().playParryClash() },
+          { at: 1.2, actor: 'hero', clip: 'impact_2', timeScale: 1.1 },
+        ],
+        lines: [{ speaker: 'Vanara', text: 'Again.', voice: 'akhada_open_mentor_1' }],
+        camera: [
+          { pos: v(4.6, 1.25, 4.6), look: v(0, 1.0, 3.9), fov: 40 },
+          { pos: v(4.0, 1.4, 4.2), look: v(0, 1.05, 3.9), fov: 38 },
+        ],
+      },
+      // Low behind him: the spinning cut, all of himself in it, and the old one simply not there.
+      {
+        fadeIn: 0.45,
+        ease: ease.drift,
+        sway: 0.02,
+        linesAt: 2.0,
+        cues: [
+          { at: 0, actor: 'hero', place: M.hero, face: M.mentor },
+          { at: 0.25, actor: 'hero', clip: 'slash_4', timeScale: 1.15 },
+          { at: 0.45, run: () => sfx().playSwordSwing(0.85, 'blade') },
+          { at: 0.35, actor: 'mentor_spar', moveTo: v(-1.1, 0, 2.9), face: 'hero' },
+        ],
+        lines: [{ speaker: 'Vanara', text: 'You strike where I was, boy. Strike where I will be.', voice: 'akhada_open_mentor_2' }],
+        camera: [
+          { pos: v(-2.3, 0.6, 9.0), look: v(0, 1.25, 3.4), fov: 42 },
+          { pos: v(-2.0, 0.65, 8.5), look: v(0, 1.3, 3.4), fov: 40 },
+        ],
+      },
+      // Over the vanara's shoulder: the boy, stubborn, at it again; the blow meets the talwar.
+      {
+        fadeIn: 0.45,
+        ease: ease.drift,
+        sway: 0.015,
+        linesAt: 1.7,
+        cues: [
+          { at: 0, actor: 'mentor_spar', place: M.mentor, face: M.hero },
+          { at: 0, actor: 'hero', place: M.hero, face: M.mentor },
+          { at: 0.3, actor: 'hero', clip: 'slash_5', timeScale: 1.25 },
+          { at: 0.45, run: () => sfx().playSwordSwing(1.15, 'blade') },
+          { at: 0.4, actor: 'mentor_spar', clip: 'standing_melee_attack_downward', timeScale: 1.4 },
+          { at: 0.8, run: () => sfx().playParryClash() },
+        ],
+        lines: [{ speaker: 'Yudhveer', text: 'Again.' }],
+        camera: (s): CameraKey[] => [
+          { pos: s.at('mentor_spar', -1.1, -0.55, 1.55), look: s.head('hero'), fov: 36 },
+          { pos: s.at('mentor_spar', -0.95, -0.5, 1.5), look: s.head('hero'), fov: 33 },
+        ],
+      },
+      // He comes up to the boy and hands him the dhal.
+      {
+        fadeIn: 0.5,
+        ease: ease.drift,
+        sway: 0.012,
+        linesAt: 0.8,
+        cues: [
+          { at: 0, actor: 'hero', play: 'IDLE' },
+          { at: 0.3, actor: 'mentor_spar', moveTo: v(0, 0, 4.0), face: 'hero' },
+          // "...Here." in the recording: the dhal is on his arm.
+          { at: 3.4, run: (s) => dhal(s, true), essential: true },
+        ],
+        lines: [{
+          speaker: 'Vanara',
+          text: 'Hmph. You swing like a farmer, boy. Here. A dhal is not for hiding. Meet the blow... and turn it away.',
+          voice: 'akhada_train_mentor_1',
+        }],
+        camera: [
+          { pos: v(-3.6, 1.5, 3.7), look: v(0, 1.25, 4.5), fov: 38 },
+          { pos: v(-3.0, 1.45, 3.9), look: v(0, 1.3, 4.6), fov: 35 },
+        ],
+      },
+      // He steps back to his mark and squares up; over the boy's shoulder, where the fight camera takes over.
+      {
+        fadeIn: 0.15,
+        ease: ease.inOut,
+        linesAt: 1.2,
+        cues: [{ at: 0.2, actor: 'mentor_spar', moveTo: M.mentor, face: 'hero' }],
+        lines: [{ speaker: 'Vanara', text: 'Raise it. I will come at you, and you will hold.', voice: 'akhada_open_mentor_3' }],
+        camera: (s): CameraKey[] => [
+          { pos: s.at('hero', -1.9, -0.95, 1.55), look: M.mentor.clone().setY(1.2), fov: 40 },
+          { pos: s.at('hero', -3.1, -0.6, 2.0), look: M.mentor.clone().setY(1.1), fov: 52 },
+        ],
+      },
+    ],
+  },
+
+  beats: [
+    // The lesson, stage one: the guard. He cannot fall while the old one is teaching.
+    {
+      on: { when: () => !drill.done },
+      run: (s) => {
+        s.player.mortal = false;
+        s.player.learn('block');
+      },
+      hint: 'Hold {guard} to raise the dhal and take his blows on it.',
+      lines: [{ speaker: 'Vanara', text: 'Feet planted. Here it comes.', voice: 'akhada_train_mentor_2' }],
+    },
+    {
+      on: { when: (s) => !drill.done && !s.player.can('parry') && stats().hitsTaken >= 2 && stats().blocks < 3 },
+      hint: 'Hold {guard} to raise the dhal.',
+      lines: [{ speaker: 'Vanara', text: 'The dhal does nothing hanging at your side. Raise it!', voice: 'akhada_train_mentor_3' }],
+    },
+    // Stage two: three blows held, so the parry.
+    {
+      on: { when: () => !drill.done && stats().blocks >= 3 },
+      run: (s) => {
+        drill.blocksAtParry = stats().blocks;
+        s.player.learn('parry');
+      },
+      hint: 'Press {guard} just as a blow lands to turn it away. Too early, and you only block.',
+      lines: [{
+        speaker: 'Vanara',
+        text: 'Good. You can stand. Now the harder thing: do not wait for the blow. Meet it as it falls, and turn it.',
+        voice: 'akhada_train_mentor_4',
+      }],
+    },
+    {
+      on: { when: (s) => !drill.done && s.player.can('parry') && stats().deflections >= 1 },
+      lines: [{ speaker: 'Vanara', text: 'Hah! There. Again.', voice: 'akhada_train_mentor_5' }],
+    },
+    {
+      on: { when: (s) => !drill.done && s.player.can('parry') && stats().deflections === 0 && stats().blocks >= drill.blocksAtParry + 4 },
+      hint: 'Press {guard} as his blade comes down, not before.',
+      lines: [{ speaker: 'Vanara', text: 'Too soon, and you are only hiding. Wait for it... then meet it.', voice: 'akhada_train_mentor_6' }],
+    },
+
+    // Three blows turned: the lesson is over, and the akhada has visitors.
+    {
+      on: { when: (s) => drill.done || (s.player.can('parry') && stats().deflections >= 3) },
+      scene: {
+        id: 'akhada-arrival',
+        shots: [
+          // He lowers his blade. (Here the cast's vanara takes the sparring one's place.)
+          {
+            fadeIn: 0.2,
+            ease: ease.drift,
+            sway: 0.012,
+            cues: [
+              { at: 0, actor: 'mentor', place: (s) => s.pos('mentor_spar'), face: 'hero' },
+              { at: 0, actor: 'mentor', show: true },
+              { at: 0, actor: 'mentor_spar', place: M.aside },
+              { at: 0, run: endLesson, essential: true },
+              { at: 0, actor: 'hero', face: 'mentor' },
+            ],
+            lines: [{ speaker: 'Vanara', text: 'Enough. You will do... for a farmer.', voice: 'akhada_arrive_mentor_1' }],
+            camera: (s): CameraKey[] => {
+              const { mid, side } = twoShot(s, 'hero', 'mentor', AKHADA_CENTRE);
+              const look = s.head('mentor').lerp(mid.clone().setY(1.3), 0.35);
+              return [
+                { pos: mid.clone().addScaledVector(side, 4.3).setY(1.5), look, fov: 38 },
+                { pos: mid.clone().addScaledVector(side, 3.8).setY(1.5), look, fov: 36 },
+              ];
+            },
+          },
+          // He turns his head to the north end: two shapes come out of the gold light under the monolith.
+          {
+            duration: 5.2,
+            fadeIn: 0.15,
+            ease: ease.drift,
+            linesAt: 0.3,
+            cues: [
+              { at: 0, actor: 'vetala', place: M.vetalaWaits, face: 'hero' },
+              { at: 0, actor: 'mayavi', place: M.mayaviWaits, face: 'hero' },
+              { at: 0, actor: 'vetala', show: true },
+              { at: 0, actor: 'mayavi', show: true },
+              { at: 0.2, actor: 'mentor', face: M.vetalaWaits },
+              { at: 0.4, actor: 'hero', face: AKHADA_CENTRE },
+              { at: 0.6, actor: 'vetala', moveTo: M.vetala, face: 'hero' },
+              { at: 1.0, actor: 'mayavi', moveTo: M.mayavi, face: 'hero' },
+            ],
+            lines: [{ speaker: 'Vanara', text: 'Hm. You did not climb this hill alone, boy.', voice: 'akhada_arrive_mentor_2' }],
+            camera: (s): CameraKey[] => [
+              { pos: s.pos('hero').add(v(2.6, 2.9, 4.4)), look: v(0, 1.2, -8), fov: 46 },
+              { pos: s.pos('hero').add(v(2.2, 2.5, 3.6)), look: v(0, 1.2, -6.5), fov: 42 },
+            ],
+          },
+          closeUp('vetala', 'power_up', -1),
+          closeUp('mayavi', 'casting', 1),
+          // The vanara walks off to the verandah to watch; over the boy's shoulder at what he faces.
+          {
+            fadeIn: 0.15,
+            ease: ease.inOut,
+            linesAt: 0.3,
+            cues: [
+              { at: 0, actor: 'hero', face: AKHADA_CENTRE },
+              { at: 0.3, actor: 'mentor', moveTo: M.aside, face: AKHADA_CENTRE },
+            ],
+            lines: [{ speaker: 'Vanara', text: 'These two are yours. Show me what the dhal is for.', voice: 'akhada_arrive_mentor_3' }],
+            camera: (s): CameraKey[] => {
+              const target = M.vetala.clone().lerp(M.mayavi, 0.5);
+              return [
+                { pos: s.at('hero', -1.9, -0.95, 1.55), look: target.clone().setY(1.3), fov: 40 },
+                { pos: s.at('hero', -3.1, -0.6, 2.0), look: target.clone().setY(1.2), fov: 52 },
+              ];
+            },
+          },
+        ],
+      },
+    },
+
+    // From the verandah, while he fights.
+    {
+      on: { when: () => drill.done && stats().hitsTaken >= drill.hitsAtArrival + 2 },
+      lines: [{ speaker: 'Vanara', text: 'Fire turns on a dhal like any blade. Send it back to him.', voice: 'akhada_fight_mentor_1' }],
+    },
+    { on: { fallen: 'vetala' }, lines: [{ speaker: 'Vanara', text: 'One. Do not stand there admiring it.', voice: 'akhada_fight_mentor_2' }] },
+  ],
+
+  // Both down. The old vanara walks out to him: Dwarka, and Shalva's mace, and the island.
+  ending: {
+    id: 'akhada-ending',
+    shots: [
+      // From black: wide on the two of them, the vanara coming across the earth to the boy.
+      {
+        duration: 3.8,
+        fadeIn: 0.9,
+        ease: ease.drift,
+        cues: [
+          { at: 0, actor: 'mentor', place: (s) => s.toward('hero', 'mentor', Math.min(4.2, s.pos('mentor').distanceTo(s.pos('hero')))), face: 'hero' },
+          { at: 0, actor: 'hero', face: 'mentor' },
+          { at: 0.4, actor: 'mentor', moveTo: (s) => s.toward('hero', 'mentor', 1.8), face: 'hero' },
+        ],
+        camera: (s): CameraKey[] => {
+          const { side, mid, dir } = twoShot(s, 'hero', 'mentor', AKHADA_CENTRE);
+          return [
+            { pos: mid.clone().addScaledVector(side, 6.2).add(v(0, 2.4, 0)).addScaledVector(dir, -0.8), look: mid.clone().add(v(0, 0.8, 0)), fov: 40 },
+            { pos: mid.clone().addScaledVector(side, 5.2).add(v(0, 1.9, 0)), look: mid.clone().add(v(0, 0.8, 0)), fov: 38 },
+          ];
+        },
+      },
+      // Over the boy's shoulder, down at the old one.
+      {
+        fadeIn: 0.15,
+        ease: ease.drift,
+        sway: 0.015,
+        lines: [{ speaker: 'Vanara', text: 'Hm. Not a farmer, then.', voice: 'akhada_end_mentor_1' }],
+        camera: (s): CameraKey[] => [
+          { pos: s.at('hero', -1.5, -0.8, 1.9), look: s.head('mentor'), fov: 38 },
+          { pos: s.at('hero', -1.35, -0.75, 1.88), look: s.head('mentor'), fov: 36 },
+        ],
+      },
+      // Low beside the vanara, up at the boy.
+      {
+        fadeIn: 0.12,
+        ease: ease.out,
+        sway: 0.015,
+        lines: [{ speaker: 'Yudhveer', text: 'Where did they take my guru?' }],
+        camera: (s): CameraKey[] => [
+          { pos: s.at('mentor', -1.3, -1.0, 1.3), look: s.head('hero'), fov: 38 },
+          { pos: s.at('mentor', -1.15, -0.95, 1.32), look: s.head('hero'), fov: 36 },
+        ],
+      },
+      // On the vanara, closer: Dwarka, and Shalva.
+      {
+        fadeIn: 0.12,
+        ease: ease.drift,
+        sway: 0.012,
+        lines: [
+          { speaker: 'Vanara', text: 'Not from me. Go to Dwarka, if you would know why your village burned.', voice: 'akhada_end_mentor_2' },
+          {
+            speaker: 'Vanara',
+            text: 'Shalva holds it now. His mace has broken better blades than yours. Better than mine. A sword will not be enough.',
+            voice: 'akhada_end_mentor_3',
+          },
+        ],
+        camera: (s): CameraKey[] => {
+          const { side, dir } = twoShot(s, 'mentor', 'hero', AKHADA_CENTRE);
+          const head = s.head('mentor');
+          return [
+            { pos: head.clone().addScaledVector(dir, 2.0).addScaledVector(side, 1.0).add(v(0, 0.1, 0)), look: head, fov: 36 },
+            { pos: head.clone().addScaledVector(dir, 1.75).addScaledVector(side, 0.9).add(v(0, 0.1, 0)), look: head, fov: 34 },
+          ];
+        },
+      },
+      {
+        fadeIn: 0.12,
+        ease: ease.out,
+        sway: 0.012,
+        lines: [{ speaker: 'Yudhveer', text: 'Then what will?' }],
+        camera: (s): CameraKey[] => [
+          { pos: s.at('mentor', -1.2, -1.0, 1.3), look: s.head('hero'), fov: 36 },
+          { pos: s.at('mentor', -1.1, -0.95, 1.32), look: s.head('hero'), fov: 34 },
+        ],
+      },
+      // Side on to the two of them, the sun behind: the island, and the blessed mace.
+      {
+        fadeIn: 0.15,
+        ease: ease.drift,
+        sway: 0.01,
+        lines: [{
+          speaker: 'Vanara',
+          text: 'Out past the city, on an island, a blessed mace lies waiting. Old things keep it. Take it from them first. Then go to Shalva.',
+          voice: 'akhada_end_mentor_4',
+        }],
+        camera: (s): CameraKey[] => {
+          const { side, mid } = twoShot(s, 'hero', 'mentor', AKHADA_CENTRE);
+          const look = mid.clone().setY(1.35);
+          return [
+            { pos: mid.clone().addScaledVector(side, 3.8).setY(1.45), look, fov: 38 },
+            { pos: mid.clone().addScaledVector(side, 3.4).setY(1.45), look, fov: 36 },
+          ];
+        },
+      },
+      // He turns for the gateway and goes; the old one calls after him; the camera rises and the picture fades.
+      {
+        duration: 5.6,
+        fadeIn: 0.2,
+        fadeOut: 1.4,
+        ease: ease.drift,
+        linesAt: 1.6,
+        cues: [
+          { at: 0.3, actor: 'hero', face: AKHADA_GATE },
+          { at: 0.9, actor: 'hero', moveTo: (s) => s.pos('hero').add(AKHADA_GATE.clone().sub(s.pos('hero')).setY(0).normalize().multiplyScalar(5)) },
+        ],
+        lines: [{ speaker: 'Vanara', text: 'And keep the dhal up, boy.', voice: 'akhada_end_mentor_5' }],
+        camera: (s): CameraKey[] => {
+          const h = s.pos('hero');
+          const toGate = AKHADA_GATE.clone().sub(h).setY(0).normalize();
+          const look = h.clone().addScaledVector(toGate, 3).add(v(0, 0.9, 0));
+          return [
+            { pos: h.clone().addScaledVector(toGate, -3).add(v(0.8, 2, 0)), look, fov: 44 },
+            { pos: h.clone().addScaledVector(toGate, -5.5).add(v(1.2, 4.2, 0)), look, fov: 46 },
+          ];
+        },
+      },
+    ],
+  },
+};

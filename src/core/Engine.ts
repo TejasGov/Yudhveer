@@ -24,6 +24,7 @@ import { BossBaoli } from '../entities/BossBaoli';
 import { BossShalva } from '../entities/BossShalva';
 import { BossAndhaka } from '../entities/BossAndhaka';
 import { Raider } from '../entities/Raider';
+import { VanaraMentor } from '../entities/Vanara';
 import { Extra } from '../entities/Extra';
 import { DWARKA_STARTS } from '../levels/Level3_Dwarka';
 import { BAOLI_GUARDIAN } from '../entities/characters/BaoliGuardian';
@@ -34,6 +35,8 @@ import { RAKSHASA } from '../entities/characters/Rakshasa';
 import { SHALVA } from '../entities/characters/Shalva';
 import { ANDHAKA } from '../entities/characters/Andhaka';
 import { RAIDER } from '../entities/characters/Village';
+import { MENTOR } from '../entities/characters/Akhada';
+import { AKHADA_MARKS } from '../game/stories/Akhada';
 import { CharacterRig, type CharacterDefinition } from '../entities/animation/CharacterRig';
 import type { Character } from '../entities/Character';
 import { separateFighters } from '../physics/CharacterMotor';
@@ -84,15 +87,20 @@ interface Spawn {
   at: THREE.Vector3;
   capsule: { halfHeight: number; radius: number };
   rig: CharacterDefinition;
+  /** Out of sight (and so out of the fight) until a story scene's `show` cue brings it on. */
+  hidden?: boolean;
 }
 
 const SPAWNS: Record<number, Spawn[]> = {
   // The prologue's courtyard is empty until the raiders come through the gate: see HORDES.
   0: [],
   1: [{ make: () => new BossBaoli('baoli_guardian'), at: new THREE.Vector3(0, 0, -4.2), capsule: BAOLI_CAPSULE, rig: BAOLI_GUARDIAN }],
+  // The old vanara spars with the hero first; the Vetala and Mayavi wait out of sight at the north end until the
+  // lesson is over and the story brings them on (game/stories/Akhada.ts).
   2: [
-    { make: () => new Vetala('vetala'), at: new THREE.Vector3(2.5, 0, -2.8), capsule: TALL_CAPSULE, rig: VETALA },
-    { make: () => new Mayavi('mayavi'), at: new THREE.Vector3(-3.2, 0, -5.5), capsule: TALL_CAPSULE, rig: MAYAVI },
+    { make: () => new VanaraMentor('mentor_spar'), at: AKHADA_MARKS.mentor, capsule: FIGHTER_CAPSULE, rig: MENTOR },
+    { make: () => new Vetala('vetala'), at: AKHADA_MARKS.vetalaWaits, capsule: TALL_CAPSULE, rig: VETALA, hidden: true },
+    { make: () => new Mayavi('mayavi'), at: AKHADA_MARKS.mayaviWaits, capsule: TALL_CAPSULE, rig: MAYAVI, hidden: true },
   ],
   // Dwarka's east fighter mark, facing the hero across the rosette (Takshaka comes after him: see FINALES).
   3: [{ make: () => new BossShalva('shalva'), at: DWARKA_STARTS.opponent, capsule: SHALVA_CAPSULE, rig: SHALVA }],
@@ -866,6 +874,7 @@ export class Engine {
       const enemy = s.make();
       this.addFighter(enemy, s.at, s.capsule);
       enemy.faceTowards(spawnPoint);
+      if (s.hidden) enemy.group.visible = false;
       this.enemies.push(enemy);
       return enemy.attachRig(s.rig).catch((err) => console.error(`[Engine] ${enemy.id} rig failed to load; keeping the greybox`, err));
     });
@@ -967,6 +976,7 @@ export class Engine {
       if (!triggered(b.beat.on, stage, { time: this.fightTime, learned: this.learnedNow })) continue;
       b.fired = true;
       b.beat.run?.(stage);
+      if (b.beat.hint) this.hud.hint(b.beat.hint, 9);
       if ('lines' in b.beat) {
         this.dialogue.play(b.beat.lines, 'voice');
         return; // one voice at a time

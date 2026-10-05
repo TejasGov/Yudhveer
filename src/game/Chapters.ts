@@ -1,7 +1,8 @@
 import type { KitId } from './Progression';
 import type { ChapterStory } from '../cinematics/Scene';
-import { AKHADA_STORY, PROLOGUE_STORY } from './Story';
+import { PROLOGUE_STORY } from './Story';
 import { BAOLI_STORY } from './stories/Baoli';
+import { AKHADA_STORY } from './stories/Akhada';
 
 /**
  * The campaign, in order. `level` is the LevelManager index of the arena it is fought in. Ids run on from 0 (the
@@ -74,6 +75,7 @@ export const CHAPTERS: Chapter[] = [
     clearedLine: 'The courtyard falls quiet.',
     defeatLine: 'The akhada still stands against you.',
     story: AKHADA_STORY,
+    introPlaceOnly: true,
   },
   {
     id: 3,

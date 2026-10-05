@@ -53,10 +53,9 @@ himself: Andhaka has carried his own judge up the mountain.
 - **At the chapter's end**, with both bosses beaten, he learns he must go to **Dwarka**, where he will find out why
   his village was attacked. He also learns that Dwarka's boss (Shalva) fights with a **mace**, and that a sword
   will not be enough against it: hence the island and its blessed mace.
-  - *Draft, in the game since milestone 3* (`src/game/Story.ts`, `akhada-ending`): the fallen Mayavi says it. "A
-    village boy, with a borrowed sword." / Yudhveer: "Where did they take my guru?" / "Go to Dwarka, if you want to
-    know why your village burned. Shalva holds it now, and his mace has broken better blades than yours." Milestone 6
-    rewrites it (likely the vanara mentor's scene instead) and pushes on toward the island.
+  - *In the game since milestone 6* (`src/game/stories/Akhada.ts`, `akhada-ending`): the vanara mentor's scene, not
+    the fallen Mayavi's. He sends the boy to Dwarka to learn why his village burned, warns him that Shalva's mace
+    has broken better blades than his, and tells him of the blessed mace on the island. See "Milestone 6" below.
 
 ### Chapter III: the island (new map, its own chapter)
 
@@ -335,6 +334,78 @@ the hint for a move just learned). The map and the Guardian's fight are unchange
 | `baoli_end_guardian_4` | Baoli Guardian | Go to the Hanuman akhada. Let the vanaras teach you to truly fight. Then follow. | yes |
 | (none) | Yudhveer | Then I will learn. And then I will follow. | subtitle only |
 
+## Milestone 6: Chapter II (landed)
+
+"Hanuman Akhada", chapter id 2. Code: `src/game/stories/Akhada.ts` (`AKHADA_STORY`, `AKHADA_MARKS`),
+`src/entities/Vanara.ts` (the sparring vanara), `src/entities/characters/Akhada.ts` (`MENTOR`, his placeholder),
+the relight in `src/levels/Level2_Akhada.ts`.
+
+- **The sunset relight** (code only, the .glb is unchanged): the night's cobalt key, vermillion grazers and starry sky
+  are gone. A low golden key (warm, raised from the sun's side so the shaft through the oculus slants across the
+  floor), a soft blue-violet ambient and hemisphere fill, warm haze, and a sky drawn on a canvas (blue-violet zenith,
+  rose, gold at the horizon, the sun low in the north-west behind the monolith, `AKHADA_SUN`). Deepak-warm uplights
+  and a sunlit raking spot on the Hanuman bust, a warm rim on its carving; the forest cards keep their authored
+  backlight glow; the distant ranges are shaded as sunset haze, gold on the sun side. Same cel ramp and ink lines;
+  fewer lights than before (the four grazers are gone).
+- **Flow:** the intro shows the place only (`introPlaceOnly`), then the **opening**, a non-playable montage: sword
+  practice in the sun against the old vanara, who swats the boy about ("Again."), the dhal handed over (the recorded
+  `akhada_train_mentor_1`), and the vanara squaring up. Then the **training** (played, not explorable): the vanara
+  spars, and the beats teach as it goes. Then the **arrival** scene: the vanara calls it ("Enough"), the Vetala and
+  Mayavi come out of the north end (name cards), and he walks off to the west verandah to watch. The **fight**, with
+  two lines from him. The **ending** is his scene: Dwarka, Shalva's mace, the island's blessed mace; the boy is brief
+  and leaves by the south gateway.
+- **The training:** kit `akhada` now has `block` and `parry` in `taught` (abilities: slide and chain only). The first
+  beat teaches the guard (`Player.learn('block')`, hint "Hold {guard}..."); three blows taken on it
+  (`CombatSystem.stats.blocks`) teach the parry (hint "Press {guard} just as a blow lands..."); three blows turned
+  (`stats.deflections`) end the lesson and play the arrival. Reactive lines: when he takes two blows without the guard,
+  on his first parry, and when he keeps blocking without a parry. The hero cannot fall while the vanara teaches
+  (`Player.mortal` off), and the arrival gives him back his health and posture. The vanara (`VanaraMentor`) is slow and
+  plainly telegraphed, takes no damage, cannot be posture-broken and hits for 0.3 of a minion's blow. The lesson is
+  kept for the session: a retry (after falling to the Vetala) goes straight to the bosses. What is learned is saved
+  per kit, as for the guru's charge.
+- **Two characters, one vanara:** `mentor_spar` (the Enemy who spars) and `mentor` (the story's cast member). At the
+  arrival the cast one takes the sparring one's place and the sparring one leaves the fight (hidden, out of the way
+  on the verandah, counted as fallen).
+- **New in the engine (additive):** `Spawn.hidden` (an enemy spawned out of sight, out of the fight until a `show`
+  cue: the Vetala and Mayavi wait at the north end), `StoryBeat.hint` (a control hint with a beat), and the HUD gives
+  no plate to an enemy that is not shown.
+- **Placeholder:** the vanara is the Baoli Guardian's model at half size (1.6 m), tinted grey-brown, with its talwar.
+  Replace `MENTOR` in `src/entities/characters/Akhada.ts` with the Meshy model; the spar and the cast both follow.
+  The opening uses the guardian's `standing_melee_attack_*` clips by name, so a new model wants clips under those
+  names or the cues changed.
+- **Left for later:** the mentor has no name (subtitles say "Vanara"); every vanara line but the dhal handover is
+  unrecorded; the chapter-complete screen counts the training's deflections; the hero's sword-clip timings in the
+  montage are by eye.
+
+### Chapter II lines
+
+The vanara mentor's voice is Rusty Malone (`game asset/voice/VOICES.md`). Yudhveer is subtitles only.
+
+| Id | Speaker | Text | Trigger | Recorded |
+|---|---|---|---|---|
+| `akhada_open_mentor_1` | Vanara | Again. | opening, the first parried cut | no |
+| `akhada_open_mentor_2` | Vanara | You strike where I was, boy. Strike where I will be. | opening, the spinning cut that misses | no |
+| (no id) | Yudhveer | Again. | opening, at it once more | subtitle only |
+| `akhada_train_mentor_1` | Vanara | Hmph. You swing like a farmer, boy. Here. A dhal is not for hiding. Meet the blow... and turn it away. | opening, the dhal handed over | yes (`mentor_ch2_dhal`) |
+| `akhada_open_mentor_3` | Vanara | Raise it. I will come at you, and you will hold. | opening, last shot | no |
+| `akhada_train_mentor_2` | Vanara | Feet planted. Here it comes. | training starts (the guard taught) | no |
+| `akhada_train_mentor_3` | Vanara | The dhal does nothing hanging at your side. Raise it! | training, two blows taken unguarded | no |
+| `akhada_train_mentor_4` | Vanara | Good. You can stand. Now the harder thing: do not wait for the blow. Meet it as it falls, and turn it. | training, three blocks (the parry taught) | no |
+| `akhada_train_mentor_5` | Vanara | Hah! There. Again. | training, first parry | no |
+| `akhada_train_mentor_6` | Vanara | Too soon, and you are only hiding. Wait for it... then meet it. | training, four more blocks and no parry | no |
+| `akhada_arrive_mentor_1` | Vanara | Enough. You will do... for a farmer. | arrival, three parries | no |
+| `akhada_arrive_mentor_2` | Vanara | Hm. You did not climb this hill alone, boy. | arrival, the two come out | no |
+| `akhada_arrive_mentor_3` | Vanara | These two are yours. Show me what the dhal is for. | arrival, last shot | no |
+| `akhada_fight_mentor_1` | Vanara (in the fight) | Fire turns on a dhal like any blade. Send it back to him. | two blows taken in the boss fight | no |
+| `akhada_fight_mentor_2` | Vanara (in the fight) | One. Do not stand there admiring it. | the Vetala falls | no |
+| `akhada_end_mentor_1` | Vanara | Hm. Not a farmer, then. | ending | no |
+| (no id) | Yudhveer | Where did they take my guru? | ending | subtitle only |
+| `akhada_end_mentor_2` | Vanara | Not from me. Go to Dwarka, if you would know why your village burned. | ending | no |
+| `akhada_end_mentor_3` | Vanara | Shalva holds it now. His mace has broken better blades than yours. Better than mine. A sword will not be enough. | ending | no |
+| (no id) | Yudhveer | Then what will? | ending | subtitle only |
+| `akhada_end_mentor_4` | Vanara | Out past the city, on an island, a blessed mace lies waiting. Old things keep it. Take it from them first. Then go to Shalva. | ending | no |
+| `akhada_end_mentor_5` | Vanara | And keep the dhal up, boy. | ending, as he walks out | no |
+
 ## Tools
 
 - **ElevenLabs:** voices, character sound effects, music.
@@ -379,7 +450,7 @@ Each milestone is one chat. Start it with: "Read docs/STORY.md, let's do milesto
   voice line playback.
 - [x] **4. Prologue:** the small village arena, goons, the scripted loss, the guru taken, Andhaka's silhouette.
 - [x] **5. Chapter I rework:** lathi fight, the guru's remembered teachings, the freed Guardian's words.
-- [ ] **6. Chapter II rework:** the sunset relight, the sword-training cinematic, the vanara mentor (placeholder),
+- [x] **6. Chapter II rework:** the sunset relight, the sword-training cinematic, the vanara mentor (placeholder),
   shield and parry training, the ending that points to Dwarka.
 - [ ] **7. Chapter III, the island:** the new underground lamp-lit map (explorable), mini monster and archer
   placeholders, the blessed mace.

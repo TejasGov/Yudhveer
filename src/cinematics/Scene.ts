@@ -91,7 +91,12 @@ export type Trigger =
  * A story beat in the fight: a cutscene (the fight stops, as for a boss's arrival) or lines the hero hears while he
  * fights (the guru's voice). `run` runs as it fires (e.g. teaching the move the guru's line is about).
  */
-export type StoryBeat = { on: Trigger; run?: (s: Stage) => void } & ({ scene: StoryScene } | { lines: Line[] });
+export type StoryBeat = {
+  on: Trigger;
+  run?: (s: Stage) => void;
+  /** A control hint shown with it (`{guard}`-style placeholders become the right key or button), as a lesson's. */
+  hint?: string;
+} & ({ scene: StoryScene } | { lines: Line[] });
 
 /**
  * Someone the story brings on who does not fight: the guru, Andhaka seen only as a shadow. Spawned with the chapter
