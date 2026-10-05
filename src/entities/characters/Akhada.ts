@@ -8,8 +8,10 @@ import type { CharacterDefinition } from '../animation/CharacterRig';
  * The old vanara mentor of the Hanuman akhada, sparring: the user's monkey-sage model (`monkey_sage.glb`, a bare
  * mesh rigged by `game asset/characters/autorig.py`, markers in `rigs/vanara.markers.json`; his tail is bound wholly
  * to the hips), 1.75 m to the top of his topknot, with his staff (`monkey_staff.glb`, a separate prop). He fights
- * with the Great Sword Pack's two-handed clips (Mace-*), the staff laid through both fists, plus two clips cut from
- * its idles for the story (`vanara_post.py`: `staff_rest`, `staff_ponder`). Built from `game asset/characters`:
+ * with the Great Sword Pack's two-handed clips (Mace-*), the staff laid through both fists, plus clips authored for the
+ * story (`vanara_post.py`): `staff_rest` and `staff_ponder` cut from its idles, and `staff_talk`, `staff_point`,
+ * `staff_shake` (Mixamo talking clips, Vanara-*, laid over `staff_rest` so the staff stays planted while he talks).
+ * Built from `game asset/characters`:
  *
  *   blender -b --factory-startup --python build_character.py -- rigs/vanara.rigged.glb animations <out>/vanara.glb
  *           --height 1.75 --fists --post vanara_post.py --clips "<see the README>"
@@ -46,8 +48,8 @@ export const MENTOR: CharacterDefinition = {
 
 /**
  * The same vanara as the story's cast member, once the lesson is over: he stands leaning on the planted staff, a hand
- * on his hip (`staff_rest`), and walks with it like a pilgrim's pole. `staff_ponder` (a hand to his beard) is played
- * by cue on a line.
+ * on his hip (`staff_rest`, his calm standing idle), and walks with it like a pilgrim's pole. `staff_ponder` (a hand
+ * to his beard), `staff_talk` (looped), `staff_point` and `staff_shake` are played by cue on his lines.
  */
 export const MENTOR_CAST: CharacterDefinition = {
   ...MENTOR,

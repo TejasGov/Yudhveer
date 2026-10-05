@@ -35,6 +35,12 @@ export const AKHADA_MARKS = {
   /** The training circle, on the north-south line through the oculus' shaft of light (the sun, later the moon). */
   hero: v(0, 0, 5.2),
   mentor: v(0, 0, 2.6),
+  /**
+   * Where the vanara squares up for the lesson: well off to the boy's right front (~48 deg), so the follow camera
+   * (behind the boy, looking north, over his right shoulder) keeps him clear of the boy even once he has closed in
+   * to strike (straight down the line, he would be hidden behind him).
+   */
+  spar: v(2.1, 0, 3.3),
   /** Where the vanara watches the real fight from: the west verandah's edge. */
   aside: v(-8, 0, 5.5),
   /** The Vetala and Mayavi wait out of sight at the north end, by the monolith, and come out from there... */
@@ -154,6 +160,8 @@ export const AKHADA_STORY: ChapterStory = {
           { at: 0.25, actor: 'hero', clip: 'slash_4', timeScale: 1.15 },
           { at: 0.45, run: () => sfx().playSwordSwing(0.85, 'blade') },
           { at: 0.35, actor: 'mentor_spar', moveTo: v(-1.1, 0, 2.9), face: 'hero' },
+          // Stepped aside, he grounds the staff and talks, unhurried.
+          { at: 1.6, actor: 'mentor_spar', clip: 'staff_talk' },
         ],
         lines: [{ speaker: 'Vanara', text: 'You strike where I was, boy. Strike where I will be.', voice: 'akhada_open_mentor_2' }],
         camera: [
@@ -189,7 +197,9 @@ export const AKHADA_STORY: ChapterStory = {
         linesAt: 0.8,
         cues: [
           { at: 0, actor: 'hero', play: 'IDLE' },
-          { at: 0.3, actor: 'mentor_spar', moveTo: v(0, 0, 4.0), face: 'hero' },
+          // Stopping a long step short of him, so the staff, planted at his side, stays clear of the dhal.
+          { at: 0.3, actor: 'mentor_spar', moveTo: v(0, 0, 3.75), face: 'hero' },
+          { at: 1.5, actor: 'mentor_spar', clip: 'staff_talk' },
           // "...Here." in the recording: the dhal is on his arm.
           { at: 3.4, run: (s) => dhal(s, true), essential: true },
         ],
@@ -198,21 +208,26 @@ export const AKHADA_STORY: ChapterStory = {
           text: 'Hmph. You swing like a farmer, boy. Here. A dhal is not for hiding. Meet the blow... and turn it away.',
           voice: 'akhada_train_mentor_1',
         }],
+        // Square on to the two of them from the boy's shield side: the vanara left of frame, the dhal right.
         camera: [
-          { pos: v(-3.6, 1.5, 3.7), look: v(0, 1.25, 4.5), fov: 38 },
-          { pos: v(-3.0, 1.45, 3.9), look: v(0, 1.3, 4.6), fov: 35 },
+          { pos: v(-4.0, 1.5, 4.4), look: v(0, 1.2, 4.45), fov: 38 },
+          { pos: v(-3.5, 1.45, 4.45), look: v(0, 1.25, 4.5), fov: 35 },
         ],
       },
-      // He steps back to his mark and squares up; over the boy's shoulder, where the fight camera takes over.
+      // He steps back to his mark and squares up, the boy turning to keep him in front; over the boy's shoulder,
+      // easing back to where the follow camera takes over (behind him, looking north).
       {
         fadeIn: 0.15,
         ease: ease.inOut,
         linesAt: 1.2,
-        cues: [{ at: 0.2, actor: 'mentor_spar', moveTo: M.mentor, face: 'hero' }],
+        cues: [
+          { at: 0.2, actor: 'mentor_spar', moveTo: M.spar, face: 'hero' },
+          { at: 0.6, actor: 'hero', face: M.spar },
+        ],
         lines: [{ speaker: 'Vanara', text: 'Raise it. I will come at you, and you will hold.', voice: 'akhada_open_mentor_3' }],
         camera: (s): CameraKey[] => [
-          { pos: s.at('hero', -1.9, -0.95, 1.55), look: M.mentor.clone().setY(1.2), fov: 40 },
-          { pos: s.at('hero', -3.1, -0.6, 2.0), look: M.mentor.clone().setY(1.1), fov: 52 },
+          { pos: s.at('hero', -1.9, -0.95, 1.55), look: M.spar.clone().setY(1.2), fov: 40 },
+          { pos: M.hero.clone().add(v(0.55, 2.0, 3.3)), look: M.hero.clone().lerp(M.spar, 0.5).setY(1.2), fov: 52 },
         ],
       },
     ],
@@ -278,6 +293,7 @@ export const AKHADA_STORY: ChapterStory = {
               { at: 0, actor: 'mentor_spar', place: M.aside },
               { at: 0, run: endLesson, essential: true },
               { at: 0, actor: 'hero', face: 'mentor' },
+              { at: 0.3, actor: 'mentor', clip: 'staff_talk' },
             ],
             lines: [{ speaker: 'Vanara', text: 'Enough. You will do... for a farmer.', voice: 'akhada_arrive_mentor_1' }],
             camera: (s): CameraKey[] => {
@@ -303,6 +319,8 @@ export const AKHADA_STORY: ChapterStory = {
               { at: 0, actor: 'vetala', show: true },
               { at: 0, actor: 'mayavi', show: true },
               { at: 0.2, actor: 'mentor', face: M.vetalaWaits },
+              // A look down, then his free hand out at the two of them.
+              { at: 0.3, actor: 'mentor', clip: 'staff_point' },
               { at: 0.4, actor: 'hero', face: AKHADA_CENTRE },
               { at: 0.6, actor: 'vetala', moveTo: M.vetala, face: 'hero' },
               { at: 1.0, actor: 'mayavi', moveTo: M.mayavi, face: 'hero' },
@@ -393,11 +411,15 @@ export const AKHADA_STORY: ChapterStory = {
           { pos: s.at('mentor', -1.15, -0.95, 1.32), look: s.head('hero'), fov: 36 },
         ],
       },
-      // On the vanara, closer: Dwarka, and Shalva.
+      // On the vanara, closer: Dwarka, and Shalva. ("Not from me": a slow shake of the head; then he talks it out.)
       {
         fadeIn: 0.12,
         ease: ease.drift,
         sway: 0.012,
+        cues: [
+          { at: 0, actor: 'mentor', clip: 'staff_shake' },
+          { at: 2.7, actor: 'mentor', clip: 'staff_talk' },
+        ],
         lines: [
           { speaker: 'Vanara', text: 'Not from me. Go to Dwarka, if you would know why your village burned.', voice: 'akhada_end_mentor_2' },
           {
@@ -419,17 +441,23 @@ export const AKHADA_STORY: ChapterStory = {
         fadeIn: 0.12,
         ease: ease.out,
         sway: 0.012,
+        cues: [{ at: 0, actor: 'mentor', play: 'IDLE' }],
         lines: [{ speaker: 'Yudhveer', text: 'Then what will?' }],
         camera: (s): CameraKey[] => [
           { pos: s.at('mentor', -1.2, -1.0, 1.3), look: s.head('hero'), fov: 36 },
           { pos: s.at('mentor', -1.1, -0.95, 1.32), look: s.head('hero'), fov: 34 },
         ],
       },
-      // Side on to the two of them, the lamps behind: the island, and the blessed mace.
+      // Side on to the two of them, the lamps behind: the island, and the blessed mace. He looks down, thinking, then
+      // points the boy on his way, and talks on.
       {
         fadeIn: 0.15,
         ease: ease.drift,
         sway: 0.01,
+        cues: [
+          { at: 0.1, actor: 'mentor', clip: 'staff_point' },
+          { at: 4.4, actor: 'mentor', clip: 'staff_talk' },
+        ],
         lines: [{
           speaker: 'Vanara',
           text: 'Out past the city, on an island, a blessed mace lies waiting. Old things keep it. Take it from them first. Then go to Shalva.',
@@ -452,6 +480,7 @@ export const AKHADA_STORY: ChapterStory = {
         ease: ease.drift,
         linesAt: 1.6,
         cues: [
+          { at: 0, actor: 'mentor', play: 'IDLE' },
           { at: 0.3, actor: 'hero', face: AKHADA_GATE },
           { at: 0.9, actor: 'hero', moveTo: (s) => s.pos('hero').add(AKHADA_GATE.clone().sub(s.pos('hero')).setY(0).normalize().multiplyScalar(5)) },
         ],

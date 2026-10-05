@@ -400,8 +400,23 @@ the relight in `src/levels/Level2_Akhada.ts`.
   fast enough to measure as strikes), and his staff whooshes and knocks like wood. Once the lesson is over the cast's
   vanara (`MENTOR_CAST`) leans on the planted staff, a hand on his hip (`staff_rest`), walks with it like a pole
   (`iv_pole_walking`), and strokes his beard on "Hm. Not a farmer, then." (`staff_ponder`); both authored clips are
-  cut from Great Sword idles by `game asset/characters/vanara_post.py`. No new Mixamo clips: the Browser pane was not
-  signed in to Mixamo, so a dedicated talking clip is still to get.
+  cut from Great Sword idles by `game asset/characters/vanara_post.py`.
+- **The vanara talking** (2026-10-05, Mixamo `Vanara-*` clips): three clips laid over `staff_rest` by
+  `vanara_post.py`, the head, neck and left arm from Mixamo and the rest (the right hand on the planted staff, the
+  legs) from `staff_rest`, so the staff stays planted while he talks: `staff_talk` (looped, General Conversation),
+  `staff_point` (Looking Down Then Pointing Forward: a look down, then the free hand out) and `staff_shake`
+  (Thoughtful Head Shake, the head only). Used on his lines: the opening ("You strike where I was", leaning on the
+  staff once he has stepped aside; the dhal handover), the arrival ("Enough..." talks; "You did not climb this hill
+  alone" points the two out), and the ending (a head shake on "Not from me", talking through Dwarka and Shalva, the
+  look down and point on the island line, then talking on). Between them, and wherever he is not sparring, he stands
+  at `staff_rest` (his calm idle; the guard idle `great_sword_idle` is only for the montage and the spar). No staff
+  attack clips: Mixamo has none that beat the Great Sword sweeps.
+- **Framing** (2026-10-05): the dhal handover is shot square on from the boy's shield side, the vanara stopping 1.45 m
+  short of him with the staff planted at his side, so the staff no longer crosses the dhal. For the lesson he squares
+  up on `AKHADA_MARKS.spar`, off the boy's right front (~48 deg), and the boy turns to face him: the follow camera
+  (behind the boy, looking north) keeps him clear of the boy even once he has closed in to strike, where straight down
+  the north-south line he was hidden behind him. The last opening shot ends over the boy's shoulder where the follow
+  camera picks up.
 - **Left for later:** the mentor has no name (subtitles say "Vanara"); every vanara line but the dhal handover is
   unrecorded; the chapter-complete screen counts the training's deflections; the hero's sword-clip timings in the
   montage are by eye.

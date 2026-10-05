@@ -1177,6 +1177,26 @@
    "source": "great_sword_idle_4 0.6-2.5 s",
    "duration": 1.9,
    "loop": false
+  },
+  "staff_talk": {
+   "source": "general_conversation 0-264 over staff_rest",
+   "duration": 8.8,
+   "loop": true,
+   "speed": 0.0,
+   "direction": [
+    0.0,
+    0.0
+   ]
+  },
+  "staff_point": {
+   "source": "looking_down_then_pointing_forward over staff_rest",
+   "duration": 4.7,
+   "loop": false
+  },
+  "staff_shake": {
+   "source": "thoughtful_head_shake (head) over staff_rest",
+   "duration": 3.0667,
+   "loop": false
   }
  }
 }
