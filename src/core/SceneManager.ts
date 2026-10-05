@@ -1,9 +1,9 @@
 import * as THREE from 'three';
-import gsap from 'gsap';
 import { PostFX } from './postfx/PostFX';
 import { PhysicsWorld } from './PhysicsWorld';
 import type { LevelAtmosphere } from '../levels/LevelTypes';
-import { Settings } from './Settings';
+import { ImpactCamera, IMPACTS } from './ImpactCamera';
+import { InputManager } from './InputManager';
 
 // Spring-arm camera: gap kept in front of whatever blocks the arm, and the shortest the arm may get.
 const CAMERA_PADDING = 0.3;
@@ -37,8 +37,11 @@ export class SceneManager {
   private armLength = 3.4;
   private readonly physics = PhysicsWorld.getInstance();
 
-  // Screen shake offset
-  private shakeOffset = new THREE.Vector3();
+  /**
+   * Blows landing, felt in the gameplay camera (kick, smooth shake, FOV punch). The Engine applies it after the
+   * follow solve each frame; it is never written back into the follow camera's yaw, pitch, pivot or `viewYaw`.
+   */
+  public readonly impact = new ImpactCamera();
 
   // Offset of the shadow-casting key light from the player; follows the level's moon or sun.
   private keyLightOffset = new THREE.Vector3(15, 25, 15);
@@ -195,16 +198,32 @@ export class SceneManager {
     const target = hit === null ? fullLength : Math.max(CAMERA_MIN_ARM, hit - CAMERA_PADDING);
     // Pull in at once (never show the inside of a wall), ease back out when the way clears.
     this.armLength = target < this.armLength ? target : THREE.MathUtils.lerp(this.armLength, target, 1 - Math.exp(-6 * dt));
-    this.camera.position.copy(this.cameraPivot).addScaledVector(armDir, this.armLength).add(this.shakeOffset);
+    this.camera.position.copy(this.cameraPivot).addScaledVector(armDir, this.armLength);
 
     const lookAtTarget = this.cameraPivot
       .clone()
       .addScaledVector(right, this.cameraShoulderOffset * 0.5);
     this.camera.lookAt(lookAtTarget);
-    const view = lookAtTarget.clone().sub(this.camera.position).add(this.shakeOffset);
+    const view = lookAtTarget.clone().sub(this.camera.position);
     this.viewYaw = Math.atan2(-view.x, -view.z);
 
     this.focusKeyLight(targetPos);
+  }
+
+  /**
+   * The ground shakes at `origin` (a boss's roar as his second phase begins): an undirected shake, weaker the further
+   * the camera is from it, and a low rumble in the controller.
+   */
+  public quake(origin: THREE.Vector3): void {
+    const scale = THREE.MathUtils.clamp(1 - origin.distanceTo(this.camera.position) / 12, 0.35, 1);
+    this.impact.impact('quake', this.camera, { scale });
+    const [strong, weak, ms] = IMPACTS.quake.rumble;
+    InputManager.getInstance().rumble(strong * scale, weak * scale, ms);
+  }
+
+  /** How far the follow camera sits from its pivot now (the spring arm, shortened by whatever is in the way). */
+  public get arm(): number {
+    return this.armLength;
   }
 
   /** Centres the shadow-casting key light (and its 40 m shadow box) on `point`. */
@@ -238,27 +257,6 @@ export class SceneManager {
         set(k);
         if (k === 0) this.flashBase = null;
       }, ms));
-  }
-
-  public triggerScreenShake(intensity = 0.25, duration = 0.22): void {
-    if (!Settings.get().cameraShake) return;
-    const shakeObj = { intensity };
-
-    gsap.to(shakeObj, {
-      intensity: 0,
-      duration,
-      ease: 'power2.out',
-      onUpdate: () => {
-        this.shakeOffset.set(
-          (Math.random() - 0.5) * shakeObj.intensity,
-          (Math.random() - 0.5) * shakeObj.intensity,
-          (Math.random() - 0.5) * shakeObj.intensity
-        );
-      },
-      onComplete: () => {
-        this.shakeOffset.set(0, 0, 0);
-      }
-    });
   }
 
   public render(dt: number): void {

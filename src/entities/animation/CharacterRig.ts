@@ -163,6 +163,8 @@ async function loadModel(url: string): Promise<{ scene: THREE.Group; animations:
 }
 const DEFAULT_FADE = 0.15;
 const MATCH_SPEED_RANGE: [number, number] = [0.5, 2.4];
+/** Fastest change of a speed-matched clip's playback rate, per second (JITTER.md, fix 5). */
+const STRIDE_RATE = 2.5;
 
 /**
  * A skinned character built by the character pipeline: cel-shaded to match the levels, cross-fading between
@@ -174,9 +176,16 @@ export class CharacterRig {
   private readonly actions = new Map<string, THREE.AnimationAction>();
   private readonly ramp = createToonRamp([0.18, 0.46, 0.8, 1.0]);
   private current: { config: StateAnimation; action: THREE.AnimationAction; lastTime: number } | null = null;
+  /** Cross-fades under way (see `blendTo`): each clip's weight from `from` to `to` over `duration` seconds. */
+  private readonly fades = new Map<THREE.AnimationAction, { from: number; to: number; t: number; duration: number }>();
   private readonly mounts: Mount[] = [];
   /** The definition's `scale`, applied once props are attached (see `applyScale`). */
   private scale = 1;
+  /**
+   * Dev counter for the jitter probe (`__debug.jitter`): looping clips started over from their first frame while still
+   * visibly blended in, each one a pop of the pose and a restarted stride.
+   */
+  public restarts = 0;
 
   private constructor(
     gltf: { scene: THREE.Object3D; animations: THREE.AnimationClip[] },
@@ -407,28 +416,73 @@ export class CharacterRig {
     }
   }
 
-  /** Cross-fades to the animation for `config`; a looping clip that is already playing just continues. */
+  /**
+   * Cross-fades to the animation for `config`; a looping clip that is already playing just continues, and one still
+   * fading out from a moment ago blends back in from where it is (no restarted stride, no pop of the pose).
+   */
   public play(config: StateAnimation): void {
     const action = this.actions.get(config.clip);
     if (!action) return;
     const info = this.manifest.clips[config.clip];
     const fade = config.fade ?? DEFAULT_FADE;
     const previous = this.current?.action;
+    const rate = config.timeScale ?? 1;
     if (previous === action && info?.loop) {
+      // The same loop under another state (a walk played backwards as a back-step): only its direction changes.
+      action.setEffectiveTimeScale(config.reverse ? -rate : rate);
       this.current = { config, action, lastTime: action.time };
       return;
     }
-    action.reset();
-    const rate = config.timeScale ?? 1;
+    const resume = !!info?.loop && !!previous && this.weightOf(action) > 0.01;
+    if (!resume) {
+      if (info?.loop && action.getEffectiveWeight() > 0.01) this.restarts++;
+      action.reset();
+      if (config.reverse) action.time = action.getClip().duration;
+      else if (config.startAt) action.time = config.startAt;
+    }
     action.setEffectiveTimeScale(config.reverse ? -rate : rate);
-    if (config.reverse) action.time = action.getClip().duration;
-    else if (config.startAt) action.time = config.startAt;
-    action.setEffectiveWeight(1);
     action.play();
-    // The very first clip, or a restart of the one playing, starts at full weight: fading in from nothing would
-    // blend through the bind (T) pose.
-    if (previous && previous !== action) action.crossFadeFrom(previous, fade, false);
+    if (previous && previous !== action) this.blendTo(action, resume ? this.weightOf(action) : 0, fade);
+    else {
+      // The very first clip, or a restart of the one playing, starts at full weight: fading in from nothing would
+      // blend through the bind (T) pose.
+      this.fades.delete(action);
+      action.setEffectiveWeight(1);
+    }
     this.current = { config, action, lastTime: action.time };
+  }
+
+  /** How much of the pose `action` makes up now (0 if it is not playing at all). */
+  private weightOf(action: THREE.AnimationAction): number {
+    return action.isScheduled() && action.enabled ? action.getEffectiveWeight() : 0;
+  }
+
+  /**
+   * Fades `action` in from `from` and every other clip with weight out, all over `seconds` and each from the weight it
+   * has now. The weights keep summing to one, so a fade begun while another is still under way never jumps (three.js's
+   * own cross-fade restarts both sides from 1 and 0) and never lets the bind pose show through.
+   */
+  private blendTo(action: THREE.AnimationAction, from: number, seconds: number): void {
+    for (const other of this.actions.values()) {
+      if (other === action) continue;
+      const w = this.weightOf(other);
+      if (w > 0) this.fades.set(other, { from: w, to: 0, t: 0, duration: seconds });
+      else this.fades.delete(other);
+    }
+    action.setEffectiveWeight(from);
+    this.fades.set(action, { from, to: 1, t: 0, duration: seconds });
+  }
+
+  /** Advances the cross-fades by `dt` (simulated) seconds; a clip faded right out stops. */
+  private updateFades(dt: number): void {
+    for (const [action, f] of this.fades) {
+      f.t += dt;
+      const k = f.duration > 0 ? Math.min(1, f.t / f.duration) : 1;
+      action.setEffectiveWeight(f.from + (f.to - f.from) * k);
+      if (k < 1) continue;
+      this.fades.delete(action);
+      if (f.to === 0) action.stop();
+    }
   }
 
   /** Seconds one play of this state's clip takes at its configured rate. */
@@ -444,6 +498,11 @@ export class CharacterRig {
 
   public get time(): number {
     return this.current?.action.time ?? 0;
+  }
+
+  /** The playing clip's effective playback rate (speed-matched loops change it with the ground speed). */
+  public get timeScale(): number {
+    return this.current?.action.getEffectiveTimeScale() ?? 1;
   }
 
   /** Jumps the playing clip to `time` (clip seconds), e.g. straight to the landing when touching down early. */
@@ -473,10 +532,16 @@ export class CharacterRig {
     if (cur?.config.matchSpeed) {
       const authored = this.manifest.clips[cur.config.clip]?.speed;
       if (authored && authored > 0.01) {
-        const scale = THREE.MathUtils.clamp(groundSpeed / (authored * this.scale), ...MATCH_SPEED_RANGE);
-        cur.action.setEffectiveTimeScale(scale);
+        const want = THREE.MathUtils.clamp(groundSpeed / (authored * this.scale), ...MATCH_SPEED_RANGE);
+        // The stride re-times smoothly: a small deadband (the already smoothed speed's last per cent of wobble is not
+        // worth chasing), and at most STRIDE_RATE per second of change.
+        const now = cur.action.getEffectiveTimeScale();
+        if (Math.abs(want - now) > 0.02 * want) {
+          cur.action.setEffectiveTimeScale(now + THREE.MathUtils.clamp(want - now, -STRIDE_RATE * dt, STRIDE_RATE * dt));
+        }
       }
     }
+    this.updateFades(dt);
     this.mixer.update(dt);
     if (!cur || !this.drivesRootMotion()) return null;
     const curve = this.manifest.clips[cur.config.clip].rootMotion!;

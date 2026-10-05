@@ -78,14 +78,15 @@ export class Yatudhana extends Enemy {
     this.castTimer += dt;
     if (distance > 0.1) this.turnToward(Math.atan2(toTarget.x, toTarget.z), this.turnRate, dt);
     const dir = toTarget.normalize();
+    const mode = this.chooseMoveMode(distance, KEEP_FAR, KEEP_NEAR, dt);
     if (this.castTimer >= CAST_COOLDOWN && distance <= KEEP_FAR + 2 && this.hasClip('CAST')) {
       this.castTimer = Math.random() * 0.8;
       this.released = false;
       this.stateMachine.changeState('CAST');
-    } else if (distance < KEEP_NEAR) {
+    } else if (mode === 'retreat') {
       this.backOff(dir, dt);
-    } else if (distance > KEEP_FAR) {
-      this.group.position.addScaledVector(dir, this.moveSpeed * 0.6 * dt);
+    } else if (mode === 'approach') {
+      this.steer(dir, this.moveSpeed * 0.6, dt);
       this.settle('MOVE');
     } else {
       this.circle(dir, dt);

@@ -1,6 +1,6 @@
 # Proposal: character jitter and weightless turning
 
-Status: proposal, research only. No game code was changed to write this.
+Status: approved ("build both jitter fixes and impact camera") and implemented, 2026-10-05. Results at the end.
 Scope: models that shake in place, twitch, or turn with no sense of weight. Camera impact is in
 [IMPACT_CAMERA.md](IMPACT_CAMERA.md).
 
@@ -454,3 +454,78 @@ human can see thrash without reading numbers.
 - three.js docs, Quaternion (`slerpQuaternions`, shortest path): https://threejs.org/docs/#api/en/math/Quaternion
 - Source Gaming, "Thoughts on Hitstop" (Sakurai's Famitsu column, vol. 490): https://sourcegaming.info/2015/11/11/thoughts-on-hitstop-sakurais-famitsu-column-vol-490-1/
 - PlayStation Blog, "Game developers explain what makes God of War (2018)'s combat tick" (2022): https://blog.playstation.com/?p=370399
+
+## Results (2026-10-05)
+
+Measured with the probe (`src/debug/JitterProbe.ts`, `__debug.jitterScenario(name)` in dev builds). Step-mode
+scenarios run the engine's own fixed step with Math.random seeded (seed 7), so each one repeats exactly; the before
+numbers are the same code with only the probe added. Rates are per second for all the scenario's enemies together;
+`max ang. accel` is the worst single fighter.
+
+| Scenario | | loco flips/s | short runs | clip restarts | vel. reversals/s | yaw reversals/s | max ang. accel (deg/s^2) | ts jumps/s | y reversals/s | pinned (s) |
+|---|---|---|---|---|---|---|---|---|---|---|
+| S1 summit pack, still hero, 40 s | before | 4.07 | 98 | 141 | 17.43 | 0.43 | 12,897 | 0 | 9.58 | 5.1 |
+| | after | 0.10 | 2 | 4 | 0.03 | 0.03 | 799 | 0 | 0.40 | 0 |
+| S1p prologue raiders, still hero, 20 s | before | 1.70 | 29 | 20 | 1.15 | 0.35 | 4,830 | 0 | 0.70 | 0 |
+| | after | 0.30 | 3 | 6 | 0.15 | 0 | 834 | 0 | 0.05 | 0 |
+| S2 summit pack, hero walking a figure-8, 15 s | before | 8.60 | 96 | 114 | 7.80 | 0.53 | 20,626 | 0.80 | 7.60 | 13.3 |
+| | after | 1.60 | 6 | 6 | 0.54 | 0.33 | 1,719 | 0 | 4.14 | 2.74 |
+| S3 Shalva, hero circle-strafing, 20 s | before | 0.05 | 1 | 1 | 0 | 0 | 10,821 | 0 | 2.15 | 0 |
+| | after | 0.35 | 1 | 2 | 0.35 | 0 | 688 | 0 | 0.40 | 0 |
+| S3b Baoli guardian, hero circle-strafing, 20 s | before | 0 | 0 | 1 | 0.20 | 0.05 | 12,032 | 0 | 0.60 | 0 |
+| | after | 0 | 0 | 1 | 0.20 | 0.05 | 688 | 0 | 0 | 0 |
+| S5 akhada sparring, still hero, 20 s | before | 0.25 | 3 | 5 | 0.05 | 0 | 38 | 0 | 0 | 0 |
+| | after | 0.10 | 1 | 4 | 0 | 0 | 0 | 0 | 0 | 0 |
+
+Live frames (`mode: 'live'`):
+
+| | before | after |
+|---|---|---|
+| S4 pose staleness in `slowMotion(0.3)` (rendered frames where the root moved and the limbs did not) | 32 % | 0 % |
+| Camera: largest translation added by shake (a light hit, a heavy hit, a deflect) | 25.7 cm | 1.8 cm |
+| Camera: largest jump between two frames | 31.7 cm | 0.6 cm |
+| Camera: largest rotation added | 0 (it only translated) | 0.76 deg |
+
+Reading the after column:
+
+- The remaining clip restarts are each looping clip's first play in the run (the counter counts any restart of a loop
+  whose weight reads above 1 %, and three.js reports an action that has never played at full weight), not pops.
+- The remaining short runs are attack, one step of IDLE, then MOVE: the state machine ends a swing in IDLE and the AI
+  starts its run the next step. The clip dwell (0.2 s) keeps that from showing.
+- S2 and S3 flip more than S1 because the hero is moving: those flips are decisions kept at least 0.4 s (0.5 s for a
+  boss), and Shalva now holds and strafes inside his range instead of walking at a hero who stays just outside it.
+- S2's y reversals are minions walking over the summit's uneven rock; S1's came from a standing body trembling on the
+  character controller's skin, now held still (below).
+- Max angular acceleration is now the turn limits: 30 rad/s^2 for minions (1,719 deg/s^2), 12 for bosses (688).
+
+What was built, per step:
+
+0. The probe and its scenarios (S1, S1p, S2, S3, S3b, S5 step mode; S4 live), `__debug.jitter(options)`.
+1. Locomotion: approach / hold / retreat with 0.35 m of hysteresis and a 0.4 s commitment (bosses 0.5 s); velocity
+   with acceleration (minions 10 / 14 m/s^2, bosses 6 / 10) instead of full-speed position steps; no backwards run (a
+   character without a back-step clip plays its walk in reverse, and holds if it has no walk); cross-fades that start
+   from every clip's current weight, and a loop still fading out blends back from its phase instead of restarting; a
+   0.2 s dwell between locomotion clips (not for the hero).
+2. Facing: turn speed with an acceleration cap (minions 30, bosses 12, hero 60 rad/s^2; the swing aim 150), an
+   ease-in, a 1.5 deg deadzone, a coast to a stop when nothing steers it, and the bearing kept within 0.9 m of the
+   target. Snaps removed: Shalva turns to the hero as he sinks and as he rises (the turn under the water and the burst
+   out of it stay snaps, out of sight); the hero's swing at nothing turns over its wind-up. Kept on purpose: the slide
+   (an evasion goes exactly where it is pressed) and placements (spawns, cutscene marks, the hero turned to face a
+   boss as his cutscene cuts in), now through `faceYaw`.
+3. Separation: soft (35 % per step of the first 8 cm of overlap, anything deeper at once so nobody walks through
+   anybody; the proposal's 2 m/s cap was left out for that reason), weighted by capsule volume; each fighter's shove
+   reported as `sepPush`; Reynolds spacing between enemies while they move (not along a route); slots round the hero
+   at least 70 deg apart for minions.
+4. Bone poses interpolated between fixed steps like the roots (restored to the exact step pose after the frame);
+   hit-stop is a freeze of real time (`CombatSystem.freeze`, combined by max, 180 ms per 0.5 s budget) with a hard
+   resume. The slide's near miss keeps its slow-motion beat, now smooth.
+5. Stride from the real, post-collision speed without shoves, filtered (8/s), a 2 % deadband and at most 2.5/s of
+   rate change.
+6. `Character.markTeleported` (called by `setPosition`, Shalva's burst out of the water, the hero turned at a boss's
+   arrival) drops the root and pose interpolation.
+7. The white-noise screen shake is gone: `ImpactCamera` (IMPACT_CAMERA.md).
+
+Also, from the "later" list: a body standing still on the ground no longer trembles on the character controller's
+skin (movement under 6 mm that the controller invents for a body not trying to move is dropped).
+
+Not done: the probe's F3 overlay (sparklines and state letters over heads); the numbers are in the console instead.

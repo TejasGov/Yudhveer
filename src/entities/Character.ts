@@ -32,6 +32,17 @@ const LOCOMOTION_STATES: CharacterState[] = ['WALK', 'MOVE', 'SPRINT', 'STRAFE_L
 const STILL_SPEED = 0.3;
 const MOVING_SPEED = 0.6;
 const STILL_AFTER = 0.2;
+/** Every entry of the state table that is standing, walking or running (the visual dwell below applies between them). */
+const LOCOMOTION_KEYS: CharacterState[] = ['IDLE', 'REST', ...LOCOMOTION_STATES];
+/**
+ * Headings within this of the target are close enough: a few centimetres of shove swing the bearing to a near
+ * neighbour by degrees, and chasing that at full turn rate is what made headings look nervous.
+ */
+const TURN_DEADZONE = THREE.MathUtils.degToRad(1.5);
+/** Turn speed asked for per radian still to turn (1/s): a turn eases into its heading instead of stopping dead. */
+const TURN_GAIN = 8;
+/** How quickly the speed that paces the stride follows the real speed (1/s): shoves and single steps don't flicker it. */
+const STRIDE_FILTER = 8;
 // A jump without clip timing (greybox): leaves at once, ~1 m high.
 const DEFAULT_JUMP = { takeoff: 0, landing: 0.58, speed: 7, recovery: 0.12 };
 
@@ -110,9 +121,39 @@ export class Character extends Entity {
    * it leaves no footfalls.
    */
   public submerged = false;
-  /** Metres per second the character really moved last step (after collision), and how long it has been ~still. */
+  /**
+   * Metres per second the character really moved last step (after collision, without fighter-separation shoves), and
+   * how long it has been ~still.
+   */
   private actualSpeed = 0;
   private stillFor = 0;
+  /** `actualSpeed` smoothed: what speed-matched walks and runs pace their stride to (JITTER.md, fix 5). */
+  private visSpeed = 0;
+  /**
+   * How fast the heading is turning (rad/s). Turning has momentum: it winds up at no more than `turnAccel` and settles
+   * the same way, so a heavy body never snaps from still to full turn in one step (JITTER.md, fix 2).
+   */
+  public yawVel = 0;
+  /** Fastest change of turning speed, rad/s^2: a minion's; bosses are heavier (Boss), the hero quicker (Player). */
+  public turnAccel = 30;
+  /** Whether something turned it this step (else a turn under way coasts to a stop), and the heading it left. */
+  private turnedThisStep = false;
+  private turnedYaw = 0;
+  /** Its weight in the fighter-separation push, about its capsule's volume (the hero's is 1): big bodies shove small ones. */
+  public mass = 1;
+  /** This step's shove from fighter separation (x, z metres): not its own movement, so the stride ignores it. */
+  public readonly sepPush = new THREE.Vector3();
+  /**
+   * Minimum seconds a walk, run or stand is shown before another one replaces it: a decision undone within a step or
+   * two never reaches the screen as a pop of the pose. (The state itself changes at once; only the clip waits.)
+   */
+  protected visualDwell = 0.2;
+  private rigKeyAge = 0;
+  /**
+   * Put somewhere outside its own movement (a spawn, a cutscene mark, a boss coming up out of the water): the Engine
+   * drops its render interpolation, so the next frame does not smear it across the gap (JITTER.md, fix 6).
+   */
+  public static onTeleported: ((character: Character) => void) | null = null;
 
   constructor(id: string, color = 0xd4af37, ribbonColor = 0xffd15c) {
     super(id);
@@ -284,6 +325,20 @@ export class Character extends Entity {
     this.lastGroundPos.set(x, y, z);
     if (this.motor) this.motor.teleport(this.group.position);
     else this.rigidBody?.setTranslation({ x, y, z }, true);
+    this.markTeleported();
+  }
+
+  /** It was moved (or turned) in one go, not by walking there: no interpolation from where it was, no turn under way. */
+  public markTeleported(): void {
+    this.yawVel = 0;
+    Character.onTeleported?.(this);
+  }
+
+  /** Faces `yaw` at once: a placement, never gameplay turning (which goes through `turnToward`). */
+  public faceYaw(yaw: number): void {
+    this.group.rotation.y = wrapAngle(yaw);
+    this.yawVel = 0;
+    this.turnedYaw = this.group.rotation.y;
   }
 
   /** Releases the capsule's controller; the body itself is removed by whoever created it. */
@@ -418,23 +473,39 @@ export class Character extends Entity {
     const rig = this.rig!;
     const sm = this.stateMachine;
     const pos = this.group.position;
-    const groundSpeed = dt > 0 ? Math.hypot(pos.x - this.lastGroundPos.x, pos.z - this.lastGroundPos.z) / dt : 0;
     const key = this.animationKey(dt);
+    this.rigKeyAge += dt;
     // A new state, the same state re-entered (its timer restarted), or IDLE turning into REST or back (but a cue's
     // clip plays on until the state changes, as it always has: an entrance cued as the cutscene begins included).
     if (sm.currentState !== this.rigState || sm.stateTime < this.rigStateTime || (key !== this.rigKey && !this.scripted)) {
-      const config = rig.definition.states[key] ?? rig.definition.states.IDLE;
-      rig.play(sm.currentState === 'JUMP' && this.jump.clip ? { ...config, clip: this.jump.clip } : config);
-      this.rigState = sm.currentState;
-      this.rigKey = key;
-      this.scripted = false;
+      // One walk, run or stand swapped for another moments after it began waits out the dwell (see `visualDwell`).
+      const hop = key !== this.rigKey && this.rigKey !== null && !this.scripted && LOCOMOTION_KEYS.includes(key)
+        && LOCOMOTION_KEYS.includes(this.rigKey) && this.rigKeyAge < this.visualDwell;
+      if (!hop) {
+        const config = this.stateAnimation(key);
+        rig.play(sm.currentState === 'JUMP' && this.jump.clip ? { ...config, clip: this.jump.clip } : config);
+        if (key !== this.rigKey) this.rigKeyAge = 0;
+        this.rigState = sm.currentState;
+        this.rigKey = key;
+        this.scripted = false;
+      }
     }
     this.rigStateTime = sm.stateTime;
     if (sm.currentState === 'JUMP') this.syncJumpClip();
-    const root = rig.update(dt, groundSpeed);
+    const root = rig.update(dt, this.visSpeed);
     rig.updateMounts(this.scripted ? sm.currentState : key, dt);
     // Root motion is just more intended movement; the motor (end of update) resolves it with the rest.
     if (root) pos.add(root.multiplyScalar(this.rootMotionScale).applyAxisAngle(UP, this.group.rotation.y));
+  }
+
+  /** The clip and playback for `key`: the definition's entry, a stand-in where one is natural, else IDLE's. */
+  private stateAnimation(key: CharacterState): StateAnimation {
+    const states = this.rig!.definition.states;
+    const own = states[key];
+    if (own) return own;
+    // No back-step of its own: its walk played backwards (never its forward run, which read as running in reverse).
+    if (key === 'WALK_BACK' && states.WALK) return { clip: states.WALK.clip, reverse: true, fade: 0.25 };
+    return states.IDLE;
   }
 
   /**
@@ -580,14 +651,50 @@ export class Character extends Entity {
   }
 
   /**
-   * Turns toward `yaw` by at most `maxRate` rad/s, always the short way round; returns the angle left to turn.
+   * Turns toward `yaw` at no more than `maxRate` rad/s, always the short way round; returns the angle left to turn.
+   * The turn has weight: its speed builds and falls at `turnAccel` at most, it eases into the heading, and it ignores
+   * a bearing within the deadzone. Staging passes a tighter deadzone so marks are faced exactly.
    * (Never lerp angles directly: across +-PI that spins the long way.)
    */
-  public turnToward(yaw: number, maxRate: number, dt: number): number {
+  public turnToward(yaw: number, maxRate: number, dt: number, options: TurnOptions = {}): number {
+    const { accel = this.turnAccel, gain = TURN_GAIN, deadzone = TURN_DEADZONE } = options;
     const diff = wrapAngle(yaw - this.group.rotation.y);
-    const step = THREE.MathUtils.clamp(diff, -maxRate * dt, maxRate * dt);
+    this.turnedThisStep = true;
+    if (dt <= 0) return diff;
+    if (Math.abs(diff) < deadzone && Math.abs(this.yawVel) < 0.2) {
+      this.yawVel = 0;
+      this.turnedYaw = this.group.rotation.y;
+      return diff;
+    }
+    // The turn speed it wants: proportional to the angle left (it eases in), capped by its rate and by what it can
+    // still brake to rest from at `accel` (so it never overshoots). The turn speed itself changes by `accel` at most.
+    const want = Math.sign(diff) * Math.min(maxRate, gain * Math.abs(diff), Math.sqrt(2 * accel * Math.abs(diff)));
+    this.yawVel += THREE.MathUtils.clamp(want - this.yawVel, -accel * dt, accel * dt);
+    let step = this.yawVel * dt;
+    if (Math.sign(step) === Math.sign(diff) && Math.abs(step) > Math.abs(diff)) {
+      step = diff;
+      this.yawVel = diff / dt;
+    }
     this.group.rotation.y = wrapAngle(this.group.rotation.y + step);
+    this.turnedYaw = this.group.rotation.y;
     return wrapAngle(diff - step);
+  }
+
+  /**
+   * A turn nothing kept steering this step (a swing committed, a stagger, a mark reached) coasts to a stop at
+   * `turnAccel` rather than halting in one step. A heading set outright meanwhile (a placement) cancels it instead.
+   */
+  private coastTurn(dt: number): void {
+    if (!this.turnedThisStep && this.yawVel !== 0) {
+      if (Math.abs(wrapAngle(this.group.rotation.y - this.turnedYaw)) > 1e-5) this.yawVel = 0;
+      else {
+        const v = this.yawVel;
+        this.yawVel = v > 0 ? Math.max(0, v - this.turnAccel * dt) : Math.min(0, v + this.turnAccel * dt);
+        this.group.rotation.y = wrapAngle(this.group.rotation.y + this.yawVel * dt);
+        this.turnedYaw = this.group.rotation.y;
+      }
+    }
+    this.turnedThisStep = false;
   }
 
   /** The dhal is up: a held guard, a blow being absorbed, or a parry whose deflection window has passed. */
@@ -758,12 +865,27 @@ export class Character extends Entity {
       this.currentMarma = 0;
     }
 
+    this.coastTurn(dt);
     // Last: everything this step moved the character freely; collide, step and fall in one place.
     this.motor?.resolve(this.group.position, dt);
     const pos = this.group.position;
-    if (dt > 0) this.actualSpeed = Math.hypot(pos.x - this.lastGroundPos.x, pos.z - this.lastGroundPos.z) / dt;
+    if (dt > 0) {
+      // Its own pace, not a neighbour's shove (fix 5): the stride keeps time with where it is really going.
+      const x = pos.x - this.lastGroundPos.x - this.sepPush.x;
+      const z = pos.z - this.lastGroundPos.z - this.sepPush.z;
+      this.actualSpeed = Math.hypot(x, z) / dt;
+      this.visSpeed += (this.actualSpeed - this.visSpeed) * (1 - Math.exp(-STRIDE_FILTER * dt));
+    }
+    this.sepPush.set(0, 0, 0);
     this.lastGroundPos.copy(pos);
   }
+}
+
+/** How `turnToward` turns: its angular acceleration (rad/s^2), ease-in gain (1/s) and deadzone (radians). */
+export interface TurnOptions {
+  accel?: number;
+  gain?: number;
+  deadzone?: number;
 }
 
 /** A span of an attack (state seconds) in which its blade can land; each window lands at most once. */

@@ -230,6 +230,8 @@ const SHADE_FADE = 1.6;
 
 /** Turning speed for characters turning on cue, rad/s. */
 const TURN_RATE = 6;
+/** Staged turns have the usual weight but finish on the mark's heading exactly (a far smaller deadzone than the AI's). */
+const STAGED_TURN = { deadzone: 0.005 };
 /** Close enough to a mark. */
 const ARRIVED = 0.08;
 /** Seconds a staged walk may make no headway before it is reported (dev builds). */
@@ -309,13 +311,13 @@ export class Staging {
       if (import.meta.env.DEV && m.stuck >= STUCK_WARNING && m.stuck - dt < STUCK_WARNING) {
         console.warn(`[Staging] ${m.actor.id} is held ${dist.toFixed(2)} m short of its mark`, m.to.toArray());
       }
-      m.actor.turnToward(Math.atan2(d.x, d.z), TURN_RATE, dt);
+      m.actor.turnToward(Math.atan2(d.x, d.z), TURN_RATE, dt, STAGED_TURN);
       pos.addScaledVector(d.divideScalar(dist), Math.min(dist, m.speed * dt));
       if (m.actor.stateMachine.currentState !== m.gait) m.actor.stateMachine.changeState(m.gait);
     }
     for (const [actor, point] of this.turns) {
       const p = actor.getPosition();
-      if (Math.abs(actor.turnToward(Math.atan2(point.x - p.x, point.z - p.z), TURN_RATE, dt)) < 0.01) this.turns.delete(actor);
+      if (Math.abs(actor.turnToward(Math.atan2(point.x - p.x, point.z - p.z), TURN_RATE, dt, STAGED_TURN)) < 0.01) this.turns.delete(actor);
     }
   }
 
@@ -342,7 +344,7 @@ export class Staging {
 
   private turnNow(actor: Character, point: THREE.Vector3): void {
     const p = actor.getPosition();
-    if (Math.hypot(point.x - p.x, point.z - p.z) > 1e-3) actor.group.rotation.y = Math.atan2(point.x - p.x, point.z - p.z);
+    if (Math.hypot(point.x - p.x, point.z - p.z) > 1e-3) actor.faceYaw(Math.atan2(point.x - p.x, point.z - p.z));
   }
 }
 

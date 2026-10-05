@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { Boss } from './Boss';
+import { SceneManager } from '../core/SceneManager';
 import type { FightTarget } from './Enemy';
 
 /*
@@ -180,7 +181,7 @@ export class BossShalva extends Boss {
     this.hits = [];
     this.kiteTime = 0;
     this.settle('IDLE');
-    this.faceTowards(target.getPosition());
+    // (He turns to the hero as he sinks: updateDive.)
     // He goes under in a burst of water.
     this.particleFX.spawnDustPuff(here, 36);
     this.soundFX.playPlunge();
@@ -217,6 +218,10 @@ export class BossShalva extends Boss {
         return;
       }
       this.settle('IDLE');
+      // Squaring up to the hero as he sinks, quicker than his usual heavy turn but still a turn, not a snap.
+      const hero = target.getPosition();
+      const here = this.getPosition();
+      this.turnToward(Math.atan2(hero.x - here.x, hero.z - here.z), this.turnRate * 2, dt, { accel: this.turnAccel * 3 });
       this.depth = ease.in(Math.min(1, dive.t / SINK));
       if (dive.t >= 0.3 && dive.ring === 0) {
         dive.ring = 1;
@@ -243,8 +248,9 @@ export class BossShalva extends Boss {
       const left = Math.max(0.05, UNDER - BOIL - dive.t);
       const step = Math.min(to.length(), Math.min(14, Math.max(5, to.length() / left)) * dt);
       if (to.lengthSq() > 1e-4) {
-        // (He is out of sight: turned along the wake, so the dark shape under the water runs lengthwise.)
-        this.group.rotation.y = Math.atan2(to.x, to.z);
+        // (He is out of sight, so this may snap: turned along the wake, so the dark shape under the water runs
+        // lengthwise.)
+        this.faceYaw(Math.atan2(to.x, to.z));
         pos.addScaledVector(to.normalize(), step);
       }
       dive.ring -= dt;
@@ -261,9 +267,14 @@ export class BossShalva extends Boss {
     // Rising: out of the water, then the smash (unless the hero is down, or a blow has already rocked him).
     this.depth = 1 - ease.out(Math.min(1, dive.t / RISE));
     if (state === 'STAGGER' || state === 'POSTURE_BROKEN' || state === 'DEFLECTED') dive.swingAt = -1;
+    // Rising with his gada going up, he keeps turning onto the hero until the smash comes down (no snap at the swing).
+    if (dive.swingAt >= 0 && !target.isDown()) {
+      const hero = target.getPosition();
+      const here = this.getPosition();
+      this.turnToward(Math.atan2(hero.x - here.x, hero.z - here.z), this.turnRate * 2, dt, { accel: this.turnAccel * 3 });
+    }
     if (dive.swingAt >= 0 && dive.t >= dive.swingAt && !target.isDown()) {
       dive.swingAt = -1;
-      this.faceTowards(target.getPosition());
       this.stateMachine.changeState('ATTACK_1');
       this.planLunge(this.getPosition().distanceTo(target.getPosition()));
     }
@@ -271,7 +282,10 @@ export class BossShalva extends Boss {
     else if (state.startsWith('ATTACK')) this.applyLunge(dt);
   }
 
-  /** He breaks the surface beside the hero, facing him, and his gada goes up. */
+  /**
+   * He breaks the surface beside the hero, facing him, and his gada goes up. Out of sight until now, he is put there
+   * outright: a teleport, so the frame he appears in is not interpolated from where the wake was (JITTER.md, fix 6).
+   */
   private burstOut(dive: Dive, target: FightTarget): void {
     const pos = this.group.position;
     pos.x = dive.burst.x;
@@ -281,8 +295,11 @@ export class BossShalva extends Boss {
     this.submerged = false;
     this.modelGroup.visible = true;
     this.faceTowards(target.getPosition());
+    this.markTeleported();
     this.particleFX.spawnDustPuff(pos, 40);
     this.soundFX.playSplash(5);
+    // The stone shudders as he erupts beside the hero (an undirected shake; the smash that follows lands on its own).
+    SceneManager.getInstance().quake(pos);
     this.soundFX.playRoar(1.05);
     // Timed so the smash comes down (its last strike window: the first is the gada going up) REACTION after he is
     // seen, the gada raised the whole while.

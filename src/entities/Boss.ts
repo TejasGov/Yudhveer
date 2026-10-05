@@ -37,6 +37,11 @@ export class Boss extends Enemy {
     this.heavyPoise = true;
     this.tuning = tuning;
     this.turnRate = 3.5;
+    // Heavy: its turns wind up and settle slowly, it gathers and sheds speed slowly, and it sticks to a choice longer.
+    this.turnAccel = 12;
+    this.accel = 6;
+    this.decel = 10;
+    this.dwell = 0.5;
   }
 
   /** The roar (or its like) for the cutscene; returns its length. */
@@ -99,7 +104,7 @@ export class Boss extends Enemy {
     const toTarget = new THREE.Vector3().subVectors(target.getPosition(), this.getPosition()).setY(0);
     const distance = toTarget.length();
     if (distance > 0.1 && this.mayTrack() && state !== 'CHARGE') {
-      this.turnToward(Math.atan2(toTarget.x, toTarget.z), this.turnRate, dt);
+      this.turnToward(this.bearingTo(toTarget, distance), this.turnRate, dt);
     }
     if (state !== 'ATTACK_JUMP') this.rootMotionScale = 1;
 
@@ -132,6 +137,7 @@ export class Boss extends Enemy {
     this.attackTimer += dt;
     const { attackInterval, strikeRange, tooClose, leapRange, leapMax } = this.tuning;
     const ready = this.attackTimer >= attackInterval;
+    const mode = this.chooseMoveMode(distance, strikeRange, tooClose, dt);
     const leapClip = this.rig?.definition.states.ATTACK_JUMP;
     if (ready && distance > leapRange && distance <= leapMax && leapClip) {
       this.attackTimer = 0;
@@ -147,11 +153,11 @@ export class Boss extends Enemy {
       this.stateMachine.changeState(this.chooseAttack());
       this.planLunge(distance);
       this.updateProceduralAnimations(dt, 0);
-    } else if (distance > strikeRange) {
-      this.group.position.addScaledVector(toTarget.normalize(), this.moveSpeed * dt);
+    } else if (mode === 'approach') {
+      this.steer(toTarget.normalize(), this.moveSpeed, dt);
       this.settle('MOVE');
       this.updateProceduralAnimations(dt, 1);
-    } else if (distance < tooClose) {
+    } else if (mode === 'retreat') {
       this.backOff(toTarget.normalize(), dt);
       this.updateProceduralAnimations(dt, 0.5);
     } else {

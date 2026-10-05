@@ -7,6 +7,8 @@ import { ParticleFX } from './ParticleFX';
 import { BloodFX } from './BloodFX';
 import { SoundFX } from './SoundFX';
 import { SceneManager } from '../core/SceneManager';
+import { InputManager } from '../core/InputManager';
+import { IMPACTS, type ImpactKind } from '../core/ImpactCamera';
 import type { Character } from '../entities/Character';
 import type { CharacterState } from '../entities/CharacterStateMachine';
 
@@ -24,6 +26,12 @@ const BOSS_STAGGER_GRACE = 2.5;
  */
 const BLADE_POSTURE = 0.7;
 const BOSS_BLADE_POSTURE = 0.35;
+/**
+ * Hit-stop budget: freezes add up to at most this many milliseconds in any `FREEZE_WINDOW` (a sweep through a crowd
+ * lands many blows at once and must not stall the game).
+ */
+const FREEZE_BUDGET = 180;
+const FREEZE_WINDOW = 500;
 
 /** A short line the HUD flashes mid-screen. `tone` picks its colour. */
 export interface Callout {
@@ -71,8 +79,64 @@ export class CombatSystem {
   /** Per enemy: until when light hits cannot stagger it again. */
   private readonly staggerImmuneUntil = new Map<string, number>();
 
-  /** Hit-stop and slow motion: the engine scales simulated time by this. */
-  public globalTimeScale = 1.0;
+  /**
+   * Slow motion (the outros' beats, a slide under a blow): the rate simulated time runs at. A hit-stop freeze holds it
+   * at nothing on top, for a stretch of wall-clock time (`freeze`), then lets go at once.
+   */
+  public slowScale = 1;
+  /** The freeze in progress (performance.now() milliseconds), and recent ones against the budget. */
+  private freezeFrom = 0;
+  private freezeUntil = 0;
+  private readonly freezes: { at: number; ms: number }[] = [];
+  /** Gamepad rumble for impacts. */
+  private readonly input = InputManager.getInstance();
+
+  /** The rate simulated time runs at now: 0 while frozen, else the slow-motion rate. Setting it ends any freeze. */
+  public get globalTimeScale(): number {
+    return performance.now() < this.freezeUntil ? 0 : this.slowScale;
+  }
+
+  public set globalTimeScale(scale: number) {
+    this.slowScale = scale;
+    this.freezeUntil = 0;
+  }
+
+  /**
+   * Simulated seconds in a frame of `rawDt` wall-clock seconds ending at `now` (ms): the part spent frozen counts for
+   * nothing, the rest runs at the slow-motion rate. Exact whatever the frame rate, so a 40 ms freeze is 40 ms.
+   */
+  public simulatedTime(rawDt: number, now: number): number {
+    const start = now - rawDt * 1000;
+    const frozen = Math.max(0, Math.min(now, this.freezeUntil) - Math.max(start, this.freezeFrom)) / 1000;
+    return Math.max(0, rawDt - frozen) * this.slowScale;
+  }
+
+  /**
+   * Hit-stop: simulated time stops dead for `ms` of real time, then resumes at full rate with no ramp (a ramp only
+   * showed the poses stepping). Overlapping freezes take the longer, not the sum, within the budget above.
+   */
+  public freeze(ms: number): void {
+    const now = performance.now();
+    while (this.freezes.length && now - this.freezes[0].at > FREEZE_WINDOW) this.freezes.shift();
+    const used = this.freezes.reduce((sum, f) => sum + f.ms, 0);
+    const until = now + Math.min(ms, FREEZE_BUDGET - used);
+    if (until <= this.freezeUntil || until <= now) return;
+    this.freezes.push({ at: now, ms: until - Math.max(now, this.freezeUntil) });
+    if (now >= this.freezeUntil) this.freezeFrom = now;
+    this.freezeUntil = until;
+  }
+
+  /**
+   * One event of the impact table (ImpactCamera's IMPACTS): its hit-stop, the camera's kick, shake and FOV punch, and
+   * the controller's rumble. `dir`: the way the force travels (attacker to victim), world space.
+   */
+  public impact(kind: ImpactKind, dir?: THREE.Vector3, scale = 1): void {
+    const spec = IMPACTS[kind];
+    if (spec.freeze > 0) this.freeze(spec.freeze);
+    this.sceneManager.impact.impact(kind, this.sceneManager.camera, { dir, scale });
+    const [strong, weak, ms] = spec.rumble;
+    this.input.rumble(strong * Math.min(scale, 1.4), weak * Math.min(scale, 1.4), ms);
+  }
   /** This chapter's tallies (reset by `resetStats`). */
   public stats: FightStats = emptyStats();
   /** Mid-screen callouts (the HUD shows them). */
@@ -201,10 +265,15 @@ export class CombatSystem {
 
     const crush = player.weapon.sound.impact === 'crush';
     const heavy = charged || crush || attackState === 'ATTACK_JUMP';
+    // What the camera and the pad feel: a slam (a charged blow, the leaping strike, a gada finisher), a heavy blow (a
+    // finisher, any gada blow) or a light one. A boss's last blow and a broken posture outrank them.
+    const along = enemy.getPosition().clone().sub(player.getPosition()).setY(0);
+    const slam = charged || attackState === 'ATTACK_JUMP' || (crush && !!blow.heavy);
+    let kind: ImpactKind = glancing ? 'glance' : slam ? 'hitSlam' : blow.heavy || crush ? 'hitHeavy' : 'hitLight';
+    if (enemy.isBoss && enemy.currentHealth <= 0) kind = 'bossKill';
     if (glancing) {
       this.soundFX.playGlancingBlow();
       this.particleFX.spawnSparks(hitPoint, 10, false);
-      this.triggerHitStop(0.3, 0.06);
     } else {
       this.soundFX.playHitImpact(player.weapon.sound.impact);
       // With blood on, the red sparks of a flesh blow give way to it (a charged blow keeps its gold).
@@ -215,9 +284,9 @@ export class CombatSystem {
         const dir = enemy.getPosition().clone().sub(player.getPosition());
         blood.spill(hitPoint, dir, damage, enemy.blood, enemy.group.position.y, enemy.currentHealth <= 0);
       }
-      this.sceneManager.triggerScreenShake(heavy ? 0.4 : 0.2, heavy ? 0.24 : 0.16);
-      this.triggerHitStop(0.06, heavy || blow.heavy ? 0.15 : 0.1);
     }
+    this.impact(kind, along);
+    if (broken) this.impact('postureBreak', along);
 
     this.stats.damageDealt += damage;
     if (broken) {
@@ -240,7 +309,8 @@ export class CombatSystem {
   private resolveEvasion(enemy: Enemy, player: Player): void {
     this.record({ attacker: enemy.id, defender: player.id, attack: enemy.stateMachine.currentState,
       at: enemy.stateMachine.stateTime, result: 'evaded', point: player.getPosition().toArray() });
-    this.triggerHitStop(0.35, 0.2);
+    this.slowBeat(0.35, 0.2);
+    this.impact('evade');
     this.callout({ text: 'Evaded', tone: 'pale' });
   }
 
@@ -257,7 +327,7 @@ export class CombatSystem {
     // Raised dhal (a guard, or a parry pressed too early): the blow lands on the shield.
     const { damage, posture } = enemyBlow(enemy);
     if (player.isGuarding() && player.isFacing(enemy.getPosition())) {
-      this.handleBlockedHit(player, hitPoint, damage, posture);
+      this.handleBlockedHit(player, hitPoint, damage, posture, enemy.getPosition());
       this.record({ ...entry, result: 'blocked' });
       return;
     }
@@ -275,7 +345,11 @@ export class CombatSystem {
     else {
       blood.spill(hitPoint, player.getPosition().clone().sub(enemy.getPosition()), damage, 'red', player.group.position.y, player.currentHealth <= 0);
     }
-    this.sceneManager.triggerScreenShake(0.35, 0.22);
+    // Knocked back, away from the attacker. A boss's heavy blow lands harder, by how much it dealt.
+    const away = player.getPosition().clone().sub(enemy.getPosition()).setY(0);
+    if (broken) this.impact('guardBroken', away);
+    else if (enemy.isBoss && damage >= 24) this.impact('hurtHeavy', away, Math.min(1.4, damage / 18));
+    else this.impact('hurt', away);
     // No stun-lock: a stagger (and a short grace after it) is not restarted by the rest of a combo, so the player
     // always gets a window to guard, parry or get out.
     if (!broken && player.stateMachine.currentState !== 'DEAD' && this.clock >= this.playerStaggerImmuneUntil) {
@@ -288,11 +362,13 @@ export class CombatSystem {
     this.soundFX.playParryClash();
     this.particleFX.spawnSparks(hitPoint, 55, true);
     this.particleFX.spawnDeflectionShockwave(hitPoint);
-    this.triggerHitStop(0.05, 0.14);
-    this.sceneManager.triggerScreenShake(0.42, 0.28);
+    // A deflect is a crisp snap toward the attacker (the hero meets the blow), not a shake.
+    const toward = enemy.getPosition().clone().sub(player.getPosition()).setY(0);
+    this.impact('deflect', toward);
 
     this.stats.deflections++;
     const postureBroken = enemy.addMarmaDamage(50);
+    if (postureBroken) this.impact('postureBreak', toward);
     if (postureBroken) {
       this.stats.postureBreaks++;
       this.soundFX.playPostureBreak();
@@ -303,28 +379,30 @@ export class CombatSystem {
     }
   }
 
-  /** A blow taken on the guard: a little health gets through, posture takes more, and the dhal rocks back. */
-  public handleBlockedHit(player: Player, hitPoint: THREE.Vector3, damage: number, postureDamage: number): void {
+  /**
+   * A blow taken on the guard: a little health gets through, posture takes more, and the dhal rocks back. `from`:
+   * where the blow came from (the camera is knocked back away from it).
+   */
+  public handleBlockedHit(player: Player, hitPoint: THREE.Vector3, damage: number, postureDamage: number, from?: THREE.Vector3): void {
     this.stats.blocks++;
     player.takeDamage(damage * 0.2);
     const broken = player.addMarmaDamage(postureDamage * 1.25);
     this.soundFX.playShieldBlock();
     this.particleFX.spawnSparks(hitPoint, 18, false);
-    this.sceneManager.triggerScreenShake(0.15, 0.14);
+    const away = from ? player.getPosition().clone().sub(from).setY(0) : undefined;
+    this.impact(broken ? 'guardBroken' : 'block', away);
     if (broken) this.callout({ text: 'Guard broken', tone: 'red' });
     else if (player.stateMachine.currentState !== 'DEAD') player.stateMachine.changeState('BLOCK_HIT');
   }
 
-  public triggerHitStop(targetTimeScale = 0.05, duration = 0.12): void {
+  /**
+   * A beat of slow motion (a slide under a blow): `scale` for half of `seconds`, easing back over the rest. Not a
+   * hit-stop (that is `freeze`); with poses interpolated between steps it stays smooth.
+   */
+  public slowBeat(scale: number, seconds: number): void {
     gsap.killTweensOf(this);
-    this.globalTimeScale = targetTimeScale;
-
-    gsap.to(this, {
-      globalTimeScale: 1.0,
-      duration,
-      ease: 'power3.out',
-      delay: duration * 0.5
-    });
+    this.slowScale = scale;
+    gsap.to(this, { slowScale: 1, duration: seconds, ease: 'power3.out', delay: seconds * 0.5 });
   }
 
   public callout(callout: Callout): void {
@@ -339,6 +417,7 @@ export class CombatSystem {
     this.playerStaggerImmuneUntil = 0;
     gsap.killTweensOf(this);
     this.globalTimeScale = 1;
+    this.freezes.length = 0;
   }
 }
 

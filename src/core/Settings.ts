@@ -8,19 +8,33 @@ export interface GameSettings {
   mouseSensitivity: number; // multiplier, 0.3..2.5
   padLookSpeed: number; // rad/s at full stick, 1..5
   invertY: boolean;
-  cameraShake: boolean;
+  /** How much blows move the camera (ImpactCamera), 0..1. Saves from before the slider held true / false. */
+  cameraShake: number;
+  /** Controller rumble strength, 0..1. */
+  vibration: number;
   hints: boolean;
   gore: GoreLevel;
 }
 
 const KEY = 'yudhveer.settings.v1';
+
+/** Players who ask their system for less motion start with half the camera shake. */
+function reducedMotion(): boolean {
+  try {
+    return window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+  } catch {
+    return false;
+  }
+}
+
 const DEFAULTS: GameSettings = {
   masterVolume: 0.8,
   musicVolume: 0.6,
   mouseSensitivity: 1,
   padLookSpeed: 2.8,
   invertY: false,
-  cameraShake: true,
+  cameraShake: reducedMotion() ? 0.5 : 1,
+  vibration: 1,
   hints: true,
   gore: 'low',
 };
@@ -34,6 +48,11 @@ function load(): GameSettings {
     if (raw) {
       const saved = { ...DEFAULTS, ...(JSON.parse(raw) as Partial<GameSettings>) };
       if (!['off', 'low', 'full'].includes(saved.gore)) saved.gore = DEFAULTS.gore;
+      // The camera shake was a toggle: on is the full amount (or the reduced-motion default), off is none.
+      const shake = saved.cameraShake as unknown;
+      if (typeof shake === 'boolean') saved.cameraShake = shake ? DEFAULTS.cameraShake : 0;
+      else if (typeof shake !== 'number' || !Number.isFinite(shake)) saved.cameraShake = DEFAULTS.cameraShake;
+      if (typeof saved.vibration !== 'number' || !Number.isFinite(saved.vibration)) saved.vibration = DEFAULTS.vibration;
       return saved;
     }
   } catch {

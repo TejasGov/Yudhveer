@@ -1,6 +1,6 @@
 # Proposal: subtle camera impact for heavy blows and deflects
 
-Status: proposal, research only. No game code was changed to write this.
+Status: approved and implemented, 2026-10-05 (`src/core/ImpactCamera.ts`). Measured in JITTER.md, "Results".
 Goal (from the brief): "not too much, subtle but a feel". Heavy blows and deflects should land in the camera and the
 hands. Light hits barely register. The fight must stay readable.
 

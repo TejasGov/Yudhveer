@@ -249,7 +249,7 @@ export class BossAndhaka extends Boss {
     this.soundFX.playBossPhaseTransition();
     this.laugh(0.6); // over the surge's tail
     this.particleFX.spawnDeflectionShockwave(this.getPosition());
-    SceneManager.getInstance().triggerScreenShake(0.35, 0.4);
+    SceneManager.getInstance().quake(this.getPosition());
     if (this.hasClip('CHARGE') && this.stateMachine.currentState !== 'POSTURE_BROKEN') this.stateMachine.changeState('CHARGE');
   }
 

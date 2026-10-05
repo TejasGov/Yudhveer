@@ -64,6 +64,10 @@ export class InputManager {
   private padLook = { x: 0, y: 0 };
   private padSprint = false;
   private navRepeat = { dir: '' as MenuAction | '', next: 0 };
+  /** The rumble playing: until when, and how strong (a weaker request does not cut it short). */
+  private rumbleUntil = 0;
+  private rumbleMagnitude = 0;
+  private padUsed = false;
 
   public onPointerLockChange: ((locked: boolean) => void) | null = null;
   public onMenu: ((action: MenuAction) => void) | null = null;
@@ -167,6 +171,7 @@ export class InputManager {
   }
 
   private useDevice(device: InputDevice): void {
+    if (device === 'gamepad') this.padUsed = true;
     if (this.device === device) return;
     this.device = device;
     this.onDeviceChange?.(device);
@@ -280,6 +285,30 @@ export class InputManager {
     }
 
     for (let i = 0; i < pad.buttons.length; i++) this.padPrev[i] = held(i);
+  }
+
+  /**
+   * Rumbles the controller (heavy blows on the strong, low motor; crisp ones, a deflect or a block, on the weak, high
+   * one), scaled by the Vibration setting. Nothing on a keyboard, or where the browser has no haptics. A newer effect
+   * replaces the one playing, unless it is the weaker of the two.
+   */
+  public rumble(strong: number, weak: number, ms: number): void {
+    const k = Settings.get().vibration;
+    const actuator = this.pad?.vibrationActuator as (GamepadHapticActuator & { playEffect?: GamepadHapticActuator['playEffect'] }) | null | undefined;
+    if (this.device !== 'gamepad' || k <= 0 || ms <= 0 || !actuator?.playEffect) return;
+    const now = performance.now();
+    const magnitude = (strong + weak) * k;
+    if (now < this.rumbleUntil && magnitude < this.rumbleMagnitude) return;
+    this.rumbleUntil = now + ms;
+    this.rumbleMagnitude = magnitude;
+    actuator.playEffect('dual-rumble', {
+      duration: ms, strongMagnitude: Math.min(1, strong * k), weakMagnitude: Math.min(1, weak * k),
+    }).catch(() => undefined);
+  }
+
+  /** A controller has been used this session (the Vibration setting is shown from then on). */
+  public get padSeen(): boolean {
+    return this.padUsed;
   }
 
   /** Whether the skip button for cutscenes is held (Space, Enter or A). */

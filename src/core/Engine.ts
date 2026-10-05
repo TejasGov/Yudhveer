@@ -42,7 +42,7 @@ import { RAIDER } from '../entities/characters/Village';
 import { MENTOR } from '../entities/characters/Akhada';
 import { AKHADA_MARKS } from '../game/stories/Akhada';
 import { CharacterRig, type CharacterDefinition } from '../entities/animation/CharacterRig';
-import type { Character } from '../entities/Character';
+import { Character } from '../entities/Character';
 import { separateFighters } from '../physics/CharacterMotor';
 import { CHAPTERS, LAST_CHAPTER, chapterById, chapterTitle, type Chapter } from '../game/Chapters';
 import { KITS, type Ability } from '../game/Progression';
@@ -259,6 +259,28 @@ interface InterpolatedTransform {
   currQuat: THREE.Quaternion;
 }
 
+/**
+ * A rigged character's skeleton at the last two fixed steps (each bone's local position and rotation, 7 floats), so
+ * the rendered frame can blend the pose as it blends the root: without it the limbs stepped at the simulation's rate
+ * while the body glided, which showed in slow motion and on fast screens (JITTER.md, fix 4).
+ */
+interface InterpolatedPose {
+  rig: CharacterRig;
+  bones: THREE.Bone[];
+  prev: Float32Array;
+  curr: Float32Array;
+}
+
+/** Bone floats: position (3) and quaternion (4). */
+const BONE_STRIDE = 7;
+const _boneQuat = [0, 0, 0, 1];
+
+/** Fighter weight for the separation push: its capsule's volume against the hero's. */
+function capsuleMass(capsule: { halfHeight: number; radius: number }): number {
+  const volume = (c: { halfHeight: number; radius: number }) => Math.PI * c.radius * c.radius * (2 * c.halfHeight + (4 / 3) * c.radius);
+  return volume(capsule) / volume(FIGHTER_CAPSULE);
+}
+
 const $ = (id: string) => document.getElementById(id)!;
 
 /**
@@ -334,25 +356,34 @@ export class Engine {
   private lastTime = 0;
   private accumulator = 0;
   private interpolated = new Map<THREE.Object3D, InterpolatedTransform>();
+  private poses = new Map<Character, InterpolatedPose>();
 
   constructor() {
     this.combatDebug = new CombatDebug(this.sceneManager.scene);
     this.director = new CinematicDirector(this.sceneManager.camera);
-    // Put on a mark by a cue (in a render frame): the next frame must not interpolate from where they were.
-    this.staging.onTeleport = (actor) => this.interpolated.delete(actor.group);
+    // Put on a mark by a cue (in a render frame), or moved outright anywhere else (a spawn, a boss bursting out of
+    // the water): the next frame must not interpolate from where they were.
+    this.staging.onTeleport = (actor) => this.forgetInterpolation(actor);
+    Character.onTeleported = (actor) => this.forgetInterpolation(actor);
     this.combatSystem.onEvent = (e) => this.combatDebug.onEvent(e);
     this.combatSystem.onCallout = (c) => this.hud.callout(c);
     this.combatSystem.onPlayerHurt = (damage) => this.hud.hurt(damage, BloodFX.getInstance().enabled);
     this.soundFX.onLightning = (strength) => this.sceneManager.flash(strength);
     this.soundFX.hushed = () => this.dialogue.speaking;
+    // A bolt or a shaft reaching the hero lands in the camera like a blade would (undirected: it can come from anywhere).
     this.projectileManager.onPlayerContact = (result) => {
       if (result === 'hit') {
         this.combatSystem.stats.hitsTaken++;
         this.hud.hurt();
+        this.combatSystem.impact('hurt');
       } else if (result === 'deflected') {
         this.combatSystem.stats.deflections++;
         this.hud.callout({ text: 'Deflected', tone: 'gold' });
-      } else this.combatSystem.stats.blocks++;
+        this.combatSystem.impact('deflect');
+      } else {
+        this.combatSystem.stats.blocks++;
+        this.combatSystem.impact('block');
+      }
     };
   }
 
@@ -415,6 +446,8 @@ export class Engine {
     input.onDeviceChange = (device) => {
       this.hud.setDevice(device);
       this.updateCaptureHint();
+      // Rumble only means anything once a controller is in use.
+      $('setting-vibration').hidden = !input.padSeen;
     };
     input.onAnyInput = () => {
       this.soundFX.init();
@@ -658,6 +691,9 @@ export class Engine {
     // Story scenes draw no blood unless a cue spills it, and the fight's is gone at the cut into one.
     const blood = BloodFX.getInstance();
     if (mode === 'intro' && this.mode !== 'intro') blood.clear();
+    // A cut into or out of a cutscene (or a chapter loading, the title) carries no camera impact across it: the fight's
+    // last blow never shakes the first shot, nor a scene's jolt the fight.
+    if ((mode === 'intro') !== (this.mode === 'intro') || mode === 'loading' || mode === 'title') this.sceneManager.impact.reset();
     blood.suppressed = mode === 'intro';
     this.mode = mode;
     this.modeTime = 0;
@@ -921,7 +957,8 @@ export class Engine {
     const p = this.player!;
     p.currentHealth = p.maxHealth;
     p.currentMarma = 0;
-    p.group.rotation.y = Math.atan2(enemy.getPosition().x - p.getPosition().x, enemy.getPosition().z - p.getPosition().z);
+    p.faceYaw(Math.atan2(enemy.getPosition().x - p.getPosition().x, enemy.getPosition().z - p.getPosition().z));
+    p.markTeleported();
     this.projectileManager.clear();
     this.dialogue.clear();
     this.setMode('intro');
@@ -937,7 +974,7 @@ export class Engine {
     const at = this.expedition?.resumePoint();
     if (!at || !this.player) return;
     this.player.setPosition(at.at.x, at.at.y, at.at.z);
-    this.player.group.rotation.y = Math.atan2(at.face.x - at.at.x, at.face.z - at.at.z);
+    this.player.faceYaw(Math.atan2(at.face.x - at.at.x, at.face.z - at.at.z));
     this.interpolated.clear();
     this.sceneManager.resetFollowCamera(this.player.getPosition(), this.player.group.rotation.y);
   }
@@ -974,7 +1011,7 @@ export class Engine {
       if (m.ghost) extra.ghost = m.ghost;
       if (m.shade) extra.shade = m.shade;
       extra.setPosition(m.at.x, m.at.y, m.at.z);
-      if (m.face) extra.group.rotation.y = Math.atan2(m.face.x - m.at.x, m.face.z - m.at.z);
+      if (m.face) extra.faceYaw(Math.atan2(m.face.x - m.at.x, m.face.z - m.at.z));
       extra.appear(!m.hidden, 0);
       this.sceneManager.scene.add(extra.group);
       this.cast.push(extra);
@@ -1009,7 +1046,7 @@ export class Engine {
     const centre = this.enemies.length
       ? this.enemies.reduce((c, e) => c.add(e.getPosition()), new THREE.Vector3()).divideScalar(this.enemies.length)
       : spawn.clone().add(new THREE.Vector3(0, 0, -1));
-    player.group.rotation.y = Math.atan2(centre.x - spawn.x, centre.z - spawn.z);
+    player.faceYaw(Math.atan2(centre.x - spawn.x, centre.z - spawn.z));
     player.group.visible = true;
     HitboxManager.getInstance().forget(player.id);
     this.interpolated.clear();
@@ -1277,10 +1314,11 @@ export class Engine {
     this.slowMotion(0.3, 1.6);
   }
 
+  /** The outros' slow motion: `scale` for `seconds`, then back up. A hit-stop freeze still in progress plays out first. */
   private slowMotion(scale: number, seconds: number): void {
     gsap.killTweensOf(this.combatSystem);
-    this.combatSystem.globalTimeScale = scale;
-    gsap.to(this.combatSystem, { globalTimeScale: 1, duration: 0.6, delay: seconds, ease: 'power1.in' });
+    this.combatSystem.slowScale = scale;
+    gsap.to(this.combatSystem, { slowScale: 1, duration: 0.6, delay: seconds, ease: 'power1.in' });
   }
 
   private showOutcome(): void {
@@ -1349,6 +1387,7 @@ export class Engine {
     );
     fighter.group.position.copy(feet);
     if (fighter instanceof Enemy) fighter.home.copy(feet);
+    fighter.mass = capsuleMass(capsule);
     fighter.attachPhysics(body, collider, footOffset);
     this.sceneManager.scene.add(fighter.group);
     this.sceneManager.scene.add(fighter.slashRibbon.mesh);
@@ -1380,6 +1419,7 @@ export class Engine {
     this.combatDebug.prune(this.player ? [this.player] : []);
     this.projectileManager.clear();
     this.interpolated.clear();
+    this.poses.clear();
     this.hud.bind([]);
   }
 
@@ -1393,7 +1433,6 @@ export class Engine {
     if (this.player.getPosition().y < level.killPlaneY) {
       const spawn = level.playerSpawn;
       this.player.setPosition(spawn.x, spawn.y, spawn.z);
-      this.interpolated.delete(this.player.group);
     }
     // A minion that falls is gone; a boss (its leap can carry it off a bridge) is put back where it came in.
     for (const enemy of this.enemies) {
@@ -1401,7 +1440,6 @@ export class Engine {
       if (enemy.isBoss) {
         enemy.setPosition(enemy.home.x, enemy.home.y, enemy.home.z);
         enemy.stateMachine.changeState('IDLE');
-        this.interpolated.delete(enemy.group);
       } else {
         enemy.currentHealth = 0;
         enemy.stateMachine.changeState('DEAD');
@@ -1423,11 +1461,16 @@ export class Engine {
     else player.updateProceduralAnimations(dt, 0);
     // Enemies still hidden (a boss whose model is loading) wait.
     // Once the hero is beaten (a scripted loss) they stand over him instead of pressing on.
-    if ((acting || this.mode === 'over') && !this.beaten) this.enemies.forEach((enemy) => { if (enemy.group.visible) enemy.updateAI(dt, player); });
+    if ((acting || this.mode === 'over') && !this.beaten) {
+      // Who to keep a body's width from, and where round the hero each minion closes in (JITTER.md, fix 3).
+      Enemy.crowd = this.enemies;
+      Enemy.assignSlots(this.enemies, player.getPosition());
+      this.enemies.forEach((enemy) => { if (enemy.group.visible) enemy.updateAI(dt, player); });
+    }
 
     // Low in a slide he passes between and under enemies instead of stopping against them.
     separateFighters([player, ...this.enemies].filter((f) => f.motor).map((f) => ({
-      position: f.group.position, radius: f.motor!.radius,
+      position: f.group.position, radius: f.motor!.radius, mass: f.mass, push: f.sepPush,
       solid: f.stateMachine.currentState !== 'DEAD' && !f.submerged && !(f === player && player.isEvading()),
     })));
 
@@ -1455,14 +1498,21 @@ export class Engine {
     return !this.paused && (this.inFight() || this.mode === 'over');
   }
 
-  private simulatedObjects(): THREE.Object3D[] {
-    const objects: THREE.Object3D[] = [...this.enemies, ...this.cast].map((c) => c.group);
-    if (this.player) objects.push(this.player.group);
-    return objects;
+  private simulatedCharacters(): Character[] {
+    const characters: Character[] = [...this.enemies, ...this.cast];
+    if (this.player) characters.push(this.player);
+    return characters;
+  }
+
+  /** Drops a character's render interpolation (root and pose): it was put where it is, not moved there. */
+  private forgetInterpolation(character: Character): void {
+    this.interpolated.delete(character.group);
+    this.poses.delete(character);
   }
 
   private captureTransforms(which: 'prev' | 'curr'): void {
-    for (const obj of this.simulatedObjects()) {
+    for (const c of this.simulatedCharacters()) {
+      const obj = c.group;
       let t = this.interpolated.get(obj);
       if (!t) {
         t = {
@@ -1473,7 +1523,29 @@ export class Engine {
       }
       (which === 'prev' ? t.prevPos : t.currPos).copy(obj.position);
       (which === 'prev' ? t.prevQuat : t.currQuat).copy(obj.quaternion);
+      this.capturePose(c, which);
     }
+  }
+
+  /** The skeleton's side of `captureTransforms`; a new (or swapped) rig starts with both poses equal. */
+  private capturePose(c: Character, which: 'prev' | 'curr'): void {
+    if (!c.rig) return;
+    let pose = this.poses.get(c);
+    if (!pose || pose.rig !== c.rig) {
+      const bones: THREE.Bone[] = [];
+      c.rig.root.traverse((o) => { if ((o as THREE.Bone).isBone) bones.push(o as THREE.Bone); });
+      pose = { rig: c.rig, bones, prev: new Float32Array(bones.length * BONE_STRIDE), curr: new Float32Array(bones.length * BONE_STRIDE) };
+      this.poses.set(c, pose);
+      this.readPose(pose, pose.prev);
+    }
+    this.readPose(pose, which === 'prev' ? pose.prev : pose.curr);
+  }
+
+  private readPose(pose: InterpolatedPose, out: Float32Array): void {
+    pose.bones.forEach((b, i) => {
+      b.position.toArray(out, i * BONE_STRIDE);
+      b.quaternion.toArray(out, i * BONE_STRIDE + 3);
+    });
   }
 
   private applyInterpolation(alpha: number): void {
@@ -1481,12 +1553,31 @@ export class Engine {
       obj.position.lerpVectors(t.prevPos, t.currPos, alpha);
       obj.quaternion.slerpQuaternions(t.prevQuat, t.currQuat, alpha);
     });
+    // The limbs between the last two steps, as the roots are. Props ride the bones, so they follow.
+    this.poses.forEach((pose) => {
+      const { prev, curr } = pose;
+      pose.bones.forEach((b, i) => {
+        const o = i * BONE_STRIDE;
+        b.position.set(
+          prev[o] + (curr[o] - prev[o]) * alpha, prev[o + 1] + (curr[o + 1] - prev[o + 1]) * alpha, prev[o + 2] + (curr[o + 2] - prev[o + 2]) * alpha,
+        );
+        THREE.Quaternion.slerpFlat(_boneQuat, 0, prev as unknown as number[], o + 3, curr as unknown as number[], o + 3, alpha);
+        b.quaternion.fromArray(_boneQuat);
+      });
+    });
   }
 
   private restoreSimulationState(): void {
     this.interpolated.forEach((t, obj) => {
       obj.position.copy(t.currPos);
       obj.quaternion.copy(t.currQuat);
+    });
+    // The exact pose the step left (hit detection and the weapon trail read it).
+    this.poses.forEach((pose) => {
+      pose.bones.forEach((b, i) => {
+        b.position.fromArray(pose.curr, i * BONE_STRIDE);
+        b.quaternion.fromArray(pose.curr, i * BONE_STRIDE + 3);
+      });
     });
   }
 
@@ -1569,7 +1660,7 @@ export class Engine {
     this.inputManager.poll(time / 1000);
 
     const simulate = this.simulating();
-    const effectiveDt = simulate ? rawDt * this.combatSystem.globalTimeScale : 0;
+    const effectiveDt = simulate ? this.combatSystem.simulatedTime(rawDt, time) : 0;
 
     if (simulate) {
       this.accumulator += effectiveDt;
@@ -1600,8 +1691,17 @@ export class Engine {
     }
 
     this.sceneManager.render(rawDt);
+    this.debugFrame?.(rawDt);
     if (simulate) this.restoreSimulationState();
   };
+
+  /** Dev: called after every rendered frame, with the picture's state still in place (the jitter probe's live mode). */
+  public debugFrame: ((rawDt: number) => void) | null = null;
+
+  /** Dev: slow motion as the outros use it (the jitter probe's pose-staleness scenario). */
+  public debugSlowMotion(scale: number, seconds: number): void {
+    this.slowMotion(scale, seconds);
+  }
 
   private updateCamera(dt: number): void {
     const sm = this.sceneManager;
@@ -1643,6 +1743,9 @@ export class Engine {
           cam.fov = THREE.MathUtils.lerp(this.handoff.fov, sm.gameplayFov, k);
           cam.updateProjectionMatrix();
         }
+        // Last: blows landing, as an offset on the solved camera, on real time (it plays through a hit-stop).
+        sm.impact.update(dt);
+        sm.impact.apply(cam, sm.arm);
       }
     }
   }

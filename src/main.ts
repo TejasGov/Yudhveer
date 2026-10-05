@@ -5,6 +5,8 @@ import { BloodFX, type BloodKind, type GoreLevel } from './combat/BloodFX';
 import { Level3_Dwarka } from './levels/Level3_Dwarka';
 import { BossShalva } from './entities/BossShalva';
 import { SoundFX, VICTORY_STINGER, type VictoryGrade, type VictoryStinger } from './combat/SoundFX';
+import { JitterProbe, type ProbeOptions } from './debug/JitterProbe';
+import { IMPACTS, type ImpactKind } from './core/ImpactCamera';
 
 window.addEventListener('DOMContentLoaded', async () => {
   const container = document.getElementById('game-container');
@@ -17,6 +19,7 @@ window.addEventListener('DOMContentLoaded', async () => {
   // Dev-only console handle: `__yudhveer.levelManager.activeLevel`, `__yudhveer.sceneManager.renderer.info`, ...
   if (import.meta.env.DEV) {
     (window as unknown as { __yudhveer: Engine }).__yudhveer = engine;
+    const probe = new JitterProbe(engine);
     // Combat test hooks: step the simulation deterministically, read the hit log, show the overlay.
     (window as unknown as { __debug: unknown }).__debug = {
       step: (frames: number, each?: (frame: number) => void) => engine.debugStep(frames, each),
@@ -53,6 +56,20 @@ window.addEventListener('DOMContentLoaded', async () => {
         if (active instanceof Level3_Dwarka) active.setRain(rain);
         return rain;
       },
+      // The jitter probe (docs/proposals/JITTER.md): `jitter({ seconds, mode, hero })` measures the fight as it stands;
+      // `jitterScenario('S1')` loads a scripted scenario first (`jitterScenario()` lists them).
+      jitter: (options?: ProbeOptions) => probe.run(options),
+      jitterScenario: (name?: string, options?: ProbeOptions) => (name ? probe.scenario(name, options) : JitterProbe.scenarios()),
+      // The impact camera (docs/proposals/IMPACT_CAMERA.md): `impact('deflect', { dirX: 0, dirZ: -1 })` fires an event of
+      // the table (its hit-stop, camera and rumble) along a world direction; `impactTune` is the live table (edit, then
+      // copy the numbers back into ImpactCamera.ts); `freeze(90)` is a bare hit-stop.
+      impact: (kind: ImpactKind, opts: { dirX?: number; dirZ?: number; scale?: number } = {}) => {
+        const dir = opts.dirX !== undefined || opts.dirZ !== undefined ? new THREE.Vector3(opts.dirX ?? 0, 0, opts.dirZ ?? 0) : undefined;
+        engine.combatSystem.impact(kind, dir, opts.scale ?? 1);
+        return { ...engine.sceneManager.impact.offset };
+      },
+      impactTune: IMPACTS,
+      freeze: (ms: number) => engine.combatSystem.freeze(ms),
       victory: (grade?: VictoryGrade, stinger?: VictoryStinger) => SoundFX.getInstance().playLevelClear(grade, stinger),
       renderVictory: async (grade: VictoryGrade = 'boss', stinger: VictoryStinger | 'chime' = VICTORY_STINGER, compress = true) => {
         const { analyseSound } = await import('./combat/AudioDebug');

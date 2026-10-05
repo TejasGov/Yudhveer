@@ -63,7 +63,7 @@ export class BossTakshaka extends Boss {
     this.soundFX.playBossPhaseTransition();
     this.particleFX.spawnDeflectionShockwave(this.getPosition(), undefined, true);
     this.particleFX.spawnFlames(this.getPosition(), 60, 2.0);
-    SceneManager.getInstance().triggerScreenShake(0.35, 0.4);
+    SceneManager.getInstance().quake(this.getPosition());
     if (this.hasClip('CHARGE') && this.stateMachine.currentState !== 'POSTURE_BROKEN') this.stateMachine.changeState('CHARGE');
   }
 

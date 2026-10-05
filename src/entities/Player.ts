@@ -24,6 +24,10 @@ const LOCOMOTION = {
   sprintTurnRate: 5, // rad/s at full sprint: wide arcs
   airTurnRate: 2.5, // rad/s of steering while airborne
   stopSpeed: 0.35, // below this with no input he is standing still
+  // rad/s^2: his turns wind up and settle rather than snapping to full rate in one step (JITTER.md, fix 2). Quicker
+  // than the proposal's 45 so a half-turn still takes about as long as before (~0.45 s); his ease-in is kept.
+  turnAccel: 60,
+  turnGain: 14, // 1/s: turn speed asked for per radian still to turn (the ease into the heading)
 };
 
 /**
@@ -34,7 +38,8 @@ const ASSIST = {
   range: 5.5, // m, centre to centre
   cone: THREE.MathUtils.degToRad(75), // either side of the aim
   closeRange: 2.2, // m: an enemy this close is found in any direction
-  turnRate: 20, // rad/s while winding up (a half-turn in ~0.15 s)
+  turnRate: 18, // rad/s while winding up
+  turnAccel: 150, // rad/s^2: quick enough to swing round onto a foe behind him within the wind-up (a half-turn ~0.3 s)
   reach: 1.2, // m from his centre to the target's body where the blade lands best
   maxStep: 2.2, // m the step-in may cover
   idleStep: 0.35, // m he steps into a swing at nothing
@@ -83,11 +88,16 @@ export class Player extends Character {
   private aimDir = new THREE.Vector3();
   /** The enemy the current swing is aimed at, and how far it steps in before its blade arrives (state seconds). */
   private attackTarget: Character | null = null;
+  /** A swing at nothing turns him to where he aimed it (yaw), over its wind-up; null when it has a target or no aim. */
+  private aimYaw: number | null = null;
   private step = { allow: 0, until: 0 };
 
   constructor() {
     super('player_hero', 0xd4af37); // Royal Gold
     this.chainsEarly = true;
+    this.turnAccel = LOCOMOTION.turnAccel;
+    // His gait follows the stick at once: the clip dwell that steadies the AI's would only make him feel late.
+    this.visualDwell = 0;
 
     this.inputManager = InputManager.getInstance();
     this.soundFX = SoundFX.getInstance();
@@ -364,9 +374,12 @@ export class Player extends Character {
     return t >= SLIDE.untouchable[0] && t <= SLIDE.untouchable[1];
   }
 
-  /** Slides the way the input points (or straight on), turning to it at once. */
+  /**
+   * Slides the way the input points (or straight on), turning to it at once. This snap is meant: an evasion must go
+   * exactly where it is pressed, and its dust and drop hide the turn.
+   */
   private beginSlide(dir: THREE.Vector3 | null): void {
-    if (dir) this.group.rotation.y = Math.atan2(dir.x, dir.z);
+    if (dir) this.faceYaw(Math.atan2(dir.x, dir.z));
     this.speed = 0;
     this.stateMachine.changeState('DODGE');
     this.rootMotionScale = SLIDE.travel;
@@ -400,12 +413,13 @@ export class Player extends Character {
       }
     }
     this.attackTarget = best;
+    this.aimYaw = null;
     const strike = this.hitWindows(state)[0];
     this.step.until = strike ? strike.t0 : 0.2;
     if (!best) {
-      // At nothing: a short step the way he is aiming.
+      // At nothing: a short step the way he is aiming, turning onto it over the wind-up (followThrough).
       this.step.allow = ASSIST.idleStep;
-      if (aiming) this.group.rotation.y = aim;
+      if (aiming) this.aimYaw = aim;
       return;
     }
     const gap = Math.hypot(best.group.position.x - pos.x, best.group.position.z - pos.z) - ASSIST.reach - (best.motor?.radius ?? 0.4);
@@ -438,7 +452,9 @@ export class Player extends Character {
     const target = this.attackTarget;
     if (target && target.stateMachine.currentState !== 'DEAD') {
       const p = target.group.position;
-      this.turnTowards(Math.atan2(p.x - this.group.position.x, p.z - this.group.position.z), ASSIST.turnRate, dt);
+      this.turnTowards(Math.atan2(p.x - this.group.position.x, p.z - this.group.position.z), ASSIST.turnRate, dt, ASSIST.turnAccel);
+    } else if (this.aimYaw !== null) {
+      this.turnTowards(this.aimYaw, ASSIST.turnRate, dt, ASSIST.turnAccel);
     }
     // Eased: speed 6u(1-u)/span integrates to exactly `allow` and comes to rest as the blade lands.
     const span = this.step.until;
@@ -464,14 +480,11 @@ export class Player extends Character {
   }
 
   /**
-   * Turns toward `yaw` at no more than `rate` rad/s (easing in over the last few degrees); returns the angle still
-   * left to turn afterwards.
+   * Turns toward `yaw` at no more than `rate` rad/s, easing in over the last few degrees, its turn speed changing by
+   * `accel` at most (Character.turnToward); returns the angle still left to turn afterwards.
    */
-  private turnTowards(yaw: number, rate: number, dt: number): number {
-    const diff = wrapAngle(yaw - this.group.rotation.y);
-    const step = THREE.MathUtils.clamp(diff * Math.min(1, 14 * dt), -rate * dt, rate * dt);
-    this.group.rotation.y = wrapAngle(this.group.rotation.y + step);
-    return wrapAngle(diff - step);
+  private turnTowards(yaw: number, rate: number, dt: number, accel = LOCOMOTION.turnAccel): number {
+    return this.turnToward(yaw, rate, dt, { accel, gain: LOCOMOTION.turnGain, deadzone: THREE.MathUtils.degToRad(0.2) });
   }
 
   /** The input as a world direction relative to the camera, keeping a stick's partial deflection. */

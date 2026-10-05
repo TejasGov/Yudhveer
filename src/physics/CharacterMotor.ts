@@ -14,6 +14,9 @@ export interface MotorOptions {
   terminalVelocity: number;
 }
 
+/** Movement (m) the controller may invent for a body standing still on the ground before it counts as real. */
+const STILL_SLOP = 0.006;
+
 export const DEFAULT_MOTOR: MotorOptions = {
   maxStepHeight: 0.75,
   minStepWidth: 0.25,
@@ -127,9 +130,16 @@ export class CharacterMotor {
       z: feet.z - at.z,
     };
     this.controller.computeColliderMovement(this.collider, desired, undefined, undefined, CharacterMotor.ignoreFighters);
-    const moved = this.controller.computedMovement();
+    const computed = this.controller.computedMovement();
+    const moved = { x: computed.x, y: computed.y, z: computed.z };
     // Still touching the ground on the first rising step of a jump does not count as landed.
     this.grounded = this.controller.computedGrounded() && this.verticalVelocity <= 0;
+    // Standing still on the ground, the controller's skin nudges the capsule a millimetre or two this way and that
+    // every few steps (on a slope, against the ground's offset): visible as a tremor at close range (JITTER.md, S3).
+    // A body that is not trying to go anywhere stays exactly where it is.
+    if (this.grounded && Math.hypot(desired.x, desired.z) < 1e-5 && Math.hypot(moved.x, moved.z) < STILL_SLOP && Math.abs(moved.y) < STILL_SLOP) {
+      moved.x = moved.y = moved.z = 0;
+    }
     if (this.grounded && this.verticalVelocity < 0) this.verticalVelocity = 0;
     // Head hit a ceiling: stop rising.
     if (this.verticalVelocity > 0 && moved.y < desired.y * 0.5) this.verticalVelocity = 0;
@@ -146,16 +156,30 @@ export class CharacterMotor {
   }
 }
 
-/** Anything separable: its feet position, capsule radius, and whether it still takes up space. */
+/**
+ * Anything separable: its feet position, capsule radius, whether it still takes up space, its weight in the push, and
+ * where to add up the shove it was given (so its stride and AI can tell a shove from its own movement).
+ */
 export interface Separable {
   position: THREE.Vector3;
   radius: number;
   solid: boolean;
+  mass: number;
+  push: THREE.Vector3;
 }
 
 /**
- * Soft fighter-vs-fighter collision: overlapping capsules are pushed apart horizontally, half each, before the
- * motors resolve the step (so a push into a wall is still stopped by the wall). O(n^2), fine for a duel arena.
+ * Of an overlap up to this deep (m), only `SOFT_SHARE` is removed per step: two fighters pressed together settle apart
+ * over a few steps instead of being kicked a full overlap apart and walking straight back in (the ping-pong that kept
+ * pinned minions twitching, JITTER.md fix 3). Anything deeper is removed at once, so no one walks through anyone.
+ */
+const SOFT_DEPTH = 0.08;
+const SOFT_SHARE = 0.35;
+
+/**
+ * Soft fighter-vs-fighter collision: overlapping capsules are pushed apart horizontally, the lighter one further (a
+ * man barely moves the Baoli guardian), before the motors resolve the step (so a push into a wall is still stopped by
+ * the wall). O(n^2), fine for a duel arena.
  */
 export function separateFighters(fighters: Separable[]): void {
   const push = new THREE.Vector2();
@@ -171,11 +195,17 @@ export function separateFighters(fighters: Separable[]): void {
       if (overlap <= 0) continue;
       if (dist < 1e-4) push.set(1, 0); // exactly coincident: pick any direction
       else push.divideScalar(dist);
-      const half = overlap / 2;
-      a.position.x -= push.x * half;
-      a.position.z -= push.y * half;
-      b.position.x += push.x * half;
-      b.position.z += push.y * half;
+      const correction = Math.max(0, overlap - SOFT_DEPTH) + Math.min(overlap, SOFT_DEPTH) * SOFT_SHARE;
+      const wa = b.mass / (a.mass + b.mass);
+      const wb = 1 - wa;
+      a.position.x -= push.x * correction * wa;
+      a.position.z -= push.y * correction * wa;
+      b.position.x += push.x * correction * wb;
+      b.position.z += push.y * correction * wb;
+      a.push.x -= push.x * correction * wa;
+      a.push.z -= push.y * correction * wa;
+      b.push.x += push.x * correction * wb;
+      b.push.z += push.y * correction * wb;
     }
   }
 }

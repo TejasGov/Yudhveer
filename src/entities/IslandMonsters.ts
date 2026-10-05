@@ -57,7 +57,7 @@ export class MiniMonster extends Enemy {
       if (dir.lengthSq() > 0.01) {
         dir.normalize();
         this.turnToward(Math.atan2(dir.x, dir.z), this.turnRate, dt);
-        this.group.position.addScaledVector(dir, this.moveSpeed * dt);
+        this.steer(dir, this.moveSpeed, dt);
         this.settle('MOVE');
       }
       this.updateProceduralAnimations(dt, 1);
@@ -157,15 +157,16 @@ export class ArcherMonster extends Enemy {
 
     this.shotTimer -= dt;
     const clear = this.clearShot(target);
+    const mode = this.chooseMoveMode(distance, KEEP_FAR, KEEP_NEAR, dt);
     if (this.shotTimer <= 0 && distance <= KEEP_FAR + 4 && clear) {
       this.shotTimer = 3 + Math.random() * 1.6;
       this.drawing = 1e-3;
       this.soundFX.playTelegraphSound();
-    } else if (distance < KEEP_NEAR) {
+    } else if (mode === 'retreat') {
       this.backOff(dir, dt);
-    } else if (distance > KEEP_FAR || !clear) {
+    } else if (mode === 'approach' || !clear) {
       // Out of range, or rock in the way: come round for a clear shot.
-      this.group.position.addScaledVector(dir, this.moveSpeed * 0.7 * dt);
+      this.steer(dir, this.moveSpeed * 0.7, dt);
       this.settle('MOVE');
     } else {
       this.circle(dir, dt);

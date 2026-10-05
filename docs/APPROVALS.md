@@ -240,3 +240,22 @@ Suggested delivery: slow, low, unhurried, a faint reverb in the game (the voice 
 Cost: about 1.2 ElevenLabs credits per character per take, 2 takes: **about 571 credits** for the three lines. On a
 yes: record with the chosen voice (the usual workflow: two takes, loudnorm to -18 LUFS), add `voice: 'baoli_devi_N'`
 to `DEVI_LINES`, add the voice to `game asset/voice/VOICES.md`, and mark them recorded in STORY.md's Chapter I table.
+
+## Feel pass: jitter fixes and the impact camera (2026-10-05): APPROVED, DONE; tuning choices open (no cost)
+
+**Decision:** "build both jitter fixes and impact camera". Built as docs/proposals/JITTER.md and IMPACT_CAMERA.md
+describe (results and the before/after table at the end of JITTER.md). Nothing spent or downloaded. A few numbers
+were tuned differently from the proposals; each is one constant, and worth a look in play:
+
+| Choice | In the game now | Other options |
+|---|---|---|
+| The hero's turn acceleration | 60 rad/s^2 (a half-turn about as quick as before, ~0.45 s) | 45 (the proposal: heavier, a little slower to come round) or 90 (snappier) |
+| The hero's swing aim | 18 rad/s at up to 150 rad/s^2 (was 20 rad/s with no limit) | The proposal's 14 rad/s: weightier, but a foe behind him may no longer be reached in the wind-up |
+| Gada blows | a gada finisher is a slam (110 ms freeze, -1.5 deg FOV); its other blows are heavy (75 ms) | The proposal's table: every gada blow a slam (more punch, busier camera in a gada combo) |
+| The slide | still turns him to the stick at once (an evasion goes where it is pressed) | A very fast turn over its first tenth of a second |
+| Minions with no back-step clip | back off with their walk played in reverse | Hold their ground instead (the proposal's first option) |
+| Camera shake | 100 % by default, 50 % with the system's reduced-motion setting | If the fight reads shaky, lower trauma first (`__debug.impactTune`), then the kicks |
+
+On a choice: change the constant named (`LOCOMOTION.turnAccel` and `ASSIST` in `src/entities/Player.ts`, the
+classification in `CombatSystem.resolvePlayerHitOnEnemy`, `IMPACTS` in `src/core/ImpactCamera.ts`), re-run
+`__debug.jitterScenario('S2')` and play a fight.

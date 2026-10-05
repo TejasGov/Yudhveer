@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { Settings } from '../core/Settings';
+import { ImpactCamera } from '../core/ImpactCamera';
 
 /** A camera pose on a shot's path. */
 export interface CameraKey {
@@ -10,18 +10,22 @@ export interface CameraKey {
   roll?: number;
 }
 
-/** A jolt of the cutscene camera (a giant's footfall, a blow), dying away. */
-const jolt = { amount: 0, rate: 0 };
+/**
+ * The cutscene camera's own impacts, apart from the gameplay camera's: a shot is only ever shaken by its own cues, never
+ * by what the fight was doing as it cut in.
+ */
+const cutsceneImpact = new ImpactCamera();
 
 /**
- * Shakes the cutscene camera by `amount` metres, dying away over `seconds` (a footfall felt through the ground, a blow
- * landing). Off with the camera shake setting.
+ * Jolts the cutscene camera (a footfall felt through the ground, a blow landing): `amount` is the old scale of the
+ * shake in metres (0.16 for a blow to the head, 0.025 for a giant's step). It is now smooth, rotational trauma that
+ * dies away by itself (`seconds` is kept for the cues that pass it), plus a downward nudge for a real blow; scaled, like
+ * all camera shake, by the player's setting.
  */
-export function joltCamera(amount: number, seconds = 0.35): void {
-  if (!Settings.get().cameraShake) return;
-  if (amount < jolt.amount) return;
-  jolt.amount = amount;
-  jolt.rate = amount / Math.max(0.05, seconds);
+export function joltCamera(amount: number, _seconds = 0.35): void {
+  // Trauma is squared into shake: the root keeps a footfall's jolt as small, and a blow's as large, as they were.
+  cutsceneImpact.addTrauma(Math.sqrt(Math.max(0, amount) / 0.16) * 0.66);
+  if (amount >= 0.1) cutsceneImpact.kick(0, -0.8 * Math.min(1, amount / 0.16), 0.3);
 }
 
 /** One shot: the camera travels through its keys (a smooth curve) over `duration` seconds. */
@@ -74,7 +78,6 @@ export class CinematicDirector {
   private time = 0;
   private onDone: (() => void) | null = null;
   private readonly sway = new THREE.Vector3();
-  private readonly shake = new THREE.Vector3();
   private elapsed = 0;
   public active = false;
   /** 0 (clear) .. 1 (black), for the overlay. */
@@ -89,6 +92,7 @@ export class CinematicDirector {
     this.elapsed = 0;
     this.onDone = onDone;
     this.active = this.shots.length > 0;
+    cutsceneImpact.reset();
     if (!this.active) {
       this.current = null;
       onDone();
@@ -161,7 +165,7 @@ export class CinematicDirector {
     if (!this.active) return;
     this.time += dt;
     this.elapsed += dt;
-    jolt.amount = Math.max(0, jolt.amount - jolt.rate * dt);
+    cutsceneImpact.update(dt);
     const p = this.current!;
     for (const [i, cue] of (p.shot.cues ?? []).entries()) {
       if (!p.cuesFired.has(i) && this.time >= cue.at) {
@@ -200,20 +204,18 @@ export class CinematicDirector {
     const e = this.elapsed;
     this.sway.set(Math.sin(e * 0.71) + Math.sin(e * 1.33) * 0.4, Math.sin(e * 0.53 + 1.7) * 0.8, Math.sin(e * 0.61 + 0.6)).multiplyScalar(amp);
     this.camera.position.copy(pos).add(this.sway);
-    if (jolt.amount > 0) {
-      const j = jolt.amount;
-      this.camera.position.add(this.shake.set(Math.random() - 0.5, Math.random() - 0.5, Math.random() - 0.5).multiplyScalar(j));
-    }
     this.camera.lookAt(look);
     const f = u * (p.fov.length - 1);
     const i = Math.min(Math.floor(f), p.fov.length - 2);
     const fov = THREE.MathUtils.lerp(p.fov[i], p.fov[i + 1], f - i);
-    const roll = THREE.MathUtils.lerp(p.roll[i], p.roll[i + 1], f - i) + (jolt.amount > 0 ? (Math.random() - 0.5) * jolt.amount * 0.25 : 0);
+    const roll = THREE.MathUtils.lerp(p.roll[i], p.roll[i + 1], f - i);
     if (roll !== 0) this.camera.rotateZ(roll);
     if (Math.abs(this.camera.fov - fov) > 1e-3) {
       this.camera.fov = fov;
       this.camera.updateProjectionMatrix();
     }
+    // The shot's own jolts, on top of its framing (no push: a cutscene camera has no arm to lean along).
+    cutsceneImpact.apply(this.camera, 0);
     const fadeIn = p.shot.fadeIn ?? 0;
     const fadeOut = p.shot.fadeOut ?? 0;
     const inF = fadeIn > 0 ? 1 - THREE.MathUtils.clamp(this.time / fadeIn, 0, 1) : 0;
@@ -222,7 +224,7 @@ export class CinematicDirector {
   }
 
   private finish(): void {
-    jolt.amount = 0;
+    cutsceneImpact.reset();
     this.active = false;
     this.current = null;
     this.fade = 0;
