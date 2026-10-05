@@ -23,6 +23,8 @@ import { Rakshasa } from '../entities/Rakshasa';
 import { BossBaoli } from '../entities/BossBaoli';
 import { BossShalva } from '../entities/BossShalva';
 import { BossAndhaka } from '../entities/BossAndhaka';
+import { Raider } from '../entities/Raider';
+import { Extra } from '../entities/Extra';
 import { DWARKA_STARTS } from '../levels/Level3_Dwarka';
 import { BAOLI_GUARDIAN } from '../entities/characters/BaoliGuardian';
 import { VETALA } from '../entities/characters/Vetala';
@@ -31,10 +33,11 @@ import { TAKSHAKA } from '../entities/characters/Takshaka';
 import { RAKSHASA } from '../entities/characters/Rakshasa';
 import { SHALVA } from '../entities/characters/Shalva';
 import { ANDHAKA } from '../entities/characters/Andhaka';
+import { RAIDER } from '../entities/characters/Village';
 import { CharacterRig, type CharacterDefinition } from '../entities/animation/CharacterRig';
 import type { Character } from '../entities/Character';
 import { separateFighters } from '../physics/CharacterMotor';
-import { CHAPTERS, chapterById, type Chapter } from '../game/Chapters';
+import { CHAPTERS, LAST_CHAPTER, chapterById, chapterTitle, type Chapter } from '../game/Chapters';
 import { KITS, type Ability } from '../game/Progression';
 import { CinematicDirector } from '../cinematics/CinematicDirector';
 import { buildIntro, buildArrival, ATTRACT, type IntroContext } from '../cinematics/Intros';
@@ -51,7 +54,7 @@ const FIGHTER_CAPSULE = { halfHeight: 0.55, radius: 0.4 };
 const TALL_CAPSULE = { halfHeight: 0.6, radius: 0.42 };
 /** Takshaka: 2.6 m with the hood. */
 const NAGA_CAPSULE = { halfHeight: 0.75, radius: 0.55 };
-/** The rakshasa minions: 1.85 m. */
+/** The rakshasa minions (and the prologue's raiders, on their model): 1.85 m. */
 const MINION_CAPSULE = { halfHeight: 0.52, radius: 0.4 };
 /** The Baoli Guardian: 3.2 m tall and broad. */
 const BAOLI_CAPSULE = { halfHeight: 0.95, radius: 0.65 };
@@ -65,6 +68,8 @@ const FIXED_DT = 1 / 60;
 const MAX_STEPS_PER_FRAME = 5;
 /** How long the camera takes to settle from the last cutscene shot into the follow camera. */
 const HANDOFF_SECONDS = 1.1;
+/** The title screen stands in this chapter's arena (the moonlit baoli, as it always has). */
+const TITLE_CHAPTER = 1;
 /** Hold the skip button this long to skip a cutscene. */
 const SKIP_HOLD = 0.7;
 /** A press of the skip button shorter than this is a tap: on to the next line. */
@@ -82,6 +87,8 @@ interface Spawn {
 }
 
 const SPAWNS: Record<number, Spawn[]> = {
+  // The prologue's courtyard is empty until the raiders come through the gate: see HORDES.
+  0: [],
   1: [{ make: () => new BossBaoli('baoli_guardian'), at: new THREE.Vector3(0, 0, -4.2), capsule: BAOLI_CAPSULE, rig: BAOLI_GUARDIAN }],
   2: [
     { make: () => new Vetala('vetala'), at: new THREE.Vector3(2.5, 0, -2.8), capsule: TALL_CAPSULE, rig: VETALA },
@@ -130,7 +137,23 @@ const summitLane = (side: 1 | -1, delay: number) => ({
     v3(0, 0, 13), v3(0, 0, 9)],
 });
 
+/**
+ * The village gate: the raiders wait just outside it (out of sight of the lesson) and run in to the courtyard. More
+ * come than the boy can stand against: the prologue's fight ends in its scripted loss long before the last of them.
+ */
+const raidLane = (x: number, z: number, delay: number) => ({ at: v3(x, 0, z), delay, route: [v3(x * 0.5, 0, -10), v3(x, 0, -5)] });
+
 const HORDES: Record<number, Horde> = {
+  0: {
+    minion: (i) => new Raider(`raider_${i + 1}`),
+    minionCapsule: MINION_CAPSULE,
+    minionRig: RAIDER,
+    lanes: [raidLane(-0.9, -14.5, 0), raidLane(0.9, -15.2, 0.5), raidLane(0, -16.6, 1.1)],
+    total: 9,
+    maxAlive: 3,
+    interval: 3,
+    card: { name: 'Raiders', epithet: 'Out of the desert at dusk' },
+  },
   4: {
     minion: (i) => new Rakshasa(`rakshasa_${i + 1}`),
     minionCapsule: MINION_CAPSULE,
@@ -159,12 +182,17 @@ const FINALES: Record<number, Finale> = {
   4: { make: () => new BossAndhaka('andhaka'), at: v3(0, 4.05, -9.6), capsule: ANDHAKA_CAPSULE, rig: ANDHAKA },
 };
 
-const LEVEL_MOODS: Record<number, MusicMood> = { 1: MOODS.baoli, 2: MOODS.akhada, 3: MOODS.dwarka, 4: MOODS.summit };
-/** Each arena's ambience and reverb: the stepwell, the jungle akhada, the sea at Dwarka, the mountain. */
-const LEVEL_AMBIENCE: Record<number, Ambience> = { 1: 'baoli', 2: 'akhada', 3: 'dwarka', 4: 'summit' };
+const LEVEL_MOODS: Record<number, MusicMood> = { 0: MOODS.village, 1: MOODS.baoli, 2: MOODS.akhada, 3: MOODS.dwarka, 4: MOODS.summit };
+/** Each arena's ambience and reverb: the village, the stepwell, the jungle akhada, the sea at Dwarka, the mountain. */
+const LEVEL_AMBIENCE: Record<number, Ambience> = { 0: 'village', 1: 'baoli', 2: 'akhada', 3: 'dwarka', 4: 'summit' };
 
-/** Chapter I teaches the basics, one line at a time (fight seconds, text). Only moves the hero has are mentioned. */
-const FIRST_FIGHT_HINTS: [number, string, Ability?][] = [
+/**
+ * The first fights (the prologue, then Chapter I) teach the basics, one line at a time: fight seconds, text, the move
+ * it needs and (fourth) a move that makes it moot. Only moves the hero has are mentioned, and each hint shows once
+ * per session, so Chapter I after the prologue teaches only what is new (chaining blows).
+ */
+const FIRST_FIGHT_HINTS: [number, string, Ability?, Ability?][] = [
+  [1.5, 'Press {attack} to strike.', undefined, 'combo'],
   [1.5, 'Press {attack} to strike. Press it again as the blow lands to chain up to three.', 'combo'],
   [1.5, 'Press {guard} just as a blow lands to deflect it.', 'parry'],
   [10, 'Press {dodge} to slide under a blow. You can slide out of a swing once it has landed.', 'dodge'],
@@ -212,6 +240,8 @@ export class Engine {
 
   public player: Player | null = null;
   public enemies: Enemy[] = [];
+  /** The chapter story's characters who do not fight (the guru), spawned with it. */
+  public cast: Extra[] = [];
 
   private readonly hud = new Hud();
   private readonly cinema = new Cinema();
@@ -240,11 +270,13 @@ export class Engine {
   /** The skip button must be let go before it counts again (held into a cutscene, or just used to skip one). */
   private skipLatched = false;
   private hintIndex = 0;
-  /** The first fight's hints play once per session, not on every retry. */
-  private hintsShown = false;
+  /** The first fights' hints play once per session (by index), not on every retry or again in the next chapter. */
+  private readonly hintsShown = new Set<number>();
   private attractAngle = 0.6;
   private outcomeAt = 0;
   private outcome: 'defeat' | 'victory' | null = null;
+  /** The chapter's scripted loss has come (the prologue): the hero is beaten and out of the player's hands. */
+  private beaten = false;
   /** After a failed chapter load: whether the title (and its arena) is still there to go back to. */
   private recoverable = false;
   /** The current chapter's waves, if it has them. */
@@ -303,13 +335,13 @@ export class Engine {
     };
     this.player.group.visible = false;
 
-    // The title screen stands in the first chapter's arena; the hero streams in alongside it.
-    const firstLevel = CHAPTERS[0].level;
+    // The title screen stands in its chapter's arena; the hero streams in alongside it.
+    const firstLevel = chapterById(TITLE_CHAPTER).level;
     let levelShare = 0;
     let heroShare = 0;
     const report = () => this.showLoading('', 'Yudhveer', levelShare * 0.8 + heroShare * 0.2);
     const level = this.levelManager.loadLevel(firstLevel, (f) => { levelShare = f; report(); });
-    const hero = this.player.equip(KITS[CHAPTERS[0].kit]).then(() => { heroShare = 1; report(); })
+    const hero = this.player.equip(KITS[chapterById(TITLE_CHAPTER).kit]).then(() => { heroShare = 1; report(); })
       .catch((err) => console.error('[Engine] Yodha failed to load; keeping the greybox', err));
 
     this.isRunning = true;
@@ -362,8 +394,8 @@ export class Engine {
         e.preventDefault();
         this.combatDebug.toggle();
       }
-      // Dev shortcut: Shift+1..4 jumps straight into a chapter's fight.
-      if (import.meta.env.DEV && e.shiftKey && /^Digit[1-4]$/.test(e.code)) {
+      // Dev shortcut: Shift+0..4 jumps straight into a chapter's fight (0: the prologue).
+      if (import.meta.env.DEV && e.shiftKey && /^Digit[0-4]$/.test(e.code)) {
         void this.startChapter(parseInt(e.code.slice(5), 10), { intro: false });
       }
     });
@@ -412,8 +444,8 @@ export class Engine {
     };
 
     click('title', (action) => {
-      if (action === 'continue') void this.beginCampaign(Math.min(Progress.unlocked(), CHAPTERS.length));
-      else if (action === 'new') void this.beginCampaign(1);
+      if (action === 'continue') void this.beginCampaign(Math.min(Progress.unlocked(), LAST_CHAPTER));
+      else if (action === 'new') void this.beginCampaign(CHAPTERS[0].id);
       else if (action === 'chapters') this.openChapters();
       else if (action === 'settings') this.openSettings();
       else if (action === 'controls') this.screens.push('controls');
@@ -478,7 +510,7 @@ export class Engine {
   private async recoverToTitle(): Promise<void> {
     this.showLoading('', 'Yudhveer', 0);
     try {
-      await this.levelManager.loadLevel(CHAPTERS[0].level, (f) => this.showLoading('', 'Yudhveer', f));
+      await this.levelManager.loadLevel(chapterById(TITLE_CHAPTER).level, (f) => this.showLoading('', 'Yudhveer', f));
     } catch (err) {
       this.loadFailed('The arena could not be loaded. Check your connection and reload the page.', err);
       this.recoverable = false;
@@ -498,17 +530,19 @@ export class Engine {
   private openChapters(): void {
     const list = $('chapters-menu');
     const unlocked = Progress.unlocked();
-    list.replaceChildren(...CHAPTERS.map((c) => {
+    list.replaceChildren(...CHAPTERS.map((c, i) => {
       const b = document.createElement('button');
       b.dataset.action = 'chapter';
       b.dataset.chapter = String(c.id);
       b.disabled = c.id > unlocked;
-      b.innerHTML = `<span class="ch-num">${c.numeral}</span><span class="ch-name"></span><span class="ch-state">${c.id > unlocked ? 'Locked' : ''}</span>`;
+      // The prologue has no numeral: a small mark in its place.
+      b.innerHTML = `<span class="ch-num">${c.numeral || '॰'}</span><span class="ch-name"></span><span class="ch-state">${c.id > unlocked ? 'Locked' : ''}</span>`;
       const name = b.querySelector('.ch-name')!;
-      name.textContent = c.name;
+      name.textContent = c.numeral ? c.name : `Prologue: ${c.name}`;
       const place = document.createElement('span');
       place.className = 'ch-place';
-      place.textContent = c.id > unlocked ? `Clear chapter ${CHAPTERS[c.id - 2].numeral} to begin` : c.place;
+      const before = CHAPTERS[i - 1];
+      place.textContent = c.id > unlocked && before ? `Clear ${before.numeral ? `chapter ${before.numeral}` : 'the prologue'} to begin` : c.place;
       name.appendChild(place);
       return b;
     }));
@@ -613,11 +647,13 @@ export class Engine {
     this.chapter = null;
     this.setMode('title');
 
-    const unlocked = Math.min(Progress.unlocked(), CHAPTERS.length);
+    // Continue appears once there is somewhere past the start to continue to.
+    const unlocked = Math.min(Progress.unlocked(), LAST_CHAPTER);
+    const resume = unlocked > CHAPTERS[0].id;
     const cont = $('title-continue') as HTMLButtonElement;
-    cont.hidden = unlocked <= 1;
-    $('continue-detail').textContent = unlocked > 1 ? `Chapter ${chapterById(unlocked).numeral}, ${chapterById(unlocked).name}` : '';
-    this.screens.only('title', unlocked > 1 ? cont : null);
+    cont.hidden = !resume;
+    $('continue-detail').textContent = resume ? `${chapterTitle(chapterById(unlocked))}, ${chapterById(unlocked).name}` : '';
+    this.screens.only('title', resume ? cont : null);
     refreshGlyphs(document, this.inputManager.device);
     this.soundFX.music.play(MOODS.title);
     this.soundFX.playAmbience(null);
@@ -647,7 +683,7 @@ export class Engine {
     this.clearEnemies();
     this.player.group.visible = false;
 
-    const kicker = `Chapter ${chapter.numeral}`;
+    const kicker = chapterTitle(chapter);
     const needLevel = !this.levelManager.isLoaded(chapter.level);
     let levelShare = needLevel ? 0 : 1;
     let rigShare = 0;
@@ -669,7 +705,7 @@ export class Engine {
     // The chapter decides his weapon and moves; a new weapon is a new rig, so it loads with the rest.
     const hero = this.player.equip(KITS[chapter.kit])
       .catch((err) => console.error('[Engine] Yodha failed to arm; keeping the previous weapon', err));
-    const rigs = [hero, ...this.spawnEnemies(chapter), ...this.startHorde(chapter)];
+    const rigs = [hero, ...this.spawnEnemies(chapter), ...this.startHorde(chapter), ...this.spawnCast(chapter)];
     this.finale = FINALES[chapter.level] ? { def: FINALES[chapter.level], boss: null } : null;
     if (this.finale) CharacterRig.prefetch(this.finale.def.rig);
     let done = 0;
@@ -681,7 +717,10 @@ export class Engine {
     this.projectileManager.clear();
     this.hud.bind(this.enemies);
     this.fightTime = 0;
-    this.hintIndex = chapter.id === 1 && Settings.get().hints && !this.hintsShown ? 0 : FIRST_FIGHT_HINTS.length;
+    this.hintIndex = chapter.id <= 1 && Settings.get().hints ? 0 : FIRST_FIGHT_HINTS.length;
+    // A fight he is meant to lose cannot kill him.
+    this.player.mortal = !chapter.story?.loss;
+    this.beaten = false;
     this.beats = (chapter.story?.beats ?? []).map((beat) => ({ beat, fired: false }));
     this.learnedNow.clear();
     Voices.preload(storyVoices(chapter.story));
@@ -718,9 +757,11 @@ export class Engine {
     this.enemies.push(enemy);
     h.minions.push(enemy);
     this.hud.add(enemy);
+    // A chapter whose opponents arrive in its story keeps the first of them out of sight until a scene's `show` cue.
+    const waiting = this.mode === 'loading' && !!this.chapter?.introPlaceOnly;
     return enemy.attachRig(h.def.minionRig)
       .catch((err) => console.error(`[Engine] ${enemy.id} rig failed to load; keeping the greybox`, err))
-      .finally(() => { enemy.group.visible = true; });
+      .finally(() => { enemy.group.visible = !waiting; });
   }
 
   /** Waves: replace fallen minions until the total is reached. */
@@ -781,6 +822,20 @@ export class Engine {
     this.director.play(buildArrival(this.introContext(this.chapter!), enemy), () => this.endIntro());
   }
 
+  /** The chapter story's cast, where it first stands (hidden if it comes on later); loaded with the chapter. */
+  private spawnCast(chapter: Chapter): Promise<unknown>[] {
+    return (chapter.story?.cast ?? []).map((m) => {
+      const extra = new Extra(m.id);
+      if (m.silhouette) extra.silhouetteColor = m.silhouette.color;
+      extra.setPosition(m.at.x, m.at.y, m.at.z);
+      if (m.face) extra.group.rotation.y = Math.atan2(m.face.x - m.at.x, m.face.z - m.at.z);
+      extra.group.visible = !m.hidden;
+      this.sceneManager.scene.add(extra.group);
+      this.cast.push(extra);
+      return extra.attachRig(m.rig).catch((err) => console.error(`[Engine] ${m.id} rig failed to load; keeping the greybox`, err));
+    });
+  }
+
   private restartChapter(): Promise<void> {
     return this.chapter ? this.startChapter(this.chapter.id, { intro: false }) : Promise.resolve();
   }
@@ -838,7 +893,7 @@ export class Engine {
 
   /** Who stands where, for story scenes and beat triggers. */
   private stage(): Stage {
-    return new Stage(this.chapter!, this.levelManager.activeLevel!, this.player!, this.enemies, this.introContext(this.chapter!).cards);
+    return new Stage(this.chapter!, this.levelManager.activeLevel!, this.player!, this.enemies, this.introContext(this.chapter!).cards, this.cast);
   }
 
   /**
@@ -907,7 +962,8 @@ export class Engine {
     this.storyScene(ending, () => {
       this.mode = 'over';
       this.cinema.setActive(false);
-      this.fadeFromBlack(0.8);
+      // A chapter that runs straight on stays black into the next one's loading.
+      if (!this.chapter?.continues) this.fadeFromBlack(0.8);
       this.showOutcome();
     });
   }
@@ -978,7 +1034,7 @@ export class Engine {
     this.dialogue.setPaused(true);
     this.inputManager.releaseAll();
     this.inputManager.exitPointerLock();
-    $('pause-chapter').textContent = this.chapter ? `Chapter ${this.chapter.numeral}, ${this.chapter.name}` : '';
+    $('pause-chapter').textContent = this.chapter ? `${chapterTitle(this.chapter)}, ${this.chapter.name}` : '';
     this.screens.only('pause');
     this.updateCaptureHint();
   }
@@ -997,6 +1053,27 @@ export class Engine {
     this.inputManager.discardLook();
     this.lastTime = performance.now();
     this.updateCaptureHint();
+  }
+
+  /**
+   * A fight the hero is meant to lose (the prologue): once its moment comes he is beaten (on his knees, out of the
+   * player's hands) and the chapter ends in its story, as a won chapter would: its ending scene, then onward.
+   */
+  private checkLoss(): void {
+    const loss = this.chapter?.story?.loss;
+    if (!loss || this.mode !== 'play' || !this.player) return;
+    if (!triggered(loss.on, this.stage(), { time: this.fightTime, learned: this.learnedNow })) return;
+    this.beaten = true;
+    this.setMode('outro');
+    this.outcome = 'victory';
+    this.outcomeAt = 1.6;
+    this.hud.clearHint();
+    this.hud.showBoss(false);
+    this.dialogue.clear();
+    this.soundFX.music.play(null);
+    this.soundFX.playDefeat();
+    this.player.stateMachine.changeState('POSTURE_BROKEN');
+    this.slowMotion(0.35, 1.2);
   }
 
   /** The fight is decided: the hero fell, or every enemy did. */
@@ -1046,10 +1123,15 @@ export class Engine {
     // Chapter complete.
     const next = CHAPTERS.find((c) => c.id === chapter.id + 1);
     Progress.unlock(next ? next.id : chapter.id + 1);
+    if (next && chapter.continues) {
+      // Straight on into the next chapter, from black.
+      void this.startChapter(next.id, { intro: true });
+      return;
+    }
     const s = this.combatSystem.stats;
     const minutes = Math.floor(this.fightTime / 60);
     const seconds = Math.floor(this.fightTime % 60).toString().padStart(2, '0');
-    $('cleared-kicker').textContent = next ? `Chapter ${chapter.numeral} complete` : 'The campaign is complete';
+    $('cleared-kicker').textContent = next ? `${chapterTitle(chapter)} complete` : 'The campaign is complete';
     $('cleared-title').textContent = next ? chapter.clearedLine : `${chapter.clearedLine} Thank you for playing.`;
     const stats: [string, string | number][] = [
       ['Time', `${minutes}:${seconds}`],
@@ -1093,6 +1175,12 @@ export class Engine {
       HitboxManager.getInstance().forget(enemy.id);
     }
     this.enemies = [];
+    for (const extra of this.cast) {
+      this.sceneManager.scene.remove(extra.group);
+      extra.rig?.dispose();
+      disposeObject(extra.group);
+    }
+    this.cast = [];
     this.horde = null;
     this.finale = null;
     this.staging.clear();
@@ -1135,12 +1223,13 @@ export class Engine {
     this.physicsWorld.step(dt);
     this.inputManager.advance(dt);
     const acting = this.mode === 'play' || this.mode === 'handoff' || this.mode === 'outro';
-    const playerControl = acting;
+    const playerControl = acting && !this.beaten;
 
     if (playerControl) player.handleInput(dt, this.sceneManager.viewYaw, this.enemies);
     else player.updateProceduralAnimations(dt, 0);
     // Enemies still hidden (a boss whose model is loading) wait.
-    if (acting || this.mode === 'over') this.enemies.forEach((enemy) => { if (enemy.group.visible) enemy.updateAI(dt, player); });
+    // Once the hero is beaten (a scripted loss) they stand over him instead of pressing on.
+    if ((acting || this.mode === 'over') && !this.beaten) this.enemies.forEach((enemy) => { if (enemy.group.visible) enemy.updateAI(dt, player); });
 
     // Low in a slide he passes between and under enemies instead of stopping against them.
     separateFighters([player, ...this.enemies].filter((f) => f.motor).map((f) => ({
@@ -1152,6 +1241,7 @@ export class Engine {
     if (this.mode === 'intro') this.staging.update(dt);
     player.update(dt);
     this.enemies.forEach((enemy) => enemy.update(dt));
+    this.cast.forEach((extra) => extra.update(dt));
 
     if (acting || this.mode === 'over') {
       this.combatSystem.update(player, this.enemies, dt);
@@ -1170,7 +1260,7 @@ export class Engine {
   }
 
   private simulatedObjects(): THREE.Object3D[] {
-    const objects: THREE.Object3D[] = this.enemies.map((e) => e.group);
+    const objects: THREE.Object3D[] = [...this.enemies, ...this.cast].map((c) => c.group);
     if (this.player) objects.push(this.player.group);
     return objects;
   }
@@ -1245,8 +1335,15 @@ export class Engine {
     this.paused = true;
   }
 
-  /** Dev: everyone in the arena falls now; the victory, the chapter's ending scene and its outcome follow as in play. */
+  /**
+   * Dev: everyone in the arena falls now; the victory, the chapter's ending scene and its outcome follow as in play.
+   * A chapter with a scripted loss is "won" by losing: the hero is brought low and its loss plays.
+   */
   public debugWin(): void {
+    if (this.chapter?.story?.loss && this.player) {
+      this.player.currentHealth = 1;
+      return;
+    }
     for (const e of this.enemies) {
       e.currentHealth = 0;
       e.stateMachine.changeState('DEAD');
@@ -1379,6 +1476,7 @@ export class Engine {
       case 'play':
         this.updateHints();
         this.updateBeats();
+        this.checkLoss();
         if (this.mode === 'play') this.checkOutcome();
         break;
       case 'outro':
@@ -1396,16 +1494,17 @@ export class Engine {
 
   private updateHints(): void {
     while (this.hintIndex < FIRST_FIGHT_HINTS.length) {
-      const [at, text, needs] = FIRST_FIGHT_HINTS[this.hintIndex];
-      if (needs && !this.player?.can(needs)) { // a move he does not have yet is not taught
+      const [at, text, needs, moot] = FIRST_FIGHT_HINTS[this.hintIndex];
+      // A move he does not have yet is not taught; nor is a hint already seen, or one a better move replaces.
+      if ((needs && !this.player?.can(needs)) || (moot && this.player?.can(moot)) || this.hintsShown.has(this.hintIndex)) {
         this.hintIndex++;
         continue;
       }
       if (this.fightTime < at) return;
       this.hud.hint(text, 6);
+      this.hintsShown.add(this.hintIndex);
       this.hintIndex++;
       break;
     }
-    if (this.hintIndex >= FIRST_FIGHT_HINTS.length) this.hintsShown = true;
   }
 }

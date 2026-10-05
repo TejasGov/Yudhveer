@@ -90,7 +90,7 @@ himself: Andhaka has carried his own judge up the mountain.
 
 | Chapter | Weapon | Shield | Skills unlocked |
 |---|---|---|---|
-| Prologue | Lathi | none | strike, dodge |
+| Prologue | Lathi | none | strike (single blows), dodge |
 | I. Baoli | Lathi | none | the guru's teachings, learned during the fight |
 | II. Hanuman forest | Basic sword | **Dhal, from the vanara mentor** | block, parry |
 | III. Island | **Blessed mace** (two-handed) | none | heavy two-handed blows |
@@ -109,8 +109,7 @@ himself: Andhaka has carried his own judge up the mountain.
 
 1. **Progression system:** *done (milestone 1).* See "Milestone 1" below.
 2. **Weapon sets for the hero:** *done (milestone 1), with placeholder models and borrowed clips.*
-3. **Prologue:** the small village arena, the goons, the scripted loss, the guru's apparent death, Andhaka's
-   silhouette shot.
+3. **Prologue:** *done (milestone 4).* See "Milestone 4" below.
 4. **The guru's voice in Chapter I:** teaching prompts tied to the fight.
 5. **Chapter II:** the sunset relight of the atrium, the non-playable training cinematic, the mentor (placeholder),
    the shield-and-parry training section.
@@ -212,8 +211,65 @@ export const BAOLI_STORY: ChapterStory = {
 ```
 
 - **Left for later:** there is no setting to turn subtitles off yet; the pause screen's controls list does not mention the
-  tap to read ahead; a scene cannot yet spawn a character of its own (the vanara mentor, the guru): add it to the
-  chapter's spawns, or a cue hook, when milestone 4 or 6 needs one.
+  tap to read ahead. (A scene's own characters arrived with milestone 4: `ChapterStory.cast`.)
+
+## Milestone 4: the prologue (landed)
+
+"The Last Lesson", chapter id 0, before Chapter I. Code: `src/levels/Level0_Village.ts`, `PROLOGUE_STORY` in
+`src/game/Story.ts`, `src/entities/characters/Village.ts` (its placeholder people), `src/entities/Raider.ts`,
+`src/entities/Extra.ts`; the map is built by `game asset/levels/00_village/build_village.py` (command in that
+folder's README).
+
+- **The village:** a 22 m walled mud courtyard at dusk, not explorable (walls on its rim, plus the lane out through
+  the north gate): three round thatched huts, a sandstone house, a neem tree on its platform, a well, a cooking fire,
+  a gateway with a chhatri, and dunes, khejri trees and a hill fort outside. Flat vertex colours (two materials, under
+  1 MB), cel-shaded with ink like the other arenas, under a sky drawn in a shader: the sun going down behind the gate,
+  so faces turned north are lit and anything between the camera and the gate stands against the glow. Its own
+  ambience (`village`: evening wind, the fire crackling, goats, a dog, crickets, the aarti bell) and music tonic.
+- **Flow:** the intro shows only the place (`Chapter.introPlaceOnly`), then the opening scene: the lesson, the horn at
+  the gate, the raiders stepping out of the sunset (they wait out of sight until a `show` cue), the guru stepping
+  aside. The fight: raiders come in through the gate in waves (9 in all, 3 at a time); the guru's voice twice. **The
+  scripted loss** (`ChapterStory.loss`): the hero cannot die (`Player.mortal` off), and once his health is under 30 %,
+  or three raiders have fallen, or 75 s have passed, he is beaten (no defeat screen) and the ending plays: on his
+  knees with the raiders round him; Andhaka walks in through the gate, a black shape against the sun, and says his
+  line; the guru steps between them; the blade comes down as the picture cuts to black; "Guruji!" in the dark; later,
+  an empty courtyard, a roof burning, no guru; Yudhveer's vow; he walks out of the gate. The campaign then runs
+  straight on into Chapter I's intro (`Chapter.continues`), and Chapter I is unlocked.
+- **Andhaka is only a silhouette:** his model and cleaver without the crown (he crowns himself at the summit), every
+  surface black with a thin rim of sunset light (`CastMember.silhouette`), framed along the line of the sun.
+- **Kit `prologue`:** the lathi, single blows only (no chaining) and the slide. Chapter I adds the chain, and the first
+  fights' hints now show once per session each, so Chapter I after the prologue only teaches what is new.
+- **Progress:** a new player has the prologue only (`Progress.unlocked` defaults to 0); clearing it unlocks Chapter I.
+  Saves from before the prologue (2 or more) keep everything. The title's Continue appears once Chapter I is open; the
+  chapter list shows the prologue first ("Prologue: The Last Lesson", a ॰ for its numeral). The title screen still
+  stands in the baoli. Dev: Shift+0 or `__debug.chapter(0)`; `__debug.win()` in the prologue brings the loss.
+- **New in the scene system:** `ChapterStory.cast`, characters who are in the story but not the fight (no body, no
+  AI), loaded with the chapter and addressed by id in cues; a `show` cue; triggers `heroBelow` and `any`; a level can
+  take story cues (`GameLevel.cue`, the village's `raid-fire`). Weapon trails are cleared when a scene starts.
+- **Placeholders:** the guru is the Vetala's model, unarmed and tinted pale (it still reads as a hooded fighter; the
+  user makes the guru in Meshy); the raiders are the summit's rakshasas, dyed dust-brown; the roof fire is plain
+  flame cones; the kneel is the hero's crouch idle; the lathi is still built in code.
+- **Left for later:** the courtyard keeps its dusk light after the raid (no time-of-day change); the guru has no fight
+  of his own; the prologue's lines below are unrecorded except Andhaka's and Yudhveer's vow.
+
+### Prologue lines
+
+Every line, for recording (ElevenLabs; the voices are in `game asset/voice/VOICES.md`). A recording goes in
+`public/assets/voice/<id>.mp3`; until then the line is shown for its reading time.
+
+| Id | Speaker | Text | Recorded |
+|---|---|---|---|
+| `prologue_open_guru_1` | Guru | Again. Feet first, then the lathi. Swung from the arm alone, it is only a stick. | no |
+| `prologue_open_yudhveer_1` | Yudhveer | Like this, Guruji? | no |
+| `prologue_open_guru_2` | Guru | Better. The sun is nearly down. Once more, and then we eat. | no |
+| `prologue_open_guru_3` | Guru | Keep your feet, Yudhveer. Whatever comes through that gate, keep your feet. | no |
+| `prologue_open_yudhveer_2` | Yudhveer | Let them come. | no |
+| `prologue_fight_guru_1` | Guru (in the fight) | Do not chase them. Let them come to you. | no |
+| `prologue_fight_guru_2` | Guru (in the fight) | Breathe. Feet first. | no |
+| `andhaka_prologue_kneel` | Andhaka | A boy with a stick... Your guru's soul will burn before my god. Kneel. | yes |
+| `prologue_end_guru_1` | Guru | Leave the boy. It is me you came for. | no |
+| `prologue_end_yudhveer_cry` | Yudhveer | Guruji! | no |
+| `yudhveer_prologue_find` | Yudhveer | Guruji... I will find you. Even if I have to climb to the top of the world. | yes |
 
 ## Tools
 
@@ -250,7 +306,7 @@ Each milestone is one chat. Start it with: "Read docs/STORY.md, let's do milesto
   trails, sounds. The user downloads the Mixamo packs it asks for.
 - [x] **3. Story delivery:** dialogue and subtitle system, cinematic cutscene tools for story beats (beyond intros),
   voice line playback.
-- [ ] **4. Prologue:** the small village arena, goons, the scripted loss, the guru taken, Andhaka's silhouette.
+- [x] **4. Prologue:** the small village arena, goons, the scripted loss, the guru taken, Andhaka's silhouette.
 - [ ] **5. Chapter I rework:** lathi fight, the guru's remembered teachings, the freed Guardian's words.
 - [ ] **6. Chapter II rework:** the sunset relight, the sword-training cinematic, the vanara mentor (placeholder),
   shield and parry training, the ending that points to Dwarka.

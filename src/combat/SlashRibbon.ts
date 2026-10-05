@@ -89,6 +89,12 @@ export class SlashRibbon {
     uvAttr.needsUpdate = true;
   }
 
+  /** Drops the trail at once (a cutscene starts: no AI step will fade it, and it would hang in the air). */
+  public clear(): void {
+    this.positions.length = 0;
+    this.update(new THREE.Vector3(), new THREE.Vector3(), false);
+  }
+
   public setColor(color: number): void {
     this.baseColor.setHex(color);
   }

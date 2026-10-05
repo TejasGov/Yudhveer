@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { GLBLevel } from './GLBLevel';
+import { Level0_Village } from './Level0_Village';
 import { Level1_Baoli } from './Level1_Baoli';
 import { Level2_Akhada } from './Level2_Akhada';
 import { Level3_Dwarka } from './Level3_Dwarka';
@@ -8,6 +9,7 @@ import type { GameLevel, LevelAtmosphere } from './LevelTypes';
 import { SceneManager } from '../core/SceneManager';
 
 const LEVELS: Record<number, () => GameLevel> = {
+  0: () => new Level0_Village(),
   1: () => new Level1_Baoli(),
   2: () => new Level2_Akhada(),
   3: () => new Level3_Dwarka(),
@@ -16,7 +18,7 @@ const LEVELS: Record<number, () => GameLevel> = {
 
 /** Any Blender GLB swapped in from the dev console (`__yudhveer.levelManager.loadGLBModel(url)`), lit like the level it replaces. */
 class CustomGLBLevel extends GLBLevel {
-  public readonly id = 0;
+  public readonly id = -1; // 0 is the prologue's village
   public readonly title = 'Custom GLB Arena';
   public readonly subtitle: string;
   public readonly atmosphere: LevelAtmosphere;

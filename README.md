@@ -1,6 +1,6 @@
 # Yudhveer (युद्धवीर)
 
-A four-chapter sword-and-shield action game in the browser: a moonlit stepwell, a Hanuman akhada, the sea city of Dwarka at sunset and the Kailasha summit under an eclipse. Three.js, Rapier physics, Vite and TypeScript, cel-shaded with ink lines.
+A sword-and-shield action game in the browser, a prologue and four chapters: a desert village at dusk, a moonlit stepwell, a Hanuman akhada, the sea city of Dwarka at sunset and the Kailasha summit under an eclipse. Three.js, Rapier physics, Vite and TypeScript, cel-shaded with ink lines.
 
 Live build: https://yudhveer.onrender.com/
 
@@ -15,7 +15,7 @@ npm run preview  # serve the production build
 
 ## Playing
 
-The campaign runs Chapter I to IV. Each chapter opens with a short cutscene (hold Space or A to skip; in story scenes, tap it to read on to the next line). Clearing a chapter unlocks the next one; progress and settings are saved in the browser. Retrying after a defeat skips the cutscene.
+The campaign runs from the prologue (a fight Yudhveer is meant to lose) through Chapter I to IV, and the prologue runs straight on into Chapter I. Each chapter opens with a short cutscene (hold Space or A to skip; in story scenes, tap it to read on to the next line). Clearing a chapter unlocks the next one; progress and settings are saved in the browser. Retrying after a defeat skips the cutscene.
 
 | Action | Keyboard and mouse | Controller |
 |---|---|---|
@@ -31,7 +31,7 @@ The campaign runs Chapter I to IV. Each chapter opens with a short cutscene (hol
 | Sheathe or draw | X | D-pad down |
 | Pause | Esc | Start |
 
-What Yudhveer carries and can do depends on the chapter (`src/game/Progression.ts`): the lathi in Chapter I, a basic sword and the dhal in II, the blessed mace in two hands (no dhal) in III, the magical khanda and the dhal in IV. A move he has not earned yet (the guard, the deflect, the charge, the leaping strike) does nothing.
+What Yudhveer carries and can do depends on the chapter (`src/game/Progression.ts`): the lathi, one blow at a time, in the prologue; the lathi with chained blows in Chapter I, a basic sword and the dhal in II, the blessed mace in two hands (no dhal) in III, the magical khanda and the dhal in IV. A move he has not earned yet (the guard, the deflect, the charge, the leaping strike) does nothing.
 
 Swings turn toward the nearest enemy you are facing or steering toward and step in to reach it. Once a swing's blade has passed, the next blow, a slide or a deflect cuts its follow-through short. The slide is untouchable while low (about half a second) and carries you past an enemy.
 
@@ -41,6 +41,7 @@ Deflect as a blow lands (a 140 ms window) to throw the attacker off balance and 
 
 | | Arena | Opponents |
 |---|---|---|
+| Prologue: The Last Lesson | `game asset/levels/00_village/` | Raiders through the village gate in waves; at the end, Andhaka seen only as a silhouette (a scripted loss) |
 | I. The Moonlit Baoli | `game asset/levels/01_baoli/` | Baoli Guardian (boss, a 3.2 m horned demon with a talwar) |
 | II. Hanuman Akhada | `game asset/levels/02_akhada/` | The Vetala (twin blades) and Mayavi (a sorcerer whose bolts can be deflected back) |
 | III. Dwarka | `game asset/levels/03_dwarka/` | Shalva (boss, an asura raider with a spiked gada and a leap); when he falls, Takshaka, king of the nagas, comes for the city (final boss, two phases; fire breathed along the ground in the second) |
@@ -73,5 +74,5 @@ The Blender files, character models, Mixamo animation clips and weapon models be
 In `npm run dev` builds (or any build with `?debug` in the URL for F3):
 
 - **F3**: combat overlay (blades, hurt capsules, strike windows, the hit log).
-- **Shift+1 / 2 / 3 / 4**: jump straight into a chapter's fight.
-- Console: `__debug.chapter(id, intro?)`, `__debug.shot(index, seconds)` to freeze a cutscene on a shot, `__debug.advance(seconds)`, `__debug.resume()`, `__debug.step(frames)` and `__debug.log()` for deterministic combat tests, `__debug.win()` to win the fight at once (and see the chapter's ending scene). `__yudhveer` is the engine.
+- **Shift+0 / 1 / 2 / 3 / 4**: jump straight into a chapter's fight (0: the prologue).
+- Console: `__debug.chapter(id, intro?)`, `__debug.shot(index, seconds)` to freeze a cutscene on a shot, `__debug.advance(seconds)`, `__debug.resume()`, `__debug.step(frames)` and `__debug.log()` for deterministic combat tests, `__debug.win()` to win the fight at once (and see the chapter's ending scene; in the prologue it brings on the scripted loss). `__yudhveer` is the engine.

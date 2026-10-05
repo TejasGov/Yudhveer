@@ -71,10 +71,12 @@ const VOWELS = {
 };
 
 /** A place's sound: its reverb, the ground underfoot, and its ambience. */
-export type Ambience = 'baoli' | 'akhada' | 'dwarka' | 'summit';
+export type Ambience = 'village' | 'baoli' | 'akhada' | 'dwarka' | 'summit';
 type Surface = 'stone' | 'earth' | 'snow';
 
 const SPACES: Record<Ambience, { seconds: number; damp: number; send: number; surface: Surface }> = {
+  // A walled village courtyard in the desert: mud walls close by, open sky.
+  village: { seconds: 1.2, damp: 0.65, send: 0.14, surface: 'earth' },
   // A stepwell: stone on every side, long and bright.
   baoli: { seconds: 3.2, damp: 0.35, send: 0.3, surface: 'stone' },
   // A jungle clearing: short, soft.
@@ -389,6 +391,18 @@ export class SoundFX {
       run.events.push({ next: now + first, every: range, fire });
     };
     switch (kind) {
+      case 'village': {
+        // Dusk in a desert village: the evening wind over the walls, the cooking fire, goats and a dog somewhere,
+        // and the temple bell for the evening aarti.
+        run.layers.push(this.layer({ color: 'pink', filter: 'bandpass', freq: 420, q: 0.8, gain: 0.045, sway: 0.08, sweep: 160 }));
+        run.layers.push(this.layer({ color: 'brown', filter: 'lowpass', freq: 140, gain: 0.04, sway: 0.03 }));
+        every([0.15, 0.9], (at) => this.crackle(at));
+        every([9, 20], (at) => this.goat(at), 3);
+        every([14, 30], (at) => this.dog(at), 8);
+        every([1.5, 4], (at) => this.cricket(at), 6);
+        every([26, 46], (at) => this.templeBell(at, 1.2, rand(-0.6, 0.6)), 12);
+        break;
+      }
       case 'baoli': {
         // Night in a Rajasthani stepwell: desert air over the rim, drips into the deep water, crickets in the
         // steps, a temple bell and a peacock far off.
@@ -634,6 +648,38 @@ export class SoundFX {
     }
   }
 
+  /** A crack and a few sparks from the cooking fire. */
+  private crackle(at: number): void {
+    const pan = rand(-0.3, 0.6);
+    const pops = 1 + Math.floor(Math.random() * 3);
+    for (let i = 0; i < pops; i++) {
+      this.noise({ color: 'white', filter: 'bandpass', from: rand(1800, 3600), to: 1200, q: 1.5, duration: rand(0.02, 0.05), gain: rand(0.03, 0.07), attack: 0.001, delay: at + i * rand(0.03, 0.09), pan, wet: 0.2, amb: true });
+    }
+  }
+
+  /** A goat in a pen: a wavering "meh-eh-eh". */
+  private goat(at: number): void {
+    const pan = rand(-0.8, 0.8);
+    const f = rand(380, 470);
+    this.voice({
+      pitch: [[0, f], [0.08, f * 1.12], [0.5, f * 0.96]], duration: 0.6, gain: 0.04, vowel: VOWELS.e, toVowel: VOWELS.a,
+      size: 0.6, breath: 0.25, grit: 4, attack: 0.03, delay: at, pan, wet: 0.5, amb: true,
+    });
+  }
+
+  /** A village dog barking, two or three times, far off. */
+  private dog(at: number): void {
+    const pan = rand(-0.9, 0.9);
+    const barks = 2 + Math.floor(Math.random() * 2);
+    for (let i = 0; i < barks; i++) {
+      const f = rand(300, 360);
+      this.voice({
+        pitch: [[0, f * 1.2], [0.05, f * 1.5], [0.14, f]], duration: 0.16, gain: 0.035, vowel: VOWELS.a, toVowel: VOWELS.o,
+        size: 0.8, breath: 0.3, grit: 6, attack: 0.008, delay: at + i * rand(0.28, 0.4), pan, wet: 0.7, amb: true,
+      });
+    }
+  }
+
   /** A wave: the swell, the break and the wash running back. */
   private wave(at: number): void {
     const pan = rand(-0.5, 0.5);
@@ -774,6 +820,23 @@ export class SoundFX {
   }
 
   // --- Cutscenes, menus, outcomes ------------------------------------------------------------------------------
+
+  /** Raiders at the gate: a narsingha horn blown twice, rough and rising, and a shout under it. */
+  public playRaidHorn(): void {
+    for (const d of [0, 1.1]) {
+      for (const [ratio, level] of [[1, 0.09], [2, 0.04], [3, 0.02]] as const) {
+        this.tone({ type: 'sawtooth', freq: 150 * ratio, to: 196 * ratio, gain: level, attack: 0.18, duration: d ? 1.6 : 0.8, delay: d, wet: 0.6, filter: { type: 'lowpass', freq: 1500 } });
+      }
+    }
+    this.noise({ duration: 1.4, gain: 0.12, attack: 0.2, filter: 'bandpass', from: 500, peak: 900, to: 400, q: 1.2, delay: 0.5 });
+  }
+
+  /** A heavy blade comes down, heard in the dark (the guru's fall). */
+  public playFallingBlow(): void {
+    this.noise({ duration: 0.35, gain: 0.3, attack: 0.08, filter: 'bandpass', from: 300, peak: 1100, to: 200, q: 2 });
+    this.thump(60, 1.4, 0.5, { delay: 0.24, wet: 0.6 });
+    this.noise({ color: 'brown', filter: 'lowpass', from: 700, to: 90, duration: 1.2, gain: 0.25, attack: 0.01, delay: 0.24, wet: 0.5 });
+  }
 
   /** A chapter card lands: a struck bell over a deep drum. */
   public playCardHit(): void {
@@ -1051,6 +1114,7 @@ class MusicBed {
 /** Per-place moods: chapter backdrops and the boss pulse. */
 export const MOODS = {
   title: { tonic: 110, pluck: 1.15, pulse: 0 },
+  village: { tonic: 116.5, pluck: 1.05, pulse: 0 },
   baoli: { tonic: 110, pluck: 1.1, pulse: 0 },
   akhada: { tonic: 123.5, pluck: 0.95, pulse: 0 },
   dwarka: { tonic: 103.8, pluck: 1.2, pulse: 0 },

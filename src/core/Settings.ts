@@ -51,16 +51,20 @@ export const Settings = {
   },
 };
 
-/** Campaign progress: the highest chapter the player may start. */
+/**
+ * Campaign progress: the highest chapter id the player may start. A new player has only the prologue (0); saves from
+ * before the prologue existed start at 2 or more (nothing was written until a chapter was cleared), so they keep
+ * everything they had.
+ */
 const PROGRESS_KEY = 'yudhveer.progress.v1';
 
 export const Progress = {
   unlocked(): number {
     try {
-      const n = parseInt(localStorage.getItem(PROGRESS_KEY) ?? '1', 10);
-      return Number.isFinite(n) && n >= 1 ? n : 1;
+      const n = parseInt(localStorage.getItem(PROGRESS_KEY) ?? '0', 10);
+      return Number.isFinite(n) && n >= 0 ? n : 0;
     } catch {
-      return 1;
+      return 0;
     }
   },
   unlock(chapter: number): void {

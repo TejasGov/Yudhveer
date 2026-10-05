@@ -1,4 +1,4 @@
-import type { Chapter } from '../game/Chapters';
+import { chapterTitle, type Chapter } from '../game/Chapters';
 
 const $ = (id: string) => document.getElementById(id)!;
 
@@ -47,7 +47,7 @@ export class Cinema {
   }
 
   public chapterCard(chapter: Chapter, holdSeconds = 5): void {
-    $('card-kicker').textContent = `Chapter ${chapter.numeral}`;
+    $('card-kicker').textContent = chapterTitle(chapter);
     $('card-title').textContent = chapter.name;
     $('card-native').textContent = chapter.native;
     $('card-line').textContent = chapter.line;

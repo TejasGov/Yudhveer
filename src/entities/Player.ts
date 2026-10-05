@@ -61,6 +61,11 @@ export class Player extends Character {
   /** Called when the fight teaches him a move (the engine shows the banner). */
   public onLearned: ((ability: Ability) => void) | null = null;
 
+  /**
+   * Whether blows can kill him. Off in a fight he is scripted to lose (the prologue): his health stops at 1 and the
+   * story ends the fight instead of the defeat screen.
+   */
+  public mortal = true;
   /** Blows still empowered by a completed charge. */
   public chargedHits = 0;
   /** Called when a charge completes (the engine shows the banner). */
@@ -434,6 +439,10 @@ export class Player extends Character {
     const c = Math.cos(this.viewYaw);
     // Forward (into the screen) is -(sin, cos); right is (cos, -sin).
     return new THREE.Vector3(-s * input.moveY + c * input.moveX, 0, -c * input.moveY - s * input.moveX);
+  }
+
+  public override takeDamage(amount: number): void {
+    super.takeDamage(this.mortal ? amount : Math.max(0, Math.min(amount, this.currentHealth - 1)));
   }
 
   /** Down and out of the fight (enemies stop pressing). */

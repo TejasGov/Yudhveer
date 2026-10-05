@@ -1,8 +1,11 @@
 import type { KitId } from './Progression';
 import type { ChapterStory } from '../cinematics/Scene';
-import { AKHADA_STORY } from './Story';
+import { AKHADA_STORY, PROLOGUE_STORY } from './Story';
 
-/** The campaign, in order. `level` is the LevelManager index of the arena it is fought in. */
+/**
+ * The campaign, in order. `level` is the LevelManager index of the arena it is fought in. Ids run on from 0 (the
+ * prologue); the saved progress (`Progress.unlocked`) is the highest id the player may start.
+ */
 export interface Chapter {
   id: number;
   level: number;
@@ -21,9 +24,28 @@ export interface Chapter {
   defeatLine: string;
   /** Its story scenes and in-fight lines (src/game/Story.ts). */
   story?: ChapterStory;
+  /** The intro shows the place and nothing else: its opponents arrive later, in the story (the prologue's raid). */
+  introPlaceOnly?: boolean;
+  /** Once over, the campaign runs straight on into the next chapter's intro (no chapter-complete screen). */
+  continues?: boolean;
 }
 
 export const CHAPTERS: Chapter[] = [
+  {
+    id: 0,
+    level: 0,
+    kit: 'prologue',
+    numeral: '',
+    name: 'The Last Lesson',
+    native: 'अंतिम पाठ',
+    place: 'His village, at the edge of the desert',
+    line: 'One more lesson before the light goes.',
+    clearedLine: 'The village is quiet. The guru is gone.',
+    defeatLine: 'The village burns.',
+    story: PROLOGUE_STORY,
+    introPlaceOnly: true,
+    continues: true,
+  },
   {
     id: 1,
     level: 1,
@@ -77,4 +99,12 @@ export const CHAPTERS: Chapter[] = [
 
 export function chapterById(id: number): Chapter {
   return CHAPTERS.find((c) => c.id === id) ?? CHAPTERS[0];
+}
+
+/** The last chapter's id (the saved progress goes one past it once the campaign is complete). */
+export const LAST_CHAPTER = CHAPTERS[CHAPTERS.length - 1].id;
+
+/** "Prologue", or "Chapter II": how cards, menus and loading screens name a chapter. */
+export function chapterTitle(chapter: Chapter): string {
+  return chapter.numeral ? `Chapter ${chapter.numeral}` : 'Prologue';
 }

@@ -127,6 +127,29 @@ function driftInto(pose: CameraPose, back: number, lift: number, side: number, f
 const pose = (pos: THREE.Vector3, look: THREE.Vector3, fov: number): CameraPose => ({ pos, look, fov });
 
 const ESTABLISHING: Record<number, (ctx: IntroContext) => Shot[]> = {
+  // The village at dusk: down over the south wall toward the north gate and the sun going down behind it, then low
+  // across the courtyard to the training circle, where the guru and the boy are at their lesson.
+  0: (ctx) => [
+    {
+      duration: 7,
+      fadeIn: 1.6,
+      ease: ease.drift,
+      keys: [
+        { pos: v(1.5, 10, 19), look: v(-1, 3.5, -22), fov: 46 },
+        { pos: v(0.5, 6.5, 14), look: v(-0.5, 2.6, -16), fov: 46 },
+      ],
+      cues: [{ at: 1.2, run: () => ctx.cards.chapter() }],
+    },
+    {
+      duration: 5.5,
+      fadeIn: 0.3,
+      ease: ease.drift,
+      keys: [
+        { pos: v(8.5, 1.4, 5), look: v(0, 1.1, -0.5), fov: 42 },
+        { pos: v(6.2, 1.9, 6.4), look: v(0, 1.2, 0), fov: 40 },
+      ],
+    },
+  ],
   // The moonlit stepwell: pull back from the falls and drop into the baoli, then circle the island.
   1: (ctx) => [
     {
@@ -222,10 +245,14 @@ const ESTABLISHING: Record<number, (ctx: IntroContext) => Shot[]> = {
   ],
 };
 
-/** The full intro for a chapter: establishing shots, its opponents (a boss's roar, or a pass across a group), the hero. */
+/**
+ * The full intro for a chapter: establishing shots, its opponents (a boss's roar, or a pass across a group), the hero.
+ * A chapter whose opponents arrive in its story (`introPlaceOnly`) gets the place alone; its opening scene goes on.
+ */
 export function buildIntro(ctx: IntroContext): Shot[] {
   const shots = (ESTABLISHING[ctx.chapter.level] ?? (() => []))(ctx);
   if (shots.length === 0) shots.push({ duration: 3, fadeIn: 1, keys: [{ pos: v(0, 8, 18), look: v(0, 1, 0) }], cues: [{ at: 0.5, run: () => ctx.cards.chapter() }] });
+  if (ctx.chapter.introPlaceOnly) return shots;
   const boss = ctx.enemies.find((e) => e.isBoss);
   if (boss) shots.push(bossReveal(ctx, boss));
   else if (ctx.horde && ctx.enemies.length) shots.push({ ...enemyCloseUp(ctx, ctx.enemies[0], 0, ctx.horde), duration: 3.4 });
@@ -307,6 +334,7 @@ function entranceShots(ctx: IntroContext, boss: Boss, entrance: { duration: numb
 /** The slow orbit behind the title screen, per arena. */
 /** `frame`: metres the subject sits right of centre, clear of the title menu on the left. */
 export const ATTRACT: Record<number, { centre: THREE.Vector3; radius: number; height: number; look: number; speed: number; frame?: number }> = {
+  0: { centre: v(0, 0, -1), radius: 17, height: 7, look: 2.5, speed: 0.03 },
   1: { centre: v(0, 0, -6), radius: 36, height: 13, look: 3, speed: 0.025 },
   2: { centre: v(0, 0, -4), radius: 15, height: 6, look: 6, speed: 0.03 },
   3: { centre: v(0, 0, -20), radius: 120, height: 48, look: 12, speed: 0.012, frame: 32 },

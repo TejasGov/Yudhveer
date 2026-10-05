@@ -65,6 +65,8 @@ export interface GameLevel {
   readonly killPlaneY: number;
   /** An authored camera exported with the level, by name (cutscenes use them), or null. */
   cameraPose(name: string, lookDistance?: number): CameraPose | null;
+  /** A story scene changes the place (the prologue's `raid-fire`); levels ignore cues they do not know. */
+  cue?(name: string): void;
   load(onProgress?: (fraction: number) => void): Promise<void>;
   update(time: number, dt: number, camera: THREE.Camera): void;
   dispose(): void;

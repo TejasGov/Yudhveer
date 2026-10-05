@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import type { CameraKey, Shot } from './CinematicDirector';
 import { frame, offset, type IntroContext } from './Intros';
 import type { Character } from '../entities/Character';
+import type { CharacterDefinition } from '../entities/animation/CharacterRig';
 import type { CharacterState } from '../entities/CharacterStateMachine';
 import type { Player } from '../entities/Player';
 import { Enemy } from '../entities/Enemy';
@@ -17,7 +18,10 @@ import { readingTime, VOICE_TAIL, type Dialogue, type Line } from '../ui/Dialogu
  * or hooks that run code. A chapter declares its scenes and in-fight lines in `Chapter.story`; the Engine plays them.
  */
 
-/** Who a cue or a camera is about: the hero, the chapter's boss (the last to arrive), or an enemy by its id. */
+/**
+ * Who a cue or a camera is about: the hero, the chapter's boss (the last to arrive), an enemy by its id, or one of the
+ * story's cast (`ChapterStory.cast`) by its id.
+ */
 export type ActorRef = 'hero' | 'boss' | (string & {});
 
 /** A point in the world, given outright or worked out from the stage when it is needed. */
@@ -35,6 +39,8 @@ export type SceneCue = { at: number } & (
   | { actor: ActorRef; place: Mark; face?: ActorRef | Mark }
   /** Turns to face someone or something. */
   | { actor: ActorRef; face: ActorRef | Mark }
+  /** Shows or hides a character (one of the cast arriving; raiders gone when the picture comes back). */
+  | { actor: ActorRef; show: boolean }
   /**
    * Runs code. `essential`: it changes the game, not just the picture (teaches a move, opens a gate), so it still
    * runs if the scene is skipped before it.
@@ -73,8 +79,12 @@ export type Trigger =
   | { fallen: string }
   /** The hero has just been taught this move (`Player.learn`). */
   | { learned: Ability }
+  /** The hero's health has fallen below this fraction. */
+  | { heroBelow: number }
   /** Seconds of fighting. */
   | { fightTime: number }
+  /** Whichever of these comes first. */
+  | { any: Trigger[] }
   | { when: (s: Stage) => boolean };
 
 /**
@@ -83,6 +93,25 @@ export type Trigger =
  */
 export type StoryBeat = { on: Trigger; run?: (s: Stage) => void } & ({ scene: StoryScene } | { lines: Line[] });
 
+/**
+ * Someone the story brings on who does not fight: the guru, Andhaka seen only as a shadow. Spawned with the chapter
+ * (loaded with it, no body to collide with) and moved by scene cues like anyone else (`actor: <id>`).
+ */
+export interface CastMember {
+  id: string;
+  rig: CharacterDefinition;
+  /** Where it stands when the chapter starts (feet), and what it faces. */
+  at: THREE.Vector3;
+  face?: THREE.Vector3;
+  /** Out of sight until a `show` cue brings it on. */
+  hidden?: boolean;
+  /**
+   * Drawn as a black shape with a rim of `color` light: a figure seen against the sky, never in the face (Andhaka
+   * in the prologue).
+   */
+  silhouette?: { color: THREE.ColorRepresentation };
+}
+
 /** What a chapter tells, and when. */
 export interface ChapterStory {
   /** After the chapter's intro, before the fight. */
@@ -90,6 +119,13 @@ export interface ChapterStory {
   beats?: StoryBeat[];
   /** Once the chapter is won, before the chapter-complete screen. */
   ending?: StoryScene;
+  /** Its characters who are not in the fight. */
+  cast?: CastMember[];
+  /**
+   * A fight the hero cannot win (the prologue): he cannot fall, and once `on` is met the fight stops, the hero is
+   * beaten and the chapter is over: its `ending` plays and the campaign goes on as if it had been won.
+   */
+  loss?: { on: Trigger };
 }
 
 /** Where everyone stands while a scene plays, with helpers to frame them. */
@@ -101,6 +137,8 @@ export class Stage {
     /** Everyone in the chapter, fallen or not. */
     public readonly enemies: readonly Enemy[],
     public readonly cards: IntroContext['cards'],
+    /** The story's characters who do not fight. */
+    public readonly cast: readonly Character[] = [],
   ) {}
 
   public actor(ref: ActorRef): Character | null {
@@ -109,7 +147,7 @@ export class Stage {
       const bosses = this.enemies.filter((e) => e.isBoss);
       return bosses.filter((e) => e.stateMachine.currentState !== 'DEAD').at(-1) ?? bosses.at(-1) ?? null;
     }
-    return this.enemies.find((e) => e.id === ref) ?? null;
+    return this.enemies.find((e) => e.id === ref) ?? this.cast.find((c) => c.id === ref) ?? null;
   }
 
   /** Where a character's feet are (the origin if there is no such character). */
@@ -183,10 +221,11 @@ export class Staging {
   /** A character was put somewhere outside the fixed step (render interpolation must not drag it back). */
   public onTeleport: ((actor: Character) => void) | null = null;
 
-  /** A scene starts: anyone caught mid-stride (or the hero mid-jump or on guard) stops. */
+  /** A scene starts: anyone caught mid-stride (or the hero mid-jump or on guard) stops; weapon trails drop. */
   public begin(hero: Character, others: readonly Character[]): void {
     const halt = (a: Character, held: CharacterState[]) => {
       if (held.includes(a.stateMachine.currentState)) a.stateMachine.changeState('IDLE');
+      a.slashRibbon.clear();
     };
     halt(hero, [...LOCOMOTION, ...HERO_HELD]);
     for (const a of others) halt(a, LOCOMOTION);
@@ -368,6 +407,8 @@ export class SceneRun {
       this.staging.moveTo(actor, s.point(cue.moveTo), cue.gait ?? 'walk', face);
     } else if ('place' in cue) {
       this.staging.place(actor, s.point(cue.place), cue.face !== undefined ? s.point(cue.face) : null);
+    } else if ('show' in cue) {
+      actor.group.visible = cue.show;
     } else {
       this.staging.face(actor, s.point(cue.face));
     }
@@ -391,6 +432,8 @@ export function triggered(on: Trigger, s: Stage, fight: { time: number; learned:
   }
   if ('fallen' in on) return s.actor(on.fallen)?.stateMachine.currentState === 'DEAD';
   if ('learned' in on) return fight.learned.has(on.learned);
+  if ('heroBelow' in on) return s.player.currentHealth / s.player.maxHealth < on.heroBelow;
   if ('fightTime' in on) return fight.time >= on.fightTime;
+  if ('any' in on) return on.any.some((t) => triggered(t, s, fight));
   return on.when(s);
 }

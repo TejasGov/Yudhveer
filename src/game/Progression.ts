@@ -15,7 +15,7 @@ export type WeaponId = 'lathi' | 'sword' | 'mace' | 'khanda';
  */
 export type Ability = 'dodge' | 'combo' | 'block' | 'parry' | 'charge' | 'leap';
 
-export type KitId = 'baoli' | 'akhada' | 'dwarka' | 'summit';
+export type KitId = 'prologue' | 'baoli' | 'akhada' | 'dwarka' | 'summit';
 
 export interface HeroKit {
   id: KitId;
@@ -27,6 +27,8 @@ export interface HeroKit {
 }
 
 export const KITS: Record<KitId, HeroKit> = {
+  // The village boy at his lessons: the lathi, one blow at a time, and the slide. No chained blows yet.
+  prologue: { id: 'prologue', weapon: 'lathi', abilities: ['dodge'], taught: [] },
   // The lathi only, no shield. Strike and slide; the rest the guru's voice teaches him as the fight asks for it.
   baoli: { id: 'baoli', weapon: 'lathi', abilities: ['dodge', 'combo'], taught: ['charge'] },
   // A very basic sword, and the dhal from the vanara mentor: block and parry.
