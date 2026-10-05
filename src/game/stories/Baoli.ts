@@ -5,6 +5,7 @@ import type { ChapterStory, Stage } from '../../cinematics/Scene';
 import { Enemy } from '../../entities/Enemy';
 import { GURU } from '../../entities/characters/Village';
 import { BAOLI_GUARDIAN } from '../../entities/characters/BaoliGuardian';
+import { SoundFX } from '../../combat/SoundFX';
 import { shade, shadeOf, shadeRises, shadeShots, twoShot } from '../Story';
 
 /*
@@ -42,14 +43,11 @@ const DEVI_STATUE: StatueMarks = { head: DEVI_FACE, feet: v(0, 8.7, 64.6), facin
 const KAVACH_AT = 3.3;
 const PRAYED_AT = 1.9;
 
-/**
- * The Devi's prophecy (docs/STORY.md, "The divya kavach"). Subtitles only until they are recorded; the planned voice
- * ids are `baoli_devi_1` to `baoli_devi_3` (docs/APPROVALS.md).
- */
+/** The Devi's prophecy (docs/STORY.md, "The divya kavach"), in Moana's voice (game asset/voice/VOICES.md). */
 const DEVI_LINES = [
-  { speaker: 'Durga', text: 'You climbed to my door with a stick of bamboo, and a grief too heavy for it.' },
-  { speaker: 'Durga', text: 'What they carried down this well, they will not keep. Follow it.' },
-  { speaker: 'Durga', text: 'Not alone. Wear my kavach. It will turn the blow. It will not move your feet; that is yours to do.' },
+  { speaker: 'Durga', text: 'You climbed to my door with a stick of bamboo, and a grief too heavy for it.', voice: 'baoli_devi_1' },
+  { speaker: 'Durga', text: 'What they carried down this well, they will not keep. Follow it.', voice: 'baoli_devi_2' },
+  { speaker: 'Durga', text: 'Not alone. Wear my kavach. No evil will pierce it. Go, my child. You have my blessing.', voice: 'baoli_devi_3' },
 ];
 
 /** The shrine's effects, set up as the scene starts and started on cue. */
@@ -171,6 +169,8 @@ export const BAOLI_STORY: ChapterStory = {
         ease: ease.drift,
         sway: 0.006,
         lines: [DEVI_LINES[2]],
+        // A small shankh behind her blessing, for its weight: the summit's conch, faded early (not the whole song).
+        cues: [{ at: 0.15, run: () => SoundFX.getInstance().playShankh() }],
         camera: [
           { pos: v(-1.6, 15.0, 59.2), look: DEVI_FACE.clone().add(v(0, -0.7, 0)), fov: 36 },
           { pos: v(-1.4, 15.1, 59.9), look: DEVI_FACE.clone().add(v(0, -0.6, 0)), fov: 33 },

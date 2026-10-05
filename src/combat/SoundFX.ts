@@ -25,6 +25,8 @@ const SAMPLE_GAIN = {
   roar_brute: 0.6,
   roar_naga: 0.7,
   phase_surge: 0.55,
+  // Recordings for a scene, not combat: the conch that opens the summit's "Har Har Mahadev", cut short.
+  shankh: 0.38,
 } as const;
 export type Sample = keyof typeof SAMPLE_GAIN;
 const SAMPLES = new Set(sampleIds);
@@ -1120,6 +1122,14 @@ export class SoundFX {
   }
 
   // --- Cutscenes, menus, outcomes ------------------------------------------------------------------------------
+
+  /**
+   * A shankh, small and far off: the first breath of the summit's "Har Har Mahadev" (its conch, faded out over two
+   * seconds), under the Devi's blessing in the Baoli. Silent until the recording has loaded.
+   */
+  public playShankh(): void {
+    this.sample('shankh', { wet: 0.35 });
+  }
 
   /** Raiders at the gate: a narsingha horn blown twice, rough and rising, and a shout under it. */
   public playRaidHorn(): void {

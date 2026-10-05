@@ -412,10 +412,10 @@ the hint for a move just learned). The map and the Guardian's fight are unchange
 
 | Id | Speaker | Text | Recorded |
 |---|---|---|---|
-| `baoli_devi_1` (planned) | Durga | You climbed to my door with a stick of bamboo, and a grief too heavy for it. | subtitle only (docs/APPROVALS.md) |
-| `baoli_devi_2` (planned) | Durga | What they carried down this well, they will not keep. Follow it. | subtitle only |
+| `baoli_devi_1` | Durga | You climbed to my door with a stick of bamboo, and a grief too heavy for it. | Moana, take B |
+| `baoli_devi_2` | Durga | What they carried down this well, they will not keep. Follow it. | Moana, take B |
 | (none) | Yudhveer | With a stick of bamboo? | subtitle only |
-| `baoli_devi_3` (planned) | Durga | Not alone. Wear my kavach. It will turn the blow. It will not move your feet; that is yours to do. | subtitle only |
+| `baoli_devi_3` | Durga | Not alone. Wear my kavach. No evil will pierce it. Go, my child. You have my blessing. | Moana, take A; a small shankh under it |
 | (none) | Yudhveer | Their tracks end at the water. There is a way down, under the well. | subtitle only |
 | (none) | Yudhveer | Stand aside. They carried my guru through here. | subtitle only |
 | `baoli_open_guru_1` | Guru (remembered) | Do not look at its size, Yudhveer. Look at its feet. | yes |

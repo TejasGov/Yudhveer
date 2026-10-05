@@ -208,7 +208,7 @@ worth fetching, then preparing like the cave's props (`levels/03_island/prepare_
 and a chulha, and Indian villagers in dhoti, kurta and saree if any suit the cel style (to replace the Mixamo
 placeholders). Each needs its licence checked (never NC / ND) and a line in docs/ASSET_CREDITS.md.
 
-## The Devi's prophecy in the baoli: Durga's voice (costs credits on a yes, nothing recorded)
+## The Devi's prophecy in the baoli: Durga's voice: APPROVED, DONE (2026-10-05)
 
 Chapter I now opens at the Devi's shrine above the stepwell (docs/STORY.md, "The divya kavach"): the boy kneels to
 Durga, she speaks, and her light clothes him in the divya kavach. Her three lines are in the game as **subtitles only**
@@ -240,6 +240,13 @@ Suggested delivery: slow, low, unhurried, a faint reverb in the game (the voice 
 Cost: about 1.2 ElevenLabs credits per character per take, 2 takes: **about 571 credits** for the three lines. On a
 yes: record with the chosen voice (the usual workflow: two takes, loudnorm to -18 LUFS), add `voice: 'baoli_devi_N'`
 to `DEVI_LINES`, add the voice to `game asset/voice/VOICES.md`, and mark them recorded in STORY.md's Chapter I table.
+
+**Approved and done (2026-10-05).** The user chose A, Moana, and rewrote the last line's sense: "it will protect you
+from evil, you have my blessings", with "the same shankh sound behind this dialogue for weight, only a small version".
+Line 3 is now "Not alone. Wear my kavach. No evil will pierce it. Go, my child. You have my blessing." Recorded in
+flow VPM6tD8eCElptM16TltN, two takes each (714 credits); the user picked takes B, B, A. The shankh is the first 5.5 s of
+the summit's "Har Har Mahadev" (its conch, faded out from 3.4 s), `public/assets/sfx/shankh.mp3`, played at low level
+as her blessing's shot begins.
 
 ## Feel pass: jitter fixes and the impact camera (2026-10-05): APPROVED, DONE; tuning choices open (no cost)
 
