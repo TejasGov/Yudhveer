@@ -3439,6 +3439,16 @@
     0.0,
     1.0
    ]
+  },
+  "orc_idle": {
+   "source": "Stance-Orc Idle.fbx",
+   "duration": 5.3333,
+   "loop": true,
+   "speed": 0.0,
+   "direction": [
+    0.0,
+    0.0
+   ]
   }
  }
 }

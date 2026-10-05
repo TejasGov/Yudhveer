@@ -8,6 +8,16 @@
   "Socket_Hand_L"
  ],
  "clips": {
+  "calm_idle": {
+   "source": "Stance-Calm Idle.fbx",
+   "duration": 8.3333,
+   "loop": true,
+   "speed": 0.0,
+   "direction": [
+    0.0,
+    0.0
+   ]
+  },
   "run_with_sword": {
    "source": "Yodha-Run With Sword.fbx",
    "duration": 0.8,

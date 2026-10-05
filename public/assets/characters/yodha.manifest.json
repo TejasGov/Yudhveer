@@ -3048,6 +3048,16 @@
     ]
    }
   },
+  "calm_idle": {
+   "source": "Stance-Calm Idle.fbx",
+   "duration": 8.3333,
+   "loop": true,
+   "speed": 0.0,
+   "direction": [
+    0.0,
+    0.0
+   ]
+  },
   "slide_run": {
    "source": "Yodha- slide_run.fbx",
    "duration": 1.5333,

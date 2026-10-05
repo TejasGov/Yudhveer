@@ -6,13 +6,14 @@ import type { CharacterDefinition } from '../animation/CharacterRig';
  *
  *   blender -b --factory-startup --python build_character.py -- rigs/level4_minion.rigged.glb animations
  *     <out>/rakshasa.glb --height 1.85 --clips "mutant_breathing_idle,mutant_walking,standing_run_forward,
- *     standing_melee_attack_downward,standing_melee_attack_horizontal,standing_react_large_gut,mutant_dying,mutant_roaring"
+ *     standing_melee_attack_downward,standing_melee_attack_horizontal,standing_react_large_gut,mutant_dying,mutant_roaring,orc_idle"
  */
 export const RAKSHASA: CharacterDefinition = {
   model: '/assets/characters/rakshasa.glb',
   manifest: '/assets/characters/rakshasa.manifest.json',
   states: {
     IDLE: { clip: 'mutant_breathing_idle', fade: 0.25 },
+    REST: { clip: 'orc_idle', fade: 0.4 }, // at ease: standing tall and heavy (Stance-Orc Idle)
     WALK: { clip: 'mutant_walking', matchSpeed: true },
     MOVE: { clip: 'standing_run_forward', matchSpeed: true, fade: 0.2 },
     SPRINT: { clip: 'standing_run_forward', matchSpeed: true },

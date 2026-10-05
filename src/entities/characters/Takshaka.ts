@@ -6,13 +6,14 @@ import type { CharacterDefinition } from '../animation/CharacterRig';
  * the tail is its own bone chain and follows the hips), then built with the Boss1- clips:
  *
  *   blender -b --factory-startup --python build_character.py -- rigs/level3_final_boss.rigged.glb animations
- *           <out>/takshaka.glb --prefixes "Boss1-" --height 2.6
+ *           <out>/takshaka.glb --prefixes "Boss1-" --height 2.6 --clips "orc_idle"
  */
 export const TAKSHAKA: CharacterDefinition = {
   model: '/assets/characters/takshaka.glb',
   manifest: '/assets/characters/takshaka.manifest.json',
   states: {
     IDLE: { clip: 'mutant_breathing_idle', fade: 0.3 },
+    REST: { clip: 'orc_idle', fade: 0.4 }, // at ease: standing tall and heavy (Stance-Orc Idle)
     WALK: { clip: 'mutant_walking', matchSpeed: true },
     MOVE: { clip: 'mutant_walking', matchSpeed: true, fade: 0.3 },
     SPRINT: { clip: 'standing_run_forward', matchSpeed: true },

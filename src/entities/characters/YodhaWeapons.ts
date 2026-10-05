@@ -112,7 +112,11 @@ export const WEAPON_SETS: Record<WeaponId, WeaponSet> = {
     definition: heroWith({
       offhand: false,
       states: { ...LATHI_STATES, ATTACK_JUMP: undefined },
-      weapon: { socket: 'Socket_Hand_R', socketFrame: true, restWorldRotation: [0, 0, 0], grip: [0, 0, 0], build: buildLathi, blade: [0.05, 1.0] },
+      // At ease he holds it upright at his side, its foot by his heel.
+      weapon: {
+        socket: 'Socket_Hand_R', socketFrame: true, restWorldRotation: [0, 0, 0], grip: [0, 0, 0], build: buildLathi, blade: [0.05, 1.0],
+        stateRotations: { REST: [0, 0, -1.45] },
+      },
     }),
     // Light blows with the weight in the posture: a staff breaks a stance before it breaks a man.
     blows: {
@@ -131,6 +135,7 @@ export const WEAPON_SETS: Record<WeaponId, WeaponSet> = {
       weapon: {
         socket: 'Socket_Hand_R', socketFrame: true, restWorldRotation: [0, 0, 0], grip: [0.0964, 0.0234, -0.0261],
         model: '/assets/weapons/vetala_sword_r.glb', blade: [0.11, 0.97],
+        stateRotations: { REST: [0, 0, 1.1] }, // lowered at ease, as the khanda
       },
     }),
     // The magical khanda's moves at four fifths of its strength.
@@ -155,6 +160,8 @@ export const WEAPON_SETS: Record<WeaponId, WeaponSet> = {
       weapon: {
         socket: 'Socket_Hand_R', socketFrame: true, restWorldRotation: [0, 0, 0], grip: [0, 0, 0],
         model: '/assets/weapons/shalva_gada.glb', blade: [0.5, 1.2], scale: 0.7, twoHanded: 'Socket_Hand_L',
+        // At ease, one-handed by the haft, its head resting by his foot.
+        stateRotations: { REST: [0, 0, 1.25] },
       },
     }),
     // Slow and heavy: every blow costs a beat, and the third and the slam break through anything. The spinning

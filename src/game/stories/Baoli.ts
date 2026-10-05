@@ -14,9 +14,13 @@ import { twoShot } from '../Story';
 
 const v = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
 
-/** The island's open middle; where the boy comes in on the raiders' trail (the south side), and where he stops. */
+/**
+ * The island's open middle; where the boy comes in on the raiders' trail (the south side, beside the deepastambha
+ * that stands on the axis at z 11.8: straight behind it he walked into its collider, stepping on the spot), and where
+ * he stops.
+ */
 const BAOLI_CENTRE = v(0, 0, 0);
-const BAOLI_ENTRY = v(0, 0, 12.5);
+const BAOLI_ENTRY = v(1.5, 0, 12.5);
 const BAOLI_STAND = v(0, 0, 4.5);
 
 /** Whether the Guardian is in one of these states now. */

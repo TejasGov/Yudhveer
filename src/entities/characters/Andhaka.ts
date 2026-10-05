@@ -1,6 +1,12 @@
 import type { CharacterDefinition } from '../animation/CharacterRig';
 
 /**
+ * His calm standing idle for cutscenes (not the fight, whose IDLE is a guard shuffle): Mixamo's "Standing Idle With
+ * Axe" (`Andhaka-Standing Idle With Axe.fbx`), a broad, still, menacing stance with the weapon hand low.
+ */
+export const ANDHAKA_CALM_IDLE = 'standing_idle_with_axe';
+
+/**
  * Chapter V final boss, Andhaka: a 3.15 m asura king with a lion-hilted cleaver and a crown (both separate props). The
  * model is the user's 100k-triangle sculpt (`game asset/characters/sources/andhaka_100k.glb`, 2026-10-05), auto-rigged
  * with finger bones by `autorig.py` (rigs/andhaka100k.markers.json), kept whole (no decimation). Real motion capture
@@ -20,6 +26,8 @@ export const ANDHAKA: CharacterDefinition = {
   states: {
     // On guard, the cleaver held low and ready.
     IDLE: { clip: 'great_sword_strafe_in_place', fade: 0.3 },
+    // At ease (cutscenes, before and after the fight): his calm idle, not the guard shuffle.
+    REST: { clip: ANDHAKA_CALM_IDLE, fade: 0.4 },
     WALK: { clip: 'mutant_walking', matchSpeed: true },
     MOVE: { clip: 'mutant_walking', matchSpeed: true, fade: 0.3 },
     SPRINT: { clip: 'run_with_sword', matchSpeed: true },
@@ -51,9 +59,3 @@ export const ANDHAKA: CharacterDefinition = {
     model: '/assets/weapons/andhaka_crown.glb',
   },
 };
-
-/**
- * His calm standing idle for cutscenes (not the fight, whose IDLE is a guard shuffle): Mixamo's "Standing Idle With
- * Axe" (`Andhaka-Standing Idle With Axe.fbx`), a broad, still, menacing stance with the weapon hand low.
- */
-export const ANDHAKA_CALM_IDLE = 'standing_idle_with_axe';

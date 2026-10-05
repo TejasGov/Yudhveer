@@ -25,6 +25,12 @@ const TIMED_STATES: Partial<Record<CharacterState, TimedStateKey>> = {
 /** A swing can be cut short this long (s) after its blade has finished. */
 const CANCEL_AFTER_STRIKE = 0.06;
 const SHEATHED_MARK = 'sheathed';
+/** Walks and runs: at ease, one that is not getting anywhere stands in REST (see `Character.atEase`). */
+const LOCOMOTION_STATES: CharacterState[] = ['WALK', 'MOVE', 'SPRINT', 'STRAFE_LEFT', 'STRAFE_RIGHT', 'WALK_BACK'];
+/** m/s: below this it is standing still, above `MOVING_SPEED` it is going somewhere; still for `STILL_AFTER` s. */
+const STILL_SPEED = 0.3;
+const MOVING_SPEED = 0.6;
+const STILL_AFTER = 0.2;
 // A jump without clip timing (greybox): leaves at once, ~1 m high.
 const DEFAULT_JUMP = { takeoff: 0, landing: 0.58, speed: 7, recovery: 0.12 };
 
@@ -79,7 +85,22 @@ export class Character extends Entity {
   public rig: CharacterRig | null = null;
   private rigState: CharacterState | null = null;
   private rigStateTime = 0;
+  /** The definition entry the rig is playing (REST stands in for IDLE at ease; see `animationKey`). */
+  private rigKey: CharacterState | null = null;
+  /** The rig is playing a cue's clip (`playScripted`), not its state's: props keep the state's hold, not REST's. */
+  private scripted = false;
   private readonly lastGroundPos = new THREE.Vector3();
+
+  /**
+   * Out of the fight (a cutscene, the start of a chapter, after the battle; the Engine sets it every step): IDLE plays
+   * the calm standing idle (`states.REST`, else IDLE's own clip) instead of a guard, and a walk or run that is not
+   * getting anywhere (stopped, or held against something) stands in it rather than stepping on the spot. In the fight
+   * it is off, and every state plays exactly its own clip.
+   */
+  public atEase = false;
+  /** Metres per second the character really moved last step (after collision), and how long it has been ~still. */
+  private actualSpeed = 0;
+  private stillFor = 0;
 
   constructor(id: string, color = 0xd4af37, ribbonColor = 0xffd15c) {
     super(id);
@@ -311,6 +332,7 @@ export class Character extends Entity {
       if (this.chainsEarly && spans.length) this.stateMachine.cancelAt[state] = spans[spans.length - 1].t1 + CANCEL_AFTER_STRIKE;
     }
     this.rigState = null;
+    this.rigKey = null;
     this.lastGroundPos.copy(this.group.position);
     if (this.swordSheathed) this.stowSword(true);
     return rig;
@@ -349,16 +371,20 @@ export class Character extends Entity {
     const sm = this.stateMachine;
     const pos = this.group.position;
     const groundSpeed = dt > 0 ? Math.hypot(pos.x - this.lastGroundPos.x, pos.z - this.lastGroundPos.z) / dt : 0;
-    // A new state, or the same state re-entered (its timer restarted).
-    if (sm.currentState !== this.rigState || sm.stateTime < this.rigStateTime) {
-      const config = rig.definition.states[sm.currentState] ?? rig.definition.states.IDLE;
+    const key = this.animationKey(dt);
+    // A new state, the same state re-entered (its timer restarted), or IDLE turning into REST or back (but a cue's
+    // clip plays on until the state changes, as it always has: an entrance cued as the cutscene begins included).
+    if (sm.currentState !== this.rigState || sm.stateTime < this.rigStateTime || (key !== this.rigKey && !this.scripted)) {
+      const config = rig.definition.states[key] ?? rig.definition.states.IDLE;
       rig.play(sm.currentState === 'JUMP' && this.jump.clip ? { ...config, clip: this.jump.clip } : config);
       this.rigState = sm.currentState;
+      this.rigKey = key;
+      this.scripted = false;
     }
     this.rigStateTime = sm.stateTime;
     if (sm.currentState === 'JUMP') this.syncJumpClip();
     const root = rig.update(dt, groundSpeed);
-    rig.updateMounts(sm.currentState, dt);
+    rig.updateMounts(this.scripted ? sm.currentState : key, dt);
     // Root motion is just more intended movement; the motor (end of update) resolves it with the rest.
     if (root) pos.add(root.multiplyScalar(this.rootMotionScale).applyAxisAngle(UP, this.group.rotation.y));
   }
@@ -372,6 +398,29 @@ export class Character extends Entity {
     this.rig.play(config);
     this.rigState = this.stateMachine.currentState;
     this.rigStateTime = this.stateMachine.stateTime;
+    this.rigKey = this.animationKey(0);
+    this.scripted = true;
+  }
+
+  /**
+   * Which entry of the definition's state table animates the character now: its state's own, except at ease (see
+   * `atEase`), where IDLE, and a walk or run that has not really moved for a moment, play REST. The state itself is
+   * untouched, so whatever drives it (AI, input, a staged walk) carries on as before.
+   */
+  private animationKey(dt: number): CharacterState {
+    const state = this.stateMachine.currentState;
+    if (!this.atEase) {
+      this.stillFor = 0;
+      return state;
+    }
+    if (!LOCOMOTION_STATES.includes(state)) {
+      this.stillFor = 0;
+      return state === 'IDLE' ? 'REST' : state;
+    }
+    // Hysteresis: still once it has barely moved for a moment, moving again once it clearly does.
+    if (this.actualSpeed < STILL_SPEED) this.stillFor += dt;
+    else if (this.actualSpeed > MOVING_SPEED) this.stillFor = 0;
+    return this.stillFor >= STILL_AFTER ? 'REST' : state;
   }
 
   /** A cutscene cue: plays one of the model's clips by name (see `playScripted`). False if it has no such clip. */
@@ -657,7 +706,9 @@ export class Character extends Entity {
 
     // Last: everything this step moved the character freely; collide, step and fall in one place.
     this.motor?.resolve(this.group.position, dt);
-    this.lastGroundPos.copy(this.group.position);
+    const pos = this.group.position;
+    if (dt > 0) this.actualSpeed = Math.hypot(pos.x - this.lastGroundPos.x, pos.z - this.lastGroundPos.z) / dt;
+    this.lastGroundPos.copy(pos);
   }
 }
 

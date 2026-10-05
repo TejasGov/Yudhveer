@@ -1,5 +1,10 @@
 export type CharacterState =
   | 'IDLE'
+  /**
+   * Standing at ease, out of the fight: a calm standing idle, never a guard. Nothing changes into it; it is the clip
+   * IDLE plays while the character is `atEase` (cutscenes, the start of a chapter, after the battle). See Character.
+   */
+  | 'REST'
   | 'WALK'
   | 'MOVE'
   | 'SPRINT'

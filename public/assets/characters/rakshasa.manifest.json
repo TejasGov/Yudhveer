@@ -1,7 +1,7 @@
 {
  "model": "rakshasa.glb",
  "source": "level4_minion.rigged.glb",
- "height": 1.874,
+ "height": 1.85,
  "triangles": 9577,
  "sockets": [
   "Socket_Hand_R",
@@ -2058,6 +2058,16 @@
    "direction": [
     0.0,
     1.0
+   ]
+  },
+  "orc_idle": {
+   "source": "Stance-Orc Idle.fbx",
+   "duration": 5.3333,
+   "loop": true,
+   "speed": 0.0,
+   "direction": [
+    0.0,
+    0.0
    ]
   }
  }

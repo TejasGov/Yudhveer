@@ -142,7 +142,8 @@ export const ISLAND_STORY: ChapterStory = {
         sway: 0.01,
         linesAt: 1.4,
         cues: [
-          { at: 0, actor: 'hero', place: v(0, -2.14, -73.4), face: ISLAND.altar },
+          // On the altar's dais (its top is at -2.115): placed 2.5 cm inside it, he snagged and walked on the spot.
+          { at: 0, actor: 'hero', place: v(0, -2.1, -73.4), face: ISLAND.altar },
           { at: 0.3, actor: 'hero', moveTo: ISLAND.beforeAltar, face: ISLAND.altar },
         ],
         lines: [{ speaker: 'Voice in the shrine', text: 'Lift it, if you do not lift it for yourself.', voice: 'island_end_voice_1' }],

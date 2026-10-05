@@ -6,7 +6,7 @@ import type { CharacterDefinition } from '../animation/CharacterRig';
  * `rigs/level3_boss_mace.markers.json`), then built with the brute and mace clips (run from `game asset/characters`):
  *
  *   blender -b --factory-startup --python build_character.py -- rigs/level3_boss_mace.rigged.glb animations
- *           <out>/shalva.glb --prefixes "Boss1-,All-" --height 2.6 --fists
+ *           <out>/shalva.glb --prefixes "Boss1-,All-" --height 2.6 --fists --clips "orc_idle"
  *
  * His gada is `level 3 boss mace weapon.fbx` through prepare_weapon.py --hafted.
  */
@@ -15,6 +15,8 @@ export const SHALVA: CharacterDefinition = {
   manifest: '/assets/characters/shalva.manifest.json',
   states: {
     IDLE: { clip: 'great_sword_strafe_in_place', fade: 0.3 },
+    // At ease (out of the fight his guard, a strafe on the spot, would read as jogging in place): the orc idle.
+    REST: { clip: 'orc_idle', fade: 0.4 },
     WALK: { clip: 'mutant_walking', matchSpeed: true },
     MOVE: { clip: 'mutant_walking', matchSpeed: true, fade: 0.3 },
     SPRINT: { clip: 'standing_run_forward', matchSpeed: true },
@@ -37,5 +39,6 @@ export const SHALVA: CharacterDefinition = {
   weapon: {
     socket: 'Socket_Hand_R', socketFrame: true, restWorldRotation: [0, 0, 0], grip: [0, 0, 0],
     model: '/assets/weapons/shalva_gada.glb', blade: [0.5, 1.2],
+    stateRotations: { REST: [0, 0, -1.3] }, // at ease: held upright at his side, the head above his shoulder
   },
 };

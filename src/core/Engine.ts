@@ -643,6 +643,19 @@ export class Engine {
     this.mode = mode;
     this.modeTime = 0;
     this.updateCaptureHint();
+    this.applyEase();
+  }
+
+  /**
+   * Out of the fight (cutscenes, the chapter's start, once it is won or lost) everyone stands at ease: a calm standing
+   * idle (`states.REST`), not a guard, and never a walk on the spot (Character.atEase). The story's cast never fights.
+   * Applied as the mode changes (before a cutscene's first cue) and every step (fighters spawned meanwhile).
+   */
+  private applyEase(): void {
+    const atEase = this.mode !== 'play' && this.mode !== 'handoff';
+    if (this.player) this.player.atEase = atEase;
+    for (const enemy of this.enemies) enemy.atEase = atEase;
+    for (const extra of this.cast) extra.atEase = true;
   }
 
   private showLoading(kicker: string, title: string, fraction: number): void {
@@ -1066,6 +1079,9 @@ export class Engine {
 
   /** The chapter is decided and its outcome screen is due: a won chapter's ending scene first, if it has one. */
   private concludeChapter(): void {
+    // Whoever was still on the move when the fight was decided stops (the hero can run on through the victory);
+    // a played ending does this too, but one already seen is only settled.
+    if (this.mode === 'outro' && this.player) this.staging.begin(this.player, [...this.enemies, ...this.cast]);
     const ending = this.mode === 'outro' ? this.chapter?.story?.ending : undefined;
     if (!ending) {
       if (this.mode === 'outro') this.mode = 'over';
@@ -1193,6 +1209,8 @@ export class Engine {
     this.dialogue.clear();
     this.soundFX.music.play(null);
     this.soundFX.playDefeat();
+    // They stand over him from here (their AI stops): nobody left mid-stride, running on the spot.
+    this.staging.begin(this.player, this.enemies);
     this.player.stateMachine.changeState('POSTURE_BROKEN');
     this.slowMotion(0.35, 1.2);
   }
@@ -1367,6 +1385,7 @@ export class Engine {
     this.inputManager.advance(dt);
     const acting = this.mode === 'play' || this.mode === 'handoff' || this.mode === 'outro';
     const playerControl = acting && !this.beaten;
+    this.applyEase();
 
     if (playerControl) player.handleInput(dt, this.sceneManager.viewYaw, this.enemies);
     else player.updateProceduralAnimations(dt, 0);

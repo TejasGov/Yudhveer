@@ -6,7 +6,7 @@ import type { CharacterDefinition } from '../animation/CharacterRig';
  * with the Boss1- clips (run from `game asset/characters`):
  *
  *   blender -b --factory-startup --python build_character.py -- rigs/level1_boss.rigged.glb animations
- *           <out>/baoli_guardian.glb --prefixes "Boss1-" --height 3.2 --fists
+ *           <out>/baoli_guardian.glb --prefixes "Boss1-" --height 3.2 --fists --clips "orc_idle"
  */
 export const BAOLI_GUARDIAN: CharacterDefinition = {
   model: '/assets/characters/baoli_guardian.glb',
@@ -14,6 +14,8 @@ export const BAOLI_GUARDIAN: CharacterDefinition = {
   states: {
     // Hunched and heaving.
     IDLE: { clip: 'mutant_breathing_idle', fade: 0.3 },
+    // At ease: standing tall and heavy (Mixamo's Male Orc Standing Idle, Stance-Orc Idle).
+    REST: { clip: 'orc_idle', fade: 0.4 },
     // A slow, rolling brute walk: he never hurries.
     WALK: { clip: 'mutant_walking', matchSpeed: true },
     MOVE: { clip: 'mutant_walking', matchSpeed: true, fade: 0.3 },
@@ -36,5 +38,6 @@ export const BAOLI_GUARDIAN: CharacterDefinition = {
   weapon: {
     socket: 'Socket_Hand_R', socketFrame: true, restWorldRotation: [0, 0, 0], grip: [0, 0, 0],
     model: '/assets/weapons/level1_boss_talwar.glb', blade: [0.3, 1.35],
+    stateRotations: { REST: [0, 0, -1.1] }, // at ease: lowered, pointing down and ahead
   },
 };

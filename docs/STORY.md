@@ -176,7 +176,8 @@ scenes themselves), wired up in `Engine` (`storyScene`, `playScene`, `updateBeat
   starts, so it frames people where they stand then), a `duration` (default: as long as its lines take), `ease`,
   `sway`, `fadeIn` / `fadeOut`, `lines` (spoken from `linesAt`, default 0.4 s; the shot holds until the last is done)
   and `cues` at seconds into the shot. Cues at 0 s run before the shot's camera is framed.
-- **Cues:** `{ actor, play: 'IDLE' | ... | 'intro' }` (a state's clip, or an enemy's roar), `{ actor, clip: 'name' }`
+- **Cues:** `{ actor, play: 'IDLE' | ... | 'intro' }` (a state's clip, or an enemy's roar; in a cutscene `IDLE` is the
+  calm standing idle, see "Standing at ease" below), `{ actor, clip: 'name' }`
   (any clip in the model), `{ actor, moveTo: mark, gait: 'walk' | 'run', face }`, `{ actor, place: mark, face }` (at
   once), `{ actor, face: who or mark }`, and `{ run: (s) => ..., essential: true }`. Actors are `'hero'`, `'boss'` (the
   last boss to arrive) or an enemy id. Marks are vectors or functions of the stage; `Stage` has `pos`, `head`,
@@ -696,6 +697,49 @@ For cutscenes he also carries a calm standing idle (Mixamo's Standing Idle With 
 
 - **Testing:** `__debug.chapter(5, false)`, `__debug.win()` per wave until he arrives, then `__debug.advance(s)` and
   `__yudhveer.sceneManager.render()` to step through the shots.
+
+## Standing at ease (2026-10-05)
+
+The user: no character, in any chapter, should do "that stupid static jogging thing" in a cutscene, at the start of a
+scene or after a battle. What it was, chapter by chapter:
+
+- **Everywhere:** out of the fight everyone stood in their fight's IDLE, a guard that bobs on the spot: the hero's
+  sword-and-shield or great-sword stance, the brutes' heaving mutant idle, and for **Shalva** (Chapter IV) and
+  **Andhaka** (the prologue's silhouette, the summit) a *strafe on the spot*, literally stepping in place.
+- **Prologue, after the loss:** the raiders' AI stops when the boy is beaten, and they were left in MOVE: the run cycle
+  at its slowest playback (matchSpeed's 0.5 floor) while standing still, jogging on the spot until the scene cut.
+- **Chapter I opening:** the boy was placed straight behind the deepastambha on the axis (z 11.8, a 0.7 m cylinder
+  collider) and walked into it for ~4 s, walk cycle running, before sliding round it. `BAOLI_ENTRY` is now x 1.5.
+- **Chapter III ending:** placed 2.5 cm inside the altar's dais, he snagged on it and walked on the spot for ~2 s
+  before the mace. Placed on its top now (y -2.1).
+- **Any chapter, after the battle:** a won chapter whose ending had already been seen this session is only settled, so
+  a hero still running (a key held) when the victory delay ran out was left in MOVE behind the chapter-complete screen,
+  running on the spot (found in the code, not seen).
+
+The mechanism (`Character.atEase`, `CharacterState` `REST`):
+
+- **`REST`** is a state-table entry: the calm standing idle (`CharacterDefinition.states.REST`). Out of the fight (every
+  mode but play and handoff: intros, story scenes, a boss's arrival, the victory, the loss, the chapter-complete and
+  defeat screens) the Engine sets `atEase` on everyone, and the cast always: IDLE then plays REST (cross-fading,
+  0.4 s), and a walk or run that is not really moving (after collision) for 0.2 s stands in REST too, instead of
+  stepping on the spot. The state machine is untouched, so AI, input and staged walks carry on as before; in the
+  fight every state plays its own clip, as it did. A cue's clip (`clip:`, an entrance) plays on until the state
+  changes. Without a REST entry IDLE's own clip stands in.
+- **Props at ease:** `SocketAttachment.stateRotations.REST` lowers what a relaxed hand holds: the khanda and the basic
+  sword point down and ahead, the lathi stands upright at his side, the mace rests its head by his foot; the Baoli
+  Guardian's talwar is lowered, Shalva holds his gada upright, the Vetala's two blades hang. (A sword in its scabbard
+  keeps its own hold.)
+- **The calm clips** (Mixamo, `Stance-` in game asset/characters/animations): `calm_idle` (Mixamo "Idle", a relaxed
+  stand) for the hero (every weapon), the Vetala and Mayavi (so the yatudhanas and the island's archers); `orc_idle`
+  ("Male Orc Standing Idle", heavy and still) for the Baoli Guardian, Shalva, Takshaka and the rakshasas (so the raiders
+  and the island's mini monsters). Andhaka's is `standing_idle_with_axe` (`ANDHAKA_CALM_IDLE`), the vanara's
+  `staff_rest`; the guru's IDLE was already his breathing idle.
+- Staging: the loss and the end of a won fight stop anyone mid-stride (`Staging.begin`); a staged walk held by the
+  level for 0.75 s is reported in dev builds (`[Staging] ... is held ... short of its mark`).
+- Dwarka's farewell ("Rest, serpent king") lowers the khanda and stands at ease instead of the sword-and-dhal guard;
+  the guard after the sword is drawn from the stone stays (a story beat).
+- **Left as is:** the guru's (and the cast vanara's) pole walk is authored at 0.24 m/s and plays at its 2.4x ceiling
+  at 1.1 m/s, a quick shuffle; it travels, so it is not on the spot.
 
 ## Tools
 

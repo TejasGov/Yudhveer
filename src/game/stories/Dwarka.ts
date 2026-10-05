@@ -5,6 +5,7 @@ import { CharacterRig } from '../../entities/animation/CharacterRig';
 import { ParticleFX } from '../../combat/ParticleFX';
 import { SoundFX } from '../../combat/SoundFX';
 import { DWARKA_FLOOR_Y } from '../../levels/Level3_Dwarka';
+import { YODHA } from '../../entities/characters/Yodha';
 
 /*
  * Chapter IV, Dwarka (docs/STORY.md, "Milestone 8"). The hero comes with the island's mace; Shalva taunts him at
@@ -88,6 +89,16 @@ function takeSword(s: Stage): void {
   sword.quaternion.identity();
   sword.scale.setScalar(scale);
   socket.add(sword);
+}
+
+/**
+ * "Rest, serpent king": he lowers the khanda (the hold it has at ease in his hand, YODHA's REST) and stands at ease, a
+ * calm standing idle rather than the guard, as he will be behind the chapter-complete screen.
+ */
+function lowerSword(s: Stage): void {
+  const rest = YODHA.weapon?.stateRotations?.REST;
+  if (sword && rest) sword.rotation.set(...rest);
+  s.player.stateMachine.changeState('IDLE');
 }
 
 function removeSword(): void {
@@ -431,7 +442,7 @@ export const DWARKA_STORY: ChapterStory = {
         ease: ease.drift,
         sway: 0.01,
         linesAt: 0.5,
-        cues: [{ at: 0, actor: 'hero', face: 'takshaka' }, { at: 0.6, actor: 'hero', clip: 'idle' }],
+        cues: [{ at: 0, actor: 'hero', face: 'takshaka' }, { at: 0.6, run: lowerSword }],
         lines: [{ speaker: 'Yudhveer', text: 'Rest, serpent king. I will carry it to the summit.' }],
         camera: (s): CameraKey[] => {
           const { pa, dir, side } = pair(s, 'hero', 'takshaka');

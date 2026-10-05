@@ -73,6 +73,7 @@ export interface SocketAttachment {
   /**
    * Other rest orientations for particular states, whose clips were authored for a different hold (a shield
    * strapped to the forearm in combat clips, carried facing forward in generic runs). Blended to over ~0.2 s.
+   * `REST` is the hold at ease (see `Character.atEase`): a blade lowered, a staff upright, in a hand hanging relaxed.
    */
   stateRotations?: Partial<Record<CharacterState, [number, number, number]>>;
   /**
@@ -98,6 +99,8 @@ export interface SocketAttachment {
 /** An attached prop and the grip orientations it can take (socket-local). */
 interface Mount {
   object: THREE.Object3D;
+  /** The socket it was attached to: away from it (a sword in its scabbard) its holds do not apply. */
+  home: THREE.Object3D;
   grip: THREE.Vector3;
   base: THREE.Quaternion;
   byState: Map<CharacterState, THREE.Quaternion>;
@@ -117,6 +120,10 @@ const _q = new THREE.Quaternion();
 export interface CharacterDefinition {
   model: string;
   manifest: string;
+  /**
+   * Clips per state. `REST` is the calm standing idle the character keeps out of the fight (cutscenes, a chapter's
+   * start, after the battle): IDLE plays it while at ease. Without one, IDLE's own clip stands in.
+   */
   states: Partial<Record<CharacterState, StateAnimation>> & { IDLE: StateAnimation };
   locomotion: { walkSpeed: number; moveSpeed: number; sprintSpeed: number };
   weapon?: SocketAttachment;
@@ -267,6 +274,7 @@ export class CharacterRig {
     };
     const mount: Mount = {
       object,
+      home: socket,
       grip: new THREE.Vector3(...attachment.grip),
       base: orientation(attachment.restWorldRotation),
       byState: new Map(Object.entries(attachment.stateRotations ?? {})
@@ -362,6 +370,7 @@ export class CharacterRig {
   public updateMounts(state: CharacterState, dt: number): void {
     const t = 1 - Math.exp(-12 * dt);
     for (const m of this.mounts) {
+      if (m.object.parent !== m.home) continue;
       const target = m.byState.get(state) ?? m.base;
       if (m.hold.angleTo(target) >= 1e-4) m.hold.slerp(target, t);
       if (m.aim) continue;
@@ -380,7 +389,7 @@ export class CharacterRig {
    */
   private aimTwoHanded(): void {
     for (const m of this.mounts) {
-      if (!m.aim) continue;
+      if (!m.aim || m.object.parent !== m.home) continue;
       const { socket, other } = m.aim;
       // The other fist in this socket's space, in metres (sockets can carry the rig's scale).
       const local = socket.worldToLocal(other.getWorldPosition(_a));

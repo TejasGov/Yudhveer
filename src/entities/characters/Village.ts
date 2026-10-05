@@ -43,5 +43,6 @@ export const GURU: CharacterDefinition = {
  */
 export const ANDHAKA_SHADOW: CharacterDefinition = (({ offhand: _crown, ...rest }) => ({
   ...rest,
-  states: { ...rest.states, IDLE: { clip: ANDHAKA_CALM_IDLE, fade: 0.4 } },
+  // A cast member is always at ease, so REST is what he stands in; IDLE too, should anything ask for his guard.
+  states: { ...rest.states, IDLE: { clip: ANDHAKA_CALM_IDLE, fade: 0.4 }, REST: { clip: ANDHAKA_CALM_IDLE, fade: 0.4 } },
 }))(ANDHAKA);

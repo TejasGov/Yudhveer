@@ -3,8 +3,9 @@ import type { CharacterDefinition } from '../animation/CharacterRig';
 /**
  * Yudhveer's protagonist, built by `game asset/characters/build_character.py` from `game asset/characters/yodha.fbx` + `game asset/characters/animations`
  * with `--prefixes "All-,Yodha-"`: the shared clips plus his own Mixamo Sword And Shield pack, and Mixamo's
- * "Run With Sword" / "Standing Sprint Forward" for running. Clip ids are the file names minus their prefix, in
- * snake_case ("Yodha-attack (2).fbx" -> attack_2).
+ * "Run With Sword" / "Standing Sprint Forward" for running, the mace's Great Sword Pack clips and `calm_idle` (Mixamo's
+ * relaxed standing "Idle", Stance-Calm Idle) for standing at ease (`--clips`, see game asset/README.md). Clip ids are
+ * the file names minus their prefix, in snake_case ("Yodha-attack (2).fbx" -> attack_2).
  *
  * Every clip of the pack is in the model, so a state can be pointed at a different variant without a rebuild:
  * idle_2..4, run (the pack's own), walk_2 / run_2 (backwards), strafe..strafe_4, turn, 180_turn, slash_2..5,
@@ -15,6 +16,8 @@ export const YODHA: CharacterDefinition = {
   manifest: '/assets/characters/yodha.manifest.json',
   states: {
     IDLE: { clip: 'idle' },
+    // At ease (cutscenes, before and after a fight): Mixamo's relaxed standing "Idle" (Stance-Calm Idle), every weapon.
+    REST: { clip: 'calm_idle', fade: 0.4 },
     WALK: { clip: 'walk', matchSpeed: true },
     // Upright, blade cocked over the shoulder, dhal in front (the pack's own run is a hunched scurry).
     MOVE: { clip: 'run_with_sword', matchSpeed: true, fade: 0.22 },
@@ -59,6 +62,8 @@ export const YODHA: CharacterDefinition = {
   weapon: {
     socket: 'Socket_Hand_R', socketFrame: true, restWorldRotation: [0, 0, 0], grip: [0, 0, 0],
     model: '/assets/weapons/yodha_khanda.glb', blade: [0.17, 0.87],
+    // At ease the blade hangs lowered, pointing down and ahead, instead of straight out of the relaxed fist.
+    stateRotations: { REST: [0, 0, 1.1] },
   },
   offhand: {
     socket: 'Socket_Hand_L', socketFrame: true, restWorldRotation: [0, Math.PI, 0], grip: [0, 0, 0],

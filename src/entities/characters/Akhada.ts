@@ -24,6 +24,8 @@ export const MENTOR: CharacterDefinition = {
   states: {
     // On guard, the staff held low across him and ready.
     IDLE: { clip: 'great_sword_idle', fade: 0.3 },
+    // Out of the spar (cutscenes), leaning on the planted staff, a hand on his hip: his calm idle, as the cast's.
+    REST: { clip: 'staff_rest', fade: 0.4 },
     WALK: { clip: 'great_sword_walk', matchSpeed: true },
     MOVE: { clip: 'great_sword_walk', matchSpeed: true, fade: 0.3 },
     SPRINT: { clip: 'great_sword_run', matchSpeed: true },

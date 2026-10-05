@@ -5,13 +5,14 @@ import type { CharacterDefinition } from '../animation/CharacterRig';
  * modelled as fists). Built with Yodha's sword clips (run from `game asset/characters`):
  *
  *   blender -b --factory-startup --python build_character.py -- "sources/level 2 fighter.fbx" animations <out>/vetala.glb
- *     --clips "idle_4,walk,run_with_sword,standing_sprint_forward,strafe,strafe_2,walk_2,slash_3,slash_5,slash_4,attack_4,impact_3,impact_2,crouch_idle,death_2,power_up"
+ *     --clips "idle_4,walk,run_with_sword,standing_sprint_forward,strafe,strafe_2,walk_2,slash_3,slash_5,slash_4,attack_4,impact_3,impact_2,crouch_idle,death_2,power_up,calm_idle"
  */
 export const VETALA: CharacterDefinition = {
   model: '/assets/characters/vetala.glb',
   manifest: '/assets/characters/vetala.manifest.json',
   states: {
     IDLE: { clip: 'idle_4', fade: 0.25 },
+    REST: { clip: 'calm_idle', fade: 0.4 }, // at ease: a relaxed stand (Stance-Calm Idle)
     WALK: { clip: 'walk', matchSpeed: true },
     MOVE: { clip: 'run_with_sword', matchSpeed: true, fade: 0.2 },
     SPRINT: { clip: 'standing_sprint_forward', matchSpeed: true },
@@ -32,9 +33,11 @@ export const VETALA: CharacterDefinition = {
   weapon: {
     socket: 'Socket_Hand_R', restWorldRotation: [Math.PI / 2, 0, 0], grip: [0.0964, 0.0234, -0.0261],
     model: '/assets/weapons/vetala_sword_r.glb', blade: [0.11, 0.97],
+    stateRotations: { REST: [2.792, -0.426, 1.743] }, // at ease: both blades hang lowered (solved in the calm pose)
   },
   offhand: {
     socket: 'Socket_Hand_L', restWorldRotation: [Math.PI / 2, Math.PI, 0], grip: [0.0964, 0.0234, 0.0261],
     model: '/assets/weapons/vetala_sword_l.glb',
+    stateRotations: { REST: [0.959, -0.117, -1.118] },
   },
 };

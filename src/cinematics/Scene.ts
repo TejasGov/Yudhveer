@@ -208,6 +208,8 @@ export class Stage {
 const TURN_RATE = 6;
 /** Close enough to a mark. */
 const ARRIVED = 0.08;
+/** Seconds a staged walk may make no headway before it is reported (dev builds). */
+const STUCK_WARNING = 0.75;
 
 /** States nothing ends in a cutscene: walking and running loop, and the hero's jump, guard and charge wait for him. */
 const LOCOMOTION: CharacterState[] = ['WALK', 'MOVE', 'SPRINT', 'STRAFE_LEFT', 'STRAFE_RIGHT', 'WALK_BACK'];
@@ -219,6 +221,9 @@ interface Move {
   speed: number;
   gait: CharacterState;
   face: THREE.Vector3 | null;
+  /** How far it still had to go last step, and how long it has been making no headway (held by the level). */
+  left: number;
+  stuck: number;
 }
 
 /**
@@ -245,7 +250,7 @@ export class Staging {
     this.moves = this.moves.filter((m) => m.actor !== actor);
     this.turns.delete(actor);
     const run = gait === 'run';
-    this.moves.push({ actor, to, speed: run ? actor.moveSpeed : actor.walkSpeed, gait: run ? 'MOVE' : 'WALK', face });
+    this.moves.push({ actor, to, speed: run ? actor.moveSpeed : actor.walkSpeed, gait: run ? 'MOVE' : 'WALK', face, left: Infinity, stuck: 0 });
   }
 
   public face(actor: Character, point: THREE.Vector3): void {
@@ -272,6 +277,13 @@ export class Staging {
         m.actor.stateMachine.changeState('IDLE');
         if (m.face) this.turns.set(m.actor, m.face);
         continue;
+      }
+      // Held where it stands (a prop's collider, a lip in the floor): at ease it stands rather than walking on the
+      // spot (Character.atEase), but the mark wants moving, so say so while developing.
+      m.stuck = m.left - dist < m.speed * dt * 0.25 ? m.stuck + dt : 0;
+      m.left = dist;
+      if (import.meta.env.DEV && m.stuck >= STUCK_WARNING && m.stuck - dt < STUCK_WARNING) {
+        console.warn(`[Staging] ${m.actor.id} is held ${dist.toFixed(2)} m short of its mark`, m.to.toArray());
       }
       m.actor.turnToward(Math.atan2(d.x, d.z), TURN_RATE, dt);
       pos.addScaledVector(d.divideScalar(dist), Math.min(dist, m.speed * dt));
