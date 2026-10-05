@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { Entity } from './Entity';
 import { CharacterStateMachine, type CharacterState, type TimedStateKey } from './CharacterStateMachine';
 import { SlashRibbon } from '../combat/SlashRibbon';
-import { CharacterRig, type CharacterDefinition, type StateAnimation } from './animation/CharacterRig';
+import { CharacterRig, type CharacterDefinition, type SocketAttachment, type StateAnimation } from './animation/CharacterRig';
 import { CharacterMotor, DEFAULT_MOTOR, type MotorOptions } from '../physics/CharacterMotor';
 import { PhysicsWorld } from '../core/PhysicsWorld';
 import type RAPIER from '@dimforge/rapier3d-compat';
@@ -45,6 +45,13 @@ const TURN_GAIN = 8;
 const STRIDE_FILTER = 8;
 // A jump without clip timing (greybox): leaves at once, ~1 m high.
 const DEFAULT_JUMP = { takeoff: 0, landing: 0.58, speed: 7, recovery: 0.12 };
+/** How far above his feet a scabbard's tip is kept (m). */
+const SCABBARD_CLEARANCE = 0.03;
+const _scabbardPivot = new THREE.Vector3();
+const _scabbardTip = new THREE.Vector3();
+const _scabbardAxis = new THREE.Vector3();
+const _scabbardQuat = new THREE.Quaternion();
+const _scabbardTurn = new THREE.Quaternion();
 
 /** How a jump plays out, in state seconds: when to leave the ground and how fast, and how long landing takes. */
 export interface JumpPlan {
@@ -380,6 +387,10 @@ export class Character extends Entity {
       console.warn(`[Character ${this.id}] rig has no socket ${definition.weapon.socket}`);
     }
     if (definition.offhand) rig.attach(p.shield ?? this.shieldMesh, definition.offhand);
+    // The scabbard hangs on the hips from the start, empty while the blade is drawn.
+    const scabbard = definition.sheath?.build?.();
+    if (scabbard && rig.attach(scabbard, definition.sheath!)) p.scabbard = scabbard;
+    else if (scabbard) console.warn(`[Character ${this.id}] rig has no socket ${definition.sheath!.socket}`);
     if (definition.scale) rig.applyScale(definition.scale);
     const blade = definition.weapon?.blade ?? this.bladeSpan;
     // Hit windows straight from each attack clip's motion (scaled to the state's playback rate and start).
@@ -436,6 +447,14 @@ export class Character extends Entity {
     this.rigState = null;
     this.rigKey = null;
     this.lastGroundPos.copy(this.group.position);
+    // The scabbard's hold as it was attached (a prepared rig is worn once, so it has not been lifted yet).
+    const sheath = definition.sheath;
+    this.scabbard = p.scabbard && sheath ? {
+      object: p.scabbard,
+      hold: p.scabbard.quaternion.clone(),
+      grip: new THREE.Vector3(...sheath.grip),
+      tip: (p.scabbard.userData.tip as THREE.Vector3 | undefined) ?? new THREE.Vector3(0, 1, 0),
+    } : null;
     if (this.swordSheathed) this.stowSword(true);
     if (was?.clip && rig.clipInfo(was.clip)) this.playScripted({ clip: was.clip, fade: 0, startAt: was.time });
     return rig;
@@ -494,6 +513,7 @@ export class Character extends Entity {
     if (sm.currentState === 'JUMP') this.syncJumpClip();
     const root = rig.update(dt, this.visSpeed);
     rig.updateMounts(this.scripted ? sm.currentState : key, dt);
+    this.liftScabbard();
     // Root motion is just more intended movement; the motor (end of update) resolves it with the rest.
     if (root) pos.add(root.multiplyScalar(this.rootMotionScale).applyAxisAngle(UP, this.group.rotation.y));
   }
@@ -581,19 +601,72 @@ export class Character extends Entity {
     if (mark === undefined || rig!.clip !== config!.clip) {
       // No sheathe clip: the sword simply goes away (or comes back) halfway through.
       const half = (sheathing ? this.stateMachine.SHEATHE_DURATION : this.stateMachine.DRAW_DURATION) / 2;
-      if (this.stateMachine.stateTime >= half) this.stowSword(sheathing);
+      if (this.stateMachine.stateTime >= half) this.stowSword(sheathing, true);
     } else if (sheathing ? rig!.time >= mark : rig!.time <= mark) {
-      this.stowSword(sheathing);
+      this.stowSword(sheathing, true);
     }
   }
 
-  /** Puts the sword in the scabbard (or back in hand), keeping its grip so the swap at the sheathe mark is seamless. */
-  public stowSword(sheathed: boolean): void {
-    const hand = this.rig?.definition.weapon ? this.rig.socket(this.rig.definition.weapon.socket) : undefined;
-    const scabbard = this.rig?.socket('Socket_Sheath');
-    if (hand && scabbard) (sheathed ? scabbard : hand).add(this.swordMesh);
-    else this.swordMesh.visible = !sheathed;
+  /**
+   * Puts the sword in the scabbard (or back in hand). At the sheathe clip's mark the hand is at the scabbard's mouth
+   * but holds the blade at its own angle, so `blend` lets the blade turn into the scabbard (or into the hand's hold)
+   * over a moment instead of jumping; a chapter start or a change of rig puts it there at once.
+   */
+  public stowSword(sheathed: boolean, blend = false): void {
+    const rig = this.rig;
+    const def = rig?.definition;
+    const into = def?.weapon && (sheathed ? def.sheath && stowedIn(def.weapon, def.sheath) : def.weapon);
+    if (!into || !rig!.attach(this.swordMesh, into, { blend })) {
+      // No scabbard of its own: the blade goes to the hips' socket as the hand held it, or out of sight.
+      const socket = sheathed ? rig?.socket('Socket_Sheath') : def?.weapon && rig!.socket(def.weapon.socket);
+      if (socket) socket.add(this.swordMesh);
+      else this.swordMesh.visible = !sheathed;
+    }
     this.swordSheathed = sheathed;
+  }
+
+  /**
+   * The scabbard on the hips (`CharacterDefinition.sheath`): its hold on its socket, the blade's grip point it hangs
+   * from, and its tip (both in its own frame).
+   */
+  private scabbard: { object: THREE.Object3D; hold: THREE.Quaternion; grip: THREE.Vector3; tip: THREE.Vector3 } | null = null;
+
+  /**
+   * Hung down and back from the hip, a scabbard's tip would go into the ground when he kneels or lands low; as a real
+   * one does, it swings up about the hilt instead, just as far as keeps the tip a few centimetres off the ground (the
+   * ground taken as his feet's height), and drops back as he rises. A blade in it goes with it.
+   */
+  private liftScabbard(): void {
+    const sc = this.scabbard;
+    const socket = sc?.object.parent;
+    if (!sc || !socket) return;
+    const obj = sc.object;
+    obj.quaternion.copy(sc.hold);
+    obj.position.copy(sc.grip).applyQuaternion(sc.hold).negate();
+    // The blade in it: its own hold if that is still easing in from the hand (sheathed a moment ago), else the
+    // scabbard's (it hangs at the same angle). Both are set from their holds every step, lifted or not.
+    const blade = this.swordSheathed && this.swordMesh.parent === socket ? this.swordMesh : null;
+    const grip = this.rig?.definition.weapon?.grip;
+    const turn = _scabbardTurn.identity();
+    socket.updateWorldMatrix(true, false);
+    const pivot = _scabbardPivot.setFromMatrixPosition(socket.matrixWorld);
+    obj.updateMatrix();
+    const reach = _scabbardTip.copy(sc.tip).applyMatrix4(obj.matrix).applyMatrix4(socket.matrixWorld).sub(pivot);
+    const length = reach.length();
+    const floor = this.group.position.y + SCABBARD_CLEARANCE;
+    if (length > 1e-3 && pivot.y + reach.y < floor) {
+      const lift = Math.asin(THREE.MathUtils.clamp((floor - pivot.y) / length, -1, 1)) - Math.asin(reach.y / length);
+      // About the level axis across the scabbard, in the world; then into the socket's frame, before its hold.
+      const axis = _scabbardAxis.crossVectors(reach, UP).normalize();
+      const socketQuat = socket.getWorldQuaternion(_scabbardQuat).invert();
+      turn.setFromAxisAngle(axis.applyQuaternion(socketQuat), lift);
+      obj.quaternion.premultiply(turn);
+      obj.position.copy(sc.grip).applyQuaternion(obj.quaternion).negate();
+    }
+    if (blade && grip) {
+      blade.quaternion.copy(this.rig!.holdOf(blade) ?? sc.hold).premultiply(turn);
+      blade.position.set(...grip).applyQuaternion(blade.quaternion).negate();
+    }
   }
 
   /** Follow-up swings may cut the current one short once its blade has finished (`CharacterStateMachine.cancelAt`). */
@@ -894,6 +967,23 @@ export interface HitWindow {
   t1: number;
 }
 
+/**
+ * How a stowable blade sits in its scabbard: the weapon's own attachment (its grip and size) on the scabbard's socket
+ * at the scabbard's angle, so blade and scabbard share one hold and only the hilt shows.
+ */
+function stowedIn(weapon: SocketAttachment, sheath: SocketAttachment): SocketAttachment {
+  return {
+    ...weapon,
+    socket: sheath.socket,
+    socketFrame: sheath.socketFrame,
+    restWorldRotation: sheath.restWorldRotation,
+    stateRotations: undefined,
+    stateGrips: undefined,
+    oneHandGrip: undefined,
+    twoHanded: undefined,
+  };
+}
+
 /** The same angle in (-PI, PI]. */
 export function wrapAngle(a: number): number {
   return a - Math.PI * 2 * Math.round(a / (Math.PI * 2));
@@ -905,6 +995,8 @@ export interface PreparedRig {
   rig: CharacterRig;
   prop: THREE.Group | null;
   shield: THREE.Group | null;
+  /** The scabbard on its socket (`CharacterDefinition.sheath`), once the props are fitted. */
+  scabbard?: THREE.Object3D;
   /** Hit windows per attack state, measured with the props on (null until they are). */
   strikes: Map<CharacterState, HitWindow[]> | null;
 }

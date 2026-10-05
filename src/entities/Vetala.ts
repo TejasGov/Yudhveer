@@ -1,5 +1,12 @@
 import { Enemy } from './Enemy';
 import type { CharacterState } from './CharacterStateMachine';
+import type { CharacterDefinition, CharacterRig } from './animation/CharacterRig';
+
+/**
+ * The model's own spare pair of notched swords, crossed on his lower back (a skinned part of `vetala.glb`). He fights
+ * with the two he holds, so the spare pair is hidden: four identical blades read as a mistake, not a fighter.
+ */
+const SPARE_SWORDS = 'Swords_Sheathed';
 
 /** Chapter II, the Vetala: a fast twin-blade fighter who chains his cuts; fragile in posture. */
 export class Vetala extends Enemy {
@@ -21,6 +28,13 @@ export class Vetala extends Enemy {
     this.lungeSpec = { a: 0, b: 0.25, maxDist: 1.4, stopDist: 1.1 };
     // The greybox carries a second sword until his model (and his own two swords) load.
     this.shieldMesh.visible = false;
+  }
+
+  public override async attachRig(definition: CharacterDefinition): Promise<CharacterRig> {
+    const rig = await super.attachRig(definition);
+    const spare = rig.root.getObjectByName(SPARE_SWORDS);
+    if (spare) spare.visible = false;
+    return rig;
   }
 
   protected override onStateChange(state: CharacterState): void {

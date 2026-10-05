@@ -144,7 +144,7 @@ Suggested order: progression system and weapon sets first, then the prologue, th
 
 | Kit | Weapon | Dhal | Moves | Blows (damage / posture) |
 |---|---|---|---|---|
-| `baoli` (I) | Lathi | no | slide, chained blows; **charge is the guru's lesson (not yet taught)** | 17/26, 22/32, 36/52 |
+| `baoli` (I) | Lathi | no | slide, chained blows; **charge is the guru's lesson (not yet taught)** | 17/26, 22/32, spin 2 x 18/26 |
 | `akhada` (II) | Basic sword | yes | slide, chain, block, parry | 18/20, 24/26, 38/40, leap 44/48 |
 | `dwarka` (IV) | Blessed mace | no | slide, chain, **slam out of a run** | 36/44, 46/54, spin 2 x 38/46, slam 80/90 |
 | `summit` (V) | Magical khanda | yes | everything | 22/25, 30/32, 48/50, leap 55/60 |
@@ -155,7 +155,8 @@ Suggested order: progression system and weapon sets first, then the prologue, th
   the mace is Shalva's gada at 0.7 scale. The lathi's swings are cut from Mixamo's One Hand Club Combo; the mace's
   from the Mace Attack Combo, Spin Mace Attack and the brute's run-jump attack. The mace is held in the right hand
   only: both hands on the haft needs a clip authored for it. *(Since milestone 8 the mace has its own two-handed
-  clips from the Great Sword Pack, held in both hands: see "Milestone 8".)*
+  clips from the Great Sword Pack, held in both hands: see "Milestone 8". Since the audit fixes the lathi is two-handed
+  too, on the same clips, and the sword and the khanda have scabbards: see "Holds and hand-offs".)*
 - **Kit keys are not chapter numbers**, so the prologue and the island slot in as new kits (`KitId`) without
   renumbering anything. The island's kit is the mace again.
 - **Two-handed clips arrived** (2026-10-04): Mixamo's Great Sword Pack, 51 clips, in `game asset/characters/animations`
@@ -508,7 +509,8 @@ the relight in `src/levels/Level2_Akhada.ts`.
   at `staff_rest` (his calm idle; the guard idle `great_sword_idle` is only for the montage and the spar). No staff
   attack clips: Mixamo has none that beat the Great Sword sweeps.
 - **Framing** (2026-10-05): the dhal handover is shot square on from the boy's shield side, the vanara stopping 1.45 m
-  short of him with the staff planted at his side, so the staff no longer crosses the dhal. For the lesson he squares
+  short of him with the staff planted at his side, so the staff no longer crosses the dhal. *(Since the audit fixes he
+  really hands it over: see "Holds and hand-offs".)* For the lesson he squares
   up on `AKHADA_MARKS.spar`, off the boy's right front (~48 deg), and the boy turns to face him: the follow camera
   (behind the boy, looking north) keeps him clear of the boy even once he has closed in to strike, where straight down
   the north-south line he was hidden behind him. The last opening shot ends over the boy's shoulder where the follow
@@ -659,19 +661,22 @@ hold in `src/entities/animation/CharacterRig.ts` (`SocketAttachment.twoHanded`).
   souls before his god to grow great enough to stand against Shiva and take his seat on Kailasha; the guru, "the
   wisest of them all", is kept for the last fire, on the summit. The guru's being Shiva stays hidden. The sea stirs,
   the hero turns to it, and Takshaka's own arrival (as before) brings the serpent king up. The **ending**: Takshaka
-  dying; his hundred years serving Andhaka; the recorded prophecy; naga fire, and the khanda stands point down in the
-  stone between them; the hero crouches, takes it (the mace leaves his hands) and stands with it up in the
-  sword-and-dhal idle; "Rest, serpent king. I will carry it to the summit." The camera rises away.
+  dying; his hundred years serving Andhaka; the recorded prophecy; naga fire, and the khanda stands deep in the stone
+  in front of him, leaning, its hilt toward him; the mace laid on the stone at his side, he steps up, goes down on one
+  knee, takes it by the grip and draws it as he rises, and stands with it up in the sword-and-dhal idle; "Rest, serpent
+  king. I will carry it to the summit." The camera rises away. *(Reworked by the audit fixes: see "Holds and
+  hand-offs".)*
 - **New in the engine (one change):** the final boss now waits for a story beat that is due (`Engine.beatDue`), so a
   fallen boss's last words play before the next boss comes on.
-- **The sword in the scene** is `yodha_khanda.glb` loaded as a prop, stood in the level and then parented to the right
-  hand socket; an essential hook at the end of the ending (and at the start of the opening) takes it away and gives
-  the mace back, so a skipped scene or a replay of the chapter is left right. The next chapter's kit equips the khanda
-  properly.
+- **The sword in the scene** is `yodha_khanda.glb` loaded as a prop, stood in the level and then mounted on the right
+  hand socket with the summit's own hold (`WEAPON_SETS.khanda`, so the same size and grip as there); he keeps it, and
+  the mace lies where he laid it, behind the chapter-complete screen. Leaving the chapter (a retry, the summit, the
+  title) puts the mace back in his hands and frees the prop (SceneFX's clear), and the opening's essential hook does
+  too, so a retry starts with the mace. The next chapter's kit equips the khanda properly.
 - **Weather:** it rains (see "Dwarka in the rain").
 - **Shalva dives:** he can go under the flooded stone and burst up beside the hero (see "Shalva's dive").
-- **Left for later:** the flame burst is the existing naga fire; the hero lays the mace down out of sight (it simply leaves his hands); the khanda is held
-  in the sword pack's idle without the dhal; the sprint is the mace's run played faster.
+- **Left for later:** the flame burst is the existing naga fire; the mace is laid down across a cut (no laying-down
+  clip); the khanda is held in the sword pack's idle without the dhal; the sprint is the mace's run played faster.
 
 ### Chapter IV lines
 
@@ -709,7 +714,8 @@ effects clock, the credits after the last chapter). The map, Andhaka and his ent
   casters hang back, so the hero has to deflect while crowded or break off to run them down. The waves are now 8 (was
   6): the third, sixth and eighth are yatudhanas (`Horde.alt`). The intro card's epithet no longer counts them.
 - **The ending** (`summit-ending`, after Andhaka falls and the victory beat):
-  1. From black, high over the arena: Andhaka fallen, the boy sheathes his blade. A voice from the dais: "Yudhveer."
+  1. From black, high over the arena: Andhaka fallen, the boy sheathes his blade (in its scabbard on his left hip,
+     since the audit fixes). A voice from the dais: "Yudhveer."
   2. Low in front of him: he turns up the stair. "Guruji?"
   3. Over his shoulder up Shiva's stair: at the head of it, at the statue's feet, the guru slumped on the stone,
      Andhaka's captive. The boy runs up.
@@ -864,9 +870,9 @@ The mechanism (`Character.atEase`, `CharacterState` `REST`):
   fight every state plays its own clip, as it did. A cue's clip (`clip:`, an entrance) plays on until the state
   changes. Without a REST entry IDLE's own clip stands in.
 - **Props at ease:** `SocketAttachment.stateRotations.REST` lowers what a relaxed hand holds: the khanda and the basic
-  sword point down and ahead, the lathi stands upright at his side, the mace rests its head by his foot; the Baoli
-  Guardian's talwar is lowered, Shalva holds his gada upright, the Vetala's two blades hang. (A sword in its scabbard
-  keeps its own hold.)
+  sword point down and ahead, the lathi stands upright at his side (slid down through his hand, its top a little
+  ahead of him, `stateGrips`), the mace rests its head by his foot; the Baoli Guardian's talwar is lowered, Shalva
+  holds his gada upright, the Vetala's two blades hang. (A sword in its scabbard keeps its own hold.)
 - **The calm clips** (Mixamo, `Stance-` in game asset/characters/animations): `calm_idle` (Mixamo "Idle", a relaxed
   stand) for the hero (every weapon), the Vetala and Mayavi (so the yatudhanas and the island's archers); `orc_idle`
   ("Male Orc Standing Idle", heavy and still) for the Baoli Guardian, Shalva, Takshaka and the rakshasas (so the raiders
@@ -1175,7 +1181,8 @@ har mahadev chant with shankh opening and damru beats for his glory".
   (`game asset/characters/villager_dye.py`), with their own `Village-` clips. Seven in the ending: three dead from its
   first shot (a man on the path from the gate, an old man by the burning hut, a woman by the north-west hut), four
   alive: at dusk cowering (a woman by the house door, one hidden behind the well, the old man frozen on the mandir's
-  step, the son hiding by the north-west hut); at night mourning (the wife on her knees by her husband, the son
+  step, the son hiding against the north-west hut's south-west side, 1.6 m from the woman who fell at its door: he
+  used to crouch on her face); at night mourning (the wife on her knees by her husband, the son
   weeping over his father, the old man sitting dazed against the house wall, a woman praying at the mandir).
 - **The hero's kneel and prayer** (Mixamo, `Hero-` clips in `yodha.glb`, all its earlier clips kept): Kneeling Down,
   Kneeling Idle, Kneeling (one knee), Standing (kneel to stand), Dying (head impact to two knees), Standing Up (from
@@ -1294,6 +1301,75 @@ an open palm, and prayer (C-06) was two claws at the chin. The user asked that t
 - **Left as is:** the basic sword's hold (C-03, the grip 8.8 cm off the socket) and the sheathed blade (C-05) are
   separate fixes; the fists close where the sockets are. The guru's shoulder (C-12) is not changed (see
   docs/APPROVALS.md).
+
+## Holds and hand-offs (audit fixes, 2026-10-05)
+
+The audit (docs/AUDIT.md, the characters track) found props held off their grips, handed over by popping, and a
+sheathed blade sticking straight out of the hip. What changed (no model rebuilt; before and after captures in
+`game asset/audit/fixes/fix-holds/`):
+
+- **Takshaka's sword** (Dwarka's ending, `src/game/stories/Dwarka.ts`). The khanda in his hand was 1.43x its size (it
+  was scaled against the mace's old 0.7) and, lowered, sank 24 cm into the floor. It is now mounted with the summit's
+  own hold (`WEAPON_SETS.khanda`), so it is the summit's sword at the summit's size, and lowered it clears the floor
+  by 6 cm. The take is staged: where he will kneel is worked out as the scene begins (`planTake`: facing the serpent
+  king, clear of his fallen body), and he stands a step short of it to hear him out. The sword comes up out of the
+  naga fire deep in the stone in front of him, leaning, its hilt where his right fist will be at the bottom of Mixamo's
+  "Kneeling Down" (sampled from the clip, as BossAndhaka places his sword at his entrance's "grip" mark: at the take the
+  fist is 9 mm from the grip, closed over the next 0.25 s). Across the cut into the take the mace lies on the stone at
+  his left (laid down as the summit's dhal is: a prop of the level until the chapter is left). He steps up, kneels,
+  takes the grip and rises ("Kneel To Stand"): the blade slides up out of its slot along its own length with his fist,
+  then swings up through level into his guard, and from there it is the summit's hold. A skipped scene puts it all in
+  place at once (an essential cue).
+- **The chapter-complete screen after Dwarka** shows him with the khanda (lowered, at ease) and the mace on the stone;
+  the old last shot that gave him the mace back is gone. Leaving the chapter puts the mace back (SceneFX's clear), so
+  the summit starts with its own kit and a retry of Chapter IV with the mace (both checked).
+- **The basic sword's grip** (`YodhaWeapons.ts`, `SWORD_GRIP`). It reused the Vetala's grip offset, which suits his
+  sockets but held the hero's 9 cm off his fist, beside the open fingers; it is now the middle of the sword's wrapped
+  grip, on its axis (the fingers close round it).
+- **The Vetala's spare swords:** his model's `Swords_Sheathed` (a second pair crossed on his back) is hidden
+  (`Vetala.attachRig`).
+- **The hiding villager** in the prologue's dusk shots crouches 1.6 m from the dead woman's head (it was 0.2 m: his foot
+  was on her face). He is still in frame in the two dusk shots that showed him.
+- **The dhal handed over** (Akhada's opening, shot 4). The vanara carries the boy's dhal (a copy of its model) at his
+  left side from the start of the shot; on "Here." his free hand holds it out (`staff_point`) and the boy's left hand
+  comes up under it, palm up (`casting_2`). Both clips are sampled, so the vanara stands where his hand is on the dhal's
+  far rim and the boy's under its middle on the frame their hands meet (the boy's hand 2 cm from the dhal's middle,
+  the hands 32 cm apart across it); that frame the boy's own dhal takes its place on his arm. A skipped scene, or one
+  whose copy had not loaded, gives it to him at once.
+
+### The scabbard
+
+`src/entities/characters/Scabbard.ts`: a scabbard built in code for each stowable blade (the basic sword, the
+khanda), wood under dark leather, a brass throat, locket and chape, two leather bands, tapering to a rounded point;
+plain colours and few polygons for the cel ramp and the ink. Each is fitted to its blade's mesh: every point of the
+blade lies inside it. It hangs on `Socket_Sheath` (`CharacterDefinition.sheath`), empty while the blade is drawn, at
+`SHEATHED` (`YodhaWeapons.ts`): down and back along the outside of the left thigh, 47 degrees below level and 17 out,
+hilt up and forward at the hip, edge up (the socket alone held the blade straight back and level, the hilt-height point
+skewering the belt). Sheathed, the blade takes the scabbard's own hold (its grip and size, the scabbard's angle), so only
+the hilt shows. At the sheathe clip's "sheathed" mark the hand is at the scabbard's mouth but holds the blade at its own
+angle: the blade turns into the scabbard over ~0.2 s (`stowSword(…, blend)`), and drawing turns it into the hand the
+same way. When he kneels or lands low, the scabbard swings up about its hilt just enough to keep its tip 3 cm off the
+ground, and drops back as he rises (`Character.liftScabbard`). Over the walks, runs, guards, blows and hits its lower
+half keeps 12 cm or more from his left hand and 10 cm from his left shin (but in the finisher's kneeling landing). In
+the summit ending he sheathes into it before the guru calls him.
+
+### The two-handed lathi
+
+The lathi was swung one-handed with a club's clips, so the 1.55 m staff went through his left arm and past his head. It
+is now held in both hands on the mace's Great Sword Pack clips (`LATHI_STATES`): the guard (`great_sword_idle`), the
+run, a wide sweep, an overhead blow and the high spin as the finisher (two blows, each half the old third blow), the
+hit reactions and the death, the staff laid through both fists every frame (`twoHanded`). It is gripped near its foot
+(the right fist 0.27 m up from the iron), as a long staff is for a full swing: held further up, the bamboo under the
+left fist ran into his hip and thigh. The overhead blow is entered at the top of its swing (its wind-up, and the blend
+into it from any moment it can be chained, put the staff through his head). Measured frame by frame over the chain
+and those clips, no part of him comes within the staff's radius but the hands that hold it. The swings take as long as
+the old ones (~0.7 s; the finisher ~1 s); hit windows are measured from the clips as always. Kept one-handed: the
+walk (the cutscenes walk him to the Devi, into the stepwell and out of the burning village, where a guard walk read
+as stalking), the slide, the jump, the charge and the posture break; when his fists part the staff slides back
+through his hand to its old one-handed grip (`oneHandGrip`), so the prologue's beating and night look as they did. At
+ease it stands at his side, its top a little ahead of him, its foot by his heel. The prologue's lesson now shows him
+on guard and swinging it in both hands. Not fixed: the charge (Mixamo's "Power Up") draws both fists to his chest,
+and any staff in his hand crosses his head there for a few frames, as before.
 
 ## Tools
 

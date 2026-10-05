@@ -68,8 +68,10 @@ const VILLAGERS: { id: string; dusk: { at: THREE.Vector3; face: THREE.Vector3; c
   { id: 'v_woman_b', dusk: { at: v(7.6, 0, 3.1), face: v(6.4, 0, 2.0), clip: 'hiding' }, night: { at: MANDIR.clone().add(v(0.15, 0, -0.55)), face: MANDIR.clone().add(v(0.15, 0, 4)), clip: 'praying_anjali' } },
   // The old man: frozen with fear at the mandir's step; at night sitting dazed against the house's wall.
   { id: 'v_elder', dusk: { at: MANDIR.clone().add(v(1.0, 0, -0.45)), face: GATE, clip: 'terrified', from: 3 }, night: { at: v(5.9, 0, 7.15), face: v(5.9, 0, 0), clip: 'sitting_dazed', from: 2 } },
-  // The son: hiding by the north-west hut at dusk; at night standing over his father's body, weeping.
-  { id: 'v_man', dusk: { at: v(-5.2, 0, -3.7), face: v(-9, 0, -5), clip: 'hiding' }, night: { at: DEAD_ELDER.clone().add(v(1.0, 0, 0.9)), face: DEAD_ELDER, clip: 'crying' } },
+  // The son: hiding by the north-west hut at dusk; at night standing over his father's body, weeping. He crouches
+  // against the hut's south-west side, well clear of the woman who fell at its door: her death clip throws her head
+  // 0.4 m toward where he was, and his crouched foot was on her face (1.6 m from her head now, 1.9 m from her mark).
+  { id: 'v_man', dusk: { at: v(-6.75, 0, -4.1), face: v(-9.5, 0, -3.3), clip: 'hiding' }, night: { at: DEAD_ELDER.clone().add(v(1.0, 0, 0.9)), face: DEAD_ELDER, clip: 'crying' } },
 ];
 const DEAD: { id: string; at: THREE.Vector3; face: THREE.Vector3; clip: string }[] = [
   { id: 'v_dead_man', at: DEAD_MAN, face: v(0.6, 0, -9.5), clip: 'falling_forward_death' },
@@ -283,7 +285,10 @@ export const PROLOGUE_STORY: ChapterStory = {
   opening: {
     id: 'prologue-opening',
     shots: [
-      // Side on to the two of them in the chalk circle, the boy swinging his lathi.
+      // Side on to the two of them in the chalk circle, the boy on guard with his lathi in both hands: a sweep, then a
+      // blow brought down from overhead (entered at the top of its swing, as his combo enters it: its own wind-up puts
+      // the staff through his head), then on guard again. (Out of his calm stand, or back into it, the staff's foot
+      // would swing past his legs as his hold changes.)
       {
         fadeIn: 0.5,
         ease: ease.drift,
@@ -292,7 +297,10 @@ export const PROLOGUE_STORY: ChapterStory = {
         cues: [
           { at: 0, actor: 'hero', place: LESSON_HERO, face: 'guru' },
           { at: 0, actor: 'guru', place: LESSON_GURU, face: 'hero' },
-          { at: 0.5, actor: 'hero', clip: 'one_hand_club_combo', timeScale: 1.1 },
+          { at: 0, run: (s) => s.player.playClip('great_sword_idle', { fade: 0 }) },
+          { at: 0.5, actor: 'hero', clip: 'great_sword_slash', timeScale: 1.1 },
+          { at: 1.45, run: (s) => s.player.playClip('great_sword_slash_3', { startAt: 0.72, timeScale: 0.9, fade: 0.22 }) },
+          { at: 2.9, run: (s) => s.player.playClip('great_sword_idle', { fade: 0.5 }) },
         ],
         lines: [{ speaker: 'Guru', text: 'Again. Feet first, then the lathi. Swung from the arm alone, it is only a stick.', voice: 'prologue_open_guru_1' }],
         camera: [

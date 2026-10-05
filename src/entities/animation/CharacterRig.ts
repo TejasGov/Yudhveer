@@ -99,6 +99,17 @@ export interface SocketAttachment {
    */
   stateRotations?: Partial<Record<CharacterState, [number, number, number]>>;
   /**
+   * Other grip points for particular states, eased to as the rotations are: a staff held near its foot to swing
+   * slides through the hand at ease (`REST`) until it stands on its foot.
+   */
+  stateGrips?: Partial<Record<CharacterState, [number, number, number]>>;
+  /**
+   * Two-handed props: the grip point while the other hand is off it (the fists apart: a slide, a fall, a cutscene's
+   * one-handed clip), slid to as the hands part and back as they meet. A staff swung in both hands near its foot is
+   * held in one nearer its balance. A state's own grip (`stateGrips`) wins over it.
+   */
+  oneHandGrip?: [number, number, number];
+  /**
    * A weapon model (GLB, made by game asset/characters/prepare_weapon.py: grip at the origin, blade up +Y) to wield instead of
    * the built-in greybox sword.
    */
@@ -123,7 +134,13 @@ interface Mount {
   object: THREE.Object3D;
   /** The socket it was attached to: away from it (a sword in its scabbard) its holds do not apply. */
   home: THREE.Object3D;
+  /** The grip point now (eased toward the state's, see `SocketAttachment.stateGrips`), and the usual one. */
   grip: THREE.Vector3;
+  gripBase: THREE.Vector3;
+  gripByState: Map<CharacterState, THREE.Vector3>;
+  /** Two-handed: the grip with one hand on it (`SocketAttachment.oneHandGrip`), and how much both are on it (0..1). */
+  oneHand?: THREE.Vector3;
+  both: number;
   base: THREE.Quaternion;
   byState: Map<CharacterState, THREE.Quaternion>;
   /**
@@ -140,6 +157,7 @@ const TWO_HANDS_NEAR = 0.3;
 const TWO_HANDS_FAR = 0.45;
 const _a = new THREE.Vector3();
 const _b = new THREE.Vector3();
+const _c = new THREE.Vector3();
 const _q = new THREE.Quaternion();
 const _hq = new THREE.Quaternion();
 
@@ -154,6 +172,12 @@ export interface CharacterDefinition {
   locomotion: { walkSpeed: number; moveSpeed: number; sprintSpeed: number };
   weapon?: SocketAttachment;
   offhand?: SocketAttachment;
+  /**
+   * The scabbard a stowable weapon is sheathed in (`build`, on its socket, e.g. `Socket_Sheath` on the hips), worn
+   * whether the blade is in it or drawn. It is built in the blade's own frame and hung with the blade's `grip`, so
+   * the stowed blade takes the very same hold and sits inside it, only the hilt showing.
+   */
+  sheath?: SocketAttachment;
   /**
    * Uniform size of the whole character, props included (a model shared by two characters can read as two people);
    * locomotion and root motion scale with it.
@@ -363,12 +387,23 @@ export class CharacterRig {
 
   /**
    * Parents `object` to a socket so that, in the rest pose, it has `restWorldRotation` and its `grip` point
-   * sits on the socket. Call before the rig is moved or animated (the rest pose must still be current).
+   * sits on the socket. Call before the rig is moved or animated (the rest pose must still be current), unless the
+   * attachment is in the socket's own frame (`socketFrame`), which needs no rest pose.
+   *
+   * `blend`: the prop turns into its hold from the way it faces now instead of snapping to it, over a moment (the rate
+   * the per-state holds ease at, ~0.2 s): a blade going from the hand into its scabbard at the sheathe clip's mark,
+   * where the hand's angle and the scabbard's differ. An object mounted before (sheathed, then drawn again) is
+   * mounted afresh: one prop, one hold.
    */
-  public attach(object: THREE.Object3D, attachment: SocketAttachment): boolean {
+  public attach(object: THREE.Object3D, attachment: SocketAttachment, options: { blend?: boolean } = {}): boolean {
     const socket = this.socket(attachment.socket);
     if (!socket) return false;
     this.root.updateMatrixWorld(true);
+    this.unmount(object);
+    // The way it faces now, in the socket's frame: where a blended hold starts from.
+    const facing = options.blend && object.parent
+      ? socket.getWorldQuaternion(new THREE.Quaternion()).invert().multiply(object.getWorldQuaternion(new THREE.Quaternion()))
+      : null;
     const socketRestInv = socket.getWorldQuaternion(new THREE.Quaternion()).invert();
     const orientation = (euler: [number, number, number]) => {
       const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(...euler));
@@ -378,6 +413,11 @@ export class CharacterRig {
       object,
       home: socket,
       grip: new THREE.Vector3(...attachment.grip),
+      gripBase: new THREE.Vector3(...attachment.grip),
+      gripByState: new Map(Object.entries(attachment.stateGrips ?? {})
+        .map(([state, grip]) => [state as CharacterState, new THREE.Vector3(...grip!)])),
+      oneHand: attachment.oneHandGrip && attachment.twoHanded ? new THREE.Vector3(...attachment.oneHandGrip) : undefined,
+      both: 1,
       base: orientation(attachment.restWorldRotation),
       byState: new Map(Object.entries(attachment.stateRotations ?? {})
         .map(([state, euler]) => [state as CharacterState, orientation(euler!)])),
@@ -385,11 +425,12 @@ export class CharacterRig {
     };
     const other = attachment.twoHanded ? this.socket(attachment.twoHanded) : undefined;
     if (other) mount.aim = { other, socket, weight: 0 };
-    mount.hold.copy(mount.base);
-    object.quaternion.copy(mount.base);
+    mount.hold.copy(facing ?? mount.base);
+    object.quaternion.copy(mount.hold);
     object.position.copy(mount.grip).applyQuaternion(object.quaternion).negate();
     object.scale.setScalar((attachment.scale ?? 1) / socket.getWorldScale(new THREE.Vector3()).x);
-    if (mount.byState.size || mount.aim) this.mounts.push(mount);
+    // A blended hold eases to its base like a state's hold does, so it needs the per-step update as well.
+    if (mount.byState.size || mount.gripByState.size || mount.aim || facing) this.mounts.push(mount);
     // Props join the cel look: shiny PBR metal next to toon shading reads as glowing.
     object.traverse((obj) => {
       const mesh = obj as THREE.Mesh;
@@ -400,6 +441,22 @@ export class CharacterRig {
     });
     socket.add(object);
     return true;
+  }
+
+  /** The hold a prop with a changing hold has now (socket-local), or undefined for a prop whose hold never changes. */
+  public holdOf(object: THREE.Object3D): THREE.Quaternion | undefined {
+    return this.mounts.find((m) => m.object === object)?.hold;
+  }
+
+  /** Takes a prop off its socket and forgets its hold (a story prop handed on, or put away). */
+  public detach(object: THREE.Object3D): void {
+    this.unmount(object);
+    object.removeFromParent();
+  }
+
+  /** Forgets any hold `object` has (it keeps its place in the scene graph). */
+  private unmount(object: THREE.Object3D): void {
+    for (let i = this.mounts.length - 1; i >= 0; i--) if (this.mounts[i].object === object) this.mounts.splice(i, 1);
   }
 
   /**
@@ -416,6 +473,8 @@ export class CharacterRig {
     probe.clipAction(clip).play();
     const dt = 1 / 60;
     const tips: THREE.Vector3[] = [];
+    // The sampled poses must not leave their two-handedness behind for the live grip (see `Mount.both`).
+    const both = this.mounts.map((m) => m.both);
     for (let t = 0; t <= clip.duration + 1e-6; t += dt) {
       probe.setTime(t);
       this.root.updateMatrixWorld(true);
@@ -424,6 +483,7 @@ export class CharacterRig {
     }
     probe.stopAllAction();
     probe.uncacheRoot(this.root);
+    this.mounts.forEach((m, i) => (m.both = both[i]));
     const speed = tips.map((p, i) => (i === 0 ? 0 : p.distanceTo(tips[i - 1]) / dt));
     const peak = Math.max(...speed);
     const spans: { t0: number; t1: number; peak: number }[] = [];
@@ -475,6 +535,10 @@ export class CharacterRig {
       if (m.object.parent !== m.home) continue;
       const target = m.byState.get(state) ?? m.base;
       if (m.hold.angleTo(target) >= 1e-4) m.hold.slerp(target, t);
+      // The state's own grip, else (two-handed) between the one-handed and two-handed grips as the last frame's fists
+      // were: eased, so a hand sliding along a staff never jumps.
+      const grip = m.gripByState.get(state) ?? (m.oneHand ? _c.lerpVectors(m.oneHand, m.gripBase, m.both) : m.gripBase);
+      if (m.grip.distanceToSquared(grip) >= 1e-8) m.grip.lerp(grip, t);
       if (m.aim) continue;
       m.object.quaternion.copy(m.hold);
       m.object.position.copy(m.grip).applyQuaternion(m.object.quaternion).negate();
@@ -500,6 +564,7 @@ export class CharacterRig {
       const scale = socket.getWorldScale(_b).x / (this.root.getWorldScale(_b).x || 1);
       const apart = local.length() * scale;
       const w = 1 - THREE.MathUtils.smoothstep(apart, TWO_HANDS_NEAR, TWO_HANDS_FAR);
+      m.both = w;
       m.object.quaternion.copy(m.hold);
       if (w > 0 && apart > 0.02) {
         m.aim.weight = w;

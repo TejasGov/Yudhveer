@@ -3,6 +3,7 @@ import type { CharacterDefinition, StateAnimation } from '../animation/Character
 import type { CharacterState } from '../CharacterStateMachine';
 import type { Attire, WeaponId } from '../../game/Progression';
 import { ATTIRE_MODELS, YODHA } from './Yodha';
+import { buildScabbard, KHANDA_SCABBARD, SWORD_SCABBARD } from './Scabbard';
 import type { SwingKind, ImpactKind } from '../../combat/SoundFX';
 
 /** What one blow of a weapon does to whoever it lands on. `heavy` blows break through a committed attack. */
@@ -45,7 +46,7 @@ export function dressed(set: WeaponSet, attire: Attire): CharacterDefinition {
 }
 
 /** A hero rig on `YODHA`'s model, clips and locomotion with the pieces a weapon changes swapped in. */
-function heroWith(parts: Pick<CharacterDefinition, 'weapon'> & { states?: Partial<Record<CharacterState, StateAnimation>>; offhand?: false }): CharacterDefinition {
+function heroWith(parts: Pick<CharacterDefinition, 'weapon' | 'sheath'> & { states?: Partial<Record<CharacterState, StateAnimation>>; offhand?: false }): CharacterDefinition {
   const { states, offhand, ...rest } = parts;
   const def: CharacterDefinition = { ...YODHA, ...rest, states: { ...YODHA.states, ...states } };
   if (offhand === false) delete def.offhand;
@@ -56,8 +57,8 @@ function heroWith(parts: Pick<CharacterDefinition, 'weapon'> & { states?: Partia
 }
 
 /**
- * The lathi: a 1.55 m bamboo staff shod in iron at both ends, gripped a third of the way up. Built in code until the
- * user's model arrives (drop a GLB in and use `model` instead of `build`). Grip at the origin, striking end up +Y.
+ * The lathi: a 1.55 m bamboo staff shod in iron at both ends, from -0.57 to +1.05 up its +Y (the striking end up).
+ * Built in code until the user's model arrives (drop a GLB in and use `model` instead of `build`).
  */
 function buildLathi(): THREE.Group {
   const lathi = new THREE.Group();
@@ -77,12 +78,57 @@ function buildLathi(): THREE.Group {
   return lathi;
 }
 
-// The lathi's moves are three swings cut out of Mixamo's "One Hand Club Combo" (strikes at 0.5, 1.2 and 2.1 s).
+/**
+ * A lathi is swung with both hands, held near its foot as a long staff is for a full swing: the right fist 0.27 m up
+ * from the iron foot, the left below it (the two-handed clips keep the fists ~0.2 m apart) with a hand's breadth of
+ * bamboo under it, and 1.3 m of staff out past the right fist. Held further up (0.45 m from the foot), the quarter
+ * metre under the left fist ran into his left hip and thigh in the guard, the walk and the spin. (Mixamo's one-handed
+ * club swings it had before put the 1.55 m staff through his left arm and past his head: a club's arcs, not a staff's.)
+ */
+const LATHI_GRIP: [number, number, number] = [0, -0.3, 0];
+
+// The lathi's moves are the mace's two-handed Great Sword Pack clips, timed as the old lathi's (each swing ~0.7 s,
+// the finisher ~1 s): a wide sweep (entered past its back-swing, as the mace's is, so the back-swing never counts as
+// a blow), an overhead blow, and the high spin as the finisher (two blows, travelling ~2 m), the staff aimed through
+// both fists every frame (`twoHanded`). The overhead blow is entered at the top of its swing (0.72 s), its cross-fade
+// out of the sweep the wind-up: from its own wind-up, or from any earlier point, the fists rise past his face and the
+// line through them (so the staff) runs through his head for a few frames, whenever in the sweep's recovery it is
+// chained. It only ever follows the sweep. Its guard, run, hit reactions and death keep both hands on it too; the
+// walk is the hero's own (the staff carried in one hand), because the cutscenes walk him: up to the Devi's shrine,
+// into the stepwell, out of the burning village, where a guard walk read as stalking. The slide, jump, charge and
+// posture break keep the hero's own clips as well (the fists part and the staff slides back into the right fist).
+// Measured frame by frame over the chain (chained at every moment it can be) and those clips: no part of him comes
+// within the staff's radius but the hands that hold it. (The charge, Mixamo's "Power Up", draws both fists in to his
+// chest: any staff in his hand crosses his head for a few frames there, as the old lathi did.)
 const LATHI_STATES: Partial<Record<CharacterState, StateAnimation>> = {
-  ATTACK_1: { clip: 'one_hand_club_combo', startAt: 0.2, endAt: 1.0, timeScale: 1.2, timesState: true, fade: 0.08 },
-  ATTACK_2: { clip: 'one_hand_club_combo', startAt: 1.0, endAt: 1.85, timeScale: 1.2, timesState: true, fade: 0.1 },
-  ATTACK_3: { clip: 'one_hand_club_combo', startAt: 1.85, endAt: 2.65, timeScale: 1.1, timesState: true, fade: 0.1 },
+  IDLE: { clip: 'great_sword_idle', fade: 0.3 },
+  MOVE: { clip: 'great_sword_run_2', matchSpeed: true, fade: 0.22 },
+  SPRINT: { clip: 'great_sword_run_2', matchSpeed: true, fade: 0.25 },
+  ATTACK_1: { clip: 'great_sword_slash', startAt: 0.34, endAt: 1.05, timeScale: 1, timesState: true, fade: 0.08 },
+  ATTACK_2: { clip: 'great_sword_slash_3', startAt: 0.72, endAt: 1.3, timeScale: 0.8, timesState: true, fade: 0.22 },
+  ATTACK_3: { clip: 'great_sword_high_spin_attack', startAt: 0.2, endAt: 1.6, timeScale: 1.35, timesState: true, rootMotion: true, fade: 0.12 },
+  STAGGER: { clip: 'great_sword_impact_2', timeScale: 1.3, timesState: true, fade: 0.05 },
+  DEFLECTED: { clip: 'great_sword_impact', timeScale: 1.3, fade: 0.05 },
+  DEAD: { clip: 'two_handed_sword_death_2', fade: 0.1 },
 };
+
+/**
+ * The basic sword's grip on its model (the Vetala's notched blade, `vetala_sword_r.glb`, not prepared to the
+ * convention): the middle of its wrapped grip, on the grip's axis. The Vetala's own offset ([0.096, 0.023, -0.026])
+ * suits his sockets, which are not at the fist's hole; on the hero's (--fists) socket it held the grip 9 cm off the
+ * fist, beside the open fingers.
+ */
+const SWORD_GRIP: [number, number, number] = [0.028, 0.125, 0.006];
+
+/**
+ * How a sheathed blade hangs, in `Socket_Sheath`'s frame (its +Y ran straight back, level, from where the hand was at
+ * the sheathe clip's "sheathed" mark): turned down about the socket's sideways axis and out, so the scabbard runs down
+ * and back along the outside of the left thigh, 47 degrees below level and 17 out, its hilt up and forward at the hip
+ * where the hand reaches it, the edge up. Measured in the calm stand. Over the walks, runs, guards, swings and hits
+ * its lower half keeps 12 cm or more from the left hand and 10 cm from the left shin (bone to scabbard axis) but in
+ * the finisher's kneeling landing; level with the hip it was the shin that ran through it, a few frames each stride.
+ */
+const SHEATHED: [number, number, number] = [-0.1006, -0.0487, 0.9019];
 
 // The mace's are Mixamo's Great Sword Pack ("Mace-" in game asset/characters/animations), held two-handed: the haft
 // is aimed through both fists every frame (`twoHanded`). A wide two-handed sweep, an overhead smash driven down from
@@ -107,8 +153,8 @@ const MACE_STATES: Partial<Record<CharacterState, StateAnimation>> = {
  * kit allows. The dhal comes with the sword sets only: the lathi and the two-handed mace leave the left hand free.
  *
  * PLACEHOLDERS to replace with proper models and clips: the lathi (built in code), the basic sword (the Vetala's
- * notched blade), the mace (the hero's own gada) and the club-combo clips the lathi borrows.
- * The mace's clips are its own (two-handed, the Great Sword Pack); only its model is borrowed.
+ * notched blade) and the mace (the hero's own gada). The mace's and the lathi's clips are two-handed ones (the Great
+ * Sword Pack); the sword and the khanda hang in code-built scabbards (Scabbard.ts) when sheathed.
  */
 export const WEAPON_SETS: Record<WeaponId, WeaponSet> = {
   lathi: {
@@ -117,17 +163,24 @@ export const WEAPON_SETS: Record<WeaponId, WeaponSet> = {
     definition: heroWith({
       offhand: false,
       states: { ...LATHI_STATES, ATTACK_JUMP: undefined },
-      // At ease he holds it upright at his side, its foot by his heel.
+      // In both fists, laid through them by the two-handed clips. At ease he holds it upright at his side in one, its
+      // top leaning 12 degrees ahead of him (straight up, it ran up through his forearm), slid down through his hand
+      // until its foot is by his heel, a few centimetres off the ground.
       weapon: {
-        socket: 'Socket_Hand_R', socketFrame: true, restWorldRotation: [0, 0, 0], grip: [0, 0, 0], build: buildLathi, blade: [0.05, 1.0],
-        stateRotations: { REST: [0, 0, -1.45] },
+        socket: 'Socket_Hand_R', socketFrame: true, restWorldRotation: [0, 0, 0], grip: LATHI_GRIP, build: buildLathi, blade: [0.05, 1.0],
+        twoHanded: 'Socket_Hand_L',
+        // In one hand (a slide, a fall, the prologue's beating and night) it is held a third of the way up, as before.
+        oneHandGrip: [0, 0, 0],
+        stateRotations: { REST: [-0.146, 0.117, -1.357] },
+        stateGrips: { REST: [0, 0.16, 0] },
       },
     }),
-    // Light blows with the weight in the posture: a staff breaks a stance before it breaks a man.
+    // Light blows with the weight in the posture: a staff breaks a stance before it breaks a man. The spinning
+    // finisher lands twice, so each of its two blows is half of the one it had as a single swing.
     blows: {
       ATTACK_1: { damage: 17, posture: 26 },
       ATTACK_2: { damage: 22, posture: 32 },
-      ATTACK_3: { damage: 36, posture: 52, heavy: true },
+      ATTACK_3: { damage: 18, posture: 26, heavy: true },
     },
     shield: false,
     stowable: false,
@@ -138,10 +191,11 @@ export const WEAPON_SETS: Record<WeaponId, WeaponSet> = {
     name: 'Sword',
     definition: heroWith({
       weapon: {
-        socket: 'Socket_Hand_R', socketFrame: true, restWorldRotation: [0, 0, 0], grip: [0.0964, 0.0234, -0.0261],
+        socket: 'Socket_Hand_R', socketFrame: true, restWorldRotation: [0, 0, 0], grip: SWORD_GRIP,
         model: '/assets/weapons/vetala_sword_r.glb', blade: [0.11, 0.97],
         stateRotations: { REST: [0, 0, 1.1] }, // lowered at ease, as the khanda
       },
+      sheath: { socket: 'Socket_Sheath', socketFrame: true, restWorldRotation: SHEATHED, grip: SWORD_GRIP, build: () => buildScabbard(SWORD_SCABBARD) },
     }),
     // The magical khanda's moves at four fifths of its strength.
     blows: {
@@ -185,7 +239,10 @@ export const WEAPON_SETS: Record<WeaponId, WeaponSet> = {
   khanda: {
     id: 'khanda',
     name: 'Magical khanda',
-    definition: YODHA,
+    definition: {
+      ...YODHA,
+      sheath: { socket: 'Socket_Sheath', socketFrame: true, restWorldRotation: SHEATHED, grip: [0, 0, 0], build: () => buildScabbard(KHANDA_SCABBARD) },
+    },
     // The strength the whole game was tuned against.
     blows: {
       ATTACK_1: { damage: 22, posture: 25 },

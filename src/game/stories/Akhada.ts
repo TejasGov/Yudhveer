@@ -1,8 +1,12 @@
 import * as THREE from 'three';
 import { ease, type CameraKey } from '../../cinematics/CinematicDirector';
 import type { ChapterStory, SceneShot, Stage } from '../../cinematics/Scene';
+import { SceneFX } from '../../cinematics/SceneFX';
+import { CharacterRig } from '../../entities/animation/CharacterRig';
+import type { Character } from '../../entities/Character';
 import type { Enemy } from '../../entities/Enemy';
 import { MENTOR_CAST } from '../../entities/characters/Akhada';
+import { YODHA } from '../../entities/characters/Yodha';
 import { CombatSystem } from '../../combat/CombatSystem';
 import { SoundFX } from '../../combat/SoundFX';
 import { twoShot } from '../Story';
@@ -67,6 +71,195 @@ const sfx = () => SoundFX.getInstance();
 /** The hero's dhal, on his arm or not (it is handed to him in the opening). */
 function dhal(s: Stage, on: boolean): void {
   s.player.shieldMesh.visible = on;
+}
+
+// ------------------------------------------------------------------------------------------- the dhal handed over
+
+/**
+ * "Here." (opening shot 4): the vanara holds the dhal out in his free left hand (`staff_point`, the hand going out at
+ * chest height) and the boy reaches for it with his left, palm up (`casting_2`, his hand out in front of him); on the
+ * frame their hands meet it is laid on the boy's palm and is his. Both clips are sampled (as BossAndhaka places his
+ * crown and sword at his entrance's marks), so the vanara stands where his fist is on the dhal's far rim at that frame
+ * and the boy's hand under its middle: the dhal goes over with no jump. `meet` is clip seconds; `at` is shot seconds,
+ * on the word in the recording (`akhada_train_mentor_1`: "Here." at 4.07 s, the lines start at 0.8).
+ */
+const HANDOFF = {
+  at: 4.9,
+  boy: { clip: 'casting_2', meet: 0.45 },
+  vanara: { clip: 'staff_point', meet: 2.1, from: 2.5 },
+};
+/** The dhal's radius (yodha_dhal.glb, 0.66 m across): the vanara holds its rim, the boy its middle. */
+const DHAL_RIM = 0.32;
+/** Carried at his side before he holds it out: its middle below his fist, its face out from his left hip. */
+const DHAL_CARRY = { below: 0.3, out: 0.06 };
+
+/** The handover worked out (`planHandoff`): where the vanara stands and faces, and how he holds the dhal out. */
+interface Handoff {
+  at: THREE.Vector3;
+  yaw: number;
+  /** The dhal in the vanara's left-hand socket's frame at the meet: the boy's own hold of it, then. */
+  inHand: THREE.Matrix4;
+}
+
+/** The vanara's dhal: the boy's model, loaded for the scene; the boy's own (hidden till then) takes over at the meet. */
+interface Lent {
+  load: Promise<THREE.Object3D>;
+  prop: THREE.Object3D | null;
+}
+let lent: Lent | null = null;
+
+/**
+ * Starts loading the dhal the vanara carries (the boy's own model, already downloaded with his rig). It goes with the
+ * vanara's rig if the chapter is left first.
+ */
+function lendDhal(): void {
+  if (lent) return;
+  const entry: Lent = { load: CharacterRig.loadProp(YODHA.offhand!.model!), prop: null };
+  entry.load.catch(() => { if (lent === entry) lent = null; });
+  lent = entry;
+  SceneFX.onClear(() => { if (lent === entry) lent = null; });
+}
+
+/**
+ * Where the vanara must stand so that, both clips at their meet, his fist is on the dhal's far rim and the boy's
+ * hand under its middle (the boy where he stands now); and the dhal's hold in the vanara's fist then.
+ */
+function planHandoff(s: Stage): Handoff | null {
+  const boy = s.player;
+  const vanara = s.actor('mentor_spar');
+  const boyHand = boy.rig?.socket('Socket_Hand_L');
+  const hand = vanara?.rig?.socket('Socket_Hand_L');
+  if (!vanara?.rig || !boyHand || !hand) return null;
+  const dhalNow = boy.shieldMesh;
+  boy.group.updateMatrixWorld(true);
+  // The dhal on his palm at the meet (his hold of it), and where his hand is.
+  const onPalm = boy.rig!.sampleAt(HANDOFF.boy.clip, HANDOFF.boy.meet, () => dhalNow.matrixWorld.clone());
+  const middle = boy.rig!.sampleAt(HANDOFF.boy.clip, HANDOFF.boy.meet, () => dhalNow.localToWorld(new THREE.Vector3(0, 0, 0.02)));
+  if (!onPalm || !middle) return null;
+  // His fist out in front of him at the meet, in his own frame.
+  vanara.group.updateMatrixWorld(true);
+  const reach = vanara.rig.sampleAt(HANDOFF.vanara.clip, HANDOFF.vanara.meet, () => vanara.group.worldToLocal(hand.getWorldPosition(new THREE.Vector3())));
+  if (!reach) return null;
+  const from = boy.getPosition();
+  let at = vanara.getPosition();
+  let yaw = 0;
+  for (let i = 0; i < 8; i++) {
+    yaw = Math.atan2(from.x - at.x, from.z - at.z);
+    // The rim on his side of the dhal's middle, level with it, and where that puts him.
+    const away = at.clone().sub(middle).setY(0).normalize();
+    const rim = middle.clone().addScaledVector(away, DHAL_RIM);
+    const fist = reach.clone().applyAxisAngle(new THREE.Vector3(0, 1, 0), yaw).add(at);
+    at = at.add(rim.sub(fist).setY(0));
+  }
+  yaw = Math.atan2(from.x - at.x, from.z - at.z);
+  // His fist's frame at the meet, there and so turned: the dhal's hold in it.
+  const was = { p: vanara.group.position.clone(), y: vanara.group.rotation.y };
+  vanara.group.position.copy(at);
+  vanara.group.rotation.y = yaw;
+  vanara.group.updateMatrixWorld(true);
+  const fist = vanara.rig.sampleAt(HANDOFF.vanara.clip, HANDOFF.vanara.meet, () => hand.matrixWorld.clone());
+  vanara.group.position.copy(was.p);
+  vanara.group.rotation.y = was.y;
+  vanara.group.updateMatrixWorld(true);
+  return fist ? { at, yaw, inHand: fist.invert().multiply(onPalm) } : null;
+}
+
+/**
+ * Shot 4 begins: the vanara stands on his mark with the dhal in his left hand. It hangs at his side while he talks,
+ * comes up with his hand as he holds it out, and on the frame the boy's hand meets it the boy's own dhal (on his arm,
+ * hidden till now, where this one is that frame) takes its place.
+ */
+function offerDhal(s: Stage, plan: Handoff): void {
+  const vanara = s.actor('mentor_spar');
+  const hand = vanara?.rig?.socket('Socket_Hand_L');
+  const entry = lent;
+  if (!vanara?.rig || !hand || !entry) return;
+  void entry.load.then((prop) => {
+    if (lent !== entry || entry.prop || !vanara.rig?.attach(prop, { socket: 'Socket_Hand_L', socketFrame: true, restWorldRotation: [0, 0, 0], grip: [0, 0, 0] })) return;
+    entry.prop = prop;
+    carryDhal(s, vanara, hand, prop, plan);
+  }, () => undefined);
+}
+
+/** The vanara's dhal, frame by frame, until it is the boy's (see `offerDhal`). */
+function carryDhal(s: Stage, vanara: Character, hand: THREE.Object3D, prop: THREE.Object3D, plan: Handoff): void {
+  const boy = s.player;
+  const mine = boy.shieldMesh;
+  const carry = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI / 2);
+  const world = new THREE.Matrix4();
+  const held = new THREE.Matrix4();
+  const target = new THREE.Matrix4();
+  const p = [new THREE.Vector3(), new THREE.Vector3()];
+  const q = [new THREE.Quaternion(), new THREE.Quaternion()];
+  const sc = new THREE.Vector3();
+  const step = (): boolean => {
+    if (lent?.prop !== prop || !prop.parent) return false;
+    const rig = vanara.rig!;
+    hand.updateWorldMatrix(true, false);
+    // At his side: below his fist, upright, its face out from his hip (it follows the fist, not the fist's turn).
+    const body = vanara.group.getWorldQuaternion(q[0]);
+    const fistAt = hand.getWorldPosition(p[0]);
+    const side = new THREE.Vector3(DHAL_CARRY.out, -DHAL_CARRY.below, 0).applyQuaternion(body);
+    world.compose(fistAt.add(side), body.multiply(carry), sc.set(1, 1, 1));
+    // Out in front of him, in his fist as the boy will take it: eased in as his hand comes up.
+    const t = rig.clip === HANDOFF.vanara.clip ? rig.time : 0;
+    const up = THREE.MathUtils.smoothstep(t, 1.25, 2.0);
+    held.multiplyMatrices(hand.matrixWorld, plan.inHand);
+    blend(world, held, up, p, q, sc);
+    // The last moment: onto the boy's palm exactly, where his own dhal is.
+    const reaching = boy.rig?.clip === HANDOFF.boy.clip ? boy.rig.time : -1;
+    if (reaching >= 0) {
+      mine.updateWorldMatrix(true, false);
+      target.copy(mine.matrixWorld);
+      blend(world, target, THREE.MathUtils.smoothstep(reaching, HANDOFF.boy.meet - 0.15, HANDOFF.boy.meet), p, q, sc);
+    }
+    if (reaching >= HANDOFF.boy.meet) {
+      giveDhal(s);
+      return false;
+    }
+    // Into the fist's frame (it rides the hand between steps).
+    world.premultiply(hand.matrixWorld.clone().invert()).decompose(prop.position, prop.quaternion, prop.scale);
+    return true;
+  };
+  // Placed at once (it was put on the fist just now), then every step.
+  if (step()) SceneFX.every(step);
+}
+
+/** `a` toward `b` by `k` (positions and turns, unit scale), into `a`. */
+function blend(a: THREE.Matrix4, b: THREE.Matrix4, k: number, p: THREE.Vector3[], q: THREE.Quaternion[], s: THREE.Vector3): void {
+  if (k <= 0) return;
+  a.decompose(p[0], q[0], s);
+  b.decompose(p[1], q[1], s);
+  a.compose(p[0].lerp(p[1], k), q[0].slerp(q[1], k), s.set(1, 1, 1));
+}
+
+/** The dhal is his: the vanara's goes, his own (on his arm, where it was that frame) shows. Essential. */
+function giveDhal(s: Stage): void {
+  const entry = lent;
+  lent = null;
+  if (entry?.prop) {
+    s.actor('mentor_spar')?.rig?.detach(entry.prop);
+    // Its own parsed copy: free its meshes and textures (the toon ramp is the vanara's rig's, freed with it).
+    entry.prop.traverse((o) => {
+      const mesh = o as THREE.Mesh;
+      mesh.geometry?.dispose();
+      for (const m of ([] as THREE.Material[]).concat(mesh.material ?? [])) {
+        (m as THREE.MeshToonMaterial).map?.dispose();
+        m.dispose();
+      }
+    });
+  }
+  dhal(s, true);
+}
+
+/** Shot 4 begins: the vanara on his mark for the handover, turned to the boy, the dhal in his hand. */
+function standToOffer(s: Stage): void {
+  const plan = planHandoff(s);
+  const vanara = s.actor('mentor_spar');
+  if (!plan || !vanara) return;
+  vanara.setPosition(plan.at.x, plan.at.y, plan.at.z);
+  vanara.faceYaw(plan.yaw);
+  offerDhal(s, plan);
 }
 
 /**
@@ -135,6 +328,8 @@ export const AKHADA_STORY: ChapterStory = {
           { at: 0, actor: 'hero', place: M.hero, face: M.mentor },
           { at: 0, actor: 'mentor_spar', place: M.mentor, face: M.hero },
           { at: 0, run: (s) => dhal(s, false) },
+          // The dhal he will hand over (shot 4), loading now.
+          { at: 0, run: lendDhal },
           // The sunset, lamps out (a restart from the training comes back to it).
           { at: 0, run: (s) => s.level.cue?.('day'), essential: true },
           { at: 0.5, actor: 'hero', clip: 'slash_3', timeScale: 1.2 },
@@ -189,7 +384,7 @@ export const AKHADA_STORY: ChapterStory = {
           { pos: s.at('mentor_spar', -0.95, -0.5, 1.5), look: s.head('hero'), fov: 33 },
         ],
       },
-      // He comes up to the boy and hands him the dhal.
+      // He has come up to the boy with the dhal at his side; on "Here." he holds it out and the boy takes it.
       {
         fadeIn: 0.5,
         ease: ease.drift,
@@ -197,11 +392,18 @@ export const AKHADA_STORY: ChapterStory = {
         linesAt: 0.8,
         cues: [
           { at: 0, actor: 'hero', play: 'IDLE' },
-          // Stopping a long step short of him, so the staff, planted at his side, stays clear of the dhal.
-          { at: 0.3, actor: 'mentor_spar', moveTo: v(0, 0, 3.75), face: 'hero' },
-          { at: 1.5, actor: 'mentor_spar', clip: 'staff_talk' },
-          // "...Here." in the recording: the dhal is on his arm.
-          { at: 3.4, run: (s) => dhal(s, true), essential: true },
+          // A long step short of him (~1.5 m: the reach of both their arms and the dhal between), so the staff,
+          // planted at his side, stays clear of it.
+          { at: 0, run: standToOffer },
+          { at: 0.1, actor: 'mentor_spar', clip: 'staff_talk' },
+          // "Here.": the vanara's free hand goes out with it, the boy's left hand comes up under it, palm up.
+          { at: HANDOFF.vanara.from, actor: 'mentor_spar', clip: HANDOFF.vanara.clip, timeScale: HANDOFF.vanara.meet / (HANDOFF.at - HANDOFF.vanara.from) },
+          { at: HANDOFF.at - HANDOFF.boy.meet, actor: 'hero', clip: HANDOFF.boy.clip },
+          // It is his (if the scene was skipped or the dhal had not loaded, at once). He settles back into his stand.
+          { at: HANDOFF.at + 0.2, run: giveDhal, essential: true },
+          { at: HANDOFF.at + 0.9, actor: 'hero', play: 'IDLE' },
+          // He talks on, the hand that held it free.
+          { at: 7.8, actor: 'mentor_spar', clip: 'staff_talk' },
         ],
         lines: [{
           speaker: 'Vanara',

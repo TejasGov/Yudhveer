@@ -357,3 +357,25 @@ No credits, downloads or sign-ins were needed. Judgement calls, made while the u
   out.
 - **Seen, not mine:** with the fists closed, the basic sword's grip being 8.8 cm off the socket (C-03) shows more in
   chapters II and III: the red grip sits beside the fist. The weapon-grips fix covers it.
+
+### Holds and hand-offs: C-01, V1-02, C-02, S-09, C-03, C-10, C-08, C-07, C-05, V1-01, C-09 (done)
+
+Holds and hand-offs (AUDIT.md C-01, V1-02, C-02, S-09, C-03, C-10, C-08, C-07, C-05, V1-01, C-09): done, no cost, no
+model rebuilt (docs/STORY.md, "Holds and hand-offs"; captures in `game asset/audit/fixes/fix-holds/`). Judgement calls
+worth a look in play, each a constant or two:
+
+| Choice | In the game now | Other options |
+|---|---|---|
+| The lathi's grip | right fist 0.27 m up from the foot (`LATHI_GRIP`) | the audit's 0.45 m: the bamboo under the left fist then runs into his hip and thigh in the guard, the walk and the spin |
+| The lathi's walk | the hero's own walk, staff in one hand (cutscenes walk him to the Devi and out of the village) | the guard walk (`great_sword_walk`) in the fight only |
+| The lathi's third blow | the high spin: two blows of 18/26 each (was one blow of 36/52) | its first blow only, at full weight |
+| The lathi's overhead blow | entered at the top of its swing (its own wind-up puts the staff through his head) | a slower blend for more wind-up |
+| The scabbard | dark leather, brass throat, locket and chape; 47 deg down and 17 out along the left thigh; worn empty while drawn | brighter or darker brass; steeper or flatter; a baldric strap |
+| The sword's grip | an offset onto the borrowed blade's grip (`SWORD_GRIP`) | a prepared hero copy of the model (`prepare_weapon.py`, no credit); or the distinct basic sword the audit suggests |
+| Dwarka's complete screen | the khanda in his hand, the mace on the stone | drop the screen's view of him |
+| Dwarka's mace | laid down across the cut into the take (no laying-down clip) | a Mixamo "put down" clip, if one is downloaded |
+
+Seen in passing, not changed: on the island, the take is hidden in the black hold, but in the last shot ("He will meet
+it now") the "power_up" clip swings the one-handed mace's head across his face (about 3 s in); in the Baoli, the
+lathi (hidden while he kneels) reappears in his hand 1.9 s into the rise with nothing picked up; with the lathi (and
+every weapon) the charge's "Power Up" crosses the staff over his head for a few frames.
