@@ -264,16 +264,16 @@ Every line, for recording (ElevenLabs; the voices are in `game asset/voice/VOICE
 | Id | Speaker | Text | Recorded |
 |---|---|---|---|
 | `prologue_open_guru_1` | Guru | Again. Feet first, then the lathi. Swung from the arm alone, it is only a stick. | yes |
-| `prologue_open_yudhveer_1` | Yudhveer | Like this, Guruji? | yes |
+| `prologue_open_yudhveer_1` | Yudhveer | Like this, Guruji? | subtitle only |
 | `prologue_open_guru_2` | Guru | Better. The sun is nearly down. Once more, and then we eat. | yes |
 | `prologue_open_guru_3` | Guru | Keep your feet, Yudhveer. Whatever comes through that gate, keep your feet. | yes |
-| `prologue_open_yudhveer_2` | Yudhveer | Let them come. | yes |
+| `prologue_open_yudhveer_2` | Yudhveer | Let them come. | subtitle only |
 | `prologue_fight_guru_1` | Guru (in the fight) | Do not chase them. Let them come to you. | yes |
 | `prologue_fight_guru_2` | Guru (in the fight) | Breathe. Feet first. | yes |
 | `andhaka_prologue_kneel` | Andhaka | A boy with a stick... Your guru's soul will burn before my god. Kneel. | yes |
 | `prologue_end_guru_1` | Guru | Leave the boy. It is me you came for. | yes |
-| `prologue_end_yudhveer_cry` | Yudhveer | Guruji! | yes |
-| `yudhveer_prologue_find` | Yudhveer | Guruji... I will find you. Even if I have to climb to the top of the world. | yes |
+| `prologue_end_yudhveer_cry` | Yudhveer | Guruji! | subtitle only |
+| `yudhveer_prologue_find` | Yudhveer | Guruji... I will find you. Even if I have to climb to the top of the world. | subtitle only |
 
 ## Tools
 
@@ -302,6 +302,8 @@ Every line, for recording (ElevenLabs; the voices are in `game asset/voice/VOICE
   chapter and boss (`LEVEL_MUSIC` and `Finale.music` in Engine), dip under voices and in cutscenes; Andhaka laughs
   (voice/andhaka_laugh) as his entrance smile begins and at his second phase.
 - Andhaka's in-game entrance at the summit (smile, crown, sword from the stone) is the reveal of his face.
+- **Yudhveer has no voice** (2026-10-05): his lines are subtitles only, with no `voice` id and no recording. Every
+  other speaker is voiced. His old takes are kept in `game asset/voice/unused_yudhveer/`.
 
 ## Roadmap
 

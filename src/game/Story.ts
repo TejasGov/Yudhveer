@@ -78,7 +78,7 @@ export const AKHADA_STORY: ChapterStory = {
         fadeIn: 0.12,
         ease: ease.out,
         sway: 0.015,
-        lines: [{ speaker: 'Yudhveer', text: 'Where did they take my guru?', voice: 'akhada_end_yudhveer_1' }],
+        lines: [{ speaker: 'Yudhveer', text: 'Where did they take my guru?' }],
         camera: (s): CameraKey[] => {
           const { pa, pb, dir } = twoShot(s, 'hero', 'mayavi', AKHADA_CENTRE);
           // On his sword side, so the dhal on his left arm does not hide his face.
@@ -198,7 +198,7 @@ export const PROLOGUE_STORY: ChapterStory = {
         ease: ease.drift,
         sway: 0.015,
         cues: [{ at: 0, actor: 'hero', play: 'IDLE' }],
-        lines: [{ speaker: 'Yudhveer', text: 'Like this, Guruji?', voice: 'prologue_open_yudhveer_1' }],
+        lines: [{ speaker: 'Yudhveer', text: 'Like this, Guruji?' }],
         camera: (s): CameraKey[] => [
           { pos: s.at('guru', -1.0, -0.55, 1.75), look: s.head('hero'), fov: 36 },
           { pos: s.at('guru', -0.85, -0.5, 1.72), look: s.head('hero'), fov: 33 },
@@ -243,7 +243,7 @@ export const PROLOGUE_STORY: ChapterStory = {
         cues: [{ at: 0.4, actor: 'guru', moveTo: GURU_ASIDE, face: GATE }],
         lines: [
           { speaker: 'Guru', text: 'Keep your feet, Yudhveer. Whatever comes through that gate, keep your feet.', voice: 'prologue_open_guru_3' },
-          { speaker: 'Yudhveer', text: 'Let them come.', voice: 'prologue_open_yudhveer_2' },
+          { speaker: 'Yudhveer', text: 'Let them come.' },
         ],
         camera: (s): CameraKey[] => [
           { pos: s.at('hero', -1.8, -0.9, 1.6), look: GATE.clone().setY(1.4), fov: 42 },
@@ -369,7 +369,7 @@ export const PROLOGUE_STORY: ChapterStory = {
           { at: 0, run: (s) => { for (const e of alive(s)) e.group.visible = false; }, essential: true },
           { at: 0, run: (s) => s.level.cue?.('raid-fire') },
         ],
-        lines: [{ speaker: 'Yudhveer', text: 'Guruji!', voice: 'prologue_end_yudhveer_cry' }],
+        lines: [{ speaker: 'Yudhveer', text: 'Guruji!' }],
         camera: [{ pos: v(0.5, 0.6, 2.5), look: v(0, 2.6, -1.6), fov: 40 }],
       },
       // Later: an empty courtyard, a roof burning, the boy alone where the guru stood.
@@ -390,7 +390,7 @@ export const PROLOGUE_STORY: ChapterStory = {
         sway: 0.01,
         linesAt: 1.2,
         cues: [{ at: 0.3, actor: 'hero', play: 'IDLE' }, { at: 0.6, actor: 'hero', face: GATE }],
-        lines: [{ speaker: 'Yudhveer', text: 'Guruji... I will find you. Even if I have to climb to the top of the world.', voice: 'yudhveer_prologue_find' }],
+        lines: [{ speaker: 'Yudhveer', text: 'Guruji... I will find you. Even if I have to climb to the top of the world.' }],
         // In front of him and off to his right (his idle stance stands side on, chest that way): his face lit by the
         // last of the sun.
         camera: (s): CameraKey[] => {
