@@ -4,7 +4,12 @@ Things that need the user's say-so before they go further: credit spends, downlo
 between options. Each entry says what it is, what it costs, and what happens on a yes. Nothing here has been spent or
 downloaded yet.
 
-## Andhaka's crowning line (2026-10-05)
+## Andhaka's crowning line (2026-10-05): APPROVED, DONE
+
+**Decision:** "go with A - let the gods see their new ruler". The line is now "Burn, Agni. Let the gods see their new
+ruler." (voice id `summit_crown_andhaka_1`, ElevenLabs flow hNijKdjbfXylpNQQdcpK; take A 4.96 s in the game, levelled to
+-18 LUFS; take B 5.44 s kept in `game asset/voice/takes/`). It starts 1.75 s before the crown settles so it fits
+between the crown and his roar (docs/STORY.md, "Andhaka's model and entrance"). The proposal as it was:
 
 As the crown settles on his head the Agni beacon takes fire (docs/STORY.md, "Andhaka's model and entrance", shot 5).
 He speaks one line there, tying the crown to the fire. It is in the game now as a subtitle only (`CROWNING_LINE` in
@@ -26,7 +31,9 @@ LUFS). On a yes: record the chosen line as `summit_andhaka_crowned`, add `voice:
 `CROWNING_LINE`, drop its `hold` (the recording sets the length), and list it in STORY.md's Chapter V lines.
 
 
-## Dwarka's rain: a recorded rain bed (option, costs credits, not generated)
+## Dwarka's rain: a recorded rain bed (option, costs credits, not generated): DECLINED
+
+**Decision:** "current is good enough". The synthesized rain stays; nothing generated. The proposal as it was:
 
 Chapter IV now plays in a storm (docs/STORY.md, "Dwarka in the rain"). Its rain, thunder and splashes are synthesized
 (filtered noise, no credits) and work. A recording would make the steady downpour sound more like real rain on stone
@@ -42,7 +49,10 @@ credits** (check the rate shown in the account before generating). On a yes: gen
 each, loudnorm to -18 LUFS, put them in public/assets/sfx, and the `'dwarka'` ambience loops the rain under the
 synthesized patter (dropping the synthesized hiss layers) and plays the thunder recording in place of the synth.
 
-## Victory sound: which of the two (no cost)
+## Victory sound: which of the two (no cost): APPROVED, `ghanta`
+
+**Decision:** keep the temple bell (`ghanta`, the default); no change to `VICTORY_STINGER`, and no recorded stinger.
+The proposal as it was:
 
 "The sfx when player wins is too childish." The old one was a C-major arpeggio of four pure sine tones (C4 E4 G4 C5,
 0.14 s apart, 2.4 s), a bright music-box chime. It is replaced by two synthesized stingers (no credits; `SoundFX.ts`,
@@ -77,7 +87,14 @@ Estimated cost: about 40 credits per second of audio with the duration set, so 6
 picks a take each, they go to `public/assets/sfx/` and `playLevelClear` plays them (the synth kept as the fallback,
 as with every other effect).
 
-## Blood (proposal; prototype built, off)
+## Blood: APPROVED, DONE (option A with B's hurt pulse, Gore default Low)
+
+**Decision:** "i'll go with your recommendation on blood". Live now: toon ink sprays scaled by damage, splats laid on the
+real ground (rays down to the level's colliders, turned to the slope, shrunk or left out at a step's edge) that dry
+away, washing out faster in Dwarka's rain; colours per enemy as below; the dark-red hurt pulse at the screen's edge on a
+hard blow; a Gore option (Off / Low / Full, Low by default) in the Settings menu, saved with the other settings; no blood
+in story scenes unless a cue asks. Weapon stains not built (decide after playing). Details in docs/STORY.md, "The
+victory sound, and blood". The proposal as it was:
 
 "There needs to be some blood effect also." Three approaches, from lightest to heaviest:
 

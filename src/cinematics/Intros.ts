@@ -8,6 +8,7 @@ import { BossAndhaka } from '../entities/BossAndhaka';
 import type { CameraPose, GameLevel } from '../levels/LevelTypes';
 import { islandEstablishing } from '../levels/Level5_Island';
 import type { Line } from '../ui/Dialogue';
+import { Voices } from '../combat/Voices';
 
 /** What an intro is staged with: the chapter's fighters where they stand, and the cards to show. */
 export interface IntroContext {
@@ -30,10 +31,17 @@ export interface IntroContext {
 const UP = new THREE.Vector3(0, 1, 0);
 
 /**
- * Andhaka's line as the crown settles and the beacon takes fire (docs/APPROVALS.md: the options; subtitle only until
- * the user approves a recording, then it gets its `voice` id).
+ * Andhaka's line as he crowns himself and the beacon takes fire (docs/APPROVALS.md: option A, recorded). The
+ * recording (take A, 4.96 s) speaks from 0.09 s to about 4.7 s: "Burn, Agni." to 1.5 s, a breath, then "Let the gods
+ * see their new ruler." Its length comes from the recording (no `hold`).
  */
-const CROWNING_LINE: Line = { speaker: 'Andhaka', text: 'Burn, Agni. Let the gods see their king.', hold: 2.8 };
+const CROWNING_LINE: Line = { speaker: 'Andhaka', text: 'Burn, Agni. Let the gods see their new ruler.', voice: 'summit_crown_andhaka_1' };
+/**
+ * Seconds before the crown settles (the entrance's `crowned` mark) that he begins the line: "Burn, Agni." is said
+ * as he raises the crown, the beacon answers as it settles, and "...their new ruler" ends as he roars (`roar`, 3 s
+ * after `crowned`), not over it.
+ */
+const CROWNING_LEAD = 1.75;
 const v = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
 
 /** Facing and side unit vectors for a character's heading. */
@@ -389,7 +397,8 @@ function enthronedEntrance(ctx: IntroContext, boss: BossAndhaka, entrance: { dur
         { pos: offset(b, f, 7.6, -1.3, 1.3), look: up(laughing, -0.75), fov: 34 },
         { pos: offset(b, f, 6.4, -1.0, 1.45), look: up(laughing, -0.6), fov: 31 },
       ],
-      cues: [{ at: 0, run: () => boss.playIntro() }],
+      // His line's recording is fetched now, so it is ready nine seconds on.
+      cues: [{ at: 0, run: () => boss.playIntro() }, { at: 0, run: () => Voices.preload([CROWNING_LINE.voice]) }],
     },
     // Closer, from his sword side, as the laugh takes him and he settles.
     {
@@ -413,9 +422,11 @@ function enthronedEntrance(ctx: IntroContext, boss: BossAndhaka, entrance: { dur
         { pos: smiling.clone().addScaledVector(f.fwd, 2.35).addScaledVector(f.side, 0.21).addScaledVector(UP, 0.04), look: up(smiling, 0.03), fov: 15.3 },
       ],
     },
-    // The crown: his hand takes it off the throne's arm and raises it; the camera rises with it from his left.
+    // The crown: his hand takes it off the throne's arm and raises it; the camera rises with it from his left. As he
+    // lifts it to his head he commands the fire.
     {
       duration: t4 - t3,
+      cues: [{ at: Math.max(0, m.crowned - CROWNING_LEAD - t3), run: () => ctx.say([CROWNING_LINE]) }],
       fadeIn: 0.15,
       ease: ease.inOut,
       sway: 0.01,
@@ -425,7 +436,7 @@ function enthronedEntrance(ctx: IntroContext, boss: BossAndhaka, entrance: { dur
       ],
     },
     // Close on his face as the crown comes down onto his head (level with it, on a long lens, from his right, so the
-    // left arm raising the crown stays clear of his face). As it settles the beacon takes fire; he speaks.
+    // left arm raising the crown stays clear of his face). As it settles the beacon takes fire at his word.
     {
       duration: t4b - t4,
       fadeIn: 0.12,
@@ -435,7 +446,6 @@ function enthronedEntrance(ctx: IntroContext, boss: BossAndhaka, entrance: { dur
         { pos: crowned.clone().addScaledVector(f.fwd, 3.5).addScaledVector(f.side, -1.25).addScaledVector(UP, 0.02), look: up(crowned, 0.1), fov: 22 },
         { pos: crowned.clone().addScaledVector(f.fwd, 3.1).addScaledVector(f.side, -1.1).addScaledVector(UP, 0.02), look: up(crowned, 0.08), fov: 20.4 },
       ],
-      cues: [{ at: m.crowned + 0.1 - t4, run: () => ctx.say([CROWNING_LINE]) }],
     },
     // The beacon answers: low before him on his left, the crowned king dark against it, the fire racing up off the far
     // cliff into the sky behind him; his fist goes to the hilt.

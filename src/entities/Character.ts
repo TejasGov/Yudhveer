@@ -105,6 +105,11 @@ export class Character extends Entity {
    * fight starts.
    */
   public onGuard = false;
+  /**
+   * Gone under the water (Shalva's dive): out of sight, it cannot be struck or aimed at, it does not block anyone, and
+   * it leaves no footfalls.
+   */
+  public submerged = false;
   /** Metres per second the character really moved last step (after collision), and how long it has been ~still. */
   private actualSpeed = 0;
   private stillFor = 0;

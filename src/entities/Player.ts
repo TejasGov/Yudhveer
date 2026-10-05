@@ -344,7 +344,7 @@ export class Player extends Character {
     let best: Character | null = null;
     let bestScore = Infinity;
     for (const foe of this.foes) {
-      if (foe.stateMachine.currentState === 'DEAD' || !foe.group.visible) continue;
+      if (foe.stateMachine.currentState === 'DEAD' || !foe.group.visible || foe.submerged) continue;
       const p = foe.group.position;
       const dx = p.x - pos.x;
       const dz = p.z - pos.z;

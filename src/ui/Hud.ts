@@ -11,6 +11,8 @@ const GHOST_HOLD = 0.45;
 const GHOST_DRAIN = 0.7; // share of the bar per second
 /** Ordinary enemies' plates show within this distance. */
 const PLATE_RANGE = 22;
+/** A blow to the hero this hard (a boss's swing; a minion's is 16) pulses blood at the screen's edge. */
+const HARD_BLOW = 18;
 /** The posture-break prompt shows while a broken enemy is this close. */
 const PROMPT_RANGE = 5;
 
@@ -77,6 +79,8 @@ export class Hud {
   private readonly marmaPrompt = $('marma-prompt');
   private readonly hintEl = $('hint');
   private readonly hurtEl = $('hurt-vignette');
+  private readonly bloodEl = $('blood-pulse');
+  private pulse: Animation | null = null;
   private boss: Enemy | null = null;
   private calloutTimer = 0;
   private hintTimer = 0;
@@ -208,9 +212,22 @@ export class Hud {
     this.hintEl.classList.remove('show');
   }
 
-  /** The screen's edge flashes red. */
-  public hurt(): void {
+  /**
+   * The screen's edge flashes red. A hard blow (`damage` from a boss's swing up) with blood on (`bloody`) also pulses
+   * a dark blood-red ink in from the edges, deeper the harder it was, and fading over a second (docs/APPROVALS.md,
+   * "Blood": B's hurt vignette).
+   */
+  public hurt(damage = 0, bloody = false): void {
     this.hurtEl.classList.add('hit');
     requestAnimationFrame(() => requestAnimationFrame(() => this.hurtEl.classList.remove('hit')));
+    if (!bloody || damage < HARD_BLOW) return;
+    const k = THREE.MathUtils.clamp((damage - HARD_BLOW) / 9, 0, 1);
+    this.pulse?.cancel();
+    this.pulse = this.bloodEl.animate?.([
+      { opacity: 0, transform: 'scale(1.06)' },
+      { opacity: 0.7 + 0.3 * k, transform: 'scale(1)', offset: 0.07 },
+      { opacity: 0.55 + 0.3 * k, transform: 'scale(1)', offset: 0.3 },
+      { opacity: 0, transform: 'scale(1.02)' },
+    ], { duration: 900 + 500 * k, easing: 'ease-out' }) ?? null;
   }
 }

@@ -342,7 +342,7 @@ export class Engine {
     this.staging.onTeleport = (actor) => this.interpolated.delete(actor.group);
     this.combatSystem.onEvent = (e) => this.combatDebug.onEvent(e);
     this.combatSystem.onCallout = (c) => this.hud.callout(c);
-    this.combatSystem.onPlayerHurt = () => this.hud.hurt();
+    this.combatSystem.onPlayerHurt = (damage) => this.hud.hurt(damage, BloodFX.getInstance().enabled);
     this.soundFX.onLightning = (strength) => this.sceneManager.flash(strength);
     this.soundFX.hushed = () => this.dialogue.speaking;
     this.projectileManager.onPlayerContact = (result) => {
@@ -609,6 +609,13 @@ export class Engine {
     const s = Settings.get();
     if (button.dataset.kind === 'toggle') {
       Settings.set(key, !s[key] as never);
+    } else if (button.dataset.kind === 'choice') {
+      // One of a few named values (Gore: off, low, full), stepped through; clicking wraps round.
+      const options = button.dataset.options!.split(',');
+      let i = options.indexOf(String(s[key])) + dir;
+      if (wrap) i = (i + options.length) % options.length;
+      else if (i < 0 || i >= options.length) return true;
+      Settings.set(key, options[i] as never);
     } else {
       const min = parseFloat(button.dataset.min!);
       const max = parseFloat(button.dataset.max!);
@@ -630,6 +637,12 @@ export class Engine {
         out.textContent = s[key] ? 'On' : 'Off';
         return;
       }
+      if (b.dataset.kind === 'choice') {
+        const options = b.dataset.options!.split(',');
+        const labels = b.dataset.labels?.split(',') ?? options;
+        out.textContent = labels[options.indexOf(String(s[key]))] ?? String(s[key]);
+        return;
+      }
       const min = parseFloat(b.dataset.min!);
       const max = parseFloat(b.dataset.max!);
       const v = s[key] as number;
@@ -642,6 +655,10 @@ export class Engine {
   // ---------------------------------------------------------------------------------------------------- Flow
 
   private setMode(mode: Mode): void {
+    // Story scenes draw no blood unless a cue spills it, and the fight's is gone at the cut into one.
+    const blood = BloodFX.getInstance();
+    if (mode === 'intro' && this.mode !== 'intro') blood.clear();
+    blood.suppressed = mode === 'intro';
     this.mode = mode;
     this.modeTime = 0;
     this.updateCaptureHint();
@@ -1410,7 +1427,7 @@ export class Engine {
     // Low in a slide he passes between and under enemies instead of stopping against them.
     separateFighters([player, ...this.enemies].filter((f) => f.motor).map((f) => ({
       position: f.group.position, radius: f.motor!.radius,
-      solid: f.stateMachine.currentState !== 'DEAD' && !(f === player && player.isEvading()),
+      solid: f.stateMachine.currentState !== 'DEAD' && !f.submerged && !(f === player && player.isEvading()),
     })));
 
     // Story scenes walk people to their marks (the motor below still resolves them).

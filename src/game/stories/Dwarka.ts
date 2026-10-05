@@ -8,7 +8,7 @@ import { DWARKA_FLOOR_Y } from '../../levels/Level3_Dwarka';
 import { YODHA } from '../../entities/characters/Yodha';
 import { SHALVA } from '../../entities/characters/Shalva';
 import { TAKSHAKA } from '../../entities/characters/Takshaka';
-import { shade, shadeOf, shadeRises, shadeShots } from '../Story';
+import { shade, shadeConversation, shadeOf, shadeRises } from '../Story';
 
 /*
  * Chapter IV, Dwarka (docs/STORY.md, "Milestone 8"). The hero comes with the island's mace; Shalva taunts him at
@@ -24,8 +24,14 @@ import { shade, shadeOf, shadeRises, shadeShots } from '../Story';
 const v = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
 const Y = DWARKA_FLOOR_Y;
 
-/** The shades' framings (Story.ts `shadeShots`), on the sunward side of the line from the hero to the shade. */
-const shadeOn = (s: Stage, fallen: string) => shadeShots(s, shade(fallen), pair(s, 'hero', shade(fallen)).side);
+/**
+ * The shades' framings (Story.ts `shadeConversation`), on the sunward side of the line from the hero to the shade
+ * (or `side`, before the shade is up).
+ */
+const shadeTalk = (s: Stage, fallen: string, side = pair(s, 'hero', shade(fallen)).side) =>
+  shadeConversation(s, fallen, side, HOOD[fallen] ?? 0);
+/** Metres a shade's crest rises above its head (the serpent king's hood), kept in frame. */
+const HOOD: Record<string, number> = { takshaka: 0.6 };
 
 /** Two people facing each other: the line from `a` to `b`, the sunward side of it, the point between them. */
 function pair(s: Stage, a: string, b: string) {
@@ -125,6 +131,9 @@ function settleSword(s: Stage): void {
 
 // ------------------------------------------------------------------------------------------------- the story
 
+/** Where the hero stands as Shalva falls: a few paces off him, on the line he fought along. */
+const heroStart = (s: Stage) => s.toward('shalva', 'hero', THREE.MathUtils.clamp(s.pos('shalva').distanceTo(s.pos('hero')), 3.4, 4.6));
+
 export const DWARKA_STORY: ChapterStory = {
   // Their shades, for their last words.
   cast: [shadeOf('shalva', SHALVA), shadeOf('takshaka', TAKSHAKA)],
@@ -215,49 +224,60 @@ export const DWARKA_STORY: ChapterStory = {
       scene: {
         id: 'dwarka-shalva-falls',
         shots: [
-          // Wide: Shalva down on the stones, the hero walking up to him; his shade rises out of him.
+          // The boy, breathing hard, watching Shalva go down (the fall is behind the camera: heard, not seen).
           {
-            duration: 3.4,
+            duration: 2.0,
             fadeIn: 0.5,
             ease: ease.drift,
+            sway: 0.008,
             cues: [
-              ...shadeRises('shalva', 1.2),
-              { at: 0.6, actor: 'hero', moveTo: (s) => s.toward('shalva', 'hero', 1.9), face: shade('shalva') },
+              { at: 0, actor: 'hero', place: heroStart, face: 'shalva' },
             ],
-            camera: (s): CameraKey[] => {
-              const { pb, mid, side } = pair(s, 'hero', shade('shalva'));
-              const look = mid.lerp(pb, 0.45).add(v(0, 0.6, 0));
-              return [
-                { pos: look.clone().addScaledVector(side, 7).add(v(0, 2.8, 0)), look, fov: 42 },
-                { pos: look.clone().addScaledVector(side, 6).add(v(0, 2.2, 0)), look, fov: 40 },
-              ];
-            },
+            camera: (s) => shadeTalk(s, 'shalva', pair(s, 'hero', 'shalva').side).watching(heroStart(s), s.pos('shalva')),
           },
-          // Up at his shade, from over the hero's shoulder.
+          // Low beside his way in: he walks into the frame toward the fallen king and the camera eases in after him,
+          // tilting up as the shade rises over the body against the storm (the body below the frame).
+          {
+            duration: 3.4,
+            fadeIn: 0.12,
+            ease: ease.drift,
+            sway: 0.008,
+            cues: [
+              ...shadeRises('shalva', 1.0),
+              { at: 0.1, actor: 'hero', moveTo: (s) => s.toward('shalva', 'hero', 1.9), face: shade('shalva') },
+            ],
+            camera: (s) => shadeTalk(s, 'shalva', pair(s, 'hero', 'shalva').side).rise(s.pos('shalva'), s.toward('shalva', 'hero', 1.9)),
+          },
+          // Low on the hero's side, up at the shade alone against the storm, as it speaks.
           {
             fadeIn: 0.12,
             ease: ease.drift,
-            sway: 0.012,
+            sway: 0.01,
             cues: [{ at: 0, actor: shade('shalva'), face: 'hero' }],
-            lines: [
-              { speaker: 'Shalva', text: 'Enough. You have earned your answer, boy. Much good may it do you.', voice: 'dwarka_fall_shalva_1' },
-              {
-                speaker: 'Shalva',
-                text: 'Andhaka gathers souls. Wise ones: sages, teachers, the ones a village listens to. He burns them before his god.',
-                voice: 'dwarka_fall_shalva_2',
-              },
-            ],
-            camera: (s) => shadeOn(s, 'shalva').overHero(),
+            lines: [{ speaker: 'Shalva', text: 'Enough. You have earned your answer, boy. Much good may it do you.', voice: 'dwarka_fall_shalva_1' }],
+            camera: (s) => shadeTalk(s, 'shalva').lowSingle(),
           },
-          // Over the shade's shoulder, down at the hero.
+          // Over the boy's shoulder, from his eyes, up at it: the truth about Andhaka.
+          {
+            fadeIn: 0.12,
+            ease: ease.drift,
+            sway: 0.01,
+            lines: [{
+              speaker: 'Shalva',
+              text: 'Andhaka gathers souls. Wise ones: sages, teachers, the ones a village listens to. He burns them before his god.',
+              voice: 'dwarka_fall_shalva_2',
+            }],
+            camera: (s) => shadeTalk(s, 'shalva').overHero(),
+          },
+          // The reverse, from behind the shade's shoulder: the boy looks up at it.
           {
             fadeIn: 0.12,
             ease: ease.out,
-            sway: 0.012,
+            sway: 0.01,
             lines: [{ speaker: 'Yudhveer', text: 'To what end?' }],
-            camera: (s) => shadeOn(s, 'shalva').overShade(),
+            camera: (s) => shadeTalk(s, 'shalva').reverse(),
           },
-          // Close on the shade for the rest of it.
+          // Close on the shade, from below, for the rest of it.
           {
             fadeIn: 0.12,
             ease: ease.drift,
@@ -267,28 +287,35 @@ export const DWARKA_STORY: ChapterStory = {
               text: 'Every soul he burns makes him greater. When the fire is high enough, he will stand against Shiva himself, and take his seat on Kailasha.',
               voice: 'dwarka_fall_shalva_3',
             }],
-            camera: (s) => shadeOn(s, 'shalva').close(),
+            camera: (s) => shadeTalk(s, 'shalva').lowClose(),
           },
+          // The boy alone: his guru.
           {
             fadeIn: 0.12,
             ease: ease.out,
-            sway: 0.012,
+            sway: 0.01,
             lines: [{ speaker: 'Yudhveer', text: 'And my guru?' }],
-            camera: (s) => shadeOn(s, 'shalva').overShade(),
+            camera: (s) => shadeTalk(s, 'shalva').heroSingle(),
           },
+          // Low behind the boy, the two of them: where the guru is kept.
           {
             fadeIn: 0.12,
             ease: ease.drift,
             sway: 0.01,
-            lines: [
-              {
-                speaker: 'Shalva',
-                text: 'The wisest of them all, Andhaka says. He keeps him for the last fire, on the summit.',
-                voice: 'dwarka_fall_shalva_4',
-              },
-              { speaker: 'Shalva', text: 'But you will not live to climb it. The serpent king does not let his prey leave this shore.', voice: 'dwarka_fall_shalva_5' },
-            ],
-            camera: (s) => shadeOn(s, 'shalva').close(0.4),
+            lines: [{
+              speaker: 'Shalva',
+              text: 'The wisest of them all, Andhaka says. He keeps him for the last fire, on the summit.',
+              voice: 'dwarka_fall_shalva_4',
+            }],
+            camera: (s) => shadeTalk(s, 'shalva').twoShot(),
+          },
+          // Closer still on the shade for its last words.
+          {
+            fadeIn: 0.12,
+            ease: ease.drift,
+            sway: 0.01,
+            lines: [{ speaker: 'Shalva', text: 'But you will not live to climb it. The serpent king does not let his prey leave this shore.', voice: 'dwarka_fall_shalva_5' }],
+            camera: (s) => shadeTalk(s, 'shalva').lowClose(0.45),
           },
           // The sea stirs behind him: a hiss from the water, and the hero turns to it; Shalva's shade sinks back into
           // the stones and is gone. (Takshaka's own arrival follows.)
@@ -322,7 +349,7 @@ export const DWARKA_STORY: ChapterStory = {
   ending: {
     id: 'dwarka-ending',
     shots: [
-      // Wide: the serpent king down at the arena's edge, the hero walking up to him; his shade rises out of him.
+      // The serpent king down at the arena's edge, the hero walking up to him; his shade rises out of him.
       {
         duration: 3.6,
         fadeIn: 0.9,
@@ -333,15 +360,11 @@ export const DWARKA_STORY: ChapterStory = {
           ...shadeRises('takshaka', 1.3),
           { at: 0.5, actor: 'hero', moveTo: (s) => s.toward('takshaka', 'hero', 2.4), face: shade('takshaka') },
         ],
-        camera: (s): CameraKey[] => {
-          const { mid, side } = pair(s, 'hero', shade('takshaka'));
-          return [
-            { pos: mid.clone().addScaledVector(side, 7).add(v(0, 2.8, 0)), look: mid.clone().add(v(0, 0.7, 0)), fov: 42 },
-            { pos: mid.clone().addScaledVector(side, 6).add(v(0, 2.3, 0)), look: mid.clone().add(v(0, 0.7, 0)), fov: 40 },
-          ];
-        },
+        // Low beside the hero's way in, up past him to where the shade rises against the storm (the body below the
+        // frame), easing in after him.
+        camera: (s) => shadeTalk(s, 'takshaka', pair(s, 'hero', 'takshaka').side).rise(s.pos('takshaka'), s.toward('takshaka', 'hero', 2.4)),
       },
-      // Up at his shade, over the hero's shoulder.
+      // Low on the hero's side, up at the serpent king's shade alone against the storm.
       {
         fadeIn: 0.12,
         ease: ease.drift,
@@ -352,9 +375,9 @@ export const DWARKA_STORY: ChapterStory = {
           text: 'A hundred years I kept the sea for him. I have watched kings kneel to Andhaka, and gods look away.',
           voice: 'dwarka_end_takshaka_1',
         }],
-        camera: (s) => shadeOn(s, 'takshaka').overHero(),
+        camera: (s) => shadeTalk(s, 'takshaka').lowSingle(),
       },
-      // Close on the serpent king's shade: the prophecy, and the gift.
+      // Close on the serpent king's shade, from below: the prophecy, and the gift.
       {
         fadeIn: 0.12,
         ease: ease.drift,
@@ -365,7 +388,7 @@ export const DWARKA_STORY: ChapterStory = {
           text: 'You will not defeat him, boy... No. I was the fool. You were born to end his reign. Take my sword.',
           voice: 'dwarka_end_takshaka_2',
         }],
-        camera: (s) => shadeOn(s, 'takshaka').close(),
+        camera: (s) => shadeTalk(s, 'takshaka').lowClose(),
       },
       // Naga fire between them, and out of it the sword, standing in the stone.
       {

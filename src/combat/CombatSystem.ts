@@ -77,8 +77,8 @@ export class CombatSystem {
   public stats: FightStats = emptyStats();
   /** Mid-screen callouts (the HUD shows them). */
   public onCallout: ((callout: Callout) => void) | null = null;
-  /** The player took a blow to the body (HUD flash). */
-  public onPlayerHurt: (() => void) | null = null;
+  /** The hero took a blow (`damage`: how hard; the screen's edge pulses with it). */
+  public onPlayerHurt: ((damage: number) => void) | null = null;
 
   private constructor() {
     this.hitboxManager = HitboxManager.getInstance();
@@ -103,7 +103,7 @@ export class CombatSystem {
     const living = enemies.filter((e) => e.stateMachine.currentState !== 'DEAD');
     for (const enemy of living) {
       const w = this.activeStrike(player);
-      if (w !== null) {
+      if (w !== null && !enemy.submerged) {
         const { hit, hitPoint } = this.hitboxManager.checkWeaponIntersection(player, enemy);
         if (hit) {
           this.markLanded(player, w);
@@ -209,7 +209,7 @@ export class CombatSystem {
       this.soundFX.playHitImpact(player.weapon.sound.impact);
       // With blood on, the red sparks of a flesh blow give way to it (a charged blow keeps its gold).
       const blood = BloodFX.getInstance();
-      const bleeds = blood.enabled && enemy.blood !== 'none';
+      const bleeds = blood.bleeds(enemy.blood);
       if (!bleeds || charged) this.particleFX.spawnSparks(hitPoint, heavy ? 45 : 25, charged);
       if (bleeds) {
         const dir = enemy.getPosition().clone().sub(player.getPosition());
@@ -266,13 +266,13 @@ export class CombatSystem {
     this.stats.hitsTaken++;
     player.takeDamage(damage);
     const broken = player.addMarmaDamage(posture);
-    this.onPlayerHurt?.();
+    this.onPlayerHurt?.(damage);
     if (broken && player.stateMachine.currentState !== 'DEAD') this.callout({ text: 'Posture broken', tone: 'red' });
 
     this.soundFX.playHitImpact(enemy.impactSound);
     const blood = BloodFX.getInstance();
-    if (!blood.enabled) this.particleFX.spawnSparks(hitPoint, 30, false);
-    if (blood.enabled) {
+    if (!blood.bleeds('red')) this.particleFX.spawnSparks(hitPoint, 30, false);
+    else {
       blood.spill(hitPoint, player.getPosition().clone().sub(enemy.getPosition()), damage, 'red', player.group.position.y, player.currentHealth <= 0);
     }
     this.sceneManager.triggerScreenShake(0.35, 0.22);

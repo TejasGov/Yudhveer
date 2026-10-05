@@ -1,3 +1,6 @@
+/** How much blood a blow draws (docs/STORY.md, "Blood"): none, a little (the default), or all of it. */
+export type GoreLevel = 'off' | 'low' | 'full';
+
 /** Player preferences, kept in localStorage. Every read goes through `Settings.get()`. */
 export interface GameSettings {
   masterVolume: number; // 0..1
@@ -7,6 +10,7 @@ export interface GameSettings {
   invertY: boolean;
   cameraShake: boolean;
   hints: boolean;
+  gore: GoreLevel;
 }
 
 const KEY = 'yudhveer.settings.v1';
@@ -18,6 +22,7 @@ const DEFAULTS: GameSettings = {
   invertY: false,
   cameraShake: true,
   hints: true,
+  gore: 'low',
 };
 
 let current: GameSettings = load();
@@ -26,7 +31,11 @@ const listeners = new Set<(s: GameSettings) => void>();
 function load(): GameSettings {
   try {
     const raw = localStorage.getItem(KEY);
-    if (raw) return { ...DEFAULTS, ...(JSON.parse(raw) as Partial<GameSettings>) };
+    if (raw) {
+      const saved = { ...DEFAULTS, ...(JSON.parse(raw) as Partial<GameSettings>) };
+      if (!['off', 'low', 'full'].includes(saved.gore)) saved.gore = DEFAULTS.gore;
+      return saved;
+    }
   } catch {
     // Private mode or blocked storage: defaults for this session.
   }

@@ -129,3 +129,121 @@ export function shadeShots(s: Stage, id: string, side: THREE.Vector3) {
     },
   };
 }
+
+/**
+ * Framings for a fallen one's shade speaking with the hero, staged as a conversation rather than a row of level,
+ * centred frames (Dwarka's two shades; docs/STORY.md, "How the dead speak"). Every camera keeps to `side` of the line
+ * between them (no crossed eyelines), most stand low and look up so the shade stands against the sky and the ground
+ * where the body lies falls below the frame, and each one pushes in slowly. Faces sit in the upper part of the frame,
+ * clear of the subtitles. Distances are for a shade of Shalva's 2.6 m (larger ones are framed from further off);
+ * `headroom`: metres the figure rises above its head bone (Takshaka's hood), kept in frame.
+ */
+export function shadeConversation(s: Stage, fallen: string, side: THREE.Vector3, headroom = 0) {
+  const id = shade(fallen);
+  const hero = s.pos('hero');
+  const at = s.pos(id);
+  const dir = at.clone().sub(hero).setY(0);
+  if (dir.lengthSq() < 1e-6) dir.set(0, 0, -1);
+  dir.normalize();
+  const face = s.head(id);
+  const heroHead = s.head('hero');
+  const floor = hero.y;
+  const k = Math.max(1, s.height(id) / 2.6);
+  /** Where the camera aims for the shade's face, raised to keep a tall crest or hood in frame. */
+  const top = face.clone().add(v(0, headroom * 0.6, 0));
+  /** Metres further off for the same. */
+  const back = 1 + headroom * 0.5;
+  /** A point `along` the line from the hero toward the shade, `across` toward `side`, at height `y`. */
+  const p = (from: THREE.Vector3, along: number, across: number, y: number) =>
+    from.clone().addScaledVector(dir, along).addScaledVector(side, across).setY(y);
+  return {
+    /**
+     * The hero from in front of him and a little to `side`, at his eye height, the fallen one behind the camera: his
+     * face as he watches it fall. `hero` and `body` are passed in: he is put on his mark as the shot begins.
+     */
+    watching: (heroAt: THREE.Vector3, body: THREE.Vector3): CameraKey[] => {
+      const toBody = body.clone().sub(heroAt).setY(0).normalize();
+      const head = heroAt.clone().setY(heroAt.y + s.height('hero') * 0.92);
+      const at = (ahead: number, across: number, up: number) => heroAt.clone().addScaledVector(toBody, ahead).addScaledVector(side, across).setY(head.y + up);
+      const look = head.clone().addScaledVector(side, 0.1).add(v(0, -0.08, 0));
+      return [
+        { pos: at(1.45, 0.75, -0.05), look, fov: 34 },
+        { pos: at(1.25, 0.65, -0.04), look, fov: 32 },
+      ];
+    },
+    /**
+     * Low beside the hero's way in, looking up past him to where the shade rises over the body: he walks into the
+     * frame and the camera eases in after him, tilting up as the shade comes up against the storm. (The body lies
+     * below the frame's lower edge.) `body` and `mark` (where he will stop) are passed in: the shade is not up yet.
+     */
+    rise: (body: THREE.Vector3, mark: THREE.Vector3): CameraKey[] => {
+      const toBody = body.clone().sub(mark).setY(0).normalize();
+      const spot = (back: number, across: number, y: number) => mark.clone().addScaledVector(toBody, -back).addScaledVector(side, across * k).setY(floor + y);
+      const over = body.clone().addScaledVector(toBody, 0.5).setY(floor);
+      return [
+        { pos: spot(2.2 * k, 1.35, 0.75), look: over.clone().setY(floor + 1.9 * k), fov: 42 },
+        { pos: spot(1.75 * k, 1.0, 0.72), look: over.clone().setY(floor + 2.3 * k), fov: 38 },
+      ];
+    },
+    /** Low on the hero's side of it, up at the shade alone against the sky (the hero just out of frame). */
+    lowSingle: (): CameraKey[] => {
+      const look = top.clone().addScaledVector(side, -0.25 * k).add(v(0, -0.2 * k, 0));
+      return [
+        { pos: p(at, -2.7 * k * back, 1.35 * k * back, floor + 1.0), look, fov: 36 },
+        { pos: p(at, -2.3 * k * back, 1.15 * k * back, floor + 1.05), look, fov: 33 },
+      ];
+    },
+    /**
+     * Over the hero's shoulder from his eye height, so the camera looks up at the shade as he does: his shoulder and
+     * head soft at one edge, the shade on the far third.
+     */
+    overHero: (): CameraKey[] => {
+      const look = top.clone().addScaledVector(side, -0.55 * k).add(v(0, -0.25 * k, 0));
+      return [
+        { pos: p(hero, -1.3 * k, 0.75 * k, heroHead.y + 0.02), look, fov: 38 },
+        { pos: p(hero, -1.0 * k, 0.68 * k, heroHead.y + 0.04), look, fov: 35 },
+      ];
+    },
+    /**
+     * The reverse: from beside the shade's shoulder, a little below its eyes, down at the hero looking up at it, on a
+     * long lens (the shade itself just out of frame); the hero on the near third.
+     */
+    reverse: (): CameraKey[] => {
+      const look = heroHead.clone().addScaledVector(side, -0.25).add(v(0, -0.08, 0));
+      const y = face.y - 0.25 * k;
+      return [
+        { pos: p(at, 0.35 * k, 1.65 * k, y), look, fov: 30 },
+        { pos: p(at, 0.1 * k, 1.5 * k, y - 0.05), look, fov: 28 },
+      ];
+    },
+    /** The hero alone, a little above his eyes from the shade's side, a slow push in: his reaction. */
+    heroSingle: (): CameraKey[] => {
+      const look = heroHead.clone().addScaledVector(side, 0.12).add(v(0, 0.04, 0));
+      return [
+        { pos: p(hero, 1.55, 0.95, heroHead.y + 0.14), look, fov: 30 },
+        { pos: p(hero, 1.3, 0.8, heroHead.y + 0.12), look, fov: 28 },
+      ];
+    },
+    /** Close on the shade, three-quarters on and from below its eyes, against the sky; `near`: metres nearer. */
+    lowClose: (near = 0): CameraKey[] => {
+      const from = (r: number) => face.clone().addScaledVector(dir, -0.72 * r * k).addScaledVector(side, 0.7 * r * k).add(v(0, -0.6 * k, 0));
+      // (A crest needs less room this close: the face stays clear of the subtitles.)
+      const look = face.clone().addScaledVector(side, -0.2 * k).add(v(0, -0.04 * k + headroom * 0.15, 0));
+      return [
+        { pos: from((2.6 - near) * back), look, fov: 30 },
+        { pos: from((2.25 - near) * back), look, fov: 28 },
+      ];
+    },
+    /**
+     * The two of them from low behind the boy, on a longer lens than the rise: his back on the near third, the shade
+     * towering over him against the sky, the camera creeping in (the ground between them below the frame).
+     */
+    twoShot: (): CameraKey[] => {
+      const look = at.clone().setY(floor + 2.05 * k);
+      return [
+        { pos: p(hero, -2.7 * k, 1.3 * k, floor + 0.7), look, fov: 34 },
+        { pos: p(hero, -2.35 * k, 1.15 * k, floor + 0.72), look, fov: 33 },
+      ];
+    },
+  };
+}

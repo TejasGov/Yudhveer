@@ -656,6 +656,7 @@ hold in `src/entities/animation/CharacterRig.ts` (`SocketAttachment.twoHanded`).
   the mace back, so a skipped scene or a replay of the chapter is left right. The next chapter's kit equips the khanda
   properly.
 - **Weather:** it rains (see "Dwarka in the rain").
+- **Shalva dives:** he can go under the flooded stone and burst up beside the hero (see "Shalva's dive").
 - **Left for later:** the flame burst is the existing naga fire; the hero lays the mace down out of sight (it simply leaves his hands); the khanda is held
   in the sword pack's idle without the dhal; the sprint is the mace's run played faster.
 
@@ -738,7 +739,7 @@ The guru's voice (and Shiva's) is the deep narrator in `game asset/voice/VOICES.
 
 | Id | Speaker | Text | Trigger | Recorded |
 |---|---|---|---|---|
-| (no id yet) | Andhaka | Burn, Agni. Let the gods see their king. | his entrance, the crown settles | subtitle only; a recording awaits approval (docs/APPROVALS.md) |
+| `summit_crown_andhaka_1` | Andhaka | Burn, Agni. Let the gods see their new ruler. | his entrance, raising the crown to his head | yes (option A, approved 2026-10-05) |
 | `summit_end_guru_1` | Guru (off, from the dais) | Yudhveer. | ending, shot 1 | yes |
 | (no id) | Yudhveer | Guruji? | ending, he turns to the stair | subtitle only |
 | (no id) | Yudhveer | Guruji... you live. | ending, kneeling beside him | subtitle only |
@@ -776,10 +777,14 @@ docs/APPROVALS.md).
    (into Sitting Idle).
 3. **The smile** (4.5 - 6.25 s): close on his face, looking down the stair at the boy, the Smile shape key full. From
    his eye line on a long lens (about 16 degrees, 2.35 - 2.7 m off), not from below on a wide one.
-4. **The crown** (6.25 - 8.1 s): from his left, his hand takes the crown off the throne's arm and raises it.
+4. **The crown** (6.25 - 8.1 s): from his left, his hand takes the crown off the throne's arm and raises it. At 7.25 s
+   (`CROWNING_LEAD`, 1.75 s before the "crowned" mark) he speaks, recorded (`summit_crown_andhaka_1`, take A, 4.96 s,
+   speech 0.09 - ~4.7 s): "Burn, Agni." as he lifts the crown, a breath, "Let the gods see their new ruler." over the
+   beacon, ending just before his roar (12.0 s). The subtitle shows with the voice (it lasts the recording plus the
+   usual tail); the recording is fetched as the entrance begins.
 5. **Crowned** (8.1 - 9.35 s): close on his face from his right (his left arm, raising the crown, stays clear of his
    face), level with it on a long lens, as he sets the crown on his own head, bowing to it, grinning. As it settles
-   (9.0 s, the clip's "crowned" mark) the beacon takes fire and he says: "Burn, Agni. Let the gods see their king."
+   (9.0 s, the clip's "crowned" mark) the beacon takes fire at his word.
 6. **The beacon** (9.35 - 10.55 s): low in front of him, off the line from his head to the beacon: the crowned king
    under Shiva's statue, the brazier on the west pilaster flared up, and the beacon's fire racing up off the far cliff
    into the sky behind him. His fist goes to the hilt.
@@ -883,9 +888,24 @@ slumped on the summit is alive; Andhaka, the Vetala, the Mayavi and the minions 
   body as it fades in (`shadeRises`, during the wide shot of the hero walking up, before any line), and sinks and
   fades away when its words are done: Shalva's as the sea stirs, Takshaka's as the camera rises away at the end, the
   Guardian's as the boy answers it. Skipped or settled, a scene leaves the shade gone at once.
-- **Framing** (`shadeShots`): over the hero's shoulder up at the shade's face; close on its face, three-quarters on,
-  level with it; over the shade's shoulder down at the hero; side on to the two of them. Each keeps the ground where
-  the body lies below the frame; the body is seen only in the wide shots, lying still, before and after.
+- **Framing** (`shadeShots`, the baoli): over the hero's shoulder up at the shade's face; close on its face,
+  three-quarters on, level with it; over the shade's shoulder down at the hero; side on to the two of them. Each keeps
+  the ground where the body lies below the frame; the body is seen only in the wide shots, lying still, before and after.
+- **Dwarka's two shades, reworked (2026-10-05)** ("make his blue soul scene less awkward using camera angle";
+  `shadeConversation` in `src/game/Story.ts`). The old cut was a row of level, centred, static frames (one
+  over-the-shoulder held for two long lines, a reverse with the shade's flank filling a third of the frame and the boy
+  looking into the lens). Now every camera keeps to one side of the line between them (eyelines match), most stand low
+  and look up so the shade stands against the storm sky and the ground where the body lies falls below the frame, faces
+  sit high, clear of the subtitles, and every shot pushes in slowly. Shalva's fall (10 shots; his 5 lines and the boy's
+  2 unchanged): the boy's face as Shalva goes down (the fall heard, not seen); low beside his way in, he walks into the
+  frame and the camera tilts up after him as the shade rises against the storm (`rise`); low up at the shade alone
+  ("Enough..."); over the boy's shoulder from his eyes ("Andhaka gathers souls..."); the reverse from beside the
+  shade's shoulder, down at the boy ("To what end?"); low close on the shade ("Every soul..."); the boy alone ("And my
+  guru?"); low behind the boy, the shade towering over him ("The wisest of them all..."); closer still on the shade for
+  its last words; the sea stirs (as before). The body is never in frame. Takshaka's ending uses the same rise, low
+  single and low close (his hood kept in frame, `headroom`); the sword, "Rest, serpent king" and the rise away are
+  unchanged. Previews: `game asset/previews/shalva_shade_before_*.jpg`, `shalva_shade_after_*.jpg`,
+  `takshaka_shade_after_*.jpg`.
 - Lines, voices, timings and beats are unchanged; the hero now faces the shade rather than the body.
 - **Left for later:** the shade's model is the fighter's own (a dedicated spirit look, or a rising clip, could come
   later); against a bright sky the shade reads paler than in the baoli's dark (Dwarka's storm grade helps).
@@ -925,7 +945,7 @@ ground, walking ripples". Chapter IV now plays in a storm, every scene and the f
   the gusts, a low roar off the sea), single drops pattering close by, rain gusts, the waves as before, the shankh
   rarer, the gulls gone. Distant thunder every 28-55 s with a soft lightning flash (the sky light, the cloud deck and
   the rain flare), never while a line is up (`SoundFX.hushed`). The hero's steps splash (`playWetStep`); landings, falls
-  and the slam splash (`playSplash`). A recorded rain bed is an option in docs/APPROVALS.md.
+  and the slam splash (`playSplash`). A recorded rain bed was offered and declined ("current is good enough").
 - **Cost:** 3 draw calls and ~19k triangles; at 1080p the frame was within noise of before (~8 ms either way in the
   test view); the level's update is ~0.02 ms. Nothing allocated per frame.
 - **Dev:** `__debug.rain('low')` thins the rain to a third (and the splashes), `__debug.rain(false)` stops it (the
@@ -941,9 +961,57 @@ ground, walking ripples". Chapter IV now plays in a storm, every scene and the f
   card hit. Dev: `__debug.victory(grade, stinger)` plays one, `__debug.renderVictory(grade, stinger)` renders it
   offline and reports level and spectrum (`src/combat/AudioDebug.ts`). The choice, and an optional recorded
   (ElevenLabs) version, are in docs/APPROVALS.md.
-- **Blood:** proposed in docs/APPROVALS.md; a prototype (`src/combat/BloodFX.ts`: toon ink drops along the blow and
-  ground splats that dry away; red, a naga's green-black ichor, a ghost's ash, per `Enemy.blood`) is built but OFF
-  (`BLOOD_DEFAULT`) until the user decides. Dev: `__debug.blood(true | 'low' | false)`.
+- **Victory, approved:** `ghanta` stays the stinger.
+- **Blood (live, 2026-10-05; approved: option A with B's hurt pulse, Gore default Low).** `src/combat/BloodFX.ts`:
+  - **Gore setting** (`Settings.gore`, saved with the other settings; Settings menu "Gore": Off / Low / Full, Low for a
+    new player). Off: only the sparks the game had before. Low: fewer, smaller ink drops along the blow, no splats.
+    Full: more drops, and splats on the ground (one per heavy blow, two on a kill) that spread in, lie 7 s and dry away
+    from their edges. The red sparks of a flesh blow give way to the blood (a charged blow keeps its gold).
+  - **Grounded:** drops end on the ground found by a ray straight down from the blow (fighters ignored); a splat is laid
+    where a ray down from above finds level geometry, turned to its slope (`CharacterMotor.groundBelow`), and four more
+    rays at its edge check it lies flat: one that would hang over a step's edge or a drop is made smaller (down to one
+    that fits a stair tread, 0.3 m) or left out; none on walls or steep faces, none far above or below the victim
+    (checked on the summit's stair: splats on the treads, none floating or sunk).
+  - **Rain (Dwarka):** a splat laid in the rain starts darker on the bright wet stone, then spreads 45 % wider, thins and
+    fades (3.2 s, then 1.3 s drying, against 7 + 1.8 s in the dry).
+  - **Who bleeds what** (`Enemy.blood`), checked for every chapter: raiders (prologue), the Baoli Guardian (an asura),
+    the Mayavi, Shalva, the rakshasas and yatudhanas, Andhaka and the hero: dark red. Takshaka and the island's cave
+    creatures (mini monsters, archers): green-black ichor. The Vetala: grave-ash, no splat. The sparring vanara: nothing.
+    Shades are cast members, never struck.
+  - **The hurt pulse** (B): a blow on the hero of 18 or more (a boss's swing; a minion's is 16) with Gore on pulses dark
+    blood-red ink in from the screen's edges, deeper the harder the blow, over about a second (`#blood-pulse`,
+    `Hud.hurt`), over the existing red flash.
+  - **Not in story scenes:** blows draw no blood while a scene plays unless a cue spills it (`spill(..., { scripted:
+    true })`), and the fight's blood is cleared at the cut into a scene.
+  - **Cost:** unchanged, two draw calls; one ray per blow, at most thirteen more per splat laid.
+  - **Dev:** `__debug.blood(true | 'low' | false | null)` overrides the setting for the session (null: back to it) and
+    reports counts; `__debug.bleed(x, y, z, { kind, damage, kill })` spills at a point. Previews in
+    `game asset/previews/blood_*` (`blood_low_dwarka`, `blood_full_dwarka_wet_splat`, `blood_full_dwarka_washing`,
+    `blood_full_summit_stair`, `blood_hurt_pulse`, `blood_settings_gore`).
+  - **Left for later:** weapon stains (B's other half), after playing with it.
+
+## Shalva's dive (2026-10-05)
+
+"Make shalva slightly more intelligent (he can hide in water and teleport basically closer to the player (quick 2
+second))." Code: `src/entities/BossShalva.ts`.
+
+- **The move:** he goes under the rain-flooded stone in a burst of water (0.6 s: a dark churning pool with a foam rim
+  opens at his feet, he sinks into it, a plunge splash and a deep gulp, `SoundFX.playPlunge`). For 2 s he is gone
+  (`Character.submerged`: out of sight, cannot be struck or aimed at, blocks no one, leaves no footfalls): a wake of
+  rings and spray, with a dark shape under the stone, runs at the hero with a low churning rumble that swells
+  (`playWake`); for the last 0.55 s the water boils on the spot where he will come up (the pool opens again, rings burst
+  from it, the telegraph tone sounds). He bursts out of it with a splash and a roar beside the hero (1.75 m off, 85-115
+  degrees round from where he went under: at the side and a little behind, kept inside the arena), gada already raised,
+  and brings it down in his overhead smash 1 s after breaking the surface: blocked, deflected or slid under like any
+  other blow.
+- **When:** once his roar has started the fight, no sooner than 7 s in, and never within 10-14 s of the last dive: when
+  the hero keeps more than 6.5 m off for 1.3 s (kiting) or is beyond his leap (12 m), or when the hero has just hit him
+  3 times (or for 70) within 3 s. Only from the open floor. Never in a scene (anyone under the water surfaces as the
+  fight stops: a scene, the chapter won or lost); a heavy blow, a deflection or a posture break during the sink stops
+  it. In a 45 s test against a kiting hero he dived every ~16 s.
+- **Tuning note:** his ordinary overhead smash only connects within about 1.8 m (his lunge stops at 2 m), so the burst
+  puts him at 1.75 m; left as it was for his other attacks.
+- **Dev:** `__debug.shalvaDive()` sends him under now. Previews: `game asset/previews/shalva_dive_*.jpg`.
 
 ## Tools
 

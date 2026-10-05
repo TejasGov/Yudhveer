@@ -391,10 +391,13 @@ export interface FootfallEvents {
   splash?(strength: number, x: number, z: number): void;
 }
 
-/** A shade or a remembered figure (Extra's `shade` / `ghost`) hovers and leaves the water alone. */
+/**
+ * A shade or a remembered figure (Extra's `shade` / `ghost`) hovers and leaves the water alone; one gone under it
+ * (`submerged`, Shalva's dive) makes its own wake.
+ */
 function insubstantial(character: Character): boolean {
   const spirit = character as Character & { shade?: unknown; ghost?: unknown };
-  return !!spirit.shade || !!spirit.ghost;
+  return !!spirit.shade || !!spirit.ghost || character.submerged;
 }
 
 const STRIKE_STRENGTH: Record<string, number> = { ATTACK_JUMP: 4.8, ATTACK_3: 3.4 };

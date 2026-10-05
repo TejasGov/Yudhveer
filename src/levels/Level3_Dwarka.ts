@@ -8,6 +8,7 @@ import { Footfalls, GroundSplashes, tickWetMaterials, wetten } from './environme
 import { SceneManager } from '../core/SceneManager';
 import { ParticleFX } from '../combat/ParticleFX';
 import { SoundFX } from '../combat/SoundFX';
+import { BloodFX } from '../combat/BloodFX';
 
 /**
  * Level 3: Dwarka, Krishna's sea city at sunset - a ruined circular arena on an island among temple islands, the
@@ -184,6 +185,8 @@ export class Level3_Dwarka extends GLBLevel {
     this.splashes = new GroundSplashes({ floorY: DWARKA_FLOOR_Y, arenaRadius: 12.2, ...SPLASH_SLOTS });
     this.group.add(this.sky.mesh, this.rain.mesh, this.splashes.mesh);
     this.setRain(Level3_Dwarka.rainLevel);
+    // Blood on the stone washes out in the rain.
+    BloodFX.getInstance().wet = true;
     // Every dust puff on the floor (landings, slides, roars, leaps) is water thrown up instead.
     ParticleFX.getInstance().onGroundImpact = (origin, count) => {
       if (Math.abs(origin.y - DWARKA_FLOOR_Y) > 0.5 || !this.splashes) return false;
@@ -210,6 +213,7 @@ export class Level3_Dwarka extends GLBLevel {
 
   public override dispose(): void {
     ParticleFX.getInstance().onGroundImpact = null;
+    BloodFX.getInstance().wet = false;
     this.footfalls = null;
     this.rain = null;
     this.sky = null;

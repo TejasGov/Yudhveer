@@ -1007,6 +1007,28 @@ export class SoundFX {
     }
   }
 
+  /**
+   * Something big goes under the water at once (Shalva's dive): a deep gulp and thump under the splash, the water
+   * closing over him.
+   */
+  public playPlunge(): void {
+    this.playSplash(5);
+    this.tone({ type: 'sine', freq: 110, to: 38, gain: 0.32, duration: 0.55, attack: 0.01 });
+    this.noise({ color: 'brown', filter: 'lowpass', from: 900, to: 120, duration: 0.9, gain: 0.3, attack: 0.01, wet: 0.2 });
+    // The water closing: a hollow glug.
+    this.tone({ type: 'sine', freq: 260, to: 140, gain: 0.08, duration: 0.18, delay: 0.32, filter: { type: 'bandpass', freq: 220, q: 3 } });
+  }
+
+  /**
+   * The wake of something moving fast under the water toward the hero, for `seconds`: a low churning rumble that
+   * swells as it nears, and a rising surge at the end (where it will come up).
+   */
+  public playWake(seconds: number): void {
+    this.noise({ color: 'brown', filter: 'lowpass', from: 140, peak: 260, to: 520, q: 1.2, duration: seconds + 0.2, gain: 0.34, attack: seconds * 0.8, wet: 0.2 });
+    this.noise({ color: 'pink', filter: 'bandpass', from: 500, to: 1500, q: 1.4, duration: seconds, gain: 0.07, attack: seconds * 0.9, wet: 0.3 });
+    this.tone({ type: 'sawtooth', freq: 48, to: 70, gain: 0.07, duration: seconds + 0.1, attack: seconds * 0.85, filter: { type: 'lowpass', freq: 160, q: 2 } });
+  }
+
   /** The hero's slide along the ground. */
   public playSlide(): void {
     if (this.sample('slide')) return;

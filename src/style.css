@@ -785,6 +785,20 @@ kbd {
   transition: none;
 }
 
+/* A hard blow with blood on: dark ink pooling in from the screen's edges (Hud.hurt animates its opacity). */
+#blood-pulse {
+  position: fixed;
+  inset: 0;
+  z-index: 5;
+  pointer-events: none;
+  opacity: 0;
+  background:
+    radial-gradient(ellipse 75% 70% at 50% 50%, rgba(0, 0, 0, 0) 62%, rgba(92, 6, 4, 0.55) 84%, rgba(48, 2, 2, 0.92) 100%),
+    radial-gradient(ellipse 120% 40% at 50% 100%, rgba(60, 3, 3, 0.55) 0%, rgba(60, 3, 3, 0) 60%),
+    radial-gradient(ellipse 40% 90% at 0% 50%, rgba(60, 3, 3, 0.45) 0%, rgba(60, 3, 3, 0) 70%),
+    radial-gradient(ellipse 40% 90% at 100% 50%, rgba(60, 3, 3, 0.45) 0%, rgba(60, 3, 3, 0) 70%);
+}
+
 /* ---------------------------------------------------------------- Cutscenes */
 
 #cinema {

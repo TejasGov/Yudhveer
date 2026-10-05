@@ -50,6 +50,22 @@ export class CharacterMotor {
       CharacterMotor.ignoreFighters) !== null;
   }
 
+  /**
+   * The height of the level's ground straight below `from` (within `maxDrop`), fighters and sensors ignored, and its
+   * normal in `normal`; null over a drop, or when `from` is already inside something (a wall).
+   */
+  public static groundBelow(from: THREE.Vector3, maxDrop: number, normal?: THREE.Vector3): number | null {
+    const physics = PhysicsWorld.getInstance();
+    const R = physics.RAPIER_INSTANCE;
+    if (!R || !physics.world) return null;
+    const ray = new R.Ray({ x: from.x, y: from.y, z: from.z }, { x: 0, y: -1, z: 0 });
+    const hit = physics.world.castRayAndGetNormal(ray, maxDrop, true, R.QueryFilterFlags.EXCLUDE_SENSORS, undefined, undefined, undefined,
+      CharacterMotor.ignoreFighters);
+    if (!hit || hit.timeOfImpact <= 1e-4) return null;
+    normal?.set(hit.normal.x, hit.normal.y, hit.normal.z);
+    return from.y - hit.timeOfImpact;
+  }
+
   public grounded = false;
   public verticalVelocity = 0;
   /** Capsule radius, for fighter separation. */

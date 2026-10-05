@@ -1,7 +1,9 @@
 import './style.css';
 import { Engine } from './core/Engine';
-import { BloodFX, type GoreLevel } from './combat/BloodFX';
+import * as THREE from 'three';
+import { BloodFX, type BloodKind, type GoreLevel } from './combat/BloodFX';
 import { Level3_Dwarka } from './levels/Level3_Dwarka';
+import { BossShalva } from './entities/BossShalva';
 import { SoundFX, VICTORY_STINGER, type VictoryGrade, type VictoryStinger } from './combat/SoundFX';
 
 window.addEventListener('DOMContentLoaded', async () => {
@@ -29,11 +31,20 @@ window.addEventListener('DOMContentLoaded', async () => {
       win: () => engine.debugWin(),
       // The victory sound: play it now, or render it offline and report its level and spectrum (`'chime'` is the
       // old one, for comparison).
-      // Blood (prototype, off by default): `blood(true)` for Full, `blood('low')`, `blood(false)` for off.
-      blood: (on: boolean | GoreLevel = true) => {
+      // Blood, overriding the Gore setting for this session: `blood(true)` for Full, `blood('low')`, `blood(false)` for
+      // off, `blood(null)` back to the setting.
+      blood: (on: boolean | GoreLevel | null = true) => {
         BloodFX.getInstance().level = on === true ? 'full' : on === false ? 'off' : on;
-        return BloodFX.getInstance().level;
+        return { level: BloodFX.getInstance().level, ...BloodFX.getInstance().counts };
       },
+      // A blow's blood at a point (x, y, z), flung along (dx, dz), as if from a victim standing at height `feet`.
+      bleed: (x: number, y: number, z: number, opts: { dx?: number; dz?: number; damage?: number; kind?: BloodKind; feet?: number; kill?: boolean } = {}) => {
+        const { dx = 0, dz = 1, damage = 30, kind = 'red', feet = y - 1.2, kill = false } = opts;
+        BloodFX.getInstance().spill(new THREE.Vector3(x, y, z), new THREE.Vector3(dx, 0, dz), damage, kind, feet, kill, { scripted: true });
+        return BloodFX.getInstance().counts;
+      },
+      // Shalva's dive (Dwarka): `shalvaDive()` sends him under now, whatever his cooldown.
+      shalvaDive: () => engine.enemies.some((e) => e instanceof BossShalva && e.debugDive()),
       // Dwarka's rain: `rain('low')` thins it to a third, `rain(false)` stops it (the stone stays wet), `rain()` full.
       rain: (level: boolean | 'low' = true) => {
         const rain = level === true ? 'full' : level === false ? 'off' : level;
