@@ -3,6 +3,7 @@ import type { CharacterDefinition, StateAnimation } from '../animation/Character
 import type { CharacterState } from '../CharacterStateMachine';
 import type { WeaponId } from '../../game/Progression';
 import { YODHA } from './Yodha';
+import type { SwingKind, ImpactKind } from '../../combat/SoundFX';
 
 /** What one blow of a weapon does to whoever it lands on. `heavy` blows break through a committed attack. */
 export interface Blow {
@@ -11,11 +12,14 @@ export interface Blow {
   heavy?: boolean;
 }
 
-/** How a weapon sounds (the engine's synthesized voices until real recordings replace them). */
+/** How a weapon sounds: which recorded whoosh and impact (combat/SoundFX.ts), and each swing's pitch. */
 export interface WeaponSound {
   /** Whoosh pitch per swing (ATTACK_1, ATTACK_2, ATTACK_3); lower is heavier. */
   swing: [number, number, number];
-  impact: 'blade' | 'wood' | 'crush';
+  /** Which whoosh: swing_blade, swing_lathi or swing_heavy. */
+  whoosh: SwingKind;
+  /** Which blow: hit_blade, hit_wood or hit_crush. */
+  impact: ImpactKind;
 }
 
 /**
@@ -109,7 +113,7 @@ export const WEAPON_SETS: Record<WeaponId, WeaponSet> = {
     },
     shield: false,
     stowable: false,
-    sound: { swing: [1.25, 1.4, 1.1], impact: 'wood' },
+    sound: { swing: [1.25, 1.4, 1.1], whoosh: 'lathi', impact: 'wood' },
   },
   sword: {
     id: 'sword',
@@ -129,7 +133,7 @@ export const WEAPON_SETS: Record<WeaponId, WeaponSet> = {
     },
     shield: true,
     stowable: true,
-    sound: { swing: [1, 1.15, 0.85], impact: 'blade' },
+    sound: { swing: [1, 1.15, 0.85], whoosh: 'blade', impact: 'blade' },
   },
   mace: {
     id: 'mace',
@@ -153,7 +157,7 @@ export const WEAPON_SETS: Record<WeaponId, WeaponSet> = {
     },
     shield: false,
     stowable: false,
-    sound: { swing: [0.7, 0.62, 0.55], impact: 'crush' },
+    sound: { swing: [0.7, 0.62, 0.55], whoosh: 'heavy', impact: 'crush' },
   },
   khanda: {
     id: 'khanda',
@@ -168,6 +172,6 @@ export const WEAPON_SETS: Record<WeaponId, WeaponSet> = {
     },
     shield: true,
     stowable: true,
-    sound: { swing: [1, 1.15, 0.85], impact: 'blade' },
+    sound: { swing: [1, 1.15, 0.85], whoosh: 'blade', impact: 'blade' },
   },
 };

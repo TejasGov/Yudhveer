@@ -291,7 +291,12 @@ Every line, for recording (ElevenLabs; the voices are in `game asset/voice/VOICE
 ## Already decided (from earlier sessions)
 
 - Sound: the per-place ambience stays (stepwell, jungle, sea, mountain with thunder and lightning). The synthesized
-  character sounds were reverted; they are to be replaced with real ones.
+  character sounds were reverted; they are to be replaced with real ones. Done: 18 recorded ElevenLabs effects
+  (public/assets/sfx, per-weapon whoosh and impact, roars, parry, block, telegraph, phase surge) play through
+  `SoundFX` with slight pitch and level variation, the synth kept as their fallback; recorded music loops
+  (public/assets/music: title, village, baoli, akhada, island, dwarka, summit, boss, andhaka_final) crossfade per
+  chapter and boss (`LEVEL_MUSIC` and `Finale.music` in Engine), dip under voices and in cutscenes; Andhaka laughs
+  (voice/andhaka_laugh) as his entrance smile begins and at his second phase.
 - Andhaka's in-game entrance at the summit (smile, crown, sword from the stone) is the reveal of his face.
 
 ## Roadmap
@@ -316,6 +321,7 @@ Each milestone is one chat. Start it with: "Read docs/STORY.md, let's do milesto
   Takshaka's prophecy and the sword.
 - [ ] **9. Chapter V, the summit:** the second minion type, the guru-as-Shiva ending cinematic, credits.
 - [ ] **10. Voices and sound:** ElevenLabs voices for every line, real character sound effects, music per chapter.
+  (Effects and music wired; the island track awaits its chapter; remaining: voices for every line.)
 - [ ] **11. Replace placeholders:** the user's Meshy models (mentor, island monsters, second minion, weapons).
 - [ ] **12. Polish and balance:** full playthroughs, difficulty curve across the five chapters, performance,
   loading sizes.

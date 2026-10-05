@@ -2,6 +2,10 @@ import * as THREE from 'three';
 import { Boss } from './Boss';
 import type { CharacterRig, CharacterDefinition } from './animation/CharacterRig';
 import { SceneManager } from '../core/SceneManager';
+import { Voices } from '../combat/Voices';
+
+/** His laugh (public/assets/voice): as his smile spreads in the entrance, and as his second phase begins. */
+const LAUGH = 'andhaka_laugh';
 
 /** Below this share of health he enters his second phase. */
 const PHASE_2_AT = 0.5;
@@ -24,7 +28,7 @@ const smoothstep = (a: number, b: number, t: number) => THREE.MathUtils.smoothst
  */
 export class BossAndhaka extends Boss {
   public phase = 1;
-  private entrance: { marks: Record<string, number>; duration: number; crowned: boolean; gripped: boolean; drawn: boolean; roared: boolean } | null = null;
+  private entrance: { marks: Record<string, number>; duration: number; laughed: boolean; crowned: boolean; gripped: boolean; drawn: boolean; roared: boolean } | null = null;
   /** The face's Smile morph target on each mesh that has it. */
   private readonly smile: { mesh: THREE.Mesh; index: number }[] = [];
   private smileLevel = 0;
@@ -50,6 +54,14 @@ export class BossAndhaka extends Boss {
     this.turnRate = 4;
     this.lungeSpec = { a: 0.1, b: 0.55, maxDist: 1.6, stopDist: 2.1 };
     this.torsoMesh.scale.setScalar(1.25);
+    Voices.preload([LAUGH]);
+  }
+
+  /** He laughs, `delay` seconds from now (a little later if the recording is still loading). */
+  private laugh(delay = 0): void {
+    const ready = Voices.get(LAUGH);
+    if (ready) this.soundFX.playVoice(ready, 0, 0.3, delay);
+    else void Voices.load(LAUGH).then((buffer) => buffer && this.soundFX.playVoice(buffer, 0, 0.3, delay));
   }
 
   public override async attachRig(definition: CharacterDefinition): Promise<CharacterRig> {
@@ -87,7 +99,7 @@ export class BossAndhaka extends Boss {
     place(sword, this.group, planted);
     this.stateMachine.changeState('IDLE');
     this.playScripted({ clip: ENTRANCE, fade: 0 });
-    this.entrance = { marks, duration: entrance.duration, crowned: false, gripped: false, drawn: false, roared: false };
+    this.entrance = { marks, duration: entrance.duration, laughed: false, crowned: false, gripped: false, drawn: false, roared: false };
     return entrance.duration;
   }
 
@@ -117,6 +129,10 @@ export class BossAndhaka extends Boss {
       const playing = rig.clip === ENTRANCE && this.stateMachine.currentState === 'IDLE';
       const t = playing ? rig.time : e.duration;
       const def = rig.definition;
+      if (!e.laughed && playing && e.marks.smile !== undefined && t >= e.marks.smile) {
+        e.laughed = true;
+        this.laugh();
+      }
       if (!e.crowned && t >= e.marks.crowned && def.offhand) {
         e.crowned = true;
         rig.attach(this.shieldMesh, def.offhand);
@@ -178,6 +194,7 @@ export class BossAndhaka extends Boss {
     this.tuning = { ...this.tuning, attackInterval: 0.8 };
     this.turnRate = 5;
     this.soundFX.playBossPhaseTransition();
+    this.laugh(0.6); // over the surge's tail
     this.particleFX.spawnDeflectionShockwave(this.getPosition());
     SceneManager.getInstance().triggerScreenShake(0.35, 0.4);
     if (this.hasClip('CHARGE') && this.stateMachine.currentState !== 'POSTURE_BROKEN') this.stateMachine.changeState('CHARGE');

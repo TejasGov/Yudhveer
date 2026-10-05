@@ -7,7 +7,7 @@ import { Settings, Progress, type GameSettings } from './Settings';
 import { LevelManager } from '../levels/LevelManager';
 import { disposeObject } from '../levels/GLBLevel';
 import { ParticleFX } from '../combat/ParticleFX';
-import { SoundFX, MOODS, type MusicMood, type Ambience } from '../combat/SoundFX';
+import { SoundFX, type Track, type Ambience } from '../combat/SoundFX';
 import { CombatSystem } from '../combat/CombatSystem';
 import { CombatDebug } from '../combat/CombatDebug';
 import { ProjectileManager } from '../combat/ProjectileManager';
@@ -122,6 +122,8 @@ interface Horde {
  */
 interface Finale extends Omit<Spawn, 'at'> {
   at: THREE.Vector3 | ((hero: THREE.Vector3) => THREE.Vector3);
+  /** His fight's music (the boss theme if not given). */
+  music?: Track;
 }
 
 const v3 = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
@@ -179,10 +181,11 @@ const FINALES: Record<number, Finale> = {
     rig: TAKSHAKA,
   },
   // The summit: at the top of Shiva's stair, on the dais (4 m up), facing down toward the arena.
-  4: { make: () => new BossAndhaka('andhaka'), at: v3(0, 4.05, -9.6), capsule: ANDHAKA_CAPSULE, rig: ANDHAKA },
+  4: { make: () => new BossAndhaka('andhaka'), at: v3(0, 4.05, -9.6), capsule: ANDHAKA_CAPSULE, rig: ANDHAKA, music: 'andhaka_final' },
 };
 
-const LEVEL_MOODS: Record<number, MusicMood> = { 0: MOODS.village, 1: MOODS.baoli, 2: MOODS.akhada, 3: MOODS.dwarka, 4: MOODS.summit };
+/** Each arena's music: the village (the prologue), the stepwell, the akhada, Dwarka, the summit. Bosses bring their own. */
+const LEVEL_MUSIC: Record<number, Track> = { 0: 'village', 1: 'baoli', 2: 'akhada', 3: 'dwarka', 4: 'summit' };
 /** Each arena's ambience and reverb: the village, the stepwell, the jungle akhada, the sea at Dwarka, the mountain. */
 const LEVEL_AMBIENCE: Record<number, Ambience> = { 0: 'village', 1: 'baoli', 2: 'akhada', 3: 'dwarka', 4: 'summit' };
 
@@ -655,7 +658,8 @@ export class Engine {
     $('continue-detail').textContent = resume ? `${chapterTitle(chapterById(unlocked))}, ${chapterById(unlocked).name}` : '';
     this.screens.only('title', resume ? cont : null);
     refreshGlyphs(document, this.inputManager.device);
-    this.soundFX.music.play(MOODS.title);
+    this.soundFX.music.play('title');
+    this.soundFX.music.dim(false);
     this.soundFX.playAmbience(null);
   }
 
@@ -689,7 +693,7 @@ export class Engine {
     let rigShare = 0;
     const report = () => this.showLoading(kicker, chapter.name, levelShare * 0.75 + rigShare * 0.25);
     report();
-    this.soundFX.music.play(LEVEL_MOODS[chapter.level] ?? MOODS.title);
+    this.soundFX.music.play(LEVEL_MUSIC[chapter.level] ?? 'title');
     this.soundFX.playAmbience(LEVEL_AMBIENCE[chapter.level] ?? null);
 
     try {
@@ -708,6 +712,8 @@ export class Engine {
     const rigs = [hero, ...this.spawnEnemies(chapter), ...this.startHorde(chapter), ...this.spawnCast(chapter)];
     this.finale = FINALES[chapter.level] ? { def: FINALES[chapter.level], boss: null } : null;
     if (this.finale) CharacterRig.prefetch(this.finale.def.rig);
+    // The boss's music, ready for when he comes.
+    if (this.finale || this.enemies.some((e) => e.isBoss)) this.soundFX.music.prefetch(this.finale?.def.music ?? 'boss');
     let done = 0;
     await Promise.all(rigs.map((p) => p.finally(() => { rigShare = ++done / rigs.length; report(); })));
     if (token !== this.loadToken) return;
@@ -793,6 +799,7 @@ export class Engine {
     const token = this.loadToken;
     const enemy = f.def.make();
     f.boss = enemy;
+    this.soundFX.music.play(f.def.music ?? 'boss');
     const at = typeof f.def.at === 'function' ? f.def.at(this.player!.getPosition()) : f.def.at;
     this.addFighter(enemy, at, f.def.capsule);
     enemy.faceTowards(this.player!.getPosition());
@@ -819,6 +826,7 @@ export class Engine {
     this.resetSkip();
     this.hud.show(false);
     this.cinema.setActive(true);
+    this.soundFX.music.dim(true);
     this.director.play(buildArrival(this.introContext(this.chapter!), enemy), () => this.endIntro());
   }
 
@@ -874,6 +882,7 @@ export class Engine {
     this.resetSkip();
     this.cinema.setActive(true);
     this.cinema.setFade(1);
+    this.soundFX.music.dim(true);
     const token = this.loadToken;
     this.director.play(buildIntro(this.introContext(chapter)), () => this.afterIntro(chapter, token));
   }
@@ -919,6 +928,7 @@ export class Engine {
     this.projectileManager.clear();
     this.dialogue.clear();
     this.cinema.setActive(true, scene.letterbox !== false);
+    this.soundFX.music.dim(true);
     const stage = this.stage();
     this.staging.begin(stage.player, stage.enemies);
     const run = new SceneRun(scene, stage, this.dialogue, this.staging);
@@ -962,6 +972,7 @@ export class Engine {
     this.storyScene(ending, () => {
       this.mode = 'over';
       this.cinema.setActive(false);
+      this.soundFX.music.dim(false);
       // A chapter that runs straight on stays black into the next one's loading.
       if (!this.chapter?.continues) this.fadeFromBlack(0.8);
       this.showOutcome();
@@ -1017,15 +1028,22 @@ export class Engine {
     this.hud.show(true);
     this.hud.showBoss(true);
     this.hud.setDevice(this.inputManager.device);
-    const boss = this.enemies.find((e) => e.isBoss);
-    const mood = LEVEL_MOODS[this.chapter!.level] ?? MOODS.title;
-    this.soundFX.music.play(boss ? { ...mood, pulse: 84 } : { ...mood, pulse: 96 });
+    this.soundFX.music.play(this.fightMusic());
+    this.soundFX.music.dim(false);
     if (fadeIn) {
       // A retry skips the cutscene, but the boss still announces himself.
       this.cinema.setFade(1);
       this.fadeFromBlack(0.8);
     }
     this.updateCaptureHint();
+  }
+
+  /** The music for the fight as it stands: a boss still standing brings his (or the boss theme); else the arena's. */
+  private fightMusic(): Track {
+    const finale = this.finale?.boss;
+    if (finale && finale.stateMachine.currentState !== 'DEAD') return this.finale!.def.music ?? 'boss';
+    if (this.enemies.some((e) => e.isBoss && e.stateMachine.currentState !== 'DEAD')) return 'boss';
+    return LEVEL_MUSIC[this.chapter!.level] ?? 'title';
   }
 
   private pause(): void {
@@ -1098,7 +1116,7 @@ export class Engine {
     this.hud.clearHint();
     this.hud.showBoss(false);
     this.soundFX.playLevelClear();
-    this.soundFX.music.play(LEVEL_MOODS[this.chapter!.level] ?? MOODS.title);
+    this.soundFX.music.play(LEVEL_MUSIC[this.chapter!.level] ?? 'title');
     const boss = this.finale?.boss ?? this.enemies.find((e) => e.isBoss);
     this.hud.callout({ text: boss ? `${boss.displayName} has fallen` : this.chapter!.clearedLine, tone: 'pale' });
     this.slowMotion(0.3, 1.6);

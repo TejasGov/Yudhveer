@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { Character, type HitWindow } from './Character';
 import { CharacterMotor } from '../physics/CharacterMotor';
 import type { CharacterState } from './CharacterStateMachine';
-import { SoundFX } from '../combat/SoundFX';
+import { SoundFX, type SwingKind, type ImpactKind } from '../combat/SoundFX';
 import { ParticleFX } from '../combat/ParticleFX';
 
 /** What an enemy's AI needs to know about the one it is fighting. */
@@ -27,6 +27,9 @@ export class Enemy extends Character {
   public epithet = '';
   /** Bosses get the large bar at the foot of the screen and a cutscene of their own. */
   public isBoss = false;
+  /** How its weapon sounds: the whoosh of a swing, and the blow when it lands on the hero. */
+  public swingSound: SwingKind = 'blade';
+  public impactSound: ImpactKind = 'blade';
   /**
    * Waypoints to run along before joining the fight (minions crossing bridges), level coordinates. The AI follows
    * them and ignores its target until the last one, or until the target comes within `ROUTE_BREAK` metres.
@@ -271,7 +274,7 @@ export class Enemy extends Character {
 
   /** Every state change: swing sounds. Subclasses add their own cues. */
   protected onStateChange(state: CharacterState, _previous: CharacterState): void {
-    if (state.startsWith('ATTACK')) this.soundFX.playSwordSwing(this.isBoss ? 0.72 : 0.85);
+    if (state.startsWith('ATTACK')) this.soundFX.playSwordSwing(this.isBoss ? 0.72 : 0.85, this.swingSound);
   }
 
   /** A swing begins from the AI (not a chained follow-up). */

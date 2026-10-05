@@ -115,7 +115,7 @@ export class ProjectileManager {
       ownerId,
       isParried: false,
     });
-    this.soundFX.playFlameBurst();
+    this.soundFX.playMagicBolt();
   }
 
   public spawnFlameWave(origin: THREE.Vector3, forwardDir: THREE.Vector3, ownerId: string): void {
@@ -213,7 +213,7 @@ export class ProjectileManager {
             // Caught on the raised dhal
             player.takeDamage(p.damage * 0.2);
             if (!player.addMarmaDamage(p.postureDamage * 1.25)) player.stateMachine.changeState('BLOCK_HIT');
-            this.soundFX.playParryClash();
+            this.soundFX.playShieldBlock();
             this.particleFX.spawnSparks(p.position, 18, false);
             this.onPlayerContact?.('blocked');
             this.destroyProjectile(i);

@@ -93,7 +93,7 @@ export class Player extends Character {
       this.rootMotionScale = 1;
       if (newState.startsWith('ATTACK')) {
         const swing = this.weapon.sound.swing;
-        this.soundFX.playSwordSwing(newState === 'ATTACK_1' ? swing[0] : newState === 'ATTACK_2' ? swing[1] : swing[2]);
+        this.soundFX.playSwordSwing(newState === 'ATTACK_1' ? swing[0] : newState === 'ATTACK_2' ? swing[1] : swing[2], this.weapon.sound.whoosh);
         this.aimAttack(newState); // chained swings too, which the state machine starts
       }
     };
@@ -330,7 +330,7 @@ export class Player extends Character {
     this.stateMachine.changeState('DODGE');
     this.rootMotionScale = SLIDE.travel;
     this.particleFX.spawnDustPuff(this.getPosition(), 10);
-    this.soundFX.playSwordSwing(0.55);
+    this.soundFX.playSlide();
   }
 
   /**

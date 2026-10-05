@@ -25,6 +25,9 @@ export class BossShalva extends Boss {
     this.turnRate = 4;
     this.lungeSpec = { a: 0.1, b: 0.55, maxDist: 1.5, stopDist: 2 };
     this.torsoMesh.scale.setScalar(1.15);
+    // The spiked gada.
+    this.swingSound = 'heavy';
+    this.impactSound = 'crush';
   }
 
   protected override onRoar(): void {

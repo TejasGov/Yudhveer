@@ -1,4 +1,40 @@
 import { Settings } from '../core/Settings';
+import sampleIds from 'virtual:sfx-samples';
+import trackIds from 'virtual:music-tracks';
+
+/**
+ * The recorded effects (public/assets/sfx, ElevenLabs takes) and how loud each plays against the rest. Every one has
+ * a synthesized stand-in that plays until (or unless) its recording is decoded.
+ */
+const SAMPLE_GAIN = {
+  swing_blade: 0.42,
+  swing_lathi: 0.4,
+  swing_heavy: 0.5,
+  hit_blade: 0.6,
+  hit_wood: 0.6,
+  hit_crush: 0.65,
+  parry_clash: 0.62,
+  shield_block: 0.55,
+  glancing_blow: 0.55,
+  posture_break: 0.6,
+  slide: 0.6,
+  katar_slash: 0.45,
+  magic_bolt: 0.45,
+  flame_burst: 0.6,
+  telegraph: 0.32,
+  roar_brute: 0.6,
+  roar_naga: 0.7,
+  phase_surge: 0.55,
+} as const;
+export type Sample = keyof typeof SAMPLE_GAIN;
+const SAMPLES = new Set(sampleIds);
+
+/** A weapon's whoosh: steel, a staff, or something heavy (a mace, a gada). */
+export type SwingKind = 'blade' | 'lathi' | 'heavy';
+/** What a blow lands like. */
+export type ImpactKind = 'blade' | 'wood' | 'crush';
+/** Whose roar: a big beast or demon, or the naga king. */
+export type RoarKind = 'brute' | 'naga';
 
 type Wave = OscillatorType;
 type NoiseColor = 'white' | 'pink' | 'brown';
@@ -100,10 +136,11 @@ const rand = (a: number, b: number) => a + Math.random() * (b - a);
 const vary = (x: number, spread = 0.06) => x * (1 + (Math.random() * 2 - 1) * spread);
 
 /**
- * All game audio, synthesized with the Web Audio API (no audio files): combat sounds, voices, each place's ambience
- * and reverb, cutscene hits, menu ticks and a procedural tanpura drone with a drum pulse for boss fights. Everything
- * runs through one master gain (Settings.masterVolume) split into effects, ambience and music buses. The one
- * exception is recorded dialogue (`playVoice`), which the story's lines bring when their files exist.
+ * All game audio, through the Web Audio API. Combat sounds are recordings (public/assets/sfx) with a slightly different
+ * pitch and level each time, each with a synthesized stand-in for before it has loaded; each place's ambience and
+ * reverb, cutscene hits and menu ticks are synthesized; the soundtrack is recorded loops (`music`, public/assets/music)
+ * over a procedural tanpura drone as its fallback; and the story's lines bring recorded dialogue (`playVoice`).
+ * Everything runs through one master gain (Settings.masterVolume) split into effects, ambience and music buses.
  */
 export class SoundFX {
   private static instance: SoundFX | null = null;
@@ -118,7 +155,8 @@ export class SoundFX {
   private shapers = new Map<number, WaveShaperNode['curve']>();
   private ambience: AmbienceRun | null = null;
   private wantedAmbience: Ambience | null = null;
-  public readonly music = new MusicBed();
+  private samples = new Map<Sample, AudioBuffer>();
+  public readonly music = new Music();
   /** Lightning, `delay` seconds before its thunder is heard (the summit). */
   public onLightning: ((strength: number) => void) | null = null;
 
@@ -158,8 +196,46 @@ export class SoundFX {
       this.applyVolumes();
       this.music.connect(ctx, this.musicBus);
       if (this.wantedAmbience) this.playAmbience(this.wantedAmbience);
+      this.loadSamples(ctx);
     }
     if (this.ctx.state === 'suspended') void this.ctx.resume();
+  }
+
+  /** Fetches and decodes every recorded effect there is, in the background; each replaces its synth once ready. */
+  private loadSamples(ctx: AudioContext): void {
+    for (const id of Object.keys(SAMPLE_GAIN) as Sample[]) {
+      if (!SAMPLES.has(id)) continue;
+      fetch(`/assets/sfx/${id}.mp3`)
+        .then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(`HTTP ${r.status}`))))
+        .then((data) => ctx.decodeAudioData(data))
+        .then((buffer) => this.samples.set(id, buffer))
+        .catch((err) => console.warn(`[SoundFX] ${id} could not be loaded; keeping its synthesized version`, err));
+    }
+  }
+
+  /** Which recorded effects are decoded (for testing). */
+  public loadedSamples(): string[] {
+    return [...this.samples.keys()];
+  }
+
+  /**
+   * Plays a recorded effect at `rate` (and `gain`), each a few percent off so repeats never sound identical, placed
+   * like any other sound. False if the recording is not ready (the caller plays its synth instead).
+   */
+  private sample(id: Sample, o: Placement & { rate?: number; gain?: number } = {}): boolean {
+    const buffer = this.samples.get(id);
+    if (!buffer) return false;
+    const ctx = this.ready();
+    if (!ctx) return true;
+    const src = ctx.createBufferSource();
+    src.buffer = buffer;
+    src.playbackRate.value = vary(o.rate ?? 1, 0.05);
+    const g = ctx.createGain();
+    g.gain.value = vary(SAMPLE_GAIN[id] * (o.gain ?? 1), 0.12);
+    src.connect(g);
+    this.place(g, o);
+    src.start(ctx.currentTime + (o.delay ?? 0));
+    return true;
   }
 
   private applyVolumes(): void {
@@ -739,24 +815,50 @@ export class SoundFX {
 
   // --- Combat -------------------------------------------------------------------------------------------------
 
-  /** Steel on bronze: a parry or a blow caught on the dhal. */
+  /** Steel on bronze: a perfect parry (or a charge gathered). */
   public playParryClash(): void {
+    if (this.sample('parry_clash')) return;
+    this.synthClash();
+  }
+
+  /** A blow caught on the raised dhal. */
+  public playShieldBlock(): void {
+    if (this.sample('shield_block')) return;
+    this.synthClash();
+  }
+
+  private synthClash(): void {
     this.tone({ type: 'triangle', freq: 1400, to: 320, gain: 0.5, duration: 0.09 });
     this.tone({ type: 'sine', freq: 840, gain: 0.38, duration: 1.2 });
     this.tone({ type: 'sine', freq: 2520, gain: 0.14, duration: 0.8 });
     this.tone({ type: 'sine', freq: 1263, gain: 0.08, duration: 0.6 });
   }
 
-  public playSwordSwing(pitch = 1): void {
+  /**
+   * A weapon's whoosh. `pitch` is the swing's own (each blow of a combo differs; lower is heavier): the synth follows
+   * it fully, the recording only a little (around its weapon's usual pitch).
+   */
+  public playSwordSwing(pitch = 1, kind: SwingKind = 'blade'): void {
+    const usual = kind === 'lathi' ? 1.25 : kind === 'heavy' ? 0.62 : 0.95;
+    if (this.sample(`swing_${kind}`, { rate: Math.max(0.8, Math.min(1.2, 1 + (pitch / usual - 1) * 0.35)) })) return;
     this.noise({ duration: 0.22, gain: 0.22, attack: 0.05, filter: 'bandpass', from: 400 * pitch, peak: 1400 * pitch, to: 300 * pitch, q: 3 });
   }
 
+  /** The hero's slide along the ground. */
+  public playSlide(): void {
+    if (this.sample('slide')) return;
+    this.noise({ duration: 0.22, gain: 0.22, attack: 0.05, filter: 'bandpass', from: 220, peak: 770, to: 165, q: 3 });
+  }
+
   public playKatarSlash(): void {
+    if (this.sample('katar_slash')) return;
     this.noise({ duration: 0.14, gain: 0.18, attack: 0.02, filter: 'bandpass', from: 900, peak: 2600, to: 700, q: 4 });
     this.tone({ type: 'sawtooth', freq: 900, to: 320, gain: 0.06, duration: 0.09 });
   }
 
+  /** A spear's thrust: a quick, high steel whoosh (no recording of its own). */
   public playSpearThrust(): void {
+    if (this.sample('swing_blade', { rate: 1.15, gain: 0.85 })) return;
     this.tone({ type: 'sine', freq: 650, to: 180, gain: 0.22, duration: 0.15 });
   }
 
@@ -765,8 +867,15 @@ export class SoundFX {
     this.tone({ type: 'sawtooth', freq: 880, to: 420, linear: true, gain: 0.1, duration: 0.3, delay: 0.16, filter: { type: 'bandpass', freq: 650, q: 4 } });
   }
 
+  /** A sorcerer's bolt leaves the hand (Mayavi). */
+  public playMagicBolt(): void {
+    if (this.sample('magic_bolt')) return;
+    this.playFlameBurst();
+  }
+
   /** A blow landing: steel by default, a hard knock for wood, a deep thud for a mace. */
-  public playHitImpact(kind: 'blade' | 'wood' | 'crush' = 'blade'): void {
+  public playHitImpact(kind: ImpactKind = 'blade'): void {
+    if (this.sample(`hit_${kind}`)) return;
     if (kind === 'wood') {
       this.tone({ type: 'triangle', freq: 330, to: 140, gain: 0.4, duration: 0.09 });
       this.noise({ duration: 0.05, gain: 0.2, attack: 0.001, filter: 'bandpass', from: 2800, to: 900, q: 1.5 });
@@ -782,21 +891,25 @@ export class SoundFX {
 
   /** A blade turned aside by hide or armour: a dull knock and a short scrape. */
   public playGlancingBlow(): void {
+    if (this.sample('glancing_blow')) return;
     this.tone({ type: 'triangle', freq: 260, to: 110, gain: 0.26, duration: 0.1 });
     this.noise({ duration: 0.07, gain: 0.1, attack: 0.002, filter: 'bandpass', from: 3200, to: 1800, q: 2 });
   }
 
   /** A deep brass gong: a posture breaks. */
   public playPostureBreak(): void {
+    if (this.sample('posture_break')) return;
     [120, 185, 290, 440].forEach((f, i) => this.tone({ type: 'sine', freq: f, to: f * 0.95, gain: 0.25 / (i + 1), duration: 1.8 }));
   }
 
   public playFlameBurst(): void {
+    if (this.sample('flame_burst')) return;
     this.tone({ type: 'sawtooth', freq: 120, to: 45, gain: 0.35, duration: 0.6, filter: { type: 'lowpass', freq: 450 } });
     this.noise({ duration: 0.8, gain: 0.22, attack: 0.05, filter: 'lowpass', from: 300, peak: 1600, to: 200 });
   }
 
   public playBossPhaseTransition(): void {
+    if (this.sample('phase_surge', { wet: 0.3 })) return;
     this.tone({ type: 'sawtooth', freq: 80, to: 320, linear: true, gain: 0.32, duration: 0.8, filter: { type: 'lowpass', freq: 900 } });
     this.tone({ type: 'sawtooth', freq: 320, to: 70, gain: 0.3, duration: 0.8, delay: 0.75, filter: { type: 'lowpass', freq: 700 } });
     this.playPostureBreak();
@@ -804,11 +917,13 @@ export class SoundFX {
 
   /** A low, rising warning before an enemy swing. */
   public playTelegraphSound(): void {
+    if (this.sample('telegraph')) return;
     this.tone({ type: 'sawtooth', freq: 300, to: 650, gain: 0.08, duration: 0.22, filter: { type: 'bandpass', freq: 500, q: 5 } });
   }
 
   /** A boss roars: a growl (detuned saws) over a throaty noise swell. Lower `pitch` is bigger. */
-  public playRoar(pitch = 1): void {
+  public playRoar(pitch = 1, kind: RoarKind = 'brute'): void {
+    if (this.sample(`roar_${kind}`, { rate: 0.7 + 0.3 * pitch, wet: 0.35 })) return;
     const base = 70 * pitch;
     for (const detune of [1, 1.07, 0.5]) {
       this.tone({
@@ -879,9 +994,10 @@ export class SoundFX {
 
   /**
    * Plays a recorded line from `offset` seconds through the effects bus (so the master volume applies), with `wet`
-   * of the place's reverb (a remembered voice sounds far off). Returns how to stop it, or null if audio is not running.
+   * of the place's reverb (a remembered voice sounds far off), `delay` seconds from now. The music dips under it.
+   * Returns how to stop it, or null if audio is not running.
    */
-  public playVoice(buffer: AudioBuffer, offset = 0, wet = 0): (() => void) | null {
+  public playVoice(buffer: AudioBuffer, offset = 0, wet = 0, delay = 0): (() => void) | null {
     const ctx = this.ready();
     if (!ctx || offset >= buffer.duration) return null;
     const src = ctx.createBufferSource();
@@ -890,13 +1006,16 @@ export class SoundFX {
     gain.gain.value = 0.9;
     src.connect(gain);
     this.place(gain, { wet });
-    src.start(ctx.currentTime, offset);
+    src.start(ctx.currentTime + delay, offset);
+    const release = this.music.duck(delay);
+    src.onended = release;
     return () => {
       try {
         src.stop();
       } catch {
         // Already ended.
       }
+      release();
     };
   }
 }
@@ -1120,3 +1239,184 @@ export const MOODS = {
   dwarka: { tonic: 103.8, pluck: 1.2, pulse: 0 },
   summit: { tonic: 92.5, pluck: 1.25, pulse: 0 },
 } satisfies Record<string, MusicMood>;
+
+/** The soundtrack's loops (public/assets/music, ElevenLabs, 60 s each). */
+export type Track = 'title' | 'village' | 'baoli' | 'akhada' | 'island' | 'dwarka' | 'summit' | 'boss' | 'andhaka_final';
+const TRACKS = new Set(trackIds);
+/** Each loop's level, evening out how loud they came out (the akhada's was made quiet). */
+const TRACK_GAIN: Partial<Record<Track, number>> = { akhada: 1.5, baoli: 1.15, title: 1.1, boss: 0.85, andhaka_final: 0.9 };
+/** The drone a track falls back to if its recording is missing or will not decode. */
+const FALLBACK: Record<Track, MusicMood> = {
+  title: MOODS.title,
+  village: MOODS.village,
+  baoli: MOODS.baoli,
+  akhada: MOODS.akhada,
+  island: MOODS.dwarka,
+  dwarka: MOODS.dwarka,
+  summit: MOODS.summit,
+  boss: { ...MOODS.baoli, pulse: 84 },
+  andhaka_final: { ...MOODS.summit, pulse: 84 },
+};
+/** Seconds one loop takes to hand over to the next. */
+const CROSSFADE = 1.5;
+/** Decoded loops kept at once (about 20 MB each); the least recently played go first. */
+const KEEP_DECODED = 4;
+/** Music level under a spoken line, and in a cutscene. */
+const DUCKED = 0.4;
+const DIMMED = 0.65;
+
+/**
+ * The soundtrack: one recorded loop at a time, crossfading to the next, dipping under spoken lines (`duck`) and in
+ * cutscenes (`dim`). Loops are fetched and decoded when first asked for (or ahead, with `prefetch`); the one playing
+ * carries on until the next is ready. A loop with no recording plays the tanpura drone (`MusicBed`) in its place.
+ */
+class Music {
+  private ctx: AudioContext | null = null;
+  private out: GainNode | null = null;
+  private readonly bed = new MusicBed();
+  private wanted: Track | null = null;
+  private playing: { track: Track; src: AudioBufferSourceNode; gain: GainNode } | null = null;
+  /** In order of last use. */
+  private readonly decoded = new Map<Track, AudioBuffer>();
+  private readonly pending = new Map<Track, Promise<AudioBuffer | null>>();
+  private readonly failed = new Set<Track>();
+  private ducks = 0;
+  private dimmed = false;
+
+  public connect(ctx: AudioContext, bus: GainNode): void {
+    this.ctx = ctx;
+    this.out = ctx.createGain();
+    this.out.connect(bus);
+    this.bed.connect(ctx, this.out);
+    this.play(this.wanted);
+  }
+
+  /** The loop now playing or on its way (for testing). */
+  public get track(): Track | null {
+    return this.wanted;
+  }
+
+  /** Crossfades to `track` (null fades out). Asking for the one already playing changes nothing. */
+  public play(track: Track | null): void {
+    this.wanted = track;
+    if (!this.ctx) return;
+    if (track && this.playing?.track === track) return;
+    if (!track) {
+      this.fadeOut();
+      this.bed.play(null);
+      return;
+    }
+    const ready = this.decoded.get(track);
+    if (ready) {
+      this.start(track, ready);
+    } else if (!TRACKS.has(track) || this.failed.has(track)) {
+      this.fadeOut();
+      this.bed.play(FALLBACK[track]);
+    } else {
+      void this.load(track).then((buffer) => {
+        if (this.wanted !== track || this.playing?.track === track) return;
+        if (buffer) this.start(track, buffer);
+        else this.play(track); // now known to have failed: the drone
+      });
+    }
+  }
+
+  /** Starts fetching and decoding a loop that will be wanted soon (a boss's). */
+  public prefetch(track: Track): void {
+    if (this.ctx && TRACKS.has(track)) void this.load(track);
+  }
+
+  /** Dips the music (under a voice, `delay` seconds from now); call what it returns to let it back up. */
+  public duck(delay = 0): () => void {
+    this.ducks++;
+    this.applyLevel(delay, 0.12);
+    let released = false;
+    return () => {
+      if (released) return;
+      released = true;
+      this.ducks--;
+      this.applyLevel(0, 0.5);
+    };
+  }
+
+  /** Lower in cutscenes. */
+  public dim(on: boolean): void {
+    if (this.dimmed === on) return;
+    this.dimmed = on;
+    this.applyLevel(0, 0.6);
+  }
+
+  private applyLevel(delay: number, smoothing: number): void {
+    if (!this.ctx || !this.out) return;
+    const now = this.ctx.currentTime;
+    const g = this.out.gain;
+    g.cancelScheduledValues(now);
+    g.setValueAtTime(g.value, now);
+    g.setTargetAtTime((this.ducks > 0 ? DUCKED : 1) * (this.dimmed ? DIMMED : 1), now + delay, smoothing);
+  }
+
+  private start(track: Track, buffer: AudioBuffer): void {
+    const ctx = this.ctx!;
+    this.fadeOut();
+    this.bed.play(null);
+    // Most recently used last.
+    this.decoded.delete(track);
+    this.decoded.set(track, buffer);
+    const src = ctx.createBufferSource();
+    src.buffer = buffer;
+    src.loop = true;
+    const gain = ctx.createGain();
+    const t = ctx.currentTime;
+    gain.gain.setValueAtTime(0.0001, t);
+    gain.gain.linearRampToValueAtTime(TRACK_GAIN[track] ?? 1, t + CROSSFADE);
+    src.connect(gain);
+    gain.connect(this.out!);
+    src.start(t);
+    this.playing = { track, src, gain };
+  }
+
+  private fadeOut(): void {
+    const p = this.playing;
+    if (!p || !this.ctx) return;
+    this.playing = null;
+    const t = this.ctx.currentTime;
+    const g = p.gain.gain;
+    g.cancelScheduledValues(t);
+    g.setValueAtTime(g.value, t);
+    g.linearRampToValueAtTime(0, t + CROSSFADE);
+    p.src.stop(t + CROSSFADE + 0.05);
+  }
+
+  private load(track: Track): Promise<AudioBuffer | null> {
+    const ready = this.decoded.get(track);
+    if (ready) return Promise.resolve(ready);
+    let p = this.pending.get(track);
+    if (!p) {
+      const ctx = this.ctx!;
+      p = fetch(`/assets/music/${track}.mp3`)
+        .then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(`HTTP ${r.status}`))))
+        .then((data) => ctx.decodeAudioData(data))
+        .then((buffer) => {
+          this.decoded.set(track, buffer);
+          this.evict();
+          return buffer;
+        })
+        .catch((err) => {
+          console.warn(`[Music] ${track} could not be loaded; the drone plays instead`, err);
+          this.failed.add(track);
+          return null;
+        })
+        .finally(() => this.pending.delete(track));
+      this.pending.set(track, p);
+    }
+    return p;
+  }
+
+  /** Lets go of the least recently used loops beyond `KEEP_DECODED` (never the one playing or wanted). */
+  private evict(): void {
+    for (const track of this.decoded.keys()) {
+      if (this.decoded.size <= KEEP_DECODED) return;
+      if (track !== this.playing?.track && track !== this.wanted) this.decoded.delete(track);
+    }
+  }
+}

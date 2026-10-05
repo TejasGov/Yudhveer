@@ -261,7 +261,7 @@ export class CombatSystem {
     this.onPlayerHurt?.();
     if (broken && player.stateMachine.currentState !== 'DEAD') this.callout({ text: 'Posture broken', tone: 'red' });
 
-    this.soundFX.playHitImpact();
+    this.soundFX.playHitImpact(enemy.impactSound);
     this.particleFX.spawnSparks(hitPoint, 30, false);
     this.sceneManager.triggerScreenShake(0.35, 0.22);
     // No stun-lock: a stagger (and a short grace after it) is not restarted by the rest of a combo, so the player
@@ -296,7 +296,7 @@ export class CombatSystem {
     this.stats.blocks++;
     player.takeDamage(damage * 0.2);
     const broken = player.addMarmaDamage(postureDamage * 1.25);
-    this.soundFX.playParryClash();
+    this.soundFX.playShieldBlock();
     this.particleFX.spawnSparks(hitPoint, 18, false);
     this.sceneManager.triggerScreenShake(0.15, 0.14);
     if (broken) this.callout({ text: 'Guard broken', tone: 'red' });

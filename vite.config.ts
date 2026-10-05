@@ -2,27 +2,31 @@ import { defineConfig, type Plugin } from 'vite';
 import { existsSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-const VOICE_DIR = resolve('public/assets/voice');
-const VOICE_MODULE = 'virtual:voice-lines';
-
 /**
- * `virtual:voice-lines`: the ids of the recorded lines in public/assets/voice (`<id>.mp3`), read when the game is
- * built or served. The game only asks for files on this list, so a line whose recording does not exist yet never
- * shows a 404 in the console. Adding or removing a file while `npm run dev` runs reloads the page.
+ * A virtual module listing the recordings in a folder of public/assets (`<id>.mp3`), read when the game is built or
+ * served. The game only asks for files on these lists, so a sound whose recording does not exist yet never shows a
+ * 404 in the console (it falls back to its synthesized version, or to silence). Adding or removing a file while
+ * `npm run dev` runs reloads the page.
+ *
+ * - `virtual:voice-lines`: recorded dialogue, public/assets/voice.
+ * - `virtual:sfx-samples`: recorded sound effects, public/assets/sfx.
+ * - `virtual:music-tracks`: the soundtrack's loops, public/assets/music.
  */
-function voiceLines(): Plugin {
-  const resolved = `\0${VOICE_MODULE}`;
+function recordings(name: string, folder: string): Plugin {
+  const dir = resolve('public/assets', folder);
+  const module = `virtual:${name}`;
+  const resolved = `\0${module}`;
   return {
-    name: 'voice-lines',
-    resolveId: (id) => (id === VOICE_MODULE ? resolved : undefined),
+    name,
+    resolveId: (id) => (id === module ? resolved : undefined),
     load(id) {
       if (id !== resolved) return undefined;
-      const ids = existsSync(VOICE_DIR) ? readdirSync(VOICE_DIR).filter((f) => f.endsWith('.mp3')).map((f) => f.slice(0, -4)) : [];
+      const ids = existsSync(dir) ? readdirSync(dir).filter((f) => f.endsWith('.mp3')).map((f) => f.slice(0, -4)) : [];
       return `export default ${JSON.stringify(ids.sort())};`;
     },
     configureServer(server) {
       const changed = (file: string) => {
-        if (!resolve(file).startsWith(VOICE_DIR) || !file.endsWith('.mp3')) return;
+        if (!resolve(file).startsWith(dir) || !file.endsWith('.mp3')) return;
         const mod = server.moduleGraph.getModuleById(resolved);
         if (mod) server.moduleGraph.invalidateModule(mod);
         server.ws.send({ type: 'full-reload' });
@@ -34,7 +38,7 @@ function voiceLines(): Plugin {
 }
 
 export default defineConfig({
-  plugins: [voiceLines()],
+  plugins: [recordings('voice-lines', 'voice'), recordings('sfx-samples', 'sfx'), recordings('music-tracks', 'music')],
   server: {
     port: 5199,
     strictPort: true,

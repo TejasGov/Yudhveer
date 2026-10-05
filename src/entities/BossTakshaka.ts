@@ -45,6 +45,8 @@ export class BossTakshaka extends Boss {
     this.swordMesh = new THREE.Group();
     socket?.add(this.swordMesh);
     this.shieldMesh.visible = false;
+    // A great arm through the air.
+    this.swingSound = 'heavy';
   }
 
   public override takeDamage(amount: number): void {
@@ -65,7 +67,7 @@ export class BossTakshaka extends Boss {
   }
 
   protected override onRoar(): void {
-    this.soundFX.playRoar(0.75);
+    this.soundFX.playRoar(0.75, 'naga');
     this.particleFX.spawnDustPuff(this.getPosition(), 24);
   }
 
