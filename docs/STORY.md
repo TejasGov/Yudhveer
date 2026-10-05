@@ -626,17 +626,17 @@ The guru's voice (and Shiva's) is the deep narrator in `game asset/voice/VOICES.
 
 | Id | Speaker | Text | Trigger | Recorded |
 |---|---|---|---|---|
-| `summit_end_guru_1` | Guru (off, from the dais) | Yudhveer. | ending, shot 1 | no |
+| `summit_end_guru_1` | Guru (off, from the dais) | Yudhveer. | ending, shot 1 | yes |
 | (no id) | Yudhveer | Guruji? | ending, he turns to the stair | subtitle only |
 | (no id) | Yudhveer | Guruji... you live. | ending, kneeling beside him | subtitle only |
-| `summit_end_guru_2` | Guru | I live. He meant my soul for his god, and carried me all the way up the mountain to give it. | ending, kneeling | no |
-| `summit_end_guru_3` | Guru | You kept your feet, Yudhveer. | ending, both standing | no |
+| `summit_end_guru_2` | Guru | I live. He meant my soul for his god, and carried me all the way up the mountain to give it. | ending, kneeling | yes |
+| `summit_end_guru_3` | Guru | You kept your feet, Yudhveer. | ending, both standing | yes |
 | (no id) | Yudhveer | I said I would find you. Even at the top of the world. | ending, both standing | subtitle only |
-| `summit_end_guru_4` | Guru | He gathered wise souls to throw down Mahadeva. He never asked whose soul he carried up the mountain. | ending, before the light | no |
-| `summit_end_guru_5` | Guru | Look up, Yudhveer. | ending, before the light | no |
-| `summit_reveal_shiva_1` | Shiva | Every lesson was mine to give. Every step was yours to take. | the statue lit | no |
+| `summit_end_guru_4` | Guru | He gathered wise souls to throw down Mahadeva. He never asked whose soul he carried up the mountain. | ending, before the light | yes |
+| `summit_end_guru_5` | Guru | Look up, Yudhveer. | ending, before the light | yes |
+| `summit_reveal_shiva_1` | Shiva | Every lesson was mine to give. Every step was yours to take. | the statue lit | yes |
 | (no id) | Yudhveer | Mahadeva... | he kneels before the statue | subtitle only |
-| `summit_reveal_shiva_2` | Shiva | The dark is lifted from the mountain. Go home, Yudhveer, and teach what you have learned. | the eclipse passes, last shot | no |
+| `summit_reveal_shiva_2` | Shiva | The dark is lifted from the mountain. Go home, Yudhveer, and teach what you have learned. | the eclipse passes, last shot | yes |
 
 ## Tools
 
