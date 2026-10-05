@@ -6,6 +6,7 @@ import { RainField, type RainLevel } from './environment/RainField';
 import { StormSky } from './environment/StormSky';
 import { Footfalls, GroundSplashes, tickWetMaterials, wetten } from './environment/WetGround';
 import { LivingSea, seaHeight, tidemark, type SeaQuality, type TideDebug } from './environment/LivingSea';
+import { FireField, findModelledFlames, spotForFlame } from './environment/FireField';
 import { SceneManager } from '../core/SceneManager';
 import { ParticleFX } from '../combat/ParticleFX';
 import { SoundFX } from '../combat/SoundFX';
@@ -67,6 +68,25 @@ const PAVING = /^DW_Arena_Weathered_Paving$/;
 const PUDDLES = /^DW_Arena_Shallow_Rain_Puddles$/;
 const WET_MARGINS = /^DW_Arena_Damp_Stone$/;
 const STONE = /^DW_(Arena_Ruined_Sandstone|Weathered_Limestone_PolyHaven|Ancient_Blockwork_PolyHaven)$/;
+/**
+ * The eight diyas round the islets: their exported flames (static pills, one mesh) only say where they burn. A
+ * FireField burns there instead, leaning in the storm's wind and guttering in its gusts; the two nearest the camera
+ * light their stone (a constant count of lights: no shader recompiles).
+ */
+const DIYA_FLAMES = 'BR_Batch_09_Diya_Flame';
+const DIYA_LIGHTS = 2;
+/** The lights stand this far over the flames' feet: any lower, the diyas' own bowls burned white round the wick. */
+const DIYA_LIGHT = { color: 0xff9548, intensity: 2.4, distance: 5, decay: 2, above: 0.45 };
+/**
+ * The flames' bands for Dwarka's grade: the storm's grey daylight and its AgX curve (which bleaches bright oranges) wash
+ * the village's colours out to a pale peach, so these are deeper and more saturated, not brighter.
+ */
+const DIYA_PALETTE = {
+  rim: new THREE.Color(0.85, 0.07, 0.0),
+  body: new THREE.Color(1.7, 0.32, 0.0),
+  core: new THREE.Color(2.4, 1.0, 0.1),
+  glow: new THREE.Color(1.8, 0.45, 0.04),
+};
 /** Drops in the rain's near and far boxes, and the floor's splash slots. */
 const RAIN_DROPS = { near: 5200, far: 2600 };
 const SPLASH_SLOTS = { raindrops: 360, impacts: 64 };
@@ -137,6 +157,10 @@ export class Level3_Dwarka extends GLBLevel {
   private splashes: GroundSplashes | null = null;
   private footfalls: Footfalls | null = null;
   private lastSplashSound = 0;
+  /** The diyas' flames (see DIYA_FLAMES): where each burns (a little above its wick), its fire group, and the lights. */
+  private fires: FireField | null = null;
+  private diyas: { at: THREE.Vector3; group: string }[] = [];
+  private readonly diyaLights: THREE.PointLight[] = [];
 
   constructor() {
     super(LEVEL_URL);
@@ -172,11 +196,13 @@ export class Level3_Dwarka extends GLBLevel {
     // Wet stone mirrors the sky more than the scene's dim environment allows.
     const envMap = this.atmosphere.environment ? { texture: this.atmosphere.environment, rotation: this.atmosphere.environmentRotation } : undefined;
     const seaParts: { ocean: THREE.Mesh | null; horizon: THREE.Mesh | null; surf: THREE.Mesh | null; land: THREE.Mesh[] } = { ocean: null, horizon: null, surf: null, land: [] };
+    const diyaFlames: THREE.Mesh[] = [];
     model.traverse((obj) => {
       const mesh = obj as THREE.Mesh;
       if (!mesh.isMesh) return;
       const name = mesh.name;
       if (name === BAKED_DUST) mesh.visible = false;
+      if (name === DIYA_FLAMES) diyaFlames.push(mesh);
       if (name === BOAT) this.boat = { object: mesh, base: mesh.position.clone(), turn: mesh.quaternion.clone(), heave: 0, pitch: 0, roll: 0 };
       if (name === SEA_PLANE) seaParts.ocean = mesh;
       else if (name === SEA_HORIZON) seaParts.horizon = mesh;
@@ -231,9 +257,49 @@ export class Level3_Dwarka extends GLBLevel {
       this.group.add(this.sea.mesh);
     }
 
+    this.lightDiyas(diyaFlames);
     this.collectBloom(model);
+    if (this.fires) this.bloomObjects.push(this.fires.mesh);
     this.addDust();
     this.addRain();
+  }
+
+  /** The diyas' flames (see DIYA_FLAMES), each a group of its own so its light gutters with it. */
+  private lightDiyas(meshes: THREE.Mesh[]): void {
+    const flames = findModelledFlames(meshes);
+    for (const mesh of meshes) {
+      mesh.removeFromParent();
+      mesh.geometry.dispose();
+    }
+    if (!flames.length) return;
+    this.diyas = flames.map((f, i) => ({ at: f.foot.clone().setY(f.foot.y + DIYA_LIGHT.above), group: `diya_${i}` }));
+    // A wick's flame: a little smaller than the pill that stood there.
+    this.fires = new FireField(flames.map((f, i) => spotForFlame(f, `diya_${i}`, { size: f.height * 0.8, width: 0.56 })), { palette: DIYA_PALETTE });
+    for (const d of this.diyas) this.fires.set(d.group, 1);
+    this.group.add(this.fires.mesh);
+    for (let i = 0; i < DIYA_LIGHTS; i++) {
+      const light = new THREE.PointLight(DIYA_LIGHT.color, 0, DIYA_LIGHT.distance, DIYA_LIGHT.decay);
+      light.name = 'Dwarka_Diya_Light';
+      light.castShadow = false;
+      this.diyaLights.push(light);
+      this.group.add(light);
+    }
+  }
+
+  /** The flames lean and gutter in the rain's wind; the diyas nearest the camera get the lights, breathing with them. */
+  private updateDiyas(time: number, camera: THREE.Camera): void {
+    if (!this.fires) return;
+    const wind = this.rain?.wind;
+    if (wind) this.fires.setWind(wind.x, wind.y);
+    this.fires.update(time);
+    const eye = camera.position;
+    const near = [...this.diyas].sort((a, b) => a.at.distanceToSquared(eye) - b.at.distanceToSquared(eye));
+    this.diyaLights.forEach((light, i) => {
+      const diya = near[i];
+      if (!diya) return;
+      light.position.copy(diya.at);
+      light.intensity = DIYA_LIGHT.intensity * this.fires!.flicker(diya.group);
+    });
   }
 
   /** The sea: 'full', 'low' (a quarter of the triangles, simpler foam, no raindrops on it) or 'flat' (no swells either). */
@@ -286,6 +352,7 @@ export class Level3_Dwarka extends GLBLevel {
   public override dispose(): void {
     ParticleFX.getInstance().onGroundImpact = null;
     BloodFX.getInstance().wet = false;
+    this.fires?.dispose();
     this.footfalls = null;
     this.rain = null;
     this.sky = null;
@@ -325,6 +392,7 @@ export class Level3_Dwarka extends GLBLevel {
   public override update(time: number, dt: number, camera: THREE.Camera): void {
     super.update(time, dt, camera);
     this.updateStorm(dt, camera);
+    this.updateDiyas(time, camera);
     // The sea's normals drift; the tide and the swells move it; the boat rides them.
     for (const normal of this.waterNormals) normal.offset.set((time * 0.002) % 1, (time * 0.0011) % 1);
     this.sea?.update(dt, camera);

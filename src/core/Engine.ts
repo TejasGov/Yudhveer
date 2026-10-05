@@ -355,6 +355,14 @@ export class Engine {
   private isRunning = false;
   private lastTime = 0;
   private accumulator = 0;
+  /**
+   * The levels run on the frame's clock (seconds) plus this. `debugAdvance` moves it on by the time it steps, so a
+   * stepped capture sees the fires, the sea, the rain and the beacon move as they would in play, and real time then
+   * carries on from where the steps left the levels instead of jumping back.
+   */
+  private levelClockOffset = 0;
+  /** The last time the levels were given (they never see it run backward). */
+  private levelTime = 0;
   private interpolated = new Map<THREE.Object3D, InterpolatedTransform>();
   private poses = new Map<Character, InterpolatedPose>();
 
@@ -1608,18 +1616,32 @@ export class Engine {
     this.sceneManager.focusKeyLight(this.director.focus());
   }
 
-  /** Dev: runs the game for `seconds` of fixed steps right now (cutscenes included), then holds still. */
+  /**
+   * Dev: runs the game for `seconds` of fixed steps right now (cutscenes included), then holds still. The level is
+   * ticked with them on a clock of its own that the steps move on (see `levelClockOffset`).
+   */
   public debugAdvance(seconds: number): void {
     this.paused = false;
-    for (let i = 0; i < Math.round(seconds / FIXED_DT); i++) {
+    const steps = Math.round(seconds / FIXED_DT);
+    const start = Math.max(this.levelTime, performance.now() * 0.001 + this.levelClockOffset);
+    for (let i = 0; i < steps; i++) {
       if (this.simulating()) this.fixedUpdate(FIXED_DT);
       this.modeTime += FIXED_DT;
       this.updateCamera(FIXED_DT);
       this.updateFlow(FIXED_DT);
       this.dialogue.update(FIXED_DT);
       this.particleFX.update(FIXED_DT);
+      this.updateLevel(start + (i + 1) * FIXED_DT, FIXED_DT);
     }
+    // Real time picks up where the steps left the levels' clock.
+    this.levelClockOffset = start + steps * FIXED_DT - performance.now() * 0.001;
     this.paused = true;
+  }
+
+  /** The level's frame: its clock (seconds, never running backward) and the game time since the last (0 while paused). */
+  private updateLevel(time: number, dt: number): void {
+    this.levelTime = Math.max(this.levelTime, time);
+    this.levelManager.update(this.levelTime, dt, this.sceneManager.camera);
   }
 
   /**
@@ -1685,7 +1707,7 @@ export class Engine {
 
     this.particleFX.update(effectiveDt);
     if (this.player) this.combatDebug.update([this.player, ...this.enemies], rawDt);
-    this.levelManager.update(time * 0.001, this.paused ? 0 : rawDt, this.sceneManager.camera);
+    this.updateLevel(time * 0.001 + this.levelClockOffset, this.paused ? 0 : rawDt);
     if (this.player && (this.mode === 'play' || this.mode === 'handoff' || this.mode === 'outro' || this.mode === 'over')) {
       this.hud.update(this.player, this.enemies, this.sceneManager.camera, rawDt);
     }

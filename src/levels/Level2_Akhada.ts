@@ -2,7 +2,8 @@ import * as THREE from 'three';
 import { GLBLevel } from './GLBLevel';
 import type { LevelAtmosphere } from './LevelTypes';
 import { SceneManager } from '../core/SceneManager';
-import { addLampGlow, addRimLight, createToonRamp, patchShader, toonifyModel, toToonMaterial } from './environment/ToonRelight';
+import { addLampGlow, addRimLight, createToonRamp, toonifyModel, toToonMaterial } from './environment/ToonRelight';
+import { FireField, type FireSpot } from './environment/FireField';
 import { SkyDome, prepareEquirect } from './environment/SkyDome';
 import { WaterRippleMaterial } from './environment/WaterRippleMaterial';
 
@@ -80,6 +81,13 @@ const NIGHT: Look = {
 /** Vermillion grazers just above the earth at the arena corners (Blender (+-9.7, +-8, 0.5)), lit with the night. */
 const GRAZERS: [number, number][] = [[-9.7, 8], [9.7, 8], [-9.7, -8], [9.7, -8]];
 const GRAZER_INTENSITY = 14;
+/**
+ * A faint amber light at the two lit deepam stands nearest the camera (a pair of point lights shared between the eight
+ * stands, a constant count: no shader recompiles), breathing with their flames: the stands' bowls and the verandah floor
+ * round them catch the flames' warmth, inside the cobalt and vermillion night. The second hands off softly as a third
+ * stand comes as near.
+ */
+const STAND_GLOW = { color: 0xffa24c, intensity: 2.2, distance: 6, decay: 2, lights: 2, above: 0.8 };
 
 /**
  * Time of day as the story moves it (`cue`): the lesson darkens toward dusk, then night falls with the arrival.
@@ -130,7 +138,9 @@ function easeOutBack(u: number): number {
 }
 
 interface Lamp {
+  /** Its flame's foot (the wick), and how tall the exported flame stood. */
   centre: THREE.Vector3;
+  height: number;
   /** Seconds after the lighting begins that this one catches. */
   at: number;
 }
@@ -190,20 +200,30 @@ export class Level2_Akhada extends GLBLevel {
   private faceKey: THREE.SpotLight | null = null;
 
   // The lamps: seconds since they began to be lit (< 0 all out, Infinity all burning), and per lamp its flame's size
-  // (the flames' vertex shader reads it) and the light it throws.
+  // (its FireField group's amount, `lamp_<i>`) and the light it throws.
   private lamps: Lamp[] = [];
   private lampClock = -1;
   private lampsDoneAt = 0;
   private readonly flameSize = new Float32Array(MAX_LAMPS);
   private readonly lampLight = new Float32Array(MAX_LAMPS);
-  private flames: THREE.Mesh[] = [];
+  /** Every lamp's flame (see FireField): a group per lamp, so each catches in its turn and flickers on its own. */
+  private fires: FireField | null = null;
   private murals: { mat: THREE.MeshToonMaterial; halo: THREE.Mesh; haloColor: THREE.Color; centre: THREE.Vector3; lamp: number }[] = [];
   private grazers: { light: THREE.PointLight; lamp: number }[] = [];
+  /** See STAND_GLOW. */
+  private readonly standLights: THREE.PointLight[] = [];
 
   constructor() {
     super(LEVEL_URL);
     this.ownedTextures.add(this.ramp).add(this.bustRamp);
     this.playerSpawn.set(0, 0, 6);
+    for (let i = 0; i < STAND_GLOW.lights; i++) {
+      const light = new THREE.PointLight(STAND_GLOW.color, 0, STAND_GLOW.distance, STAND_GLOW.decay);
+      light.name = 'Akhada_Deepam_Glow';
+      light.castShadow = false;
+      this.standLights.push(light);
+      this.group.add(light);
+    }
   }
 
   protected async loadEnvironment(): Promise<void> {
@@ -345,19 +365,20 @@ export class Level2_Akhada extends GLBLevel {
     for (let i = 0; i < Math.min(this.lamps.length, MAX_LAMPS); i++) {
       const since = clock - this.lamps[i].at;
       const u = clock < 0 ? 0 : since / FLAME_CATCH;
+      // Catching: the flame grows in with a little flare past its size (the FireField's amount).
       this.flameSize[i] = u <= 0 ? 0 : u >= 1 ? 1 : easeOutBack(u);
       this.lampLight[i] = clock < 0 ? 0 : THREE.MathUtils.smootherstep(since / GLOW_RISE, 0, 1);
+      this.fires?.set(`lamp_${i}`, this.flameSize[i]);
       anyFlame ||= this.flameSize[i] > 0;
     }
-    // Unlit, the flames cost no draw calls.
-    for (const flame of this.flames) flame.visible = anyFlame;
+    // Unlit, the flames cost no draw call.
+    if (this.fires) this.fires.mesh.visible = anyFlame;
     for (const m of this.murals) {
       const k = this.lampLight[m.lamp];
       m.mat.emissiveIntensity = MURAL_GLOW.intensity * k;
       (m.halo.material as THREE.ShaderMaterial).uniforms.uColor.value.copy(m.haloColor).multiplyScalar(k);
       m.halo.visible = k > 0;
     }
-    for (const g of this.grazers) g.light.intensity = GRAZER_INTENSITY * this.lampLight[g.lamp];
   }
 
   /**
@@ -385,8 +406,9 @@ export class Level2_Akhada extends GLBLevel {
   }
 
   /**
-   * Finds the lamps in the flame meshes (the static deepam flames are one merged mesh, the diya flames two), gives
-   * every flame vertex its lamp and the point its flame grows from, and orders the lamps for the lighting.
+   * Finds the lamps in the flame meshes (the static deepam flames are one merged mesh, the diya lanterns' two) and
+   * orders them for the lighting; their flames burn in a FireField (a group per lamp, `lamp_<i>`, the lamp clock its
+   * amount), and the exported flames, frozen cones, go.
    */
   private prepareLamps(model: THREE.Object3D): void {
     const flames: THREE.Mesh[] = [];
@@ -396,28 +418,27 @@ export class Level2_Akhada extends GLBLevel {
     });
 
     // Group the flame vertices into lamps by where they stand (lamps are metres apart; a lamp's wicks are not).
-    const found: { x: number; z: number; minY: number; n: number }[] = [];
+    const found: { x: number; z: number; minY: number; maxY: number; n: number }[] = [];
     const world = new THREE.Vector3();
-    const lampOf = flames.map((mesh) => {
+    for (const mesh of flames) {
       const pos = mesh.geometry.attributes.position;
-      const ids = new Uint8Array(pos.count);
       for (let i = 0; i < pos.count; i++) {
         world.fromBufferAttribute(pos, i).applyMatrix4(mesh.matrixWorld);
         let k = found.findIndex((l) => Math.hypot(l.x / l.n - world.x, l.z / l.n - world.z) < 0.6);
         if (k < 0) {
           k = found.length;
-          found.push({ x: 0, z: 0, minY: world.y, n: 0 });
+          found.push({ x: 0, z: 0, minY: world.y, maxY: world.y, n: 0 });
         }
         const l = found[k];
         l.x += world.x;
         l.z += world.z;
         l.minY = Math.min(l.minY, world.y);
+        l.maxY = Math.max(l.maxY, world.y);
         l.n++;
-        ids[i] = Math.min(k, MAX_LAMPS - 1);
       }
-      return ids;
-    });
+    }
     const centres = found.map((l) => new THREE.Vector3(l.x / l.n, l.minY, l.z / l.n));
+    const heights = new Map(centres.map((c, i) => [c, found[i].maxY - found[i].minY]));
 
     // The order of the lighting: mirrored pairs, the low diyas before the monolith first (from the middle out),
     // then the tall deepams from the north end southward.
@@ -432,35 +453,23 @@ export class Level2_Akhada extends GLBLevel {
     });
     const at = new Map<THREE.Vector3, number>();
     pairs.forEach((pair, step) => pair.forEach((c) => at.set(c, LAMPS_FROM + step * LAMP_STEP + (c.x > 0 ? PAIR_LAG : 0))));
-    this.lamps = centres.map((centre) => ({ centre, at: at.get(centre) ?? LAMPS_FROM }));
+    this.lamps = centres.map((centre) => ({ centre, height: heights.get(centre) ?? 0.3, at: at.get(centre) ?? LAMPS_FROM }));
     this.lampsDoneAt = Math.max(0, ...this.lamps.map((l) => l.at)) + Math.max(FLAME_CATCH, GLOW_RISE);
     if (found.length > MAX_LAMPS) console.warn(`[Level2_Akhada] ${found.length} lamps; only ${MAX_LAMPS} light separately`);
 
-    // Each flame vertex knows its lamp and the wick it grows from (in the mesh's own space).
-    const patched = new Set<THREE.Material>();
-    const uniform = { value: this.flameSize };
-    flames.forEach((mesh, m) => {
-      const ids = lampOf[m];
-      const toLocal = mesh.matrixWorld.clone().invert();
-      const base = new Float32Array(ids.length * 3);
-      const lamp = new Float32Array(ids.length);
-      ids.forEach((id, i) => {
-        world.copy(centres[id]).applyMatrix4(toLocal).toArray(base, i * 3);
-        lamp[i] = id;
-      });
-      mesh.geometry.setAttribute('aLampBase', new THREE.BufferAttribute(base, 3));
-      mesh.geometry.setAttribute('aLamp', new THREE.BufferAttribute(lamp, 1));
-      this.flames.push(mesh);
-      const mat = mesh.material as THREE.Material;
-      if (patched.has(mat)) return;
-      patched.add(mat);
-      patchShader(mat, 'lampflame', (shader) => {
-        shader.uniforms.uFlameSize = uniform;
-        shader.vertexShader = shader.vertexShader
-          .replace('#include <common>', `#include <common>\nattribute float aLamp;\nattribute vec3 aLampBase;\nuniform float uFlameSize[${MAX_LAMPS}];`)
-          .replace('#include <begin_vertex>', '#include <begin_vertex>\ntransformed = aLampBase + (transformed - aLampBase) * uFlameSize[int(aLamp + 0.5)];');
-      });
-    });
+    // The flames: a tall deepam's two tongues, a lantern's diya one slim one, each sized to the flame exported there.
+    const spots: FireSpot[] = this.lamps.slice(0, MAX_LAMPS).map((lamp, i) => ({
+      at: lamp.centre.clone(),
+      size: lamp.height * 1.2,
+      group: `lamp_${i}`,
+      tongues: lamp.height > 0.2 ? 2 : 1,
+      width: lamp.height > 0.2 ? 0.55 : 0.5,
+    }));
+    for (const mesh of flames) mesh.removeFromParent();
+    this.fires = new FireField(spots);
+    this.fires.mesh.visible = false;
+    this.group.add(this.fires.mesh);
+    this.bloomObjects.push(this.fires.mesh);
 
     // A mural's glow is the nearest lamp's.
     for (const m of this.murals) m.lamp = this.nearestLamp(m.centre);
@@ -558,6 +567,7 @@ export class Level2_Akhada extends GLBLevel {
   }
 
   public override update(time: number, dt: number, camera: THREE.Camera): void {
+    this.fires?.update(time);
     super.update(time, dt, camera);
     this.sky?.follow(camera);
     this.puddles?.update(time);
@@ -573,6 +583,35 @@ export class Level2_Akhada extends GLBLevel {
       this.lampClock += dt;
       this.updateLamps();
     }
+    // The grazers come up with the stand nearest each, and breathe with its flame (the grade stays the night's
+    // vermillion: only the flicker is the lamp's).
+    for (const g of this.grazers) g.light.intensity = GRAZER_INTENSITY * this.lampLight[g.lamp] * (this.fires?.flicker(`lamp_${g.lamp}`) ?? 1);
+    this.updateStandGlow(camera);
+  }
+
+  /** See STAND_GLOW: the two lit stands nearest the camera, the second fading out as a third comes as near. */
+  private updateStandGlow(camera: THREE.Camera): void {
+    const eye = camera.position;
+    const stands = this.lamps
+      .map((lamp, i) => ({ lamp, i, d: lamp.centre.distanceTo(eye) }))
+      .filter(({ lamp, i }) => lamp.height > 0.2 && i < MAX_LAMPS)
+      .sort((a, b) => a.d - b.d);
+    this.standLights.forEach((light, k) => {
+      const stand = stands[k];
+      if (!stand) {
+        light.intensity = 0;
+        return;
+      }
+      const handoff = k + 1 < stands.length ? THREE.MathUtils.smoothstep(stands[k + 1].d - stand.d, 0, 1.5) : 1;
+      // Well above the flame: nearer, it burned the stand's own bowl white.
+      light.position.copy(stand.lamp.centre).y += STAND_GLOW.above;
+      light.intensity = STAND_GLOW.intensity * this.lampLight[stand.i] * (this.fires?.flicker(`lamp_${stand.i}`) ?? 1) * (k === 0 ? 1 : handoff);
+    });
+  }
+
+  public override dispose(): void {
+    this.fires?.dispose();
+    super.dispose();
   }
 }
 

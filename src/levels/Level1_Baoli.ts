@@ -3,8 +3,9 @@ import { HDRLoader } from 'three/examples/jsm/loaders/HDRLoader.js';
 import { GLBLevel } from './GLBLevel';
 import type { LevelAtmosphere } from './LevelTypes';
 import { WaterRippleMaterial } from './environment/WaterRippleMaterial';
-import { addRimLight, createToonRamp, toonifyModel, toToonMaterial } from './environment/ToonRelight';
-import { ParticleFX } from '../combat/ParticleFX';
+import { addRimLight, createToonRamp, patchShader, toonifyModel, toToonMaterial } from './environment/ToonRelight';
+import { FireField, findModelledFlames, spotForFlame, type FireSpot } from './environment/FireField';
+import { Emitter, ParticleFX } from '../combat/ParticleFX';
 
 const LEVEL_URL = '/assets/levels/moonlit_baoli.glb';
 // The fighting platform; the level is re-centred so its top-centre is the origin (spawns, bounds are relative).
@@ -13,6 +14,22 @@ const ARENA_FLOOR = 'Arena_Floor';
 const MOON_DIR = new THREE.Vector3(0.299, 0.707, -0.641).normalize();
 
 const ADDITIVE_MATERIALS = new Set(['FX_Glow', 'FX_Glow_Far', 'Flame_Outer']);
+/**
+ * The export's flames: a faceted core (lit, ink-outlined) in an additive shell, static. Burned by a FireField instead,
+ * all but the far fort's lamps (`FX_*`): dots of light across the valley, too far off for a flame's shape to show.
+ */
+const FLAME_MATERIALS = new Set(['Flame_Core', 'Flame_Outer']);
+const DISTANT_LAMPS = /^FX_/;
+/**
+ * The near lamps' glow halos (`FX_Glow`, additive): from across the stepwell they make the lamps read, but within a
+ * couple of metres they washed the whole frame out over the flames. They fade out between these distances (metres from
+ * the camera); the FireField's own glow is there up close.
+ */
+const NEAR_GLOW_FADE = { from: 1.5, to: 6 };
+/** The deepastambhas' torch lights, each breathing with its own lamp's flames. */
+const TORCH_LIGHT = /^Torch_Light_/;
+/** The Devi's lamps' light, breathing with them. */
+const KAALI_LIGHT = 'Kaali_Uplight';
 const SOFT_TRANSPARENT = new Set(['Waterfall_Sheet', 'Waterfall_Streaks', 'Waterfall_Foam', 'Mist', 'Mist_Water']);
 const DECALS = new Set(['Yantra_Groove', 'Yantra_Gold']);
 const SHADOW_CASTERS = /^(Pillar_|Pedestal_|Statue_|Temple_|Deco_HangingLamps|Deco_Curtains)/;
@@ -60,6 +77,11 @@ export class Level1_Baoli extends GLBLevel {
   public waterMaterial: WaterRippleMaterial | null = null;
   private scrollers: Scroller[] = [];
   private particleFX = ParticleFX.getInstance();
+  /** The mist over the water, at a rate (never per frame, nothing while paused). */
+  private readonly mist = new Emitter();
+  /** Every near flame in the stepwell (see FireField), and the deepastambhas' torch lights by group. */
+  private fires: FireField | null = null;
+  private readonly torchLights: THREE.Light[] = [];
 
   constructor() {
     super(LEVEL_URL);
@@ -86,8 +108,17 @@ export class Level1_Baoli extends GLBLevel {
     this.atmosphere.background = bg;
   }
 
+  /** The deepastambhas' torch lights and the Devi's uplight breathe with their own flames (see `lightFlames`). */
+  protected override prepareExportedLight(light: THREE.Light): void {
+    super.prepareExportedLight(light);
+    if (!light.parent) return;
+    if (TORCH_LIGHT.test(light.name)) this.torchLights.push(light);
+    if (light.name === KAALI_LIGHT) this.flickerWith(light, () => this.fires?.flicker('kaali') ?? 1);
+  }
+
   protected prepareModel(model: THREE.Object3D): void {
     this.enlargeShrine(model);
+    this.lightFlames(model);
     const scrolledMaps = new Set<THREE.Texture>();
     model.traverse((obj) => {
       const mesh = obj as THREE.Mesh;
@@ -109,6 +140,44 @@ export class Level1_Baoli extends GLBLevel {
     });
     toonifyModel(model, this.ramp, (src) => this.toonOverride(src as THREE.MeshStandardMaterial));
     this.collectBloom(model);
+    if (this.fires) this.bloomObjects.push(this.fires.mesh);
+  }
+
+  /**
+   * The near flames (the deepastambhas' tiers and crowns, the Devi's lamps and her offering, the diyas down the steps,
+   * the hanging lamps) burn in one FireField: the export's static cores and shells only say where (each flame measured,
+   * its core and shell one flame), and go. They are no longer outlined in ink (they write no depth). Each deepastambha
+   * is a group of its own, and its torch light (`Torch_Light_*`, on its crown) breathes with it.
+   */
+  private lightFlames(model: THREE.Object3D): void {
+    model.updateMatrixWorld(true);
+    const meshes = new Map<string, THREE.Mesh[]>();
+    const centre = new THREE.Vector3();
+    const lightAt = this.torchLights.map((l) => l.getWorldPosition(new THREE.Vector3()));
+    model.traverse((obj) => {
+      const mesh = obj as THREE.Mesh;
+      if (!mesh.isMesh || Array.isArray(mesh.material) || !FLAME_MATERIALS.has(mesh.material.name)) return;
+      if (DISTANT_LAMPS.test(mesh.name) || DISTANT_LAMPS.test(mesh.parent?.name ?? '')) return;
+      new THREE.Box3().setFromObject(mesh).getCenter(centre);
+      // A deepastambha's flames go with the torch light on its crown; the rest by what they are.
+      const torch = lightAt.findIndex((p) => Math.hypot(p.x - centre.x, p.z - centre.z) < 1.5);
+      const name = `${mesh.parent?.name ?? ''} ${mesh.name}`;
+      const group = torch >= 0 ? `stambha_${torch}` : /Kaali/.test(name) ? 'kaali' : /Hanging/.test(name) ? 'hanging' : 'diya';
+      const list = meshes.get(group) ?? [];
+      list.push(mesh);
+      meshes.set(group, list);
+    });
+    const spots: FireSpot[] = [];
+    for (const [group, list] of meshes) {
+      // Sized to the flame inside its shell (the shell was a glow round it): a little under the shell's height.
+      for (const flame of findModelledFlames(list)) spots.push(spotForFlame(flame, group, { size: flame.height * 0.95, tongues: flame.height > 0.25 ? 2 : 1 }));
+      for (const mesh of list) mesh.removeFromParent();
+    }
+    if (!spots.length) return;
+    this.fires = new FireField(spots);
+    for (const group of meshes.keys()) this.fires.set(group, 1);
+    this.torchLights.forEach((light, i) => this.flickerWith(light, () => this.fires?.flicker(`stambha_${i}`) ?? 1));
+    this.group.add(this.fires.mesh);
   }
 
   /**
@@ -168,6 +237,13 @@ export class Level1_Baoli extends GLBLevel {
       mat.blending = THREE.AdditiveBlending;
       mat.depthWrite = false;
       mesh.renderOrder = 3;
+      if (name === 'FX_Glow' && !mat.userData.nearFade) {
+        mat.userData.nearFade = true;
+        patchShader(mat, 'nearfade', (shader) => {
+          shader.fragmentShader = shader.fragmentShader.replace('#include <dithering_fragment>', `#include <dithering_fragment>
+gl_FragColor.rgb *= smoothstep(${NEAR_GLOW_FADE.from.toFixed(2)}, ${NEAR_GLOW_FADE.to.toFixed(2)}, length(vViewPosition));`);
+        });
+      }
     } else if (SOFT_TRANSPARENT.has(name)) {
       mat.transparent = true;
       mat.depthWrite = false;
@@ -203,11 +279,20 @@ export class Level1_Baoli extends GLBLevel {
   }
 
   public override update(time: number, dt: number, camera: THREE.Camera): void {
+    // The flames first, so the lights that breathe with them (GLBLevel's flicker) read this frame's.
+    this.fires?.update(time);
     super.update(time, dt, camera);
     for (const s of this.scrollers) {
       s.texture.offset.set(s.speed.x * time, s.speed.y * time);
     }
     this.waterMaterial?.update(time);
-    if (Math.random() < 0.2) this.particleFX.spawnMist(14);
+    // Mist rising off the water: twelve puffs a second (W-11: by game time, so the same at any frame rate and none
+    // while paused).
+    for (let n = this.mist.take(12, dt); n > 0; n--) this.particleFX.spawnMist(14);
+  }
+
+  public override dispose(): void {
+    this.fires?.dispose();
+    super.dispose();
   }
 }

@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import { GLBLevel } from './GLBLevel';
 import type { LevelAtmosphere } from './LevelTypes';
 import { createToonRamp, toonifyModel } from './environment/ToonRelight';
+import { FireField, findModelledFlames, spotForFlame, type ModelledFlame } from './environment/FireField';
+import { PhysicsWorld } from '../core/PhysicsWorld';
 import { CharacterRig } from '../entities/animation/CharacterRig';
 import { WEAPON_SETS } from '../entities/characters/YodhaWeapons';
 import { ease, type Shot } from '../cinematics/CinematicDirector';
@@ -44,9 +46,28 @@ const NO_SHADOW = /^(Flame_|Water_|Eyes_|Stalactites|Props|Cave|Prop_|Pool_Rim|S
 const LAMP_LIGHTS = 8;
 const LAMP_COLOR = new THREE.Color(1.0, 0.56, 0.24);
 const MACE_COLOR = new THREE.Color(1.0, 0.8, 0.45);
+/**
+ * A lamp's light stands at least this far off the rock (and out of anything it stands in), as near its flame as that
+ * allows: lights 0.3 m from the wall blew the rock behind them to white, and the brass deepastambhas, their lights
+ * inside them, burned near-white.
+ */
+const LAMP_CLEARANCE = 0.55;
+/** A lamp light's strength per unit of `lamp_power` (candela), and its falloff: gentler than the inverse square, so the
+ *  pool of light reaches out into the dark without the near rock clipping. */
+const LAMP_GAIN = 17;
+const LAMP_DECAY = 1.5;
 
-interface Lamp { pos: THREE.Vector3; power: number; range: number; seed: number; color: THREE.Color; out?: boolean }
-interface Flame { mesh: THREE.Object3D; base: THREE.Vector3; seed: number }
+interface Lamp {
+  /** The lamp's mark (its flame's, a little above it) and where its light stands (off the rock; see LAMP_CLEARANCE). */
+  pos: THREE.Vector3;
+  light: THREE.Vector3;
+  power: number;
+  range: number;
+  color: THREE.Color;
+  /** The fire group its flame burns in (its light flickers with it); none for the mace's glow. */
+  group: string | null;
+  out?: boolean;
+}
 interface Eyes { mesh: THREE.Object3D; seed: number; next: number; shut: number; gone: number }
 interface Ripple { mesh: THREE.Mesh; t: number; life: number }
 
@@ -56,7 +77,9 @@ interface Ripple { mesh: THREE.Mesh; t: number; life: number }
  * out when he comes close, a pool of black water where something moves. The blessed mace lies on the shrine's altar
  * at the far end (`cue('take-mace')` lifts it away).
  *
- * The lamps are empties in the export; the nearest few to the camera share a small pool of point lights.
+ * The lamps are empties in the export; the nearest few to the camera share a small pool of point lights. Their flames
+ * (cones in the export, `Flame_*`) burn in a FireField: one instanced draw, a group per lamp, each lamp's light
+ * flickering with its own flame.
  */
 export class Level5_Island extends GLBLevel {
   public readonly id = 5;
@@ -87,7 +110,10 @@ export class Level5_Island extends GLBLevel {
   private lamps: Lamp[] = [];
   private lights: THREE.PointLight[] = [];
   private moon: THREE.PointLight | null = null;
-  private flames: Flame[] = [];
+  /** Every flame in the caves (see FireField). */
+  private fires: FireField | null = null;
+  /** The lamps' lights have been stood clear of the rock (needs the colliders, so on the first frame). */
+  private lampsPlaced = false;
   private eyes: Eyes[] = [];
   private ripples: Ripple[] = [];
   private rippleTimer = 2;
@@ -107,7 +133,7 @@ export class Level5_Island extends GLBLevel {
     // Many small props (shelves, bones, pillars) in a few materials: one draw call per material.
     this.batchStatic = true;
     for (let i = 0; i < LAMP_LIGHTS; i++) {
-      const light = new THREE.PointLight(LAMP_COLOR, 0, 8, 2);
+      const light = new THREE.PointLight(LAMP_COLOR, 0, 8, LAMP_DECAY);
       light.castShadow = false;
       this.lights.push(light);
       this.group.add(light);
@@ -147,6 +173,7 @@ export class Level5_Island extends GLBLevel {
 
   protected prepareModel(model: THREE.Object3D): void {
     const lampMeshes: THREE.Object3D[] = [];
+    const flameMeshes: THREE.Mesh[] = [];
     model.traverse((obj) => {
       if (obj.name.startsWith('Lamp_')) lampMeshes.push(obj);
       if (obj.name === 'Mark_Mace') obj.getWorldPosition(this.maceRest);
@@ -161,25 +188,34 @@ export class Level5_Island extends GLBLevel {
       if (!mesh.isMesh) return;
       mesh.castShadow = !NO_SHADOW.test(mesh.name);
       mesh.receiveShadow = !/^(Flame_|Eyes_|Water_)/.test(mesh.name);
-      if (FLAME.test(mesh.name)) this.flames.push({ mesh, base: mesh.scale.clone(), seed: Math.random() * 100 });
+      if (FLAME.test(mesh.name)) flameMeshes.push(mesh);
     });
-    for (const obj of lampMeshes) {
+    lampMeshes.forEach((obj, i) => {
       const pos = obj.getWorldPosition(new THREE.Vector3());
       this.lamps.push({
         pos,
+        light: pos.clone(),
         power: Number(obj.userData.lamp_power ?? 1),
         range: Number(obj.userData.lamp_range ?? 8),
-        seed: Math.random() * 100,
         color: LAMP_COLOR,
+        group: `lamp_${i}`,
       });
+    });
+    // The flames are measured, then their cones taken out; a FireField burns where they stood.
+    const flames = findModelledFlames(flameMeshes);
+    for (const mesh of flameMeshes) {
+      mesh.removeFromParent();
+      mesh.geometry.dispose();
     }
+    const wicks = this.drawLampsOutOfRock(model, flames);
+    this.lightFlames(flames, wicks);
     // The mace's own glow: a lamp of its own on the altar, gold rather than flame.
-    this.lamps.push({ pos: this.maceRest.clone().add(v(0, 0.6, 0.3)), power: 0.3, range: 5, seed: 0, color: MACE_COLOR });
+    const glow = this.maceRest.clone().add(v(0, 0.6, 0.3));
+    this.lamps.push({ pos: glow, light: glow.clone(), power: 0.3, range: 5, color: MACE_COLOR, group: null });
     if (this.moon) this.group.add(this.moon);
     if (this.mace) this.mace.position.copy(this.maceRest);
 
     toonifyModel(model, this.ramp, (src) => {
-      if (src.name === 'Flame') return new THREE.MeshBasicMaterial({ name: 'Flame', color: new THREE.Color(1.5, 0.42, 0.06), fog: false });
       // Eyes in the dark: unlit and through the fog, so they shine where nothing else can be seen.
       if (src.name === 'Eyes') return new THREE.MeshBasicMaterial({ name: 'Eyes', color: new THREE.Color(1.3, 1.5, 0.35), fog: false });
       if (src.name === 'Water') {
@@ -192,6 +228,151 @@ export class Level5_Island extends GLBLevel {
     this.collectBloom(model, 0.6);
   }
 
+  /**
+   * The diyas' flames (a flame standing on a `Prop_diya`, at its wick), returned so they burn as wick flames.
+   *
+   * The rock columns laid by the first tunnel's mouth (`Prop_rock_column*`, dressing placed after the lamps' shelves
+   * were cut into the shell) swallow the two shelf lamps there: diya, wick and flame inside the rock, only the shelf's
+   * end poking out. Each diya buried in the dressing rock is drawn out along its spout (toward the path) until it
+   * clears the rock, its flame and its lamp with it, and a ledge of the shelf's stone is laid under it.
+   */
+  private drawLampsOutOfRock(model: THREE.Object3D, flames: ModelledFlame[]): Set<ModelledFlame> {
+    const rock: THREE.Mesh[] = [];
+    const diyas: THREE.Mesh[] = [];
+    const wicks = new Set<ModelledFlame>();
+    model.traverse((obj) => {
+      const mesh = obj as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      if (/^Prop_(rock_column|cave_wall)/.test(mesh.name)) rock.push(mesh);
+      if (/^Prop_diya/.test(mesh.name)) diyas.push(mesh);
+    });
+    const ray = new THREE.Raycaster();
+    const box = new THREE.Box3();
+    const centre = new THREE.Vector3();
+    for (const diya of diyas) {
+      box.setFromObject(diya);
+      box.getCenter(centre);
+      // Its wick: the flame standing on it, off its middle toward the spout.
+      const wick = flames.find((f) => Math.hypot(f.foot.x - centre.x, f.foot.z - centre.z) < 0.2 && Math.abs(f.foot.y - box.max.y) < 0.15);
+      if (!wick) continue;
+      wicks.add(wick);
+      const out = new THREE.Vector3(wick.foot.x - centre.x, 0, wick.foot.z - centre.z);
+      if (!rock.length || out.lengthSq() < 1e-6) continue;
+      out.normalize();
+      // From a metre out in front of it, back toward it: where the rock's face stands, along its spout.
+      ray.set(centre.clone().addScaledVector(out, 1), out.clone().negate());
+      ray.far = 1.2;
+      const hit = ray.intersectObjects(rock, false)[0];
+      if (!hit) continue;
+      const half = Math.abs((box.max.x - box.min.x) * out.x) / 2 + Math.abs((box.max.z - box.min.z) * out.z) / 2;
+      const shift = 1 - hit.distance + half + 0.03;
+      if (shift < 0.05) continue;
+      const by = out.clone().multiplyScalar(shift);
+      diya.position.add(diya.parent ? diya.parent.worldToLocal(centre.clone().add(by)).sub(diya.parent.worldToLocal(centre.clone())) : by);
+      diya.updateMatrixWorld(true);
+      wick.foot.add(by);
+      const lamp = this.lamps.reduce((a, b) => (b.pos.distanceToSquared(wick.foot) < a.pos.distanceToSquared(wick.foot) ? b : a));
+      lamp.pos.add(by);
+      lamp.light.copy(lamp.pos);
+      const width = Math.max(box.max.x - box.min.x, box.max.z - box.min.z) + 0.14;
+      model.add(this.ledge(diya.material as THREE.Material, box.min.y, hit.point, out, shift + half + 0.06, width));
+    }
+    return wicks;
+  }
+
+  /**
+   * A short ledge of the shelves' dark stone (STONE_DARK in build_island.py, as vertex colour in the cave's painted
+   * material, `painted`, so it is shaded like the shelf it carries on from), its top at `top`, running `length` m out
+   * from the rock face at `from` along `out`.
+   */
+  private ledge(painted: THREE.Material, top: number, from: THREE.Vector3, out: THREE.Vector3, length: number, width: number): THREE.Mesh {
+    const geo = new THREE.BoxGeometry(width, 0.1, length);
+    geo.deleteAttribute('uv');
+    const stone = new THREE.Color(0x463c33);
+    const colours = new Float32Array(geo.attributes.position.count * 3);
+    for (let i = 0; i < colours.length; i += 3) stone.toArray(colours, i);
+    geo.setAttribute('color', new THREE.BufferAttribute(colours, 3));
+    const ledge = new THREE.Mesh(geo, painted);
+    ledge.name = 'Prop_shelf_ledge';
+    ledge.position.copy(from).addScaledVector(out, length / 2 - 0.06).setY(top - 0.05);
+    ledge.rotation.y = Math.atan2(out.x, out.z);
+    ledge.castShadow = false;
+    ledge.receiveShadow = true;
+    return ledge;
+  }
+
+  /**
+   * The flames: the export's cones (`Flame_*`: a wall torch's, a brazier's, a diya's at its wick, five round each
+   * deepastambha's top bowl), measured, become a FireField, each flame in its lamp's group so the lamp's light flickers
+   * with it. Measured, not read off the nodes' origins: the deepastambhas' flames have theirs at the world origin, 75 m
+   * away (they used to swing through the air as they were scaled about it). A diya's flame (`wicks`) is a wick's: one
+   * slim tongue, smaller than the cone that stood there (which was as tall as the lamp).
+   */
+  private lightFlames(flames: ModelledFlame[], wicks: Set<ModelledFlame>): void {
+    const groupOf = (foot: THREE.Vector3): string => {
+      let best = this.lamps[0];
+      for (const lamp of this.lamps) {
+        if (Math.hypot(lamp.pos.x - foot.x, lamp.pos.z - foot.z) < Math.hypot(best.pos.x - foot.x, best.pos.z - foot.z)) best = lamp;
+      }
+      return best?.group ?? 'lamp';
+    };
+    // A torch or a brazier (the bigger flames) burns with a second tongue beside the first.
+    const spots = flames.map((f) => spotForFlame(f, groupOf(f.foot), wicks.has(f) ? { size: 0.17, width: 0.5 } : { tongues: f.height > 0.3 ? 2 : 1 }));
+    this.fires = new FireField(spots);
+    this.fires.set('lamp', 1);
+    for (const lamp of this.lamps) if (lamp.group) this.fires.set(lamp.group, 1);
+    this.group.add(this.fires.mesh);
+    this.bloomObjects.push(this.fires.mesh);
+  }
+
+  /**
+   * Stands each lamp's light clear of the rock (see LAMP_CLEARANCE): of the points within 0.65 m of the lamp at its
+   * height, the one with the most room round it up to that clearance, then the least moved, then (between equals) the
+   * one looking into the most open space; found with rays against the level's colliders. A light inside something solid
+   * (a deepastambha's, inside its collider) steps 0.8-1 m out of it. Once, as the level first runs: the colliders are
+   * built after the model is prepared.
+   */
+  private placeLampLights(): void {
+    const physics = PhysicsWorld.getInstance();
+    if (!physics.world) return;
+    const dir = new THREE.Vector3();
+    const probe = new THREE.Vector3();
+    const OPEN = 1.5;
+    /** The nearest rock round `p` (12 horizontal rays, to OPEN m; 0 inside something solid). */
+    const room = (p: THREE.Vector3): number => {
+      let near = OPEN;
+      for (let k = 0; k < 12; k++) {
+        const a = (k / 12) * Math.PI * 2;
+        const hit = physics.castCameraRay(p, dir.set(Math.cos(a), 0, Math.sin(a)), OPEN);
+        if (hit !== null) near = Math.min(near, hit);
+      }
+      return near;
+    };
+    for (const lamp of this.lamps) {
+      // Inside something solid (a deepastambha's light, in its stand), it steps well clear of it: a brass lamp a hand's
+      // breadth from a light burns white whatever the light's strength.
+      const inside = physics.castCameraRay(lamp.pos, dir.set(0, 1, 0), 0.01) === 0;
+      let best = lamp.pos;
+      let bestScore = -Infinity;
+      for (const r of inside ? [0.8, 1.0] : [0, 0.25, 0.45, 0.65]) {
+        for (let k = 0; k < (r === 0 ? 1 : 8); k++) {
+          const a = (k / 8) * Math.PI * 2;
+          probe.set(lamp.pos.x + Math.cos(a) * r, lamp.pos.y, lamp.pos.z + Math.sin(a) * r);
+          // Never through the rock to the far side of it (from inside a solid prop every way out "hits" it).
+          if (r > 0 && !inside && physics.castCameraRay(lamp.pos, dir.copy(probe).sub(lamp.pos).normalize(), r) !== null) continue;
+          const space = room(probe);
+          const score = Math.min(space, LAMP_CLEARANCE) * 10 - r + space * 0.4;
+          if (score > bestScore) {
+            bestScore = score;
+            best = probe.clone();
+          }
+        }
+      }
+      lamp.light.copy(best);
+    }
+    this.lampsPlaced = true;
+  }
+
   /** Story cues: `take-mace` lifts the mace off the altar (he has it now). */
   public cue(name: string): void {
     if (name !== 'take-mace') return;
@@ -201,13 +382,11 @@ export class Level5_Island extends GLBLevel {
   }
 
   public override update(time: number, dt: number, camera: THREE.Camera): void {
+    this.fires?.update(time);
     super.update(time, dt, camera);
     const eye = camera.position;
-    for (const f of this.flames) {
-      const n = Math.sin(time * 13 + f.seed) * 0.5 + Math.sin(time * 29.3 + f.seed * 1.7) * 0.3;
-      f.mesh.scale.set(f.base.x * (1 + 0.08 * n), f.base.y * (1 + 0.22 * n), f.base.z * (1 + 0.08 * n));
-    }
-    this.updateLamps(time, eye);
+    if (!this.lampsPlaced) this.placeLampLights();
+    this.updateLamps(eye);
     this.updateEyes(dt, eye);
     this.updatePool(dt);
     if (this.maceHalo) {
@@ -216,8 +395,8 @@ export class Level5_Island extends GLBLevel {
     }
   }
 
-  /** The nearest lamps to the camera get the lights, flickering; the rest are flames in the dark. */
-  private updateLamps(time: number, eye: THREE.Vector3): void {
+  /** The nearest lamps to the camera get the lights, flickering with their flames; the rest are flames in the dark. */
+  private updateLamps(eye: THREE.Vector3): void {
     const lit = this.lamps.filter((l) => !l.out).sort((a, b) => a.pos.distanceToSquared(eye) - b.pos.distanceToSquared(eye));
     for (let i = 0; i < this.lights.length; i++) {
       const light = this.lights[i];
@@ -226,12 +405,16 @@ export class Level5_Island extends GLBLevel {
         light.intensity = 0;
         continue;
       }
-      const n = Math.sin(time * 11 + lamp.seed) * 0.5 + Math.sin(time * 23.7 + lamp.seed * 1.7) * 0.3 + Math.sin(time * 5.3 + lamp.seed) * 0.2;
-      light.position.copy(lamp.pos);
+      light.position.copy(lamp.light);
       light.color.copy(lamp.color);
       light.distance = lamp.range * 1.5;
-      light.intensity = lamp.power * 36 * (lamp.color === MACE_COLOR ? 1 : 0.86 + 0.14 * n);
+      light.intensity = lamp.power * LAMP_GAIN * (lamp.group ? this.fires?.flicker(lamp.group) ?? 1 : 1);
     }
+  }
+
+  public override dispose(): void {
+    this.fires?.dispose();
+    super.dispose();
   }
 
   /** Eyes blink now and then, and go out (back into the rock) while anyone comes near them. */

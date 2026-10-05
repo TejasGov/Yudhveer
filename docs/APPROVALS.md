@@ -294,3 +294,39 @@ rock, raindrops on the water and a boat that rides it (docs/STORY.md, "Dwarka's 
 7. **Where the shoreline is baked.** At load, from the level's own rock (~0.1 s, once, no file to keep in step with
    the .blend). The alternative is a texture baked in Blender and shipped (no load cost, but it must be re-baked
    whenever the islands change). Kept at load.
+
+## Audit fixes (2026-10-05)
+
+### Real fire everywhere (batches 6 and 7: W-01 to W-07, W-09 to W-11, W-13, W-14, W-16, W-17, V2-01): DONE; judgement calls
+
+No credits spent, nothing downloaded, nothing blocked. What was built is in docs/STORY.md, "Real fire everywhere";
+captures in `game asset/audit/fixes/fix-fire/`. Calls made on the way, each a constant or a few lines to change:
+
+- **The island's "floating" shelf flame (W-02):** its diya was there, but a rock column (dressing laid after the shelves
+  were cut) had swallowed both shelf lamps at the first tunnel's mouth, diya, wick and flame. Rather than remove the
+  flames, the game draws any diya buried in the dressing rock out along its spout onto a short ledge of the shelf's
+  stone (`Level5_Island.drawLampsOutOfRock`). The cleaner fix is in `build_island.py` (`diya_on_shelf` should test the
+  dressing rock too), left alone (outside this pass).
+- **Island lamp lights (W-09):** at least 0.55 m clear of the rock, the deepastambhas' a metre out of their stands;
+  gain 36 to 17 with decay 2 to 1.5. The tunnel view is about 10 % darker overall, with no clipping.
+- **Summit deepams (W-03):** bronze #3b2a1b; "the lips" read as both dishes' rims (five wick flames on the upper, four
+  on the lower); their light moved a metre above the top dish (any nearer, it burned the small lamp flat orange).
+- **Summit braziers (W-10):** smouldering, uneven small tongues low in the bowl and an ember now and then; licks of
+  flame only as they catch (close up the licks read as orange orbs).
+- **Summit lanterns:** no `Lantern_Flame` meshes exist in `charnel_ridge.glb` (any that appear are converted). The vista
+  shrine's two lantern posts, 60 m out with their lights past the live radius, glow warm in their (opaque) glass heads.
+- **Baoli (W-04):** the near lamps' `FX_Glow` halos now fade out within 1.5 to 6 m of the camera (they washed the close
+  shots out over the flames); the far fort's glow dots are unchanged.
+- **Akhada (W-05):** "a faint amber light per pair of stands" became two shared lights at the two lit deepam stands
+  nearest the camera, handing off softly. The grazers stay vermillion; only their flicker is new. Easy to drop
+  (`STAND_GLOW.lights` 0) if it softens the night's grade too much.
+- **Dwarka (W-06):** the lean and the gutters follow the rain's own gusting wind (lean capped at 0.5 m per metre of
+  flame); the flames' bands are deeper and more saturated there (the AgX grade bleached the village's to peach). The
+  diya on the arena's north-east rim stands half inside a rock (as exported) and shows only partly.
+- **Takshaka's wave (W-07):** besides the fire, its arc is now centred on its path (the torus was an arc off to one
+  side of the point that hits).
+- **Village (W-13, W-14):** the sandstone's gain is 0.86 of the textured surfaces'. `village_dusk.glb` was rebuilt with
+  `build_village.py` (the diyas' flames at their wicks); diffed against an unmodified rebuild, only the four
+  `Fire_lamp_*` empties moved. The originals are in `game asset/levels/00_village/_backup_2026-10-05/`.
+- **Known, unchanged:** ink lines of what stands behind a flame still draw over it (the ink pass reads depth, and
+  flames write none); it was so in the village before.

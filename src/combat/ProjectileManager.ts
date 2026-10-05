@@ -2,8 +2,39 @@ import * as THREE from 'three';
 import type { Player } from '../entities/Player';
 import type { Enemy } from '../entities/Enemy';
 import { SoundFX } from './SoundFX';
-import { ParticleFX } from './ParticleFX';
+import { Emitter, ParticleFX } from './ParticleFX';
 import { SceneManager } from '../core/SceneManager';
+import { FireField, type FireSpot } from '../levels/environment/FireField';
+
+/** A wave of fire, its flames along an arc bowed forward: how wide the arc is (radians) and its radius (metres). */
+const WAVE_ARC = Math.PI * 0.7;
+const WAVE_RADIUS = 1.5;
+const WAVE_FLAMES = 13;
+/**
+ * The naga king's fire: deeper and more saturated than a lamp's, so it stays fire-coloured in Dwarka's grey storm light
+ * and its AgX grade (which bleaches bright oranges: the village's colours wash out there to a pale peach, and hotter
+ * ones only go whiter).
+ */
+const WAVE_PALETTE = {
+  rim: new THREE.Color(0.85, 0.06, 0.0),
+  body: new THREE.Color(1.75, 0.3, 0.0),
+  core: new THREE.Color(2.4, 0.95, 0.08),
+  glow: new THREE.Color(1.8, 0.42, 0.03),
+};
+/** How far above the floor a wave flies (Takshaka breathes it from 0.2 m up). */
+const WAVE_HEIGHT = 0.2;
+
+/** A wave of fire's own: its flames, the arc they stand on (in the wave's space), its clock and its trail. */
+interface WaveFire {
+  field: FireField;
+  arc: THREE.Vector3[];
+  time: number;
+  /** Seconds to the next scorch mark, and the licks and embers it throws. */
+  scorch: number;
+  licks: Emitter;
+  embers: Emitter;
+  yaw: number;
+}
 
 export interface Projectile {
   id: string;
@@ -18,6 +49,8 @@ export interface Projectile {
   maxLife: number;
   ownerId: string;
   isParried: boolean;
+  /** A wave of fire's flames (FLAME_WAVE only). */
+  fire?: WaveFire;
 }
 
 export class ProjectileManager {
@@ -26,6 +59,8 @@ export class ProjectileManager {
   public projectiles: Projectile[] = [];
   private soundFX: SoundFX;
   private particleFX: ParticleFX;
+  /** Scorched stone where waves of fire have passed. */
+  private readonly scorches = new Scorches();
   /** How each projectile that reached the player was met (stats, callouts). */
   public onPlayerContact: ((result: 'deflected' | 'blocked' | 'hit') => void) | null = null;
 
@@ -43,6 +78,7 @@ export class ProjectileManager {
 
   public init(scene: THREE.Scene): void {
     this.scene = scene;
+    scene.add(this.scorches.mesh);
   }
 
   public spawnChakram(origin: THREE.Vector3, targetPos: THREE.Vector3, ownerId: string): void {
@@ -155,47 +191,92 @@ export class ProjectileManager {
     this.soundFX.playSwordSwing(1.6, 'blade');
   }
 
+  /**
+   * Takshaka's breath: a wave of fire running along the ground (docs/STORY.md, "Real fire everywhere"). Its flames stand
+   * on an arc bowed forward, its middle where it is and its ends trailing back, tallest in the middle; they flare up as
+   * it is breathed, trail back as it runs, throw licks and embers, scorch the stone behind them, and die down at the end
+   * of its run. The arc spreads as it goes (the flames keep their height). One instanced draw, in the bloom.
+   */
   public spawnFlameWave(origin: THREE.Vector3, forwardDir: THREE.Vector3, ownerId: string): void {
     if (!this.scene) return;
 
     const waveGroup = new THREE.Group();
     waveGroup.position.copy(origin);
 
-    const arcGeo = new THREE.TorusGeometry(1.5, 0.2, 8, 16, Math.PI * 0.7);
-    const arcMat = new THREE.MeshBasicMaterial({
-      color: 0xff3300,
-      transparent: true,
-      opacity: 0.85
-    });
-    const arcMesh = new THREE.Mesh(arcGeo, arcMat);
-    arcMesh.rotation.x = Math.PI / 2;
-    waveGroup.add(arcMesh);
+    const dir = forwardDir.clone().setY(0);
+    if (dir.lengthSq() < 1e-6) dir.set(0, 0, 1);
+    dir.normalize();
+    const side = new THREE.Vector3(-dir.z, 0, dir.x);
+    const arc: THREE.Vector3[] = [];
+    const spots: FireSpot[] = [];
+    for (let i = 0; i < WAVE_FLAMES; i++) {
+      // Uneven: each flame a little off its place on the arc and of its own height, tallest toward the middle.
+      const u = (i + (Math.random() - 0.5) * 0.6) / (WAVE_FLAMES - 1) - 0.5;
+      const a = u * WAVE_ARC;
+      const r = WAVE_RADIUS + (Math.random() - 0.5) * 0.25;
+      const at = dir.clone().multiplyScalar(r * Math.cos(a) - WAVE_RADIUS).addScaledVector(side, r * Math.sin(a)).setY(-WAVE_HEIGHT);
+      arc.push(at);
+      const middle = 1 - Math.min(1, Math.abs(u) * 2);
+      spots.push({ at, size: 0.55 + 0.55 * middle + Math.random() * 0.35, group: 'wave', tongues: 2 + (Math.random() < 0.5 ? 1 : 0), spread: 0.18, width: 0.62 });
+    }
+    const field = new FireField(spots, { palette: WAVE_PALETTE });
+    // Carried through still air at speed, its flames trail back (without guttering).
+    field.setWind(-dir.x * 3.6, -dir.z * 3.6, false);
+    field.set('wave', 0);
+    waveGroup.add(field.mesh);
+    SceneManager.getInstance().postFX.addBloom(field.mesh);
 
     this.scene.add(waveGroup);
 
     const speed = 9.5;
-    const dir = forwardDir.clone().normalize();
 
     this.projectiles.push({
       id: `flamewave_${Date.now()}_${Math.random()}`,
       type: 'FLAME_WAVE',
       mesh: waveGroup,
       position: waveGroup.position,
-      velocity: dir.multiplyScalar(speed),
+      velocity: dir.clone().multiplyScalar(speed),
       radius: 1.5,
       damage: 28,
       postureDamage: 40,
       life: 0,
       maxLife: 2.2,
       ownerId,
-      isParried: false
+      isParried: false,
+      fire: { field, arc, time: 0, scorch: 0.05, licks: new Emitter(), embers: new Emitter(), yaw: Math.atan2(dir.x, dir.z) },
     });
 
     this.soundFX.playFlameBurst();
   }
 
+  /** A wave of fire as it runs: its flames, the licks and embers off it, the scorch it leaves. */
+  private burnWave(p: Projectile, dt: number): void {
+    const fire = p.fire;
+    // It spreads as it goes, sideways and along; its flames keep their height and stay on the floor.
+    p.mesh.scale.x += 0.8 * dt;
+    p.mesh.scale.z += 0.8 * dt;
+    if (!fire) return;
+    fire.time += dt;
+    // Up in a flash as it is breathed, dying down over the last of its run.
+    fire.field.set('wave', 1.15 * Math.min(1, p.life / 0.12) * Math.min(1, Math.max(0, p.maxLife - p.life) / 0.35));
+    fire.field.update(fire.time);
+    p.mesh.updateMatrixWorld();
+    const onArc = () => p.mesh.localToWorld(fire.arc[Math.floor(Math.random() * fire.arc.length)].clone());
+    for (let n = fire.licks.take(22, dt); n > 0; n--) this.particleFX.spawnFlames(onArc().setY(p.position.y + 0.1), 1, 0.4);
+    for (let n = fire.embers.take(45, dt); n > 0; n--) this.particleFX.spawnEmbers(onArc(), 1, 0.4, 1.4);
+    fire.scorch -= dt;
+    if (fire.scorch <= 0 && p.life < p.maxLife - 0.25) {
+      fire.scorch = 0.09;
+      // Under the flames, just behind the arc's middle: as wide as the arc is now.
+      const at = p.position.clone().addScaledVector(p.velocity, -0.06 / Math.max(1e-3, p.velocity.length()));
+      at.y -= WAVE_HEIGHT - 0.012;
+      this.scorches.add(at, fire.yaw, WAVE_RADIUS * 2 * Math.sin(WAVE_ARC / 2) * p.mesh.scale.x * 0.9);
+    }
+  }
+
   public update(dt: number, player: Player, enemies: Enemy[] = []): void {
     const playerPos = player.getPosition().clone().add(new THREE.Vector3(0, 0.9, 0));
+    this.scorches.update(dt);
 
     for (let i = this.projectiles.length - 1; i >= 0; i--) {
       const p = this.projectiles[i];
@@ -222,8 +303,7 @@ export class ProjectileManager {
         p.mesh.lookAt(p.position.x + p.velocity.x, p.position.y + p.velocity.y, p.position.z + p.velocity.z);
         if (Math.random() < 0.35) this.particleFX.spawnSparks(p.position, 1, false);
       } else if (p.type === 'FLAME_WAVE') {
-        p.mesh.scale.addScalar(0.8 * dt);
-        this.particleFX.spawnFlames(p.position, 4, 0.8);
+        this.burnWave(p, dt);
       }
 
       // A deflected projectile flies back and hurts whoever it reaches.
@@ -311,5 +391,110 @@ export class ProjectileManager {
     for (let i = this.projectiles.length - 1; i >= 0; i--) {
       this.destroyProjectile(i);
     }
+    this.scorches.clear();
+  }
+}
+
+/**
+ * Scorched stone where a wave of fire passed: ragged soot with a dull ember glow in it that cools at once, the soot
+ * fading in a second or two. Flat on the floor; one instanced draw for every mark, drawn only while any shows.
+ */
+class Scorches {
+  public readonly mesh: THREE.InstancedMesh;
+  private readonly marks: { matrix: THREE.Matrix4; age: number; seed: number }[] = [];
+  private readonly ages: THREE.InstancedBufferAttribute;
+  private readonly seeds: THREE.InstancedBufferAttribute;
+  private static readonly MAX = 48;
+  private static readonly LIFE = 1.7;
+
+  constructor() {
+    const geo = new THREE.PlaneGeometry(1, 1).rotateX(-Math.PI / 2);
+    this.ages = new THREE.InstancedBufferAttribute(new Float32Array(Scorches.MAX), 1).setUsage(THREE.DynamicDrawUsage);
+    this.seeds = new THREE.InstancedBufferAttribute(new Float32Array(Scorches.MAX), 1).setUsage(THREE.DynamicDrawUsage);
+    geo.setAttribute('aAge', this.ages);
+    geo.setAttribute('aSeed', this.seeds);
+    const material = new THREE.ShaderMaterial({
+      name: 'Scorch',
+      uniforms: { uLife: { value: Scorches.LIFE } },
+      vertexShader: /* glsl */ `
+        attribute float aAge;
+        attribute float aSeed;
+        varying vec2 vUv;
+        varying float vAge;
+        varying float vSeed;
+        void main() {
+          vUv = uv;
+          vAge = aAge;
+          vSeed = aSeed;
+          gl_Position = projectionMatrix * modelViewMatrix * instanceMatrix * vec4(position, 1.0);
+        }`,
+      fragmentShader: /* glsl */ `
+        uniform float uLife;
+        varying vec2 vUv;
+        varying float vAge;
+        varying float vSeed;
+        float hash(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+        float noise(vec2 p) {
+          vec2 i = floor(p), f = fract(p);
+          f = f * f * (3.0 - 2.0 * f);
+          return mix(mix(hash(i), hash(i + vec2(1, 0)), f.x), mix(hash(i + vec2(0, 1)), hash(i + vec2(1, 1)), f.x), f.y);
+        }
+        void main() {
+          vec2 p = (vUv - 0.5) * 2.0;
+          float n = noise(vUv * vec2(9.0, 4.0) + vSeed * 17.0) * 0.6 + noise(vUv * vec2(23.0, 11.0) - vSeed * 9.0) * 0.4;
+          // A ragged oval of soot, eaten away at its edges (and more as it fades).
+          float k = vAge / uLife;
+          float d = length(p) + (n - 0.5) * 0.55 + k * 0.35;
+          float soot = 1.0 - smoothstep(0.55, 0.95, d);
+          if (soot < 0.01) discard;
+          // Embers in the char, cooling fast.
+          float hot = smoothstep(0.62, 0.86, n) * (1.0 - smoothstep(0.0, 0.45, vAge)) * soot;
+          vec3 col = vec3(0.035, 0.022, 0.014) + vec3(2.2, 0.55, 0.08) * hot;
+          gl_FragColor = vec4(col, soot * 0.72 * (1.0 - smoothstep(0.55, 1.0, k)));
+        }`,
+      transparent: true,
+      depthWrite: false,
+      polygonOffset: true,
+      polygonOffsetFactor: -2,
+      polygonOffsetUnits: -2,
+    });
+    this.mesh = new THREE.InstancedMesh(geo, material, Scorches.MAX);
+    this.mesh.name = 'Scorches';
+    this.mesh.count = 0;
+    this.mesh.frustumCulled = false;
+    this.mesh.renderOrder = 1;
+    this.mesh.visible = false;
+  }
+
+  /** A mark centred at `at` (on the floor), across the way a wave ran (`yaw`), `width` metres wide. */
+  public add(at: THREE.Vector3, yaw: number, width: number): void {
+    if (this.marks.length >= Scorches.MAX) this.marks.shift();
+    const matrix = new THREE.Matrix4().compose(at, new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), yaw), new THREE.Vector3(width, 1, 1.1));
+    this.marks.push({ matrix, age: 0, seed: Math.random() * 10 });
+  }
+
+  public update(dt: number): void {
+    for (let i = this.marks.length - 1; i >= 0; i--) {
+      this.marks[i].age += dt;
+      if (this.marks[i].age >= Scorches.LIFE) this.marks.splice(i, 1);
+    }
+    this.marks.forEach((m, i) => {
+      this.mesh.setMatrixAt(i, m.matrix);
+      this.ages.setX(i, m.age);
+      this.seeds.setX(i, m.seed);
+    });
+    this.mesh.count = this.marks.length;
+    this.mesh.visible = this.marks.length > 0;
+    if (this.marks.length) {
+      this.mesh.instanceMatrix.needsUpdate = true;
+      this.ages.needsUpdate = true;
+      this.seeds.needsUpdate = true;
+    }
+  }
+
+  public clear(): void {
+    this.marks.length = 0;
+    this.mesh.count = 0;
+    this.mesh.visible = false;
   }
 }

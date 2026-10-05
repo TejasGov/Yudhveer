@@ -330,27 +330,37 @@ export interface KavachLight {
   start(seconds: number, swapAt: number, swap: () => void): void;
 }
 
-/** A column of light, brightest low and fading up into the dark, with slow streaks running up it. */
+/**
+ * A column of light, brightest low and fading up into the dark, with slow streaks running up it. Its sides fade where
+ * the cylinder is seen edge-on (as AgniBeacon's column does), so it reads as a soft shaft of light, not a glass tube with
+ * hard vertical edges.
+ */
 function lightShaft(radius: number, height: number, color: THREE.Color): { mesh: THREE.Mesh; uniforms: { opacity: { value: number }; time: { value: number } } } {
   const uniforms = { opacity: { value: 0 }, time: { value: 0 }, color: { value: color } };
   const mat = new THREE.ShaderMaterial({
     uniforms,
     vertexShader: /* glsl */ `
       varying vec2 vUv;
+      varying float vRim;
       void main() {
         vUv = uv;
-        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        vec4 mv = modelViewMatrix * vec4(position, 1.0);
+        // 1 where the surface faces the viewer, 0 where it is seen edge-on (both faces: the shaft is double-sided).
+        vRim = abs(dot(normalize(normalMatrix * normal), normalize(-mv.xyz)));
+        gl_Position = projectionMatrix * mv;
       }`,
     fragmentShader: /* glsl */ `
       uniform float opacity;
       uniform float time;
       uniform vec3 color;
       varying vec2 vUv;
+      varying float vRim;
       void main() {
         // (Clamped: a negative base would make pow NaN, and the bloom spreads a NaN over the whole picture.)
         float fall = pow(clamp(1.0 - vUv.y, 0.0, 1.0), 1.6) * smoothstep(0.0, 0.06, vUv.y);
         float streak = 0.65 + 0.35 * sin(vUv.x * 62.83 + time * 0.7) * sin(vUv.x * 25.13 - vUv.y * 9.0 - time * 2.3);
-        float a = opacity * fall * streak;
+        float edge = smoothstep(0.0, 0.65, clamp(vRim, 0.0, 1.0));
+        float a = opacity * fall * streak * edge;
         gl_FragColor = vec4(color * a, a);
       }`,
     transparent: true,

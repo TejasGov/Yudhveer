@@ -14,7 +14,8 @@ export const EXPORTED_LIGHT_SCALE = 1 / (683 * Math.PI);
 
 const gltfLoader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
 
-interface Flicker { light: THREE.Light; base: number; seed: number }
+/** An exported light that flickers: on its own sines, or (`source`) with a fire's flicker read every frame. */
+interface Flicker { light: THREE.Light; base: number; seed: number; source?: () => number }
 
 export type LoadProgress = (fraction: number) => void;
 
@@ -215,6 +216,16 @@ export abstract class GLBLevel implements GameLevel {
     this.flickers.push({ light, base: light.intensity, seed: Math.random() * 100 });
   }
 
+  /**
+   * Makes a light breathe with a fire instead of its own sines: `source` (a FireField group's flicker, times how much
+   * it burns) is read every frame and scales the light's strength. A light not flickering yet starts to.
+   */
+  protected flickerWith(light: THREE.Light, source: () => number): void {
+    const f = this.flickers.find((x) => x.light === light);
+    if (f) f.source = source;
+    else this.flickers.push({ light, base: light.intensity, seed: 0, source });
+  }
+
   /** Registers bright emissive or additive meshes below `root` with the selective bloom. */
   protected collectBloom(root: THREE.Object3D, minLuminance = 1.0): void {
     root.traverse((obj) => {
@@ -283,6 +294,10 @@ export abstract class GLBLevel implements GameLevel {
 
   public update(time: number, _dt: number, _camera: THREE.Camera): void {
     for (const f of this.flickers) {
+      if (f.source) {
+        f.light.intensity = f.base * f.source();
+        continue;
+      }
       const n = Math.sin(time * 11.0 + f.seed) * 0.5 + Math.sin(time * 23.7 + f.seed * 1.7) * 0.3 + Math.sin(time * 5.3 + f.seed) * 0.2;
       f.light.intensity = f.base * (0.88 + 0.12 * n);
     }

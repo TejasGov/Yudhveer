@@ -8,8 +8,9 @@ import { AgniBeacon } from './environment/AgniBeacon';
 import { MistSleeveMaterial, addSleeveHeights } from './environment/MistSleeve';
 import { addSnowCover, type SnowCover } from './environment/SnowCover';
 import { addRimLight, createToonRamp, liftAlbedo, toonifyModel, toToonMaterial } from './environment/ToonRelight';
+import { FireField, findModelledFlames, meshPieces, spotForFlame, type FireSpot } from './environment/FireField';
 import { SceneManager } from '../core/SceneManager';
-import { ParticleFX } from '../combat/ParticleFX';
+import { Emitter, ParticleFX } from '../combat/ParticleFX';
 import { SoundFX } from '../combat/SoundFX';
 
 const LEVEL_URL = '/assets/levels/charnel_ridge.glb';
@@ -38,10 +39,17 @@ const WARM_LIGHT_BOOST: Record<string, number> = { Spot_Agni_Beacon: 2.5, Point_
 // The beacon's fires on the dais: the braziers on the pilasters either side of Shiva and the warm spot that throws
 // their light down over the dais and the stair. They smoulder with the beacon until Andhaka is crowned.
 const DAIS_FIRE_LIGHTS = ['Point_Brazier_Fire_E', 'Point_Brazier_Fire_W', 'Spot_Agni_Beacon'];
-/** Smouldering, the braziers keep this share of their light (the spot none) and their flames this much height. */
-const DAIS_SMOULDER = { light: 0.14, flame: 0.3 };
+/** Smouldering, the braziers keep this share of their light (the spot none), and their coals burn this low. */
+const DAIS_SMOULDER = { light: 0.14, coals: 0.75 };
 /** Seconds after the crowning that the dais braziers catch from the beacon. */
 const DAIS_CATCH = 0.25;
+/** A brazier's fire in its bowl (metres tall at full) and the small tongues of its coals round the inside of the lip. */
+const BRAZIER_FIRE = { size: 1.0, tongues: 6, spread: 0.22, coals: 7, coalSize: 0.2 };
+/**
+ * The temple's two deepams: dark bronze (they rendered flat orange in their own light), wick flames round the lips of
+ * their two dishes (five on the upper, four on the lower), and a warm light over them that breathes with the flames.
+ */
+const DEEPAM = { bronze: 0x3b2a1b, wicks: [5, 4], flame: 0.13, light: 6 };
 // Albedo gamma per baked family: basalt is near-black (#1C1E22) and needs the most lift.
 const ALBEDO_LIFT: Record<string, number> = {
   Coarse_Basalt_Ash: 0.72, Basalt_Ash_Floor: 0.72, Basalt_Ash_Floor_Crag: 0.72, Monument_Basalt: 0.75,
@@ -105,20 +113,30 @@ export class Level4_Summit extends GLBLevel {
     emberFraction: 0.03,
   });
   private beacon: AgniBeacon | null = null;
-  /** The dais braziers, their flames and the spot (see DAIS_FIRE_LIGHTS); `at`: when they caught (see `cue`). */
+  /**
+   * The dais braziers (their fire groups `dais_E` / `dais_W` and coals `coals_E` / `coals_W` in `fires`), their lights
+   * and the spot (see DAIS_FIRE_LIGHTS); `at`: when they caught (see `cue`).
+   */
   private daisFire = {
     lights: [] as { light: THREE.Light; base: number }[],
-    flames: [] as { mesh: THREE.Mesh; scaleY: number; color: THREE.Color }[],
-    points: [] as THREE.Vector3[],
+    /** Each brazier: its side, the middle of its fire (for the bursts), its licks and embers. */
+    braziers: [] as { side: string; point: THREE.Vector3; licks: Emitter; embers: Emitter }[],
     lit: false,
     at: -Infinity,
     burst: true,
   };
+  /** Every flame on the summit but the beacon's: the deepams, the braziers and their coals (see FireField). */
+  private fires: FireField | null = null;
+  /**
+   * The vista shrine's two lantern posts, far out on the ridge: their lights (`*Lantern*_Light`) stand beyond the live
+   * lights' reach and go, and their glass heads have no flame, so a lantern's fire glows there instead (where its light
+   * stood), a warm point across the gulf.
+   */
+  private readonly lanterns: THREE.Vector3[] = [];
   private clock = 0;
   private mist: MistSleeveMaterial | null = null;
   private lakes: WaterRippleMaterial[] = [];
   private scrollers: THREE.Texture[] = [];
-  private flamePoints: THREE.Vector3[] = [];
   private particleFX = ParticleFX.getInstance();
   private nextStrike = 6 + Math.random() * 6;
   private strike: { start: number; flash: number } | null = null;
@@ -217,8 +235,13 @@ export class Level4_Summit extends GLBLevel {
     if (light.name === BEACON_LIGHT) return; // flickered by the beacon itself
     light.intensity *= WARM_LIGHT_BOOST[light.name] ?? 1;
     if (DAIS_FIRE_LIGHTS.includes(light.name)) this.daisFire.lights.push({ light, base: light.intensity });
+    const brazier = /^Point_Brazier_Fire_([EW])$/.exec(light.name);
+    if (/Lantern/.test(light.name)) this.lanterns.push(light.getWorldPosition(new THREE.Vector3()));
     if (light.getWorldPosition(new THREE.Vector3()).length() > LIVE_LIGHT_RADIUS) {
       light.removeFromParent();
+    } else if (brazier) {
+      // A brazier's light breathes with its own fire (updateDaisFire then scales it by how lit the fire is).
+      this.flickerWith(light, () => this.fires?.flicker(`dais_${brazier[1]}`) ?? 1);
     } else if (!light.userData.flicker && /Brazier|Fire/.test(light.name)) {
       this.addFlicker(light);
     }
@@ -228,6 +251,9 @@ export class Level4_Summit extends GLBLevel {
     const box = new THREE.Box3();
     const found: { beam: THREE.Mesh | null; light: THREE.PointLight | null } = { beam: null, light: null };
     const deepams: THREE.Mesh[] = [];
+    const brazierFlames: THREE.Mesh[] = [];
+    const bowls: THREE.Mesh[] = [];
+    const lanternFlames: THREE.Mesh[] = [];
     model.traverse((obj) => {
       if (obj.name === BEACON_LIGHT) found.light = obj as THREE.PointLight;
       const mesh = obj as THREE.Mesh;
@@ -242,26 +268,28 @@ export class Level4_Summit extends GLBLevel {
         mesh.castShadow = mesh.receiveShadow = false;
         if (!mesh.geometry.attributes.aHeight) addSleeveHeights(mesh.geometry);
       }
-      if (names.includes('VFX_Brazier_Flame')) {
-        box.setFromObject(mesh);
-        const point = new THREE.Vector3((box.min.x + box.max.x) / 2, box.min.y + 0.15, (box.min.z + box.max.z) / 2);
-        this.daisFire.points.push(point);
-        this.daisFire.flames.push({ mesh, scaleY: mesh.scale.y, color: new THREE.Color() });
-      }
+      if (names.includes('VFX_Brazier_Flame')) brazierFlames.push(mesh);
+      if (names.includes('Brazier_Blackened_Iron')) bowls.push(mesh);
+      if (names.includes('Lantern_Flame')) lanternFlames.push(mesh);
       if (names.includes('Skull_Socket_Void')) mesh.castShadow = false;
       if (/^Temple_Deepam/.test(mesh.name)) deepams.push(mesh);
     });
 
-    // The temple's two bronze deepams (oil lamps) burn: a flame at each lip and a small warm, flickering light.
-    for (const lamp of deepams) {
-      box.setFromObject(lamp);
-      const lip = new THREE.Vector3((box.min.x + box.max.x) / 2, box.max.y + 0.05, (box.min.z + box.max.z) / 2);
-      this.flamePoints.push(lip);
-      const light = new THREE.PointLight(0xffa040, 6, 9, 2);
-      light.position.copy(lip).add(new THREE.Vector3(0, 0.25, 0));
-      this.group.add(light);
-      this.addFlicker(light);
+    // Every flame but the beacon's in one FireField: the export's flame meshes (the braziers' spiky crowns, any lantern
+    // flames) only say where they burn, and go.
+    const spots: FireSpot[] = [];
+    this.deepamFlames(deepams, spots);
+    this.brazierFires(brazierFlames, bowls, spots);
+    for (const flame of findModelledFlames(lanternFlames)) spots.push(spotForFlame(flame, 'lanterns'));
+    // The vista lanterns (see `lanterns`): a small flame in each head, its glow wide enough to read across the gulf.
+    for (const at of this.lanterns) spots.push({ at: at.clone().setY(at.y - 0.12), size: 0.3, group: 'lanterns', tongues: 1, width: 0.5, glow: 3 });
+    for (const mesh of [...brazierFlames, ...lanternFlames]) {
+      mesh.removeFromParent();
+      mesh.geometry.dispose();
     }
+    this.fires = new FireField(spots);
+    for (const group of ['deepam_E', 'deepam_W', 'lanterns']) this.fires.set(group, 1);
+    this.group.add(this.fires.mesh);
 
     toonifyModel(model, this.ramp, (src, mesh) => this.convertMaterial(src as THREE.MeshStandardMaterial, mesh));
 
@@ -278,10 +306,80 @@ export class Level4_Summit extends GLBLevel {
       this.group.add(this.beacon.group);
     }
 
-    for (const f of this.daisFire.flames) f.color.copy((f.mesh.material as THREE.MeshBasicMaterial).color);
     this.collectBloom(model);
-    this.bloomObjects.push(this.weather.points, ...(this.beacon?.glowing ?? []));
+    this.bloomObjects.push(this.weather.points, this.fires.mesh, ...(this.beacon?.glowing ?? []));
     this.cue('chapter-start');
+  }
+
+  /**
+   * The temple's two bronze deepams (oil lamps) burn: wick flames round the lips of their two dishes (the dishes found
+   * as the lamp's flat, wide pieces, the upper first) and a small warm light over them, flickering with them.
+   */
+  private deepamFlames(deepams: THREE.Mesh[], spots: FireSpot[]): void {
+    const centre = new THREE.Vector3();
+    for (const lamp of deepams) {
+      const whole = new THREE.Box3().setFromObject(lamp);
+      whole.getCenter(centre);
+      const group = `deepam_${centre.x >= 0 ? 'E' : 'W'}`;
+      const dishes = meshPieces([lamp])
+        .filter((b) => b.max.y - b.min.y < 0.25 && Math.max(b.max.x - b.min.x, b.max.z - b.min.z) > 0.3)
+        .sort((a, b) => b.max.y - a.max.y);
+      dishes.forEach((dish, d) => {
+        const n = DEEPAM.wicks[d] ?? 0;
+        const r = Math.max(dish.max.x - dish.min.x, dish.max.z - dish.min.z) * 0.42;
+        const c = dish.getCenter(new THREE.Vector3());
+        for (let k = 0; k < n; k++) {
+          const a = (k / n) * Math.PI * 2 + d * 0.6;
+          spots.push({
+            at: new THREE.Vector3(c.x + Math.cos(a) * r, dish.max.y - 0.005, c.z + Math.sin(a) * r),
+            size: DEEPAM.flame * (d === 0 ? 1 : 0.85),
+            group,
+            tongues: 1,
+            width: 0.5,
+          });
+        }
+      });
+      // The light well above the lamp: it warms the stair's foot and the snow round it; any nearer, it burned the small
+      // bronze lamp itself to flat orange.
+      const top = dishes[0]?.max.y ?? whole.max.y;
+      const light = new THREE.PointLight(0xffa040, DEEPAM.light, 9, 2);
+      light.position.set(centre.x, top + 1.0, centre.z + 0.3);
+      this.group.add(light);
+      this.flickerWith(light, () => this.fires?.flicker(group) ?? 1);
+    }
+  }
+
+  /**
+   * The dais braziers: a fire in each bowl (its middle where the export's flame stood, its tongues spread over the
+   * bowl), and its coals, small tongues round the inside of the lip that glow on while it smoulders.
+   */
+  private brazierFires(flames: THREE.Mesh[], bowls: THREE.Mesh[], spots: FireSpot[]): void {
+    const box = new THREE.Box3();
+    for (const flame of flames) {
+      box.setFromObject(flame);
+      const side = (box.min.x + box.max.x) / 2 >= 0 ? 'E' : 'W';
+      const foot = new THREE.Vector3((box.min.x + box.max.x) / 2, box.min.y, (box.min.z + box.max.z) / 2);
+      // The bowl it burns in (its rim and size), else a bowl about the export's.
+      const bowl = bowls.map((b) => new THREE.Box3().setFromObject(b)).find((b) => b.containsPoint(foot.clone().setY((b.min.y + b.max.y) / 2)));
+      const rim = bowl ? bowl.max.y : foot.y + 0.08;
+      const radius = bowl ? Math.max(bowl.max.x - bowl.min.x, bowl.max.z - bowl.min.z) / 2 : 0.55;
+      if (bowl) foot.set((bowl.min.x + bowl.max.x) / 2, foot.y, (bowl.min.z + bowl.max.z) / 2);
+      spots.push({ at: foot, size: BRAZIER_FIRE.size, group: `dais_${side}`, tongues: BRAZIER_FIRE.tongues, spread: BRAZIER_FIRE.spread, width: 0.6 });
+      // The coals' tongues: uneven, some low in the bowl, some licking up at the lip (not a ring of candles).
+      for (let k = 0; k < BRAZIER_FIRE.coals; k++) {
+        const a = ((k + Math.random() * 0.7) / BRAZIER_FIRE.coals) * Math.PI * 2;
+        const r = radius * (0.35 + 0.4 * Math.random());
+        spots.push({
+          at: new THREE.Vector3(foot.x + Math.cos(a) * r, rim - 0.1 + Math.random() * 0.05, foot.z + Math.sin(a) * r),
+          size: BRAZIER_FIRE.coalSize * (0.5 + 0.8 * Math.random()),
+          group: `coals_${side}`,
+          tongues: 1,
+          width: 0.6,
+          glow: 1.4,
+        });
+      }
+      this.daisFire.braziers.push({ side, point: foot.clone().setY(foot.y + 0.15), licks: new Emitter(), embers: new Emitter() });
+    }
   }
 
   /**
@@ -316,8 +414,12 @@ export class Level4_Summit extends GLBLevel {
     }
   }
 
-  /** The dais braziers and the spot, smouldering or lit (with their flare as they catch). */
-  private updateDaisFire(time: number): void {
+  /**
+   * The dais braziers and the spot, smouldering or lit (with their flare as they catch). Smouldering, a brazier is its
+   * coals: small uneven tongues low in the bowl, an ember now and then. Lit, its fire stands up out of the bowl (taller
+   * for a moment as it catches, throwing licks of flame) and sends up embers.
+   */
+  private updateDaisFire(time: number, dt: number): void {
     const fire = this.daisFire;
     const s = time - fire.at;
     const smooth = (a: number, b: number, t: number) => THREE.MathUtils.smoothstep(t, a, b);
@@ -325,24 +427,28 @@ export class Level4_Summit extends GLBLevel {
     const flare = fire.lit ? smooth(0, 0.25, s) * (1 - smooth(0.45, 1.8, s)) : 0;
     if (fire.lit && !fire.burst && s >= 0) {
       fire.burst = true;
-      for (const p of fire.points) {
-        this.particleFX.spawnFlames(p, 28, 0.55);
-        this.particleFX.spawnSparks(p.clone().add(new THREE.Vector3(0, 0.6, 0)), 30, true);
+      for (const { point } of fire.braziers) {
+        this.particleFX.spawnFlames(point, 28, 0.55);
+        this.particleFX.spawnSparks(point.clone().add(new THREE.Vector3(0, 0.6, 0)), 30, true);
       }
     }
+    const flicker = ((this.fires?.flicker('dais_E') ?? 1) + (this.fires?.flicker('dais_W') ?? 1)) / 2;
     for (const { light, base } of fire.lights) {
-      // The braziers are flickered (GLBLevel.update) before this; the spot is not.
-      const from = light.name.startsWith('Spot') ? base : light.intensity;
-      const rest = light.name.startsWith('Spot') ? 0 : DAIS_SMOULDER.light;
+      // The braziers' lights are flickered with their fires (GLBLevel.update) before this; the spot breathes with both.
+      const spot = light.name.startsWith('Spot');
+      const from = spot ? base * flicker : light.intensity;
+      const rest = spot ? 0 : DAIS_SMOULDER.light;
       light.intensity = from * (rest + (1 - rest) * lit + 1.1 * flare);
     }
-    const height = DAIS_SMOULDER.flame + (1 - DAIS_SMOULDER.flame) * lit + 0.7 * flare;
-    for (const f of fire.flames) {
-      f.mesh.scale.y = f.scaleY * height;
-      (f.mesh.material as THREE.MeshBasicMaterial).color.copy(f.color).multiplyScalar(0.35 + 0.65 * lit + 0.5 * flare);
+    for (const b of fire.braziers) {
+      this.fires?.set(`dais_${b.side}`, lit > 0.01 ? lit + 0.7 * flare : 0);
+      // The coals sink into the fire once it stands up out of the bowl.
+      this.fires?.set(`coals_${b.side}`, DAIS_SMOULDER.coals * (1 - 0.55 * lit));
+      // Embers rising off it: a few off the coals, more once it burns; licks of flame thrown off as it roars up (W-11: at
+      // a rate, never per frame).
+      for (let n = b.licks.take(30 * flare, dt); n > 0; n--) this.particleFX.spawnFlames(b.point.clone().setY(b.point.y + 0.4), 1, 0.35);
+      for (let n = b.embers.take(1.5 + 5 * lit + 14 * flare, dt); n > 0; n--) this.particleFX.spawnEmbers(b.point, 1, 0.7, 1 + lit);
     }
-    // Flames off the braziers: a few while they smoulder, more as they roar up.
-    for (const p of fire.points) if (Math.random() < 0.12 + 0.48 * lit + 0.4 * flare) this.particleFX.spawnFlames(p, 1, 0.3 + 0.2 * flare);
   }
 
   /** Level-specific conversions; undefined falls through to the default toon conversion. */
@@ -376,11 +482,11 @@ export class Level4_Summit extends GLBLevel {
         return this.mist;
       case 'VFX_Beacon_Placeholder':
         return mat; // re-materialised by the AgniBeacon
-      case 'Lantern_Flame':
-      case 'VFX_Brazier_Flame': {
-        mesh.castShadow = mesh.receiveShadow = false;
-        const tint = family === 'Lantern_Flame' ? new THREE.Color(1, 0.42, 0.08) : new THREE.Color(1, 0.28, 0.04);
-        return new THREE.MeshBasicMaterial({ name: mat.name, color: tint.multiplyScalar(6), fog: false });
+      case 'Shiva_Temple_Aged_Bronze': {
+        // The deepams: dark aged bronze, so their flames and the light over them warm it instead of it glowing orange.
+        const bronze = toToonMaterial(mat, this.ramp);
+        bronze.color.set(DEEPAM.bronze);
+        return bronze;
       }
       default: {
         if (!(family in ALBEDO_LIFT)) return undefined;
@@ -393,18 +499,24 @@ export class Level4_Summit extends GLBLevel {
   }
 
   public override update(time: number, dt: number, camera: THREE.Camera): void {
+    // The flames first, so the lights that breathe with them (GLBLevel's flicker, the dais) read this frame's.
+    this.fires?.update(time);
     super.update(time, dt, camera);
     const viewportHeight = SceneManager.getInstance().renderer.domElement.height;
     this.sky?.follow(camera);
     this.weather.update(time, camera.position, viewportHeight);
     this.clock = time;
     this.beacon?.update(time, viewportHeight);
-    this.updateDaisFire(time);
+    this.updateDaisFire(time, dt);
     this.mist?.update(time);
     this.lakes.forEach((l) => l.update(time));
     this.scrollers.forEach((t) => t.offset.set(0, time * 0.9));
-    for (const p of this.flamePoints) if (Math.random() < 0.6) this.particleFX.spawnFlames(p, 1, 0.3);
     this.updateLightning(time);
+  }
+
+  public override dispose(): void {
+    this.fires?.dispose();
+    super.dispose();
   }
 
   /** Crossfade to a lightning-lit panorama, flicker 2-3 times, fade back; a cool light strikes from that side. */

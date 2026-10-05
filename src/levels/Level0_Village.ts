@@ -4,7 +4,7 @@ import type { LevelAtmosphere } from './LevelTypes';
 import { createToonRamp, patchShader, toonifyModel } from './environment/ToonRelight';
 import { Smoulder } from './environment/Smoulder';
 import { FireField, type FireSpot } from './environment/FireField';
-import { ParticleFX } from '../combat/ParticleFX';
+import { Emitter, ParticleFX } from '../combat/ParticleFX';
 import { SceneManager } from '../core/SceneManager';
 
 const LEVEL_URL = '/assets/levels/village_dusk.glb';
@@ -33,10 +33,25 @@ const WIND = new THREE.Vector3(-0.55, 0, 0.3);
  * SURFACE_MEAN).
  */
 const TEXTURE_GAIN = 1 / Math.pow((0.8 + 0.055) / 1.055, 2.4);
-/** Fire groups that burn from the start (the gate's torches, the hearth, the shrine's lamps). */
-const ALWAYS_LIT = ['torch', 'hearth', 'lamp'];
-/** Tongues per fire spot, by group. */
+/**
+ * The sandstone's share of that gain: a little less, so the gate's pillars, a torch on each, light warm instead of
+ * clipping to white at night (the stone's palette was the brightest of the textured surfaces).
+ */
+const STONE_GAIN = 0.86;
+/** Fire groups that burn from the start (each gate torch, the hearth, the shrine's lamps). */
+const ALWAYS_LIT = ['torch@W', 'torch@E', 'hearth', 'lamp'];
+/** Tongues per fire spot, by group (a gate torch's group is `torch@W` or `torch@E`: see `fireGroup`). */
 const TONGUES: Record<string, number> = { torch: 2, lamp: 1, hearth: 4, roof: 3, hay: 3, far: 3, embers: 3 };
+/**
+ * The lights that burn with a fire's flames (exported with the map), and the fire group they breathe with: the gate
+ * torches each with its own, the hearth's, the shrine's lamps'.
+ */
+const FIRE_LIGHTS: Record<string, string> = { Torch_Gate_W: 'torch@W', Torch_Gate_E: 'torch@E', Fire_Cooking: 'hearth', Shrine_Lamp: 'lamp' };
+
+/** A fire empty's group; the two gate torches get one each (by side), so their lights flicker apart. */
+function fireGroup(group: string, at: THREE.Vector3): string {
+  return group === 'torch' ? `torch@${at.x < 0 ? 'W' : 'E'}` : group;
+}
 
 /**
  * The last of the light through the gate (the prologue's ending): a low, hard light just inside the gateway, under
@@ -101,6 +116,8 @@ export class Level0_Village extends GLBLevel {
   private readonly charAmount = { value: new THREE.Vector2(0, 0) };
   private readonly charTime = { value: 0 };
   private particleFX = ParticleFX.getInstance();
+  /** Licks of flame breaking off the burning roof, at a rate (never per frame). */
+  private readonly licks = new Emitter();
   /** See GATE_LIGHT_AT. */
   public readonly gateLight: THREE.SpotLight;
   /** How far night has fallen (`setNight`), and how much of the key light's strength is left (`setSun`). */
@@ -152,10 +169,15 @@ export class Level0_Village extends GLBLevel {
     this.group.add(this.sky);
   }
 
-  /** The fires' lights stay in the scene from the start, dark: lighting them later recompiles nothing. */
+  /**
+   * The fires' lights stay in the scene from the start, dark: lighting them later recompiles nothing. The torches',
+   * the hearth's and the shrine's lights breathe with their own flames.
+   */
   protected override prepareExportedLight(light: THREE.Light): void {
     if (light.name !== RAID_LIGHT && light.name !== HAY_LIGHT) {
       super.prepareExportedLight(light);
+      const group = FIRE_LIGHTS[light.name];
+      if (group && light.parent) this.flickerWith(light, () => this.fires?.flicker(group) ?? 1);
       return;
     }
     light.intensity *= EXPORTED_LIGHT_SCALE;
@@ -174,7 +196,8 @@ export class Level0_Village extends GLBLevel {
     const spots: FireSpot[] = [];
     model.traverse((obj) => {
       if (typeof obj.userData.fire_group === 'string') {
-        spots.push({ at: obj.getWorldPosition(new THREE.Vector3()), size: obj.userData.fire_size ?? 1, group: obj.userData.fire_group });
+        const at = obj.getWorldPosition(new THREE.Vector3());
+        spots.push({ at, size: obj.userData.fire_size ?? 1, group: fireGroup(obj.userData.fire_group, at) });
       }
       const mesh = obj as THREE.Mesh;
       if (!mesh.isMesh) return;
@@ -196,12 +219,12 @@ export class Level0_Village extends GLBLevel {
         done.add(m);
         const toon = m as THREE.MeshToonMaterial;
         if (!toon.name.startsWith('VillageTex_')) continue;
-        toon.color.multiplyScalar(TEXTURE_GAIN);
+        toon.color.multiplyScalar(TEXTURE_GAIN * (toon.name === 'VillageTex_Stone' ? STONE_GAIN : 1));
         if (toon.name === 'VillageTex_Thatch') this.charThatch(toon);
       }
     });
     // Every flame: one instanced draw, lit or put out by group (the raid's fires dark until it fires them).
-    this.fires = new FireField(spots, (group) => TONGUES[group] ?? 3);
+    this.fires = new FireField(spots, { tongues: (group) => TONGUES[group.split('@')[0]] ?? 3 });
     for (const group of ALWAYS_LIT) this.fires.set(group, 1);
     this.group.add(this.fires.mesh);
     this.bloomObjects.push(this.fires.mesh);
@@ -349,15 +372,16 @@ diffuseColor.rgb *= mix(1.0, 0.05, smoothstep(0.12, 0.5, charK));`)
   }
 
   public override update(time: number, dt: number, camera: THREE.Camera): void {
+    // The flames first, so the fires' lights (here and in GLBLevel's flicker) breathe with this frame's.
+    this.fires?.update(time);
     super.update(time, dt, camera);
     this.sky?.position.copy(camera.position);
-    // The flames, and the fires' lights breathing with them.
-    this.fires?.update(time);
     this.charTime.value = time;
     if (this.raidLight) this.raidLight.intensity = this.raidLightBase * this.fire * (this.fires?.flicker('roof') ?? 1);
     if (this.hayLight) this.hayLight.intensity = this.hayLightBase * this.hay * (this.fires?.flicker('hay') ?? 1);
-    // Now and then a lick of flame breaking off the burning roof; its smoke, sparks and ash.
-    if (this.fire > 0.02 && dt > 0 && Math.random() < 0.12 * this.fire) this.particleFX.spawnFlames(VILLAGE_ROOF_FIRE.clone().setY(3.4), 1, 1.4);
+    // Now and then a lick of flame breaking off the burning roof (about seven a second at full); its smoke, sparks
+    // and ash.
+    for (let n = this.fire > 0.02 ? this.licks.take(7 * this.fire, dt) : 0; n > 0; n--) this.particleFX.spawnFlames(VILLAGE_ROOF_FIRE.clone().setY(3.4), 1, 1.4);
     this.smoulder.update(dt, camera);
     this.haySmoulder.update(dt, camera);
   }

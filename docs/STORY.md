@@ -359,10 +359,9 @@ ringing ebbs. (New synths: `playHeavyStep`, `playBodyFall`, `playEarRing`.)
 for "Keep your feet, Yudhveer" (docs/proposals/DIALOGUE.md, 8A) if that is approved. Nothing else was added: no new
 lines, voiced or not.
 
-- **Testing:** `__debug.chapter(0, false)`, `__debug.win()`, then `__debug.advance(s)` in small steps, calling
-  `__yudhveer.levelManager.activeLevel.update(t, dt, __yudhveer.sceneManager.camera)` each step (the level's flames,
-  smoke and fire light only move in the real render loop) and `__yudhveer.sceneManager.render()` before a screenshot.
-  `Concussion.state` reports the daze.
+- **Testing:** `__debug.chapter(0, false)`, `__debug.win()`, then `__debug.advance(s)` in small steps (it ticks the
+  level too: its flames, smoke and fire light move with the steps) and `__yudhveer.sceneManager.render()` before a
+  screenshot. `Concussion.state` reports the daze.
 - **Left for later:** a real fall, a struggle up and a drag (Mixamo: "Getting Up", "Dragging" / "Being Dragged") would
   replace the held and reversed death clips and the dragged guru's slide; the raiders could carry torches; real
   footfall and fire recordings.
@@ -455,8 +454,8 @@ the relight in `src/levels/Level2_Akhada.ts`.
   when `t` moves. The lamps are out by day (flames shrunk to nothing and hidden, mural glows and halos off, grazers
   dark) and are lit as night falls, for the evening aarti: a mirrored pair every half second, the eight brass diyas
   before the monolith from the middle out, then the tall deepams from the north end down the verandahs, each flame
-  catching with a small flare (a per-lamp size in the flames' vertex shader: the merged flame meshes stay one draw call
-  each) and its light (mural glow, halo, the nearest grazer) rising over a second and a half. Story cues
+  catching with a small flare (a FireField group per lamp, the lamp clock its amount: one draw for every flame; see
+  "Real fire everywhere") and its light (mural glow, halo, the nearest grazer) rising over a second and a half. Story cues
   (`src/game/stories/Akhada.ts`): `day` at the opening (essential: a restart from the training comes back to the
   sunset), `dusk` when the training starts (t eases to 0.18 over 40 s), `twilight` when the parry is taught (0.35 over
   35 s), `nightfall` as the two come out in the arrival (to 1 over 6 s, the lamps lit over its first 5 s) and `night`
@@ -574,8 +573,9 @@ with 23 Sketchfab models and 3 Poly Haven textures (7.5 MB; credits in docs/ASSE
   is one shell: a union of ellipsoids voxel-remeshed, roughened, pressed flat onto the path's floor heights, turned
   inward and painted with vertex colours; it is its own trimesh collider. The arena bounds are a single wall across
   the landing, keeping him out of the sea; the pool has an invisible drum round it.
-- **Light:** almost none but the lamps (20 flames, exported as `Lamp_*` empties); the 8 nearest to the camera share a
-  fixed pool of 8 point lights (flickering, no shadows; a constant count so nothing recompiles), plus moonlight at the
+- **Light:** almost none but the lamps (20 flames, exported as `Lamp_*` empties; the flames burn in a FireField, see
+  "Real fire everywhere"); the 8 nearest to the camera share a fixed pool of 8 point lights (flickering with their own
+  flames, stood clear of the rock, no shadows; a constant count so nothing recompiles), plus moonlight at the
   mouth and a gold glow on the mace. Black fog between (`FogExp2` 0.05), a faint cold key, heavy vignette. Eyes in
   the alcoves shine through the fog, blink, and go out when he comes within 7 m. Ambience `island`: drips, the
   lamps, a stone falling, wind in the tunnels, something long dragging itself over wet rock; music `island`. Static
@@ -811,7 +811,7 @@ docs/APPROVALS.md).
 **The beacon waits for the king.** The summit's fires (the Agni beacon on the far temple cliff, `AgniBeacon`; the
 braziers on the pilasters either side of Shiva and the warm spot that throws their light over the dais, in
 `Level4_Summit`) smoulder from the start of the chapter: coals and a few embers on the beacon's altar, no column,
-low brazier flames, the dais dark. When the crown settles BossAndhaka cues the level (`crowned`): the altar flares, the
+the braziers' coals (small tongues low in their bowls, an ember now and then), the dais dark. When the crown settles BossAndhaka cues the level (`crowned`): the altar flares, the
 fire climbs the column (slow off the altar, racing up into the sky over about 3 s), the embers and the beacon's light
 come up, and a quarter second later the braziers catch with a burst of flame and sparks and the spot floods the dais;
 a flame burst sounds. It burns through the fight and the ending. A skipped or cut-short entrance (or none) lights it
@@ -1148,7 +1148,8 @@ har mahadev chant with shankh opening and damru beats for his glory".
   softened) that multiply the vertex colours, UV'd by a world-space box projection per surface, so the palette and
   the painted bands stay as they were and the cel ramp still bands the light; the game scales those materials back
   up (`TEXTURE_GAIN`). The level batches by material (`batchStatic`).
-- **The fire** (`src/levels/environment/FireField.ts`): every flame in the village in one instanced draw. Each fire
+- **The fire** (`src/levels/environment/FireField.ts`; since the fire pass every level's, see "Real fire everywhere"):
+  every flame in the village in one instanced draw. Each fire
   spot (`Fire_<group>_<n>` empties in the GLB) gets a few tongues (quads turned to the camera about the vertical) and
   a soft additive glow; a tongue is a teardrop of flame eaten away by scrolling noise, its outline pushed about,
   cut into three flat bands (deep red rim, orange body, yellow core), premultiplied so the rim reads against a bright
@@ -1196,6 +1197,64 @@ har mahadev chant with shankh opening and damru beats for his glory".
 - **Testing:** as for the prologue's ending above; `__debug.chapter(5, false)`, the waves killed, then `__debug.win()`
   in Andhaka's fight for the reveal. Previews: `game asset/previews/village_after_*.jpg`, `summit_pray_*.jpg` (and the
   `village_before_*` ones).
+
+## Real fire everywhere (2026-10-05)
+
+The audit (docs/AUDIT.md, "Fire and light inventory") found only two fires that met the bar, "fire and light should
+have detail, it cannot be a pyramid poly triangle": the village's FireField and the summit's AgniBeacon. Every other
+flame was a static or barely animated mesh (cones, bipyramids, capsules), and the fight's particles never drew at all.
+This pass (audit batches 6 and 7) puts every flame in the game in the village's shader fire.
+
+- **FireField** (`src/levels/environment/FireField.ts`) is now every level's: one instanced draw per level (and one per
+  wave of Takshaka's fire), up to 32 groups (one per lamp where lamps are lit one by one or flicker apart), a per-spot
+  tongue count, spread, width and glow. A wind (`setWind`) leans every tongue and in its gusts (from about 3 m/s) makes
+  them flutter and gutter, each fire dipping and catching on its own beat, its light dipping with it. Each tongue stands
+  a third of its width toward the camera, at the front of the flame's body, so a flame set down in a cup or half sunk
+  in stone still shows. `findModelledFlames` measures the flames an export modelled (each separate piece, a core and
+  its shell taken as one flame) so the FireField burns exactly where they stood, and the meshes go. The flames write no
+  depth, so the ink pass never outlines them. Lights that belong to a fire breathe with its group's flicker
+  (`GLBLevel.flickerWith`), not their own sines.
+- **The island:** the 20 cones (and the deepastambhas' tier flames, whose origin was the world origin, so they swung
+  through the air as they were scaled) are a FireField, a group per lamp; a diya's flame is a slim wick flame. The 8
+  shared lamp lights flicker with their own flames, stand at least 0.55 m clear of the rock (found once with rays
+  against the colliders; a deepastambha's light, which stood inside it, steps a metre out) and fall off more gently
+  (decay 1.5, `LAMP_GAIN` 17): the rock behind a lamp no longer burns white. The two shelf lamps at the first tunnel's
+  mouth, which a rock column laid over the shelves had swallowed (diya, wick and flame inside the rock), are drawn out
+  along their spouts onto a short ledge of the shelf's stone (`drawLampsOutOfRock`).
+- **The baoli:** the deepastambhas (their tiers and crowns), the Devi's lamps and her offering, the 124 diyas down the
+  steps and the hanging lamps are a FireField (a group per deepastambha, its torch light breathing with it; the Devi's
+  uplight with her lamps). The far fort's lamps keep their glow dots. The near lamps' glow halos (`FX_Glow`) fade out
+  within a few metres of the camera, where they washed the whole frame out over the flames.
+- **The akhada:** the 16 lamps (8 tall deepams, 8 brass diya lanterns) are a FireField, a group per lamp: the lamp
+  clock that lights them for the aarti sets each group's amount, so each flame still catches in its turn with a small
+  flare. The vermillion grazers breathe with their stands' flames (their colour unchanged: the night's grade is a
+  logged choice), and a faint amber light at the two lit stands nearest the camera warms their bowls and the floor
+  round them (a pair of lights shared by the eight stands; the second hands off softly as a third comes as near).
+- **Dwarka:** the 8 diyas burn in a FireField leaning in the storm's wind (the rain's own gusting wind) and guttering in
+  its gusts; the two nearest the camera light their stone. Their bands are deeper and more saturated than the village's
+  (the storm light and the AgX grade bleached those to a pale peach).
+- **The summit:** the deepams are dark bronze with wick flames round the lips of both dishes (five and four) and their
+  light above them, breathing with them. The braziers smoulder as coals (small uneven tongues low in the bowl, an ember
+  now and then), stand up as a fire in the bowl when they catch (taller for a moment, with licks of flame, sparks and
+  embers), and their lights flicker with them. The vista shrine's lanterns, whose lights are past the live lights'
+  reach and whose glass heads have no flame, glow warm across the gulf.
+- **Takshaka's wave of fire** (`ProjectileManager.spawnFlameWave`): flames on an arc bowed forward, tallest in the
+  middle, trailing back as it runs, in the bloom, throwing licks and embers and leaving scorched stone behind it that
+  cools and fades (one instanced draw for every mark). The arc spreads as it goes, its flames keeping their height.
+- **The village:** the gate torches, the hearth and the shrine's lamps light with their own flames' flicker (each torch
+  its own); the mandir's diyas burn at their wicks, at the spouts' tips (`build_village.py`, the GLB rebuilt; nothing
+  else in it changed); the sandstone's gain is a little lower (`STONE_GAIN`) so the torch-lit gate pillars do not clip.
+- **ParticleFX** (`src/combat/ParticleFX.ts`): its four kinds never drew (their bounding spheres were stale and
+  culled them); they are drawn without culling, and only their live particles. Hit sparks are streaks along their flight, white-hot
+  at the head, cooling down the tail; flames are teardrop licks and embers small sparks, both cooling to red, both in
+  the bloom; dust and mist take the level's light and fade in and out. Particle emission in the levels is by rate times
+  game time (`Emitter`): the same at any frame rate, none while paused.
+- **The kavach's light** (`DivineLight.lightShaft`): the column's sides fade where it is seen edge-on, as AgniBeacon's
+  does: a soft shaft, not a glass tube.
+- **Testing:** `__debug.advance(s)` now ticks the level too, on a clock of its own that real time carries on from (no
+  more ticking `levelManager.update` by hand). Captures: `game asset/audit/fixes/fix-fire/` (`before_*`, `after*_*`,
+  `final_*` pairs 0.2 s apart). Cost, at 1024 x 768 on the audit's machine: GPU time within 0.07 ms of before in every
+  level's view, draw calls down where meshes went (the island 115 to 84, the baoli 187 to 164).
 
 ## Tools
 

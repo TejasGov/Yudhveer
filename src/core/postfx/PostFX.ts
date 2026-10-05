@@ -80,9 +80,19 @@ export class PostFX {
     this.rebuildPass(atm.ink !== null);
   }
 
+  /** Glowing things that belong to no level (the fight's sparks and embers): kept selected through every level load. */
+  private readonly lasting = new Set<THREE.Object3D>();
+
   public setBloomObjects(objects: THREE.Object3D[]): void {
     this.bloom.selection.clear();
+    this.lasting.forEach((o) => this.bloom.selection.add(o));
     objects.forEach((o) => this.bloom.selection.add(o));
+  }
+
+  /** Selects `object` for the bloom for good (`setBloomObjects` keeps it). */
+  public keepBloom(object: THREE.Object3D): void {
+    this.lasting.add(object);
+    this.bloom.selection.add(object);
   }
 
   public addBloom(object: THREE.Object3D): void {
