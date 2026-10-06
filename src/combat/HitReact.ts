@@ -39,7 +39,7 @@ export interface Blow {
 
 /** Peak lean of the head away from a blow (degrees) by weapon and tier. */
 export const FLINCH_DEG: Record<BlowKind, Record<BlowTier, number>> = {
-  wood: { light: 4.5, heavy: 7, slam: 9 },
+  wood: { light: 5.5, heavy: 8, slam: 10 },
   blade: { light: 5.5, heavy: 8.5, slam: 11 },
   crush: { light: 9.5, heavy: 12.5, slam: 14.5 },
 };
@@ -53,7 +53,7 @@ export const FLASH: Record<BlowKind, { gain: number; life: number }> = {
   crush: { gain: 1, life: 0.1 },
 };
 /** A boss feels a little less of each (a flinch, a push, a flash). */
-const BOSS = { flinch: 0.72, push: 0.4, flash: 0.85 };
+const BOSS = { flinch: 0.85, push: 0.5, flash: 0.85 };
 /** Already reeling (its own hit clip is playing): less is added on top. */
 const REELING = 0.6;
 const BROKEN = 0.5;
@@ -278,12 +278,13 @@ export class HitReact {
     }
   }
 
-  /** The flinch now, as `[lean, twist]` in degrees (for the debug overlay and tests). */
-  public static read(c: Character): { lean: number; head: number; twist: number; push: number; flash: number } | null {
+  /** The flinch now, in degrees, and the bones it turns (for tests). */
+  public static read(c: Character): { lean: number; head: number; twist: number; push: number; flash: number; bones: string[] } | null {
     const s = this.states.get(c);
     if (!s) return null;
     const d = 180 / Math.PI;
     return {
+      bones: s.slots.map((slot) => slot.bone.name),
       lean: Math.hypot(s.lean.x.x, s.lean.z.x) * d,
       head: Math.hypot(s.head.x.x, s.head.z.x) * d,
       twist: s.twist.x * d,

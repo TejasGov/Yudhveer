@@ -13,16 +13,18 @@ const SAMPLE_GAIN = {
   swing_lathi: 0.4,
   swing_heavy: 0.5,
   hit_blade: 0.6,
-  hit_wood: 0.6,
+  // The recording of a staff's blow is a low thud 18 dB under the blade's and the mace's through the chain: raised to carry
+  // the weight under the new crack (lathi_crack, below), which is the part heard.
+  hit_wood: 1.5,
   hit_crush: 0.65,
   parry_clash: 0.62,
   shield_block: 0.55,
   glancing_blow: 0.55,
   // Hit feel (2026-10-06): a steel clang for the sparks of an armoured or glancing blow, a mace on stone, and the crack of
   // a bamboo staff laid over the lathi's blow.
-  blade_clang: 0.55,
+  blade_clang: 1.4,
   stone_slam: 0.7,
-  lathi_crack: 0.6,
+  lathi_crack: 1.0,
   posture_break: 0.6,
   slide: 0.6,
   katar_slash: 0.45,
@@ -1134,7 +1136,7 @@ export class SoundFX {
     if (kind === 'wood') {
       this.thump(122 - 8 * tier, 0.16 * heavy, 0.2 * (0.85 + 0.15 * tier));
       // A bamboo's crack: the recording, or a burst of bright noise and a dry knock.
-      if (!this.sample('lathi_crack', { gain: 0.8 + 0.18 * tier, rate: 1.03 - 0.05 * tier })) {
+      if (!this.sample('lathi_crack', { gain: 1.2 + 0.2 * tier, rate: 1.03 - 0.05 * tier })) {
         this.noise({ duration: 0.05, gain: 0.2, attack: 0.001, filter: 'highpass', from: 2600, to: 6500 });
         this.tone({ type: 'triangle', freq: 540, to: 230, gain: 0.16, duration: 0.05 });
       }
@@ -1162,7 +1164,7 @@ export class SoundFX {
   public playClang(strike: 'steel' | 'iron' = 'steel', power = 1): void {
     const g = 0.5 + 0.5 * Math.min(1.4, power);
     const iron = strike === 'iron';
-    if (!this.sample('blade_clang', { gain: g * (iron ? 0.95 : 1), rate: iron ? 0.72 : 1, wet: 0.08 })) {
+    if (!this.sample('blade_clang', { gain: g * (iron ? 1.6 : 1), rate: iron ? 0.72 : 1, wet: 0.08 })) {
       this.tone({ type: 'triangle', freq: iron ? 900 : 1700, to: iron ? 300 : 650, gain: 0.3 * g, duration: 0.05 });
       this.ring(vary(iron ? 640 : 1250, 0.02), [1, 2.4, 3.9], [0.3, 0.2, 0.12], 0.2 * g, { wet: 0.08 });
     }

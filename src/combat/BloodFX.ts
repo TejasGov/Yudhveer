@@ -226,10 +226,11 @@ export class BloodFX {
   /**
    * A blow lands: blood (or ash) sprays from `point` along `dir` (the blow's travel, flattened), more for more
    * `damage` and on a killing blow; at Full a splat lands on the ground beyond it. `ground` is the victim's feet, used
-   * where no ground is found below. Nothing in a story scene unless `scripted`.
+   * where no ground is found below. Nothing in a story scene unless `scripted`. `thin`: a slice's spray, a narrow, quick
+   * jet along the cut rather than a spread.
    */
   public spill(point: THREE.Vector3, dir: THREE.Vector3, damage: number, kind: BloodKind, ground: number, kill = false,
-    opts: { scripted?: boolean } = {}): void {
+    opts: { scripted?: boolean; thin?: boolean } = {}): void {
     if (this.level === 'off' || kind === 'none' || (this.suppressed && !opts.scripted)) return;
     const full = this.level === 'full';
     const ash = kind === 'ash';
@@ -246,13 +247,13 @@ export class BloodFX {
     count = Math.min(full ? 46 : 16, Math.round(count));
     for (let i = 0; i < count; i++) {
       if (this.drops.length >= MAX_DROPS) this.drops.shift();
-      const speed = ash ? 0.5 + Math.random() * 1.1 : 2.4 + Math.random() * (3 + damage * 0.05);
+      const speed = (ash ? 0.5 + Math.random() * 1.1 : 2.4 + Math.random() * (3 + damage * 0.05)) * (opts.thin && !ash ? 1.3 : 1);
       const vel = flat.clone().multiplyScalar(speed)
-        .addScaledVector(side, (Math.random() - 0.5) * speed * 0.9)
-        .add(new THREE.Vector3(0, ash ? 0.5 + Math.random() * 0.8 : 0.8 + Math.random() * 2.2, 0));
+        .addScaledVector(side, (Math.random() - 0.5) * speed * (opts.thin ? 0.3 : 0.9))
+        .add(new THREE.Vector3(0, ash ? 0.5 + Math.random() * 0.8 : opts.thin ? 0.4 + Math.random() * 1.4 : 0.8 + Math.random() * 2.2, 0));
       const big = Math.random() < 0.25;
       this.drops.push({
-        pos: point.clone().addScaledVector(side, (Math.random() - 0.5) * 0.35).add(new THREE.Vector3(0, (Math.random() - 0.5) * 0.25, 0)),
+        pos: point.clone().addScaledVector(side, (Math.random() - 0.5) * (opts.thin ? 0.12 : 0.35)).add(new THREE.Vector3(0, (Math.random() - 0.5) * 0.25, 0)),
         vel,
         // Low: fewer, and smaller.
         size: (ash ? 0.05 + Math.random() * 0.07 : (big ? 0.06 : 0.03) + Math.random() * 0.03) * (full || ash ? 1 : 0.8),

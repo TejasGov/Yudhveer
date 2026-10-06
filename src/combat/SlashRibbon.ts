@@ -44,9 +44,9 @@ export interface TrailLook {
 }
 
 const BASE: Record<TrailKind, { life: number; span: number; heat: number; body: number; hero: number; foe: number }> = {
-  blade: { life: 0.13, span: 0.2, heat: 2.6, body: 0.85, hero: 0xffb347, foe: 0xff5a38 },
-  wood: { life: 0.16, span: 0.26, heat: 2.0, body: 0.7, hero: 0xf0b866, foe: 0xe8804a },
-  crush: { life: 0.17, span: 0.28, heat: 2.4, body: 0.9, hero: 0xff8a3a, foe: 0xff4a28 },
+  blade: { life: 0.13, span: 0.2, heat: 3.0, body: 0.85, hero: 0xffb347, foe: 0xff5a38 },
+  wood: { life: 0.16, span: 0.26, heat: 2.4, body: 0.7, hero: 0xf0b866, foe: 0xe8804a },
+  crush: { life: 0.17, span: 0.28, heat: 2.8, body: 0.9, hero: 0xff8a3a, foe: 0xff4a28 },
 };
 const LOOKS = new Map<string, TrailLook>();
 

@@ -299,7 +299,7 @@ export class CombatSystem {
       const bleeds = blood.bleeds(enemy.blood);
       if (!bleeds || charged) this.particleFX.spawnSparks(hitPoint, heavy ? 45 : 25, charged);
       if (bleeds) {
-        blood.spill(hitPoint, feel.spill, damage, enemy.blood, enemy.group.position.y, enemy.currentHealth <= 0);
+        blood.spill(hitPoint, feel.spill, damage, enemy.blood, enemy.group.position.y, enemy.currentHealth <= 0, { thin: weapon === 'blade' });
       }
     }
     this.impact(kind, feel.dir, 1, blowSpec(kind, weapon, tier));
