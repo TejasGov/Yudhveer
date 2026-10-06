@@ -23,6 +23,8 @@ import { Settings } from '../core/Settings';
 
 const FIXED_DT = 1 / 60;
 const UP = new THREE.Vector3(0, 1, 0);
+/** Seconds after a blow of his was turned aside that a player who has met a boss's guard waits to see its counter begin. */
+const BOUNCE_WAIT = 1.0;
 
 /** How a bot player plays; see `SKILLS`. */
 export interface BotSkill {
@@ -149,6 +151,8 @@ export class HeroBot {
   private guardFrom = Infinity;
   private lastAttackPress = -1;
   private lastCharge = -99;
+  /** When a blow of his was last turned aside by a boss's guard (his state was DEFLECTED). */
+  private lastBounce = -99;
   private routeIndex = 0;
   private routed = false;
   private charging = false;
@@ -544,6 +548,7 @@ export class HeroBot {
     }
     // An answer due within a moment holds him still (a guard needs him standing; a swing now would shut out a slide).
     const pending = this.actions.some((a) => a.at - this.now < 0.45);
+    if (state === 'DEFLECTED') this.lastBounce = this.now;
     if (state === 'DODGE' || state === 'PARRY' || state === 'BLOCK_HIT' || state === 'STAGGER' || state === 'DEFLECTED' || state === 'POSTURE_BROKEN') {
       this.turnCamera(dt);
       return; // the hands are busy
@@ -600,6 +605,11 @@ export class HeroBot {
     // A boss with its guard up turns light blows aside and bounces the blade (combat/Guard.ts): a player who has met it waits for
     // the guard to come down, or breaks it with Shakti (a charged blow) or a finisher; one who has not keeps clicking.
     const guarded = skill.patience > 0 && !!target.e.guard?.isUp() && player.chargedHits === 0 && target.e.guard.covers(player.getPosition());
+    // And once a blow of his has bounced, or as its weapon comes down, he expects the counter and waits to see it begin (a swing he
+    // has started cannot be taken back, and the counter is the one blow a boss makes with him standing right there); not while it is
+    // staggered or broken, when there is nothing to wait for.
+    const hurt = target.e.stateMachine.currentState === 'STAGGER' || target.e.stateMachine.currentState === 'POSTURE_BROKEN';
+    const expecting = skill.patience > 0 && !!target.e.guard && !hurt && (this.now - this.lastBounce < BOUNCE_WAIT || target.e.guard.settling);
 
     // Shakti: on a quiet moment, far from everyone, held until it is whole.
     if (skill.tricks) {
@@ -625,13 +635,13 @@ export class HeroBot {
       // Chain: the next blow is queued from the moment this one's blade starts, if there is a blow to follow it with.
       const first = player.hitWindows(state as CharacterState)[0];
       const chaining = (state === 'ATTACK_1' || state === 'ATTACK_2') && player.can('combo');
-      if (chaining && !sm.comboQueued && safe && !guarded && tdist <= swingRange + 0.8 && sm.stateTime >= (first?.t0 ?? 0)) {
+      if (chaining && !sm.comboQueued && safe && !guarded && !expecting && tdist <= swingRange + 0.8 && sm.stateTime >= (first?.t0 ?? 0)) {
         this.tap('attack');
         return;
       }
       // After the last blow of a string (or a lone one), a fresh string starts once the swing may be cut.
       const cancel = sm.cancelAt[state];
-      if ((state === 'ATTACK_3' || !chaining) && cancel !== undefined && sm.stateTime >= cancel && safe && !guarded && tdist <= swingRange + 0.6
+      if ((state === 'ATTACK_3' || !chaining) && cancel !== undefined && sm.stateTime >= cancel && safe && !guarded && !expecting && tdist <= swingRange + 0.6
         && this.now - this.lastAttackPress > 0.15) {
         this.tap('attack');
         this.lastAttackPress = this.now;
@@ -648,7 +658,7 @@ export class HeroBot {
     }
 
     if (tdist <= swingRange) {
-      if (safe && !guarded && this.now - this.lastAttackPress > 0.12) {
+      if (safe && !guarded && !expecting && this.now - this.lastAttackPress > 0.12) {
         this.tap('attack');
         this.lastAttackPress = this.now;
       }

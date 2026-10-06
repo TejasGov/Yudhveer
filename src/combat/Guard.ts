@@ -140,6 +140,8 @@ const EAGER_RECOVERY = 0.5;
 const EAGER_WINDOW = 0.7;
 const EAGER_WAIT = 0.75;
 const MIN_WINDOW = 0.22;
+/** After the guard comes down it starts no blow of its own for this long (s): the weapon lowers, then the wind-up begins. */
+const LOWERING = 0.3;
 /** A swing of his whose blade is closer than this (s) to landing is too late to meet: it is not rolled for. */
 const TOO_LATE = 0.12;
 /**
@@ -182,6 +184,8 @@ export class Guard {
   /** Seconds since he last had a swing going, and until it next decides whether to put the guard up unprompted. */
   private heroSwungAgo = 99;
   private lookIn = 0;
+  /** Seconds left of the beat after the guard comes down (`LOWERING`). */
+  private beat = 0;
   /** What it will do once the blow that earned it has bounced off, and in how long. */
   private answer: 'counter' | 'shove' | null = null;
   private answerWait = 0;
@@ -283,6 +287,12 @@ export class Guard {
     this.sinceFlank += dt;
     this.heroSwungAgo += dt;
     if (this.lookIn > 0) this.lookIn -= dt;
+    if (this.beat > 0) this.beat -= dt;
+  }
+
+  /** The guard has just come down: it starts no blow of its own for a moment (`LOWERING`). */
+  public get settling(): boolean {
+    return this.beat > 0;
   }
 
   /** A blow of its own (a swing, a cast, the kick) has just ended: the opening after it begins. */
@@ -293,7 +303,7 @@ export class Guard {
   /** A heavy blow broke the guard. */
   public broke(): void {
     this.tally.broken++;
-    this.release(this.spec.broken, false);
+    this.release(this.spec.broken, false, false);
   }
 
   /** Dev and tests: forgets everything (a retry, a scene). */
@@ -310,6 +320,7 @@ export class Guard {
     this.sinceFlank = 99;
     this.heroSwungAgo = 99;
     this.lookIn = 0;
+    this.beat = 0;
     this.answer = null;
     this.answerWait = 0;
     this.host.stateMachine.guardHeld = false;
@@ -408,7 +419,7 @@ export class Guard {
         this.tally.answers++;
         if (action === 'shove') this.tally.shoves++;
         this.answerCooldown = ANSWER_COOLDOWN;
-        this.release(this.spec.cooldown);
+        this.release(this.spec.cooldown, true, false);
         return action;
       }
       return 'hold';
@@ -431,10 +442,11 @@ export class Guard {
   }
 
   /** The guard comes down (or was broken): back to its stance, and not again for `cooldown` seconds (fewer when hard pressed). */
-  private release(cooldown: number, pressed = true): void {
+  private release(cooldown: number, pressed = true, lowering = true): void {
     const sm = this.host.stateMachine;
     sm.guardHeld = false;
     if (this.isUp()) sm.changeState('IDLE');
+    if (lowering) this.beat = LOWERING;
     this.cooldown = pressed ? cooldown * (1 - EAGER_WAIT * this.eager) : cooldown;
     this.answer = null;
     this.wantUp = -1;

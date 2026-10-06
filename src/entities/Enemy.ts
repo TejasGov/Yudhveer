@@ -268,7 +268,7 @@ export class Enemy extends Character {
     let moveMagnitude = 0;
     // Ready and within reach: attack, however close the player has pressed in (backing off forever under
     // pressure would let attack spam keep it from ever swinging).
-    if (distance <= this.engageRange && this.aiTimer >= this.attackCooldown) {
+    if (distance <= this.engageRange && this.aiTimer >= this.attackCooldown && !this.guard?.settling) {
       this.aiTimer = 0;
       this.beginTelegraph();
     } else if (mode === 'approach') {

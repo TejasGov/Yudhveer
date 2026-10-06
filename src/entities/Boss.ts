@@ -164,7 +164,7 @@ export class Boss extends Enemy {
         return;
       }
     }
-    const ready = this.attackTimer >= attackInterval;
+    const ready = this.attackTimer >= attackInterval && !this.guard?.settling;
     const mode = this.chooseMoveMode(distance, strikeRange, tooClose, dt);
     const leapClip = this.rig?.definition.states.ATTACK_JUMP;
     if (ready && distance > leapRange && distance <= leapMax && leapClip) {
