@@ -38,7 +38,7 @@ createServer((req, res) => {
   const url = new URL(req.url, 'http://localhost');
   const started = Date.now();
   const record = (status, bytes) => requests.push({ method: req.method, path: url.pathname + url.search, status, bytes, ms: Date.now() - started });
-  const send = (status, body, headers = {}) => { res.writeHead(status, { 'cache-control': 'no-store', ...headers }); res.end(body); record(status, Buffer.byteLength(body ?? '')); };
+  const send = (status, body, headers = {}) => { res.writeHead(status, { 'cache-control': 'no-store', 'access-control-allow-origin': '*', ...headers }); res.end(body); record(status, Buffer.byteLength(body ?? '')); };
 
   if (url.pathname === `${mount}__requests`) {
     if (url.searchParams.has('reset')) requests.length = 0;
@@ -52,7 +52,7 @@ createServer((req, res) => {
   if (!existsSync(file) || !statSync(file).isFile()) return send(404, 'Not found', { 'content-type': 'text/plain' });
 
   const ext = extname(file).toLowerCase();
-  const headers = { 'content-type': TYPES[ext] ?? 'application/octet-stream', 'cache-control': 'no-store' };
+  const headers = { 'content-type': TYPES[ext] ?? 'application/octet-stream', 'cache-control': 'no-store', 'access-control-allow-origin': '*' };
   const size = statSync(file).size;
   if (req.method === 'HEAD') { res.writeHead(200, { ...headers, 'content-length': size }); res.end(); return record(200, 0); }
   const stream = createReadStream(file);
