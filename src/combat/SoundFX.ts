@@ -208,6 +208,8 @@ export class SoundFX {
   private ambience: AmbienceRun | null = null;
   private wantedAmbience: Ambience | null = null;
   private samples = new Map<Sample, AudioBuffer>();
+  /** When the last blow's layers (`playBlowWeight`) played (performance.now() ms). */
+  private lastBlowWeight = -Infinity;
   public readonly music = new Music();
   /** Lightning, `delay` seconds before its thunder is heard (the summit, Dwarka's storm). */
   public onLightning: ((strength: number) => void) | null = null;
@@ -1132,6 +1134,10 @@ export class SoundFX {
    * blow, 1 a heavy one, 2 a slam.
    */
   public playBlowWeight(kind: ImpactKind = 'blade', tier: 0 | 1 | 2 = 0): void {
+    // A sweep through a crowd lands several blows in one step: one set of layers is enough (each still has its own recording).
+    const now = performance.now();
+    if (now - this.lastBlowWeight < 45) return;
+    this.lastBlowWeight = now;
     const heavy = 1 + 0.28 * tier;
     if (kind === 'wood') {
       this.thump(122 - 8 * tier, 0.16 * heavy, 0.2 * (0.85 + 0.15 * tier));

@@ -150,7 +150,10 @@ export class HitFeel {
     const follows = across > MIN_SWING;
     if (follows) swingH.divideScalar(across);
 
-    HitReact.trigger(b.victim, { along, swing, point: b.point, kind: b.weapon, tier: b.tier, reeling: b.reeling });
+    // The body goes where the blow carried it: away from the attacker and, for a slash, along the cut (seen from behind the
+    // hero, a recoil straight away from him is mostly foreshortened).
+    const push = _mix.copy(along).multiplyScalar(1 - 0.8 * (follows ? SWING_FOLLOW[b.weapon] : 0)).addScaledVector(swingH, follows ? 0.8 * SWING_FOLLOW[b.weapon] : 0).normalize();
+    HitReact.trigger(b.victim, { along: push, swing, point: b.point, kind: b.weapon, tier: b.tier, reeling: b.reeling });
 
     const sound = SoundFX.getInstance();
     const feet = b.victim.group.position;
@@ -159,9 +162,10 @@ export class HitFeel {
       const power = b.glancing ? 1 : 0.5;
       if (b.weapon !== 'wood') {
         const iron = b.weapon === 'crush';
-        // The contact is inside the body the capsule stands for: the sparks start out on its near side, where they can be seen.
+        // The contact is inside the body the capsule stands for: the sparks start out on its near side (and ClashFX lifts them
+        // toward the camera), where they can be seen.
         const toward = _back.copy(along).negate();
-        const out = _p.copy(b.point).addScaledVector(toward, 0.18 + 0.25 * (b.victim.motor?.radius ?? 0.4));
+        const out = _p.copy(b.point).addScaledVector(toward, 0.1 + 0.12 * (b.victim.motor?.radius ?? 0.4));
         ClashFX.getInstance().sparks(out, sprayDir(_spray, swingH, follows, toward), iron ? 'iron' : 'steel', power * (1 + 0.15 * tier), feet.y);
         sound.playClang(iron ? 'iron' : 'steel', power);
       } else if (b.glancing) {
@@ -207,7 +211,7 @@ export class HitFeel {
     const follows = across > MIN_SWING;
     if (follows) flat.divideScalar(across);
     else flat.crossVectors(toward, _up).multiplyScalar(Math.random() < 0.5 ? 1 : -1);
-    ClashFX.getInstance().sparks(_p.copy(o.point).addScaledVector(toward, 0.15), sprayDir(_spray, flat, true, toward), o.weapon === 'crush' ? 'iron' : 'steel', o.power, o.floor);
+    ClashFX.getInstance().sparks(_p.copy(o.point).addScaledVector(toward, 0.1), sprayDir(_spray, flat, true, toward), o.weapon === 'crush' ? 'iron' : 'steel', o.power, o.floor);
   }
 
   /**

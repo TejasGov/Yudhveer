@@ -39,9 +39,15 @@ const LOOK: Record<Strike, Look> = {
 const LIGHT_COLOR = new THREE.Color(1, 0.68, 0.34);
 /** The flash sits this far toward the camera from the clash, so what faces us is what it lights. */
 const LIGHT_LIFT = 0.25;
+/**
+ * The sparks start this far toward the camera from the clash: from behind the hero the contact is usually hidden by his own
+ * body or by the one he struck, and sparks born inside either would only show once they had flown clear (a few frames late).
+ */
+const SPARK_LIFT = 0.32;
 
 const _dir = new THREE.Vector3();
 const _toCamera = new THREE.Vector3();
+const _from = new THREE.Vector3();
 
 export class ClashFX {
   private static instance: ClashFX | null = null;
@@ -77,7 +83,11 @@ export class ClashFX {
     const dir = _dir.copy(swing);
     if (dir.lengthSq() < 1e-4) dir.set(0, 1, 0);
     dir.normalize();
-    ParticleFX.getInstance().spawnChingaari(point, dir, {
+    const camera = SceneManager.getInstance().camera;
+    _toCamera.subVectors(camera.position, point);
+    if (_toCamera.lengthSq() > 1e-6) _toCamera.normalize();
+    const at = _from.copy(point).addScaledVector(_toCamera, SPARK_LIFT);
+    ParticleFX.getInstance().spawnChingaari(at, dir, {
       count: Math.max(3, Math.round(look.count * power)),
       cone: look.cone,
       pop: look.pop,

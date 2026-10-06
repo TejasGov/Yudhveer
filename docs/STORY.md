@@ -1574,6 +1574,63 @@ ones; earlier passes in `iterations/`; Blender renders in `blender/`, the lab an
 - **Left for later:** the lathi laid down is a cut, not a gesture (no lay-down clip: the reach down is authored, the
   reverse would be a second clip); a Meshy model of the lathi, if the user wants a hero prop of it.
 
+## Hit feel (2026-10-06)
+
+The user, after playing: "in none of the levels do we feel any impact of sword/lathi/gada hitting the enemy, we only feel
+when it hits us", and "sword striking chingaari (sparks) is a nice touch to have". The cause: a boss, or anything committed
+to a swing, never flinches from a light blow (`Enemy.heavyPoise`, `isArmored`: the no-stun-lock rule), so a blow that landed
+changed nothing on screen but a number, and the hit sound of the staff was 11 to 13 dB under the blade's and the mace's (a low thud with no crack in it). Nothing of that rule
+was touched: the layers below sit on top of the animation and change no state, so the stagger and stun-lock rules are
+exactly as they were (checked: spamming light blows on the Guardian, Shalva and Andhaka for fifteen seconds, none of them
+ever staggers, and each keeps attacking). Numbers and judgement calls in docs/APPROVALS.md, "Hit feel and sparks"; before
+and after contact sheets (the original build against this one, frame by frame, 60 steps a second) in
+`game asset/audit/fixes/hitfeel/` (`sheet_*.jpg`, `make_sheets.py`).
+
+- **A flinch on every blow** (`combat/HitReact.ts`). After the rig has posed a character (`Character.update`, one line after
+  `updateRig`), the spine, neck and head are turned away from the blow about world axes (through each bone's parent, so the
+  rig's own bone axes do not matter), on damped springs: peak in ~50 ms, back in ~230 ms, the head a little later and
+  further; a few degrees for the lathi, ten and more for the gada, a boss a little less, one already in its own hit clip a
+  little less again; several blows add up from whichever way each came. A blow across the body also twists it (a torque
+  about the vertical, by which side of the victim's axis the blade struck and which way it was going). Plus a pushback of
+  a few centimetres along the blow, never while the victim is committed to a swing (it would slide through the move), and
+  resolved with the rest of its movement by its motor, so never through a wall. The animation writes its own pose every step,
+  so nothing is left behind; a bone nobody rewrites is put back from its saved pose.
+- **A hit flash.** Every character's cel materials carry one more uniform (`installHitFlash`, called where `CharacterRig`
+  makes them, so the shader is compiled with the rest and not at the first blow): a warm-white wash, strongest at the
+  silhouette, ~75 ms of real time (it plays out inside the hit-stop it comes with, so it is a flash and not a held
+  white-out). At 0 the material is exactly what it was.
+- **Weight per weapon** (`combat/HitFeel.ts`). The hit-stop is longer for all (light 40 to 65 ms, heavy 75 to 95, slam 110
+  to 130), the camera shake slider still scales the shake and not the freeze. *The staff cracks:* a recording of bamboo
+  snapping laid over its blow (`lathi_crack`), a crisp, short kick. *The blade slices:* the camera nudged along the swing
+  rather than straight into the victim, a thin hiss of steel under the blow, the blood a narrow jet along the cut (`thin`).
+  *The mace crushes:* a freeze up to 150 ms, more shake, a dip of the camera, a boom an octave down (the mace's own blow
+  recording pitched down, and a sine), dust at the victim's feet, the chips of stone falling. Every blow also gets a low
+  synthesized body thump.
+- **Chingaari** (`combat/ClashFX.ts`, `ParticleFX.spawnChingaari`). Where metal meets metal or stone, sparks are thrown
+  along the way the blade was travelling (its velocity at the contact, from `HitboxManager`'s blade last step and now),
+  not as a round puff: white-hot heads, orange tails twice as long as the other sparks', falling, skittering up to twice
+  where they meet the floor, living a third of a second. They start on the near side of the body struck (and toward the
+  camera), where they can be seen. One PointLight, made at start with the scene's other lights and left at zero, flashes at
+  each clash for ~70 ms (nothing is created per blow; no material recompiles). Where: a blow turned aside by Andhaka's
+  hide (`glancing`) and a committed boss's armour (a light blow chipping a boss mid-swing), for steel and iron (a staff
+  throws none), with a clang (`blade_clang`); an enemy's blade parried, deflected or blocked (the old round starburst
+  and red puff are replaced; the parry's and the shield's own sounds stay); a weapon brought down on the floor, where its
+  downswing bottoms out within half a metre of the stone and still falling (the mace's slam and chops, any weapon's leaping
+  strike), unless the swing has already landed on someone: sparks, dust (Dwarka's wet stone splashes instead), a dip of the
+  camera, a low rumble and `stone_slam`.
+- **Trails** (`combat/SlashRibbon.ts`). Was the whole blade swept through the air, hilt to tip, sixteen steps, one flat
+  colour: a great yellow fan. Now a ribbon along the last fifth to quarter of the weapon, a white-hot line riding the tip's
+  path that goes over into the weapon's tint across the width and thins to nothing (additive, in HDR), fading along its
+  length over 0.13 s (blade) to 0.17 s (mace), smoothed with a spline, its newest point pulled onto the blade as it is
+  drawn (a vertex-shader offset: no lead, no gap when the picture is interpolated between steps), and shown only from just
+  before an attack's first strike window to just after its last. The hero's are gold, an enemy's a hot red. It is no
+  longer updated by `updateProceduralAnimations` (which skips some states) but every step by `Character.update`, so one
+  that is cut short fades out and never hangs in the air.
+- **Dev:** `HitReact.read(character)` reports a flinch (degrees, push, flash, and the bones it turns). The three new
+  recordings (`blade_clang`, `stone_slam`, `lathi_crack`) are in `public/assets/sfx` and their masters in `game asset/sfx`
+  (`process_sfx.py` builds them from the takes). Stepping a fight frame by frame (`__debug.step`) shows the flinch; the
+  hit-stop, the flash's real-time decay and the camera need the real loop.
+
 ## Tools
 
 - **ElevenLabs:** voices, character sound effects, music.
