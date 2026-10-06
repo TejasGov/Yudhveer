@@ -11,7 +11,11 @@ npm install
 npm run dev      # http://localhost:5199
 npm run build    # type-check and build to dist/
 npm run preview  # serve the production build
+npm run build:pages  # the same, for a sub-path (GitHub Pages: /Yudhveer/)
+npm run build:itch   # a zip for itch.io (relative addresses): yudhveer-itch.zip
 ```
+
+Hosting, the base path, the downloads' sizes and the test server: [docs/DEPLOY.md](docs/DEPLOY.md). Every file the game asks for goes through `asset()` (`src/core/Assets.ts`): never write an `/assets/...` address in code (`npm run build` refuses it).
 
 ## Playing
 

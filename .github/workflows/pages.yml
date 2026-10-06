@@ -1,0 +1,45 @@
+# Publishes the game to GitHub Pages (https://<owner>.github.io/Yudhveer/), by hand only.
+#
+# There is no push or schedule trigger on purpose: nothing is published until someone opens the repository's Actions tab,
+# chooses "Deploy to GitHub Pages (by hand)" and presses "Run workflow". Before the first run, turn Pages on:
+# Settings > Pages > Build and deployment > Source: "GitHub Actions". See docs/DEPLOY.md.
+name: Deploy to GitHub Pages (by hand)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deployment at a time; a run already publishing is let finish.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      # Type-checks, refuses an absolute asset URL, and builds with the base /Yudhveer/ (a project site lives under its repository's name).
+      - run: npm run build:pages
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

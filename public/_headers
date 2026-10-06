@@ -1,0 +1,19 @@
+# Cache and security headers for Netlify and Cloudflare Pages (both read this file from the root of the published folder;
+# Vite copies it there from public/). GitHub Pages, itch.io and a plain static server ignore it. docs/DEPLOY.md.
+
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+
+# The page: always ask whether there is a new build (the answer is a 304 when there is not).
+/
+  Cache-Control: public, max-age=0, must-revalidate
+/index.html
+  Cache-Control: public, max-age=0, must-revalidate
+
+# Everything under /assets/ is named by what is in it, so it can be kept for a year and never asked about again:
+#  - the bundle's scripts and styles (index-<hash>.js, three-<hash>.js, rapier-<hash>.js ...) carry a hash in their names;
+#  - every file in public/assets is requested as <file>?v=<hash of its bytes> (src/core/Assets.ts), so a changed file is a new URL.
+# (Do not copy this rule to a folder whose files the game asks for without a version.)
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
