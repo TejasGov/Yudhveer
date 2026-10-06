@@ -20,15 +20,18 @@ export class BossBaoli extends Boss {
     // The well's own protector, bound by Andhaka (docs/STORY.md, Chapter I), not a demon of it.
     this.epithet = 'Keeper of the stepwell';
     // Milestone 12 (docs/STORY.md): health 450 -> 1000 and blows at 60 % (18 and 24 -> 10.8 and 14.4): the fight lasts longer
-    // and costs far less (a steady player lost 74 health of 100 in it before, 39 now).
-    this.maxHealth = 1000;
-    this.currentHealth = 1000;
-    this.damageScale = 0.6;
+    // and costs far less (a steady player lost 74 health of 100 in it before, 39 now). "Bosses fight back": a posture that breaks
+    // now starts over (it never did, so he was broken again by the next blow and stood there), which made him a third harder, so
+    // health 1000 -> 750 and blows 60 -> 50 % (the same 40 health a steady player pays, the same 24 s).
+    this.maxHealth = 750;
+    this.currentHealth = 750;
+    this.damageScale = 0.5;
     this.maxMarma = 140;
-    // He guards with the talwar held high across his face, seldom, and answers after three blocked blows (docs/STORY.md,
-    // "Bosses fight back"): the first boss only teaches that a blow can be turned aside.
+    // He guards with the talwar held high across his face, a little less eagerly than the rest, and answers only after three
+    // blocked blows (docs/STORY.md, "Bosses fight back"): the first boss teaches that a blow can be turned aside.
     this.guard = new Guard(this, {
-      base: 0.1, perBlow: 0.2, max: 0.6, hold: 0.8, extend: 0.65, longest: 1.4, cooldown: 1.9, answerAfter: [3, 3], shove: 0.35, ring: 'steel',
+      base: 0.4, perBlow: 0.3, max: 0.85, hold: 0.8, extend: 0.65, longest: 1.4, cooldown: 1.9, recovery: 0.5, window: 0.3,
+      answerAfter: [3, 3], shove: 0.35, ring: 'steel',
     });
     this.moveSpeed = 3.8;
     this.marmaDecayRate = 9;

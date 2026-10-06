@@ -61,15 +61,17 @@ export class BossAndhaka extends Boss {
     this.epithet = 'Crowned in the eclipse';
     // Milestone 12: health 640 -> 840, blows at 130 % (was 110 %). (How many blows land decides this fight, not how hard
     // they are: 130 to 140 % made no difference to a steady player's chances, 760 and 840 health did.)
-    this.maxHealth = 840;
-    this.currentHealth = 840;
+    // "Bosses fight back": his guard and a posture that starts over after a break make the fight longer and harder: health 840 -> 600.
+    this.maxHealth = 600;
+    this.currentHealth = 600;
     this.damageScale = 1.3; // the last fight: his blows land harder than any other's
     this.armorDamage = 0.4; // light blows thrown into his swing glance off his hide
     this.maxMarma = 200;
     // The cleaver held across him. He swings so often (every 1.1 s, 0.8 s in his second phase) that the guard can only ever be
     // short: it comes down into his next blow.
     this.guard = new Guard(this, {
-      base: 0.1, perBlow: 0.2, max: 0.65, hold: 0.75, extend: 0.65, longest: 1.3, cooldown: 1.4, answerAfter: [2, 3], shove: 0.35, ring: 'iron',
+      base: 0.45, perBlow: 0.3, max: 0.9, hold: 0.75, extend: 0.65, longest: 1.3, cooldown: 1.4, recovery: 0.3, window: 0.15,
+      answerAfter: [2, 3], shove: 0.35, ring: 'iron',
     });
     this.moveSpeed = 4;
     this.marmaDecayRate = 8;

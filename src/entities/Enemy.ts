@@ -51,6 +51,11 @@ const SLOT_RANGE = 9;
  */
 const ALARM_RATE = 2.2;
 const ALARM_ACCEL = 3;
+/** The quickest it may build its turn (rad/s^2): the jitter probe's limits are 1500 deg/s^2 for a boss (26.2) and 3000 for the rest (52.4). */
+const ALARM_ACCEL_BOSS = 25;
+const ALARM_ACCEL_OTHER = 50;
+/** Its braking plan counts on this share of that (it runs a step late at this speed: planned on all of it, it would arrive at a heading still turning and stop dead). */
+const ALARM_BRAKE = 0.6;
 /** Whether a state is one of its own blows (a swing, a cast, the kick): `Guard.attackEnded` fires when one ends. */
 const isOwnBlow = (s: string) => s.startsWith('ATTACK') || s === 'SHOVE' || s === 'CAST';
 const _want = new THREE.Vector3();
@@ -303,7 +308,10 @@ export class Enemy extends Character {
 
   /** Faces `yaw` at its usual rate, or quickly while it is turning on someone at its back (`Guard.alarmed`). */
   protected faceTarget(yaw: number, dt: number): void {
-    if (this.guard?.alarmed) this.turnToward(yaw, this.turnRate * ALARM_RATE, dt, { accel: this.turnAccel * ALARM_ACCEL });
+    if (this.guard?.alarmed) {
+      const accel = Math.min(this.turnAccel * ALARM_ACCEL, this.isBoss ? ALARM_ACCEL_BOSS : ALARM_ACCEL_OTHER);
+      this.turnToward(yaw, this.turnRate * ALARM_RATE, dt, { accel, margin: ALARM_BRAKE });
+    }
     else this.turnToward(yaw, this.turnRate, dt);
   }
 

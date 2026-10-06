@@ -806,7 +806,7 @@ export class Character extends Entity {
    * (Never lerp angles directly: across +-PI that spins the long way.)
    */
   public turnToward(yaw: number, maxRate: number, dt: number, options: TurnOptions = {}): number {
-    const { accel = this.turnAccel, gain = TURN_GAIN, deadzone = TURN_DEADZONE } = options;
+    const { accel = this.turnAccel, gain = TURN_GAIN, deadzone = TURN_DEADZONE, margin = 1 } = options;
     const diff = wrapAngle(yaw - this.group.rotation.y);
     this.turnedThisStep = true;
     if (dt <= 0) return diff;
@@ -817,7 +817,7 @@ export class Character extends Entity {
     }
     // The turn speed it wants: proportional to the angle left (it eases in), capped by its rate and by what it can
     // still brake to rest from at `accel` (so it never overshoots). The turn speed itself changes by `accel` at most.
-    const want = Math.sign(diff) * Math.min(maxRate, gain * Math.abs(diff), Math.sqrt(2 * accel * Math.abs(diff)));
+    const want = Math.sign(diff) * Math.min(maxRate, gain * Math.abs(diff), Math.sqrt(2 * accel * margin * Math.abs(diff)));
     this.yawVel += THREE.MathUtils.clamp(want - this.yawVel, -accel * dt, accel * dt);
     let step = this.yawVel * dt;
     if (Math.sign(step) === Math.sign(diff) && Math.abs(step) > Math.abs(diff)) {
@@ -1046,11 +1046,16 @@ export class Character extends Entity {
   }
 }
 
-/** How `turnToward` turns: its angular acceleration (rad/s^2), ease-in gain (1/s) and deadzone (radians). */
+/**
+ * How `turnToward` turns: its angular acceleration (rad/s^2), ease-in gain (1/s) and deadzone (radians), and the share of the
+ * acceleration its braking plan counts on (1: all of it; a fast turn plans on less, so that the step or two its plan runs late
+ * cannot carry it past the heading and snap it to a stop).
+ */
 export interface TurnOptions {
   accel?: number;
   gain?: number;
   deadzone?: number;
+  margin?: number;
 }
 
 /** A span of an attack (state seconds) in which its blade can land; each window lands at most once. */

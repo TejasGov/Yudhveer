@@ -23,7 +23,7 @@ export class Vetala extends Enemy {
     this.maxMarma = 110;
     // Two blades crossed before him: quick to raise, quick to drop, and his answer is his quick cut or a kick.
     this.guard = new Guard(this, {
-      base: 0.12, perBlow: 0.2, max: 0.65, hold: 0.7, extend: 0.6, longest: 1.2, cooldown: 1.4, recovery: 0.6, react: 0.09, reach: 3.4,
+      base: 0.45, perBlow: 0.3, max: 0.9, hold: 0.7, extend: 0.6, longest: 1.2, cooldown: 1.4, recovery: 0.4, window: 0.2, react: 0.09, reach: 3.4,
       answerAfter: [2, 3], shove: 0.3, shoveRange: 2.4, ring: 'steel',
     });
     this.moveSpeed = 6.2;

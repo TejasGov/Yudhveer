@@ -131,6 +131,26 @@ const ALARM_CLOSE = 3.0;
 const ALARM_AFTER = 0.25;
 /** A blow from behind is "just now" for this long (s): the answer to it is a backhand. */
 const FLANK_MEMORY = 2.5;
+/**
+ * Hard pressed (the blows it has taken lately, `pressure`, up to this many), it guards more eagerly: the opening after a blow of its
+ * own, the one before its next and the wait after a guard narrow by up to these shares (the window never under what a raise takes).
+ */
+const PRESSED_AT = 2.5;
+const EAGER_RECOVERY = 0.5;
+const EAGER_WINDOW = 0.7;
+const EAGER_WAIT = 0.75;
+const MIN_WINDOW = 0.22;
+/** A swing of his whose blade is closer than this (s) to landing is too late to meet: it is not rolled for. */
+const TOO_LATE = 0.12;
+/**
+ * Hard pressed (this much pressure) with him still at it (a swing of his within this long, s), it does not wait to see each swing
+ * begin: every so often (s) it decides whether to put the guard up and keep it there between its own blows.
+ */
+const TURTLE_AT = 1.5;
+const TURTLE_MEMORY = 0.9;
+const TURTLE_EVERY = 0.35;
+/** Its own blow is due, but his is about to land on its guard: it takes that one first (hard pressed, and his blade this near, s). */
+const TAKES_IT = 0.35;
 
 const _a = new THREE.Vector3();
 const _b = new THREE.Vector3();
@@ -159,6 +179,9 @@ export class Guard {
   private behindFor = 0;
   /** Seconds since a blow of his struck it from outside its front arc (an answer to that is the wide cut, a backhand). */
   private sinceFlank = 99;
+  /** Seconds since he last had a swing going, and until it next decides whether to put the guard up unprompted. */
+  private heroSwungAgo = 99;
+  private lookIn = 0;
   /** What it will do once the blow that earned it has bounced off, and in how long. */
   private answer: 'counter' | 'shove' | null = null;
   private answerWait = 0;
@@ -173,6 +196,11 @@ export class Guard {
   /** Whether it is turning on him (quickly) now. */
   public get alarmed(): boolean {
     return this.alarm > 0;
+  }
+
+  /** 0 (nothing lately) to 1 (hard pressed): how eager it is to guard. */
+  private get eager(): number {
+    return THREE.MathUtils.clamp(this.pressure / PRESSED_AT, 0, 1);
   }
 
   /** The guard is raised (or taking a blow): the pose is up, whether or not it will turn a blow aside yet. */
@@ -253,6 +281,8 @@ export class Guard {
     if (this.alarm > 0) this.alarm -= dt;
     this.sinceAttack += dt;
     this.sinceFlank += dt;
+    this.heroSwungAgo += dt;
+    if (this.lookIn > 0) this.lookIn -= dt;
   }
 
   /** A blow of its own (a swing, a cast, the kick) has just ended: the opening after it begins. */
@@ -263,7 +293,7 @@ export class Guard {
   /** A heavy blow broke the guard. */
   public broke(): void {
     this.tally.broken++;
-    this.release(this.spec.broken);
+    this.release(this.spec.broken, false);
   }
 
   /** Dev and tests: forgets everything (a retry, a scene). */
@@ -278,6 +308,8 @@ export class Guard {
     this.alarm = 0;
     this.behindFor = 0;
     this.sinceFlank = 99;
+    this.heroSwungAgo = 99;
+    this.lookIn = 0;
     this.answer = null;
     this.answerWait = 0;
     this.host.stateMachine.guardHeld = false;
@@ -290,6 +322,7 @@ export class Guard {
   public step(dt: number, v: GuardView): GuardAction {
     const sm = this.host.stateMachine;
     this.watchBack(dt, v);
+    if (v.swing) this.heroSwungAgo = 0;
 
     if (this.isUp()) return this.holding(dt, v);
     this.raisedFor = 0;
@@ -306,10 +339,22 @@ export class Guard {
         return 'hold';
       }
     }
+    // Each swing of his is rolled for once, as soon as it can be: when it begins, or, if it was not free then, the moment it is (while
+    // there is still time to meet the blade).
     const swing = v.swing;
     if (swing && swing.id !== this.seen && v.distance <= this.spec.reach) {
-      this.seen = swing.id;
-      if (this.mayGuard(v) && Math.random() < this.chance()) this.wantUp = this.spec.react;
+      if (swing.until < TOO_LATE) this.seen = swing.id;
+      else if (this.mayGuard(v)) {
+        this.seen = swing.id;
+        this.lookIn = TURTLE_EVERY;
+        if (Math.random() < this.chance()) this.wantUp = this.spec.react;
+      }
+    }
+    // Hard pressed, and he is still at it: the guard goes up between its blows without waiting for the next swing to begin.
+    if (this.wantUp < 0 && this.lookIn <= 0 && this.pressure >= TURTLE_AT && this.heroSwungAgo < TURTLE_MEMORY && v.distance <= this.spec.reach
+      && this.mayGuard(v)) {
+      this.lookIn = TURTLE_EVERY;
+      if (Math.random() < this.chance()) this.wantUp = this.spec.react;
     }
     // A run of blows it did not guard: it answers anyway.
     if (this.pressure >= this.spec.snap && this.answerCooldown <= 0 && v.inReach && v.off <= GUARD_ARC) {
@@ -332,7 +377,9 @@ export class Guard {
 
   /** Whether it is in a position to guard: not just after a blow of its own, not about to make one, facing him. */
   private mayGuard(v: GuardView): boolean {
-    return this.cooldown <= 0 && this.sinceAttack >= this.spec.recovery && v.readyIn >= this.spec.window && v.off <= GUARD_ARC && v.free;
+    const e = this.eager;
+    const window = Math.min(this.spec.window, Math.max(MIN_WINDOW, this.spec.window * (1 - EAGER_WINDOW * e)));
+    return this.cooldown <= 0 && this.sinceAttack >= this.spec.recovery * (1 - EAGER_RECOVERY * e) && v.readyIn >= window && v.off <= GUARD_ARC && v.free;
   }
 
   private raise(): void {
@@ -370,20 +417,25 @@ export class Guard {
       this.release(this.spec.cooldown);
       return 'none';
     }
-    // Its own next blow is due and he is in reach: the guard goes into it.
-    if (v.readyIn <= 0 && v.inReach) {
+    // Its own next blow is due and he is in reach: the guard goes into it (but not from under a blow of his about to land on it).
+    if (v.readyIn <= 0 && v.inReach && !this.takesIt(v)) {
       this.release(this.spec.cooldown);
       return 'none';
     }
     return 'hold';
   }
 
-  /** The guard comes down (or was broken): back to its stance, and not again for `cooldown` seconds. */
-  private release(cooldown: number): void {
+  /** Hard pressed, with his blade about to land: it takes that blow on the guard before it goes into its own. */
+  private takesIt(v: GuardView): boolean {
+    return this.eager >= 0.3 && v.swing !== null && v.swing.until > 0 && v.swing.until < TAKES_IT;
+  }
+
+  /** The guard comes down (or was broken): back to its stance, and not again for `cooldown` seconds (fewer when hard pressed). */
+  private release(cooldown: number, pressed = true): void {
     const sm = this.host.stateMachine;
     sm.guardHeld = false;
     if (this.isUp()) sm.changeState('IDLE');
-    this.cooldown = cooldown;
+    this.cooldown = pressed ? cooldown * (1 - EAGER_WAIT * this.eager) : cooldown;
     this.answer = null;
     this.wantUp = -1;
     this.raisedFor = 0;
