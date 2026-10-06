@@ -156,7 +156,7 @@ stomach), Praying.
 `public/assets/music/shiva.mp3` (the summit's reveal, "Har Har Mahadev") is generated for this game with ElevenLabs
 Music (flow kxekrrK5hmJeffLuHDBI); the original is `game asset/music/shiva_har_har_mahadev.mp3`.
 
-## Chapter IV, Dwarka (`public/assets/dwarka/dwarka_browser.glb`, `dwarka_horizon_sunset_2k.hdr`)
+## Chapter IV, Dwarka (`public/assets/dwarka/dwarka_browser.glb`, `dwarka_horizon_sunset_2k.exr`)
 
 Built in another session from `game asset/levels/03_dwarka/dwarka.blend` (its notes beside it: `*_NOTES.md`), exported
 for the game by `export_glb_dwarka.py`. Sources, from those notes and the materials' own records in the file:

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { HDRLoader } from 'three/examples/jsm/loaders/HDRLoader.js';
+import { EXRLoader } from 'three/examples/jsm/loaders/EXRLoader.js';
 import { GLBLevel } from './GLBLevel';
 import type { LevelAtmosphere } from './LevelTypes';
 import { RainField, type RainLevel } from './environment/RainField';
@@ -30,7 +30,7 @@ import { asset } from '../core/Assets';
  * been, and the moored boat rides it (`LivingSea`).
  */
 const LEVEL_URL = asset('dwarka/dwarka_browser.glb');
-const SKY_URL = asset('dwarka/dwarka_horizon_sunset_2k.hdr');
+const SKY_URL = asset('dwarka/dwarka_horizon_sunset_2k.exr');
 
 // scene-config.js (Three.js coordinates; Blender (x, y, z) -> (x, z, -y)).
 const ENVIRONMENT_QUATERNION = new THREE.Quaternion(0.016459044069051743, -0.5674096941947937, -0.005852972157299519, 0.8232503533363342);
@@ -183,7 +183,7 @@ export class Level3_Dwarka extends GLBLevel {
   }
 
   protected async loadEnvironment(): Promise<void> {
-    const hdr = await new HDRLoader().loadAsync(SKY_URL);
+    const hdr = await new EXRLoader().loadAsync(SKY_URL);
     hdr.mapping = THREE.EquirectangularReflectionMapping;
     this.ownedTextures.add(hdr);
     this.atmosphere.background = hdr;

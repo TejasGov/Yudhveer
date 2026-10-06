@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { HDRLoader } from 'three/examples/jsm/loaders/HDRLoader.js';
+import { EXRLoader } from 'three/examples/jsm/loaders/EXRLoader.js';
 import { GLBLevel } from './GLBLevel';
 import type { LevelAtmosphere } from './LevelTypes';
 import { WaterRippleMaterial } from './environment/WaterRippleMaterial';
@@ -98,7 +98,7 @@ export class Level1_Baoli extends GLBLevel {
   protected async loadEnvironment(): Promise<void> {
     const [bg, hdr] = await Promise.all([
       new THREE.TextureLoader().loadAsync(asset('sky/baoli_night_sky_4k.jpg')),
-      new HDRLoader().loadAsync(asset('sky/baoli_night_sky_1k.hdr')),
+      new EXRLoader().loadAsync(asset('sky/baoli_night_sky_1k.exr')),
     ]);
     bg.mapping = THREE.EquirectangularReflectionMapping;
     bg.colorSpace = THREE.SRGBColorSpace;
