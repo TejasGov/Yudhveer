@@ -472,6 +472,15 @@ and a look at the before and after captures in `E:/hindan/game asset/audit/fixes
 | C-11 | Fixed | b54586a | Mace grip 6 cm up the haft; the left fist closes 8.5 cm above the butt. |
 | S-15 | Fixed | b54586a | An authored `posture_break` clip: struck, down on one knee, up within 2.5 s. |
 | C-12 | Not done | | The guru's staff arm is held still in every clip, so the asymmetry never shows; re-rigging would redo all his weights. |
+| C-01, V1-02 | Fixed | f20fbfb | The khanda is mounted with the summit's own hold (scale 1.0); lowered, its tip clears the floor by 6.4 cm. |
+| C-02 | Fixed | f20fbfb | He kneels clear of Takshaka, his fist meets the grip (9 mm, closing to 0), the mace is laid on the stone, the blade slides out with his hand. |
+| S-09 | Fixed | f20fbfb | The complete screen shows the khanda at ease and the mace on the stone; the summit and a Dwarka retry start with their own kits. |
+| C-03 | Fixed | f20fbfb | `SWORD_GRIP` puts the socket on the borrowed blade's grip axis; the fist closes round it. |
+| C-10 | Fixed | f20fbfb | The Vetala's spare `Swords_Sheathed` is hidden. |
+| C-08 | Fixed | f20fbfb | The hiding son's dusk mark is 1.39 m clear of the dead woman; still framed in the same shots. |
+| C-07 | Fixed | f20fbfb, fc8012d | The vanara carries the dhal and holds it out; it passes to the boy as their hands meet across it (32 cm apart, not 10: logged). |
+| C-05, V1-01 | Fixed | f20fbfb | A code-built scabbard (`Scabbard.ts`) at 47 degrees down the left thigh; the sheathe and draw blend; it lifts when he kneels. |
+| C-09 | Fixed | f20fbfb | A two-handed lathi on the Great Sword Pack clips: nothing passes through the body; fights keep their timing and damage. |
 
 ---
 
