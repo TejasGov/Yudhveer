@@ -2,14 +2,22 @@ import type { CharacterDefinition } from '../animation/CharacterRig';
 import { MAYAVI } from './Mayavi';
 
 /**
- * Chapter V, the yatudhanas: the sorcerer rakshasas who cross the summit's bridges among the brutes and throw fire
- * from range. PLACEHOLDER (docs/STORY.md, "Placeholders"): Mayavi's model, cut down to a man's height and dyed the
- * ash-grey of the charnel ridge, until the user makes the second minion in Meshy. Swapping it is this file alone.
+ * Chapter V, the yatudhanas: the sorcerer-demons of Vedic lore who cross the summit's bridges among the brutes and
+ * throw fire from range. Gaunt and grey as cold ash, the skin cracked like dry clay, a skull's face with ember eyes,
+ * rudraksha and bone at the throat and on the arm, tattered charcoal cloth; about 1.8 m, the rakshasas' height. Meshy
+ * 7 from `game asset/concepts/yatudhana_A.png` (31k triangles, one 2k map), auto-rigged; its clawed hands are held as
+ * modelled (no finger bones: it holds nothing). It casts and claws with Mayavi's clips, as the placeholder (Mayavi's
+ * own model, cut down) did, so `Yatudhana`'s behaviour is unchanged. Built from `game asset/characters`:
+ *
+ *   blender -b --factory-startup --python autorig.py -- sources/yatudhana_meshy7.glb rigs/yatudhana.markers.json rigs/yatudhana.rigged.glb
+ *   blender -b --factory-startup --python build_character.py -- rigs/yatudhana.rigged.glb animations <out>/yatudhana.glb
+ *     --height 1.8 --prefixes "NPC" --clips "casting,casting_2,magic_attack_01,idle_2,impact_3,impact_2,strafe,strafe_2,walk_2,crouch_idle,calm_idle"
  */
 export const YATUDHANA: CharacterDefinition = {
-  ...MAYAVI,
-  // 2.1 m Mayavi at 0.86: about 1.8 m, the rakshasas' height.
-  scale: 0.86,
-  // Ash and dried blood over his blue skin: grey-violet, a little warm.
-  tint: 0xa89a98,
+  model: '/assets/characters/yatudhana.glb',
+  manifest: '/assets/characters/yatudhana.manifest.json',
+  states: MAYAVI.states,
+  locomotion: MAYAVI.locomotion,
+  // No weapon: a claw's reach along the right hand (the rig rests in a T-pose, hand pointing out to his right).
+  weapon: { socket: 'Socket_Hand_R', restWorldRotation: [0, 0, Math.PI / 2], grip: [0, 0, 0], blade: [0, 0.28] },
 };

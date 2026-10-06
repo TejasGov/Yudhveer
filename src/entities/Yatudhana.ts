@@ -16,9 +16,9 @@ const CAST_COOLDOWN = 3.8;
 const RELEASE_AT = 0.45;
 
 /**
- * Chapter V, a yatudhana: a sorcerer rakshasa who comes over the bridges among the brutes, stops short of the fight
+ * Chapter V, a yatudhana: a sorcerer-demon who comes over the bridges among the brutes, stops short of the fight
  * and throws single bolts of fire at the hero from range. Frail (a returned bolt nearly kills it, a few blows do);
- * cornered, it claws and kicks. Its model is a PLACEHOLDER (characters/Yatudhana.ts).
+ * cornered, it claws and kicks. Its model: characters/Yatudhana.ts.
  *
  * The brutes press in and the sorcerers hang back: the hero has to deflect fire while he is crowded, or break off to
  * run the casters down.

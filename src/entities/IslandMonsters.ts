@@ -5,9 +5,9 @@ import { ProjectileManager } from '../combat/ProjectileManager';
 import { PhysicsWorld } from '../core/PhysicsWorld';
 
 /*
- * Chapter III's creatures (docs/STORY.md, "Chapter III"): PLACEHOLDER behaviour on PLACEHOLDER models (their rigs are
- * in characters/IslandMonsters.ts). The mini monsters rush in a pack and come at him from all sides; the archers keep
- * their distance, strafe, and loose a shaft of fire after a draw he can see coming.
+ * Chapter III's creatures (docs/STORY.md, "Chapter III"; their models are in characters/IslandMonsters.ts). The mini
+ * monsters, cave runts, rush in a pack and come at him from all sides; the "archers", cave hurlers, keep their distance,
+ * strafe, and hurl a firebrand (a shaft of fire) after a draw he can see coming: a brand catching fire in the hand.
  */
 
 const UP = new THREE.Vector3(0, 1, 0);
@@ -37,7 +37,7 @@ export class MiniMonster extends Enemy {
     this.attackStates = ['ATTACK_1', 'ATTACK_2'];
     this.lungeSpec = { a: 0, b: 0.25, maxDist: 1.4, stopDist: 1.0 };
     this.swingSound = 'blade';
-    // The rakshasa's cleaver is part of the model: nothing drawn in the hand.
+    // It claws: nothing drawn in the hand.
     const socket = this.getSocket('mixamorigRightHand');
     socket?.remove(this.swordMesh);
     this.swordMesh = new THREE.Group();
@@ -77,9 +77,9 @@ const DRAW_SECONDS = 0.85;
 const RELEASE_AT = 0.4;
 
 /**
- * An archer monster: keeps 6 to 12 m off, circles, and every few seconds draws (a fire-glow gathers in its hand and
- * the telegraph sounds) and looses a shaft of fire straight at him. The shaft can be slid under, blocked on the dhal
- * or parried back. It only shoots with a clear line to him; cornered, it claws.
+ * An archer monster, a cave hurler: keeps 6 to 12 m off, circles, and every few seconds draws (a brand catches fire in
+ * its hand, the glow gathering, and the telegraph sounds) and hurls it, a shaft of fire straight at him. The shaft can
+ * be slid under, blocked on the dhal or parried back. It only throws with a clear line to him; cornered, it claws.
  */
 export class ArcherMonster extends Enemy {
   private projectiles = ProjectileManager.getInstance();
@@ -91,7 +91,7 @@ export class ArcherMonster extends Enemy {
 
   constructor(id: string) {
     super(id, 0x3f4a33);
-    this.displayName = 'Cave archer';
+    this.displayName = 'Cave hurler';
     this.blood = 'ichor';
     this.maxHealth = 50;
     this.currentHealth = 50;

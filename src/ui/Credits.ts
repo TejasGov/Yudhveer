@@ -53,6 +53,11 @@ const CREDITS: [string, string[], 'small'?][] = [
     'Textures, Poly Haven (CC0): Sandstone Cracks, Old Sandstone 02, Cliff Side, Large Sandstone Blocks 01, Mossy Rock by Rob Tuytel; the bark and leaves of Tree Small 02',
     'The sky, Poly Haven (CC0): Industrial Sunset 02 Pure Sky',
   ], 'small'],
+  // The enemies of milestone 11 (docs/ASSET_CREDITS.md, "The enemies made with Meshy").
+  ['The enemies', [
+    'The raiders, the yatudhanas, the cave runts and the cave hurlers: made with Meshy',
+    "The raiders' talwars: the Sketchfab talwar above",
+  ], 'small'],
 ];
 
 /**

@@ -6,12 +6,12 @@ import { ISLAND } from '../levels/Level5_Island';
 
 /*
  * Chapter III's expedition (docs/STORY.md, "Milestone 7"): three places on the way down to the mace where the dark
- * comes out at him, and the altar at the end. The creatures are placeholders (entities/IslandMonsters.ts).
+ * comes out at him, and the altar at the end. The creatures are in entities/IslandMonsters.ts.
  */
 
 const v = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
 
-/** The placeholder creatures' bodies: the runts stand about 1.1 m, the archers 1.8 m. */
+/** The creatures' bodies: the runts stand about 1.1 m, the archers (cave hurlers) 1.8 m. */
 const RUNT_CAPSULE = { halfHeight: 0.28, radius: 0.3 };
 const ARCHER_CAPSULE = { halfHeight: 0.5, radius: 0.38 };
 
@@ -44,11 +44,11 @@ export const ISLAND_EXPEDITION: Expedition = {
       ],
       checkpoint: { at: v(0, -0.45, -26.5), face: v(5, -0.5, -30) },
     },
-    // The black pool: archers across the water and by the way on, runts from the dry side.
+    // The black pool: hurlers across the water and by the way on, runts from the dry side.
     {
       id: 'pool',
       start: { at: v(10.5, -2, -45), radius: 6.5 },
-      callout: { text: 'Archers across the water', sub: 'Slide under their shafts, or turn them on the dhal' },
+      callout: { text: 'Hurlers across the water', sub: 'Slide under their firebrands, or turn them on the dhal' },
       spawns: [
         archer('pool_archer_1', v(5.0, -1.95, -41.8)),
         archer('pool_archer_2', v(7.5, -1.95, -53.0)),
@@ -58,7 +58,7 @@ export const ISLAND_EXPEDITION: Expedition = {
       ],
       checkpoint: { at: v(10.5, -1.95, -48.5), face: v(8, -2, -54) },
     },
-    // The shrine: its keepers in front of the altar, archers either side of the dais.
+    // The shrine: its keepers in front of the altar, hurlers either side of the dais.
     {
       id: 'shrine',
       start: { at: v(0.5, -2.5, -66), radius: 3.2 },

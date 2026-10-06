@@ -444,3 +444,46 @@ it saves a life without making him strong (STORY.md, "The idea"). It also gives 
 moment a partner: the armour holds once, the feet must do the rest ("It will not move your feet" was the first draft
 of her line). On a yes: build A in the Player, tune it against the Guardian and Andhaka, and add it to STORY.md's
 "The divya kavach".
+
+## Milestone 11: the placeholders replaced (2026-10-05): DONE; judgement calls, one item still to do
+
+Made while the user was away (docs/STORY.md, "Milestone 11"). **Meshy: 144 credits** within the 160 cap (balance 812
+before, 668 after): 8 nano-banana concepts at 3 (image-to-image; raider A `01a10dbb-45ef-7712-9db7-8494ef71fbaa`, B
+`01a10dbb-4c39-769d-ab94-03a795542532`; yatudhana A `01a10dbb-a264-77f9-831a-82ffee016f5d`, B
+`01a10dbb-a847-7388-b531-49ebf9441906`; runt A `01a10dbb-5138-7680-b4ba-e20944c045de`, B
+`01a10dbb-56c8-7723-ba58-bfa317fff37a`; hurler A `01a10dbb-5cf6-73bd-b7e5-14e14c76564b`, B
+`01a10dbb-6235-77d9-98b0-44c23588fc16`) and 4 Meshy 7 image-to-3D models at 30 (raider
+`01a10dbf-4c7f-71ed-9356-a62fd84754d6`, yatudhana `01a10dbf-5107-71d6-be54-6c49ea879f60`, runt
+`01a10dbf-547c-72fe-a134-5cc602d6135e`, hurler `01a10dbf-57f5-76df-bda6-09459491d51e`). No retries were needed. Nothing
+else was paid for or downloaded; no sign-ins. Calls made on the way, each easy to undo:
+
+- **The picks:** the A concept of each (`game asset/concepts/<who>_A.png`; the B's are kept beside them). Raider A is
+  veiled: nine copies of one model read as a band of anonymous dacoits, and Meshy's faces are soft. Runt B had four
+  arms. Hurler B (an olive ghoul) would have looked like the runts' bigger brother; A's soot-black and embers set them
+  apart in the dark.
+- **The archers are hurlers.** There is no bow clip on disk (and Mixamo needs a sign-in), so they throw: the draw's
+  glow is a brand catching fire in the hand, the shaft of fire is that brand hurled (the projectile is unchanged). On
+  screen they are "Cave hurler"; the pool's callout is "Hurlers across the water: Slide under their firebrands, or turn
+  them on the dhal" (was "Archers across the water: Slide under their shafts..."). Code names (`ArcherMonster`,
+  `pool_archer_*`) are unchanged. Back to "archer" is two strings in `IslandMonsters.ts` and `IslandExpedition.ts`.
+- **Their embers glow** (`game asset/characters/ember_glow.py`, an emissive map made from the colour map's warm, bright
+  texels: the forearm cracks and the eyes only). Without it they were black shapes in the dark caves. To drop it,
+  rebuild without `--extras ember_glow.py`.
+- **The raiders' talwar** is the island's Sketchfab talwar (CC BY 4.0, already credited), prepared at 0.95 m, not a new
+  Meshy model; the fist closes on it with the finger bones. It has the source's dark red stains on the blade.
+- **A dead raider drops it:** three seconds into his fall it leaves the opening hand and lies flat beside him, pointing
+  away from the body (it used to stand straight up out of his fist). Two constants in `Raider.ts`.
+- **The prologue's brute** (the raider who strikes the boy down from behind) now swings a talwar where the placeholder
+  had its fused cleaver; it reads as the flat of the blade in the blurred shot. Option: give the brute (story cast
+  only) a club instead.
+- **The runts are lighter:** decimated to 17k triangles with a 1k map (up to six at once); the others keep 31k and 2k.
+- **Clawed hands as modelled:** only the raiders got finger bones; the yatudhana, the runts and the hurlers hold nothing.
+- **Sizes:** the raiders 1.75 m (the rakshasas' 1.85 m capsule kept), the yatudhana 1.8 m, the runts 1.1 m, the hurlers
+  1.8 m, as the placeholders stood.
+
+**Still to do (needs a yes on credits):** the basic sword's model, about **36 credits** (two nano-banana concepts at 3
+and a Meshy 7 model at 30). The weapon-grips helper is changing the lathi's and the basic sword's holds now, so
+the sword was left alone here.
+
+**Blocked on a sign-in (Mixamo):** a bow draw-and-loose (or an overarm throw) for the hurlers, and a cast and death of
+the yatudhana's own (both borrow Mayavi's). Nothing was tried: Mixamo is out of bounds without the user's login.

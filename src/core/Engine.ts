@@ -64,7 +64,7 @@ const FIGHTER_CAPSULE = { halfHeight: 0.55, radius: 0.4 };
 const TALL_CAPSULE = { halfHeight: 0.6, radius: 0.42 };
 /** Takshaka: 2.6 m with the hood. */
 const NAGA_CAPSULE = { halfHeight: 0.75, radius: 0.55 };
-/** The rakshasa minions (and the prologue's raiders, on their model): 1.85 m. */
+/** The rakshasa minions: 1.85 m (also the summit's yatudhanas, 1.8 m, and the prologue's raiders, 1.75 m). */
 const MINION_CAPSULE = { halfHeight: 0.52, radius: 0.4 };
 /** The Baoli Guardian: 3.2 m tall and broad. */
 const BAOLI_CAPSULE = { halfHeight: 0.95, radius: 0.65 };

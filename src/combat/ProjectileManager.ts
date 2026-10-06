@@ -155,8 +155,8 @@ export class ProjectileManager {
   }
 
   /**
-   * A shaft of fire from a cave archer (Chapter III): fast and straight at `targetPos`, its burning head first.
-   * Deflectable like the others.
+   * A shaft of fire from a cave archer, the hurlers' firebrand (Chapter III): fast and straight at `targetPos`, its
+   * burning head first. Deflectable like the others.
    */
   public spawnArrow(origin: THREE.Vector3, targetPos: THREE.Vector3, ownerId: string): void {
     if (!this.scene) return;

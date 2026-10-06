@@ -70,7 +70,8 @@ himself: Andhaka has carried his own judge up the mountain.
   the dark).
 - **The one explorable mission in the game**, because exploring is the mission: he searches the caves for the mace.
 - He wins it by defeating the island's **mini monsters** and **archer monsters**.
-  - Both are placeholders for now; the user will make them later.
+  - Both made with Meshy in milestone 11 (2026-10-05): the cave runts, and cave hurlers for the archers (no bow clip
+    exists, so they hurl firebrands). See "Milestone 11".
 
 ### Chapter IV: Dwarka (existing map)
 
@@ -87,7 +88,8 @@ himself: Andhaka has carried his own judge up the mountain.
 
 - **Weapon: the magical sword** (with the shield).
 - It plays as it does now: rakshasa waves over the bridges, then Andhaka's entrance and the final fight.
-- **Add a second minion type** alongside the current rakshasas, for variety. Placeholder for now.
+- **Add a second minion type** alongside the current rakshasas, for variety: the yatudhana (its own Meshy model since
+  milestone 11).
 - **The final reveal:** the guru, thought dead and in truth Andhaka's captive, is revealed to be **Lord Shiva
   incarnate**: the statue of Shiva on the summit. The teacher was the god all along.
 
@@ -106,8 +108,9 @@ Shakti, once the guru has taught it, stays his in every chapter after (since 202
 
 ## Placeholders to replace later (the user, with Meshy)
 
-- The island's mini monsters and archer monsters (Chapter III).
-- The second minion type on the summit (Chapter V).
+- ~~The island's mini monsters and archer monsters (Chapter III).~~ Done (milestone 11): cave runts and cave hurlers.
+- ~~The second minion type on the summit (Chapter V).~~ Done (milestone 11): the yatudhana.
+- ~~The village raiders (prologue).~~ Done (milestone 11): desert dacoits with talwars.
 - The lathi, the basic sword and the blessed mace models (to source or make).
 - Village characters (prologue). The guru is done (Meshy 7, 2026-10-04); so is the old vanara (the user's model,
   2026-10-05).
@@ -279,7 +282,8 @@ people), `src/entities/Raider.ts`, `src/entities/Extra.ts`; the map is built by
 - **The guru's model** (2026-10-04): Meshy 7 from `game asset/concepts/guru.png`, 31k triangles, autorigged, his
   staff part of the mesh and bound to his right hand, which is held at rest in every clip (`guru_post.py`). His
   own Mixamo clips: Breathing Idle and Iv Pole Walking (upright, a hand on a pole).
-- **Placeholders:** the raiders are the summit's rakshasas, dyed dust-brown; the villagers are Mixamo characters
+- **Placeholders:** the raiders were the summit's rakshasas, dyed dust-brown (their own model since milestone 11:
+  desert dacoits with talwars); the villagers are Mixamo characters
   re-dyed (see "The village and the reveal"); the lathi is still built in code. (The roof fire's plain cones and the
   boy's held and reversed death clips were replaced on 2026-10-05: the fire shader, Mixamo's kneel and stand-up.)
 - **Left for later:** the guru has no fight of his own; every prologue line is recorded (2026-10-04). (The courtyard
@@ -573,7 +577,7 @@ The vanara mentor's voice is Rusty Malone (`game asset/voice/VOICES.md`). Yudhve
 "The Island", chapter id 3 (level 5), between the akhada and Dwarka. Code: `src/levels/Level5_Island.ts` (the map,
 its lamps, eyes, pool and the mace on the altar), `src/game/stories/Island.ts` (`ISLAND_STORY`),
 `src/game/Expedition.ts` (explorable chapters), `src/game/IslandExpedition.ts` (its encounters),
-`src/entities/IslandMonsters.ts` and `src/entities/characters/IslandMonsters.ts` (the placeholder creatures), an
+`src/entities/IslandMonsters.ts` and `src/entities/characters/IslandMonsters.ts` (the creatures), an
 `ARROW` projectile (`ProjectileManager.spawnArrow`) and an `island` ambience in `SoundFX`. The map is built by
 `game asset/levels/03_island/build_island.py` (command in `game asset/README.md`), 1.2 MB; dressed on 2026-10-05
 with 23 Sketchfab models and 3 Poly Haven textures (7.5 MB), then the Meshy boat (8.1 MB, 8,142,180 bytes; credits in
@@ -611,17 +615,20 @@ docs/ASSET_CREDITS.md).
 - **Encounters:** the hall: 5 runts out of the dark at its edges. The pool: 2 archers (across the water and by the
   way on) and 3 runts. The shrine: 2 archers either side of the dais and 4 runts; when they are down to 2, 2 more
   runts come down the tunnel behind him. Checkpoints after the hall and the pool.
-- **Creatures (PLACEHOLDERS, their own files):** *cave runts* (mini monsters): the rakshasa at 0.6 scale (1.1 m),
-  dyed pale, 24 health, fast (5.4 m/s), quicker swings, light blows; each closes in on its own side of him so a pack
-  surrounds him. *Cave archers*: Mayavi at 0.85 scale, dyed moss-dark, 50 health; they keep 6 to 12 m off, circle,
-  back off, and every 3 to 4.6 s draw (a fire-glow gathers in the hand and the telegraph sounds, 0.85 s) and loose a
-  shaft of fire (13 damage; slide under it, block it or parry it back); only with a clear line to him (a ray against
-  the rock), otherwise they come round; cornered (under 2.4 m), they claw. A hit during the draw cancels the shot.
+- **Creatures (their own files; their own Meshy models since milestone 11, see "Milestone 11"):** *cave runts* (mini
+  monsters, 1.1 m, clawing goblin-things; placeholder: the rakshasa at 0.6 scale): 24 health, fast (5.4 m/s), quicker
+  swings, light blows; each closes in on its own side of him so a pack surrounds him. *Cave archers*, now *cave
+  hurlers* (1.8 m, soot-black with ember cracks that glow; placeholder: Mayavi at 0.85 scale): 50 health; they keep 6
+  to 12 m off, circle, back off, and every 3 to 4.6 s draw (a brand catches fire in the hand, the glow gathering, and
+  the telegraph sounds, 0.85 s) and hurl it, a shaft of fire (13 damage; slide under it, block it or parry it back);
+  only with a clear line to him (a ray against the rock), otherwise they come round; cornered (under 2.4 m), they
+  claw. A hit during the draw cancels the throw.
 - **Story:** the opening on the landing (the boatman, unseen under his boat's canopy, will go no further); his own
   thoughts over the walk; the voice in the shrine as he enters and when the keepers are down; the extraction: he
   steps up to the altar, the voice, the picture goes dark as he lifts it, then he stands with the mace raised, the
   voice sends him to Dwarka, and he walks back up the way he came. Yudhveer is subtitles only.
-- **Left for later:** the creatures' real models and a bow (the archers cast with Mayavi's clip); a clip for lifting
+- **Left for later:** (the creatures' real models: done in milestone 11; there is still no bow clip, so the archers
+  are hurlers who throw with Mayavi's cast); a clip for lifting
   the mace (the reach is the crouch idle, the lift is hidden in the dark); no map or compass (the way is linear);
   the boatman is never seen.
 
@@ -741,8 +748,8 @@ second minion in `src/entities/Yatudhana.ts` and `src/entities/characters/Yatudh
 `src/ui/Credits.ts` and `src/ui/credits.css`; small additions to `src/core/Engine.ts` (a second kind in a horde, the
 effects clock, the credits after the last chapter). The map, Andhaka and his entrance are unchanged.
 
-- **The second minion, the yatudhana** (a sorcerer rakshasa; PLACEHOLDER: Mayavi's model at 0.86 scale, about 1.8 m,
-  tinted ash-grey). A ranged caster: it runs its bridge route like the brutes but leaves it once the hero is within
+- **The second minion, the yatudhana** (a sorcerer-demon of Vedic lore, about 1.8 m; its own Meshy model since
+  milestone 11, see "Milestone 11"; the placeholder was Mayavi's model at 0.86 scale, tinted ash-grey). A ranged caster: it runs its bridge route like the brutes but leaves it once the hero is within
   11 m, keeps 5 to 9.5 m off, and throws a single fire bolt (Mayavi's, deflectable back at it) every 3.8 s or so; cornered
   inside 2.2 m it claws and kicks. Frail: 38 health, 30 posture, its blows at 0.75. The brutes press in while the
   casters hang back, so the hero has to deflect while crowded or break off to run them down. The waves are now 8 (was
@@ -793,8 +800,9 @@ effects clock, the credits after the last chapter). The map, Andhaka and his ent
 - **Decided here:** the guru is found slumped, not visibly bound; Shiva speaks in the guru's voice (speaker "Shiva",
   ids `summit_reveal_shiva_*`, to be recorded with the guru's narrator voice); the eclipse passes at the end (only for
   the scene; the map is untouched); the reveal is light and the statue, not a model change.
-- **Left for later:** no bonds or kneel clip for the captive guru; the yatudhana's model (Meshy) and its own cast and
-  death; a hold-to-skip on the credits rather than a button. (Every line is recorded: see the table below.)
+- **Left for later:** no bonds or kneel clip for the captive guru; the yatudhana's own cast and death clips (it has
+  its model since milestone 11, and still moves with Mayavi's clips); a hold-to-skip on the credits rather than a
+  button. (Every line is recorded: see the table below.)
 - **Testing:** in a dev build, `__debug.chapter(5, false)`, then `__debug.win()` per wave until Andhaka arrives, let
   his entrance play, `__debug.win()` again: the ending, then the credits.
 
@@ -1437,6 +1445,55 @@ Two of the audit's world findings (docs/AUDIT.md, W-15 and W-08), fixed in code.
   textures and 88 / 67 (they grew by 14 / 9 a round trip), and two passes through all six chapters end where they
   began.
 
+## Milestone 11: the placeholders replaced (2026-10-05)
+
+Made while the user was away, on the standing rules (Meshy 7 image-to-3D, textured, remeshed to about 30k triangles,
+no pose mode; two concept options per asset; a cap of 160 credits). The raiders, the yatudhana, the cave runts and the
+cave hurlers are their own models now. Spent: **144 credits** (8 concepts at 3, 4 models at 30); judgement calls in
+docs/APPROVALS.md, "Milestone 11".
+
+- **Concepts** (`game asset/concepts/<who>_A.png` and `_B.png`): Meshy nano-banana image-to-image, each painted over a
+  flat grey T-pose silhouette of the training hero's model (`audit/fixes/m11-placeholders/blender/pose_ref_silhouette.png`)
+  with `concepts/style_ref.png` as the style: a full body in a T-pose, front on, plain grey, nothing held. The A of each
+  was picked (raider B was a fine bearded bandit, but the veil keeps nine copies of one face anonymous; yatudhana B was
+  less gaunt and less demonic; runt B came out with four arms; hurler B, an olive ghoul, would have read like the
+  runts). The hurler's concept had sparks in the air round its forearms, painted out before the 3D pass
+  (`cave_hurler_A_clean.png`).
+- **The models** (`game asset/characters/sources/<who>_meshy7.glb`, 31k triangles, one 2k colour map each), checked
+  in front, side and back renders before rigging; all four were usable first time. Auto-rigged
+  (`rigs/<who>.markers.json`, read off gridded front renders and mesh cross-sections), built with the clip set each
+  placeholder used, so `Raider`, `Yatudhana`, `MiniMonster` and `ArcherMonster` behave as before:
+
+  | Who | Game model | Height | Clips | Rig |
+  |---|---|---|---|---|
+  | The raiders: desert dacoits in Andhaka's service, a rust turban with its tail across the face, leather over dun cotton | `raider.glb` (2.1 MB) | 1.75 m | the rakshasa brutes' nine | 23 joints + 40 finger bones (`rigs/raider.fingers.json`): the fist closes on the talwar |
+  | The yatudhana: a gaunt sorcerer-demon, ash-grey skin cracked like clay, a skull's face with ember eyes, rudraksha and bone, tattered charcoal cloth | `yatudhana.glb` (2.5 MB) | 1.8 m | Mayavi's seventeen (it casts with his cast) | 23 joints; clawed hands as modelled |
+  | The cave runts: small bhoota goblins, grey-green, milky eyes, bat ears, needle teeth, a cord of bones, a rag | `cave_runt.glb` (1.2 MB, decimated to 17k triangles, 1k map: they come six at a time) | 1.1 m | the brutes' nine, quicker (the placeholder's rates) | 23 joints; claws |
+  | The cave hurlers ("archer monsters"): lanky, soot-black, ember cracks up the forearms, coal eyes, ragged cloth | `cave_hurler.glb` (2.2 MB) | 1.8 m | Mayavi's seventeen (his cast is the throw) | 23 joints; claws |
+
+- **The raiders' talwar** is a prop on the right hand's socket, not in the model: the island's Sketchfab "Indian Talwar
+  Weapon (low poly)" (Sangam Senapati, CC BY 4.0, already credited) prepared with `prepare_weapon.py` at 0.95 m
+  (`public/assets/weapons/raider_talwar.glb`; grip at the origin, blade 0.05 to 0.89 m). Dead, a raider lets go of it:
+  three seconds into his fall (the body settled) it drops from the opening hand and lies flat beside it, pointing away
+  from the body (`Raider.letGo`), instead of standing up out of his fist. The prologue's brute and bearer (story cast)
+  carry it too.
+- **No bow among the clips** (and Mixamo needs a sign-in), so the archers are hurlers: they light a brand in the hand
+  (the draw's glow) and hurl it (the existing shaft of fire, a dark shaft with a burning head: a firebrand). Nothing in
+  their behaviour changed; their name on screen is "Cave hurler" and the pool's callout "Hurlers across the water: Slide
+  under their firebrands, or turn them on the dhal". Their ember cracks and eyes glow: `ember_glow.py` (a build
+  `--extras`) copies the warm, bright texels of the colour map into an emissive map (3 % of it; nowhere else lights),
+  which the toon materials keep, so in the dark caves the cracks and eyes burn while the body stays soot.
+- **Claws:** the runts, the hurlers and the yatudhana hold nothing; their hit segment runs along the right hand
+  (0.17, 0.26 and 0.28 m), as Mayavi's did.
+- **Verified in the game** (captures in `game asset/audit/fixes/m11-placeholders/`): the prologue's raiders through the
+  gate, closing in, swinging, struck, dying and dropping the talwar, and the brute in the ending (`raider_*`,
+  `prologue_end_*`); the yatudhana on the summit's bridge casting, struck and dying (`yatudhana_*`); the runts' pack in
+  the hall of bones, clawing, struck (ichor) and dying, and the hurlers at the black pool drawing, throwing, struck and
+  dying (`runts_*`, `hurler_*`). Blender checks (poses of every clip, the fist on the talwar) in `blender/`.
+- **Left for later:** the yatudhana has no cast or death of its own (Mayavi's); the hurlers no throw clip of their own
+  (a bow or a throw from Mixamo needs a sign-in); the basic sword's model (about 36 credits) is still to do with the
+  weapon-grips pass; the villagers are still Mixamo placeholders.
+
 ## Tools
 
 - **ElevenLabs:** voices, character sound effects, music.
@@ -1493,7 +1550,8 @@ Each milestone is one chat. Start it with: "Read docs/STORY.md, let's do milesto
 - [ ] **10. Voices and sound:** ElevenLabs voices for every line, real character sound effects, music per chapter.
   (Effects and music wired; the island track awaits its chapter; remaining: voices for every line.)
 - [ ] **11. Replace placeholders:** the user's Meshy models (island monsters, second minion, weapons;
-  the mentor is done).
+  the mentor is done). *The raiders, the island's runts and hurlers and the yatudhana: done 2026-10-05 (see
+  "Milestone 11"). Left: the basic sword's model; the villagers.*
 - [ ] **12. Polish and balance:** full playthroughs, difficulty curve across the five chapters, performance,
   loading sizes.
 - [ ] **13. Release:** final build, deploy, a trailer if wanted.

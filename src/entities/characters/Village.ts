@@ -3,15 +3,32 @@ import { RAKSHASA } from './Rakshasa';
 import { ANDHAKA, ANDHAKA_CALM_IDLE } from './Andhaka';
 
 /*
- * The prologue's people (docs/STORY.md, "Prologue"). Every one of them is an existing model standing in until its own
- * is made: they are PLACEHOLDERS, kept here so the swap is one file.
+ * The prologue's people (docs/STORY.md, "Prologue"). The raiders and the guru are their own models; the villagers are
+ * still PLACEHOLDERS (Mixamo characters re-dyed), kept here so a swap is one file.
  */
 
 /**
- * The raiders: the summit's rakshasa brutes, dyed the dun of desert dust. PLACEHOLDER for the village goons (the user
- * will make them in Meshy).
+ * The raiders: desert dacoits in Andhaka's service, a rust turban with its tail wrapped over the face, a rough leather
+ * jerkin over dun cotton, leg wraps; human, about 1.75 m. Meshy 7 from `game asset/concepts/raider_A.png` (31k
+ * triangles, one 2k map), auto-rigged with finger bones so the right fist closes on the talwar, a separate prop on
+ * its socket (the island's Sketchfab talwar, prepared at 0.95 m). They move and fight with the rakshasa brutes' clips,
+ * as the placeholder did, so `Raider`'s behaviour is unchanged. Built from `game asset/characters`:
+ *
+ *   blender -b --factory-startup --python autorig.py -- sources/raider_meshy7.glb rigs/raider.markers.json rigs/raider.rigged.glb
+ *   blender -b --factory-startup --python build_character.py -- rigs/raider.rigged.glb animations <out>/raider.glb
+ *     --height 1.75 --fists --finger-markers rigs/raider.fingers.json --clips "<the rakshasa's nine, see Rakshasa.ts>"
  */
-export const RAIDER: CharacterDefinition = { ...RAKSHASA, tint: 0xc9a07a };
+export const RAIDER: CharacterDefinition = {
+  model: '/assets/characters/raider.glb',
+  manifest: '/assets/characters/raider.manifest.json',
+  states: RAKSHASA.states,
+  locomotion: RAKSHASA.locomotion,
+  // The talwar in the fist's grip (prepared: grip at the origin, blade up +Y out of the thumb side, as the hero's).
+  weapon: {
+    socket: 'Socket_Hand_R', socketFrame: true, restWorldRotation: [0, 0, 0], grip: [0, 0, 0],
+    model: '/assets/weapons/raider_talwar.glb', blade: [0.05, 0.89],
+  },
+};
 
 /**
  * The guru (secretly Shiva): an old ascetic with his staff, made in Meshy 7 from `game asset/concepts/guru.png`. The

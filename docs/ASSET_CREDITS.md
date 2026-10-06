@@ -201,3 +201,20 @@ Poly Haven assets are CC0 and need no credit; they are credited as a courtesy. T
   textures. Every surface is baked in Blender from procedural materials (`export_glb_charnel.py`) and the sky
   panoramas are rendered in Blender (`charnel_ridge_sky_bake.py`).
 - **The prologue and Chapter III:** above.
+
+## The enemies made with Meshy (milestone 11, 2026-10-05)
+
+Generated for this game with Meshy (concepts: nano-banana image-to-image, styled on `game asset/concepts/style_ref.png`;
+models: Meshy 7 image to 3D, textured, about 31k triangles and one 2k colour map each), then auto-rigged and animated
+with the game's Mixamo clips. Made for the game; no third-party licence.
+
+| Who | Game model | Concept | Source model |
+|---|---|---|---|
+| The raiders (prologue) | `public/assets/characters/raider.glb` | `concepts/raider_A.png` | `characters/sources/raider_meshy7.glb` |
+| The yatudhanas (Chapter V) | `public/assets/characters/yatudhana.glb` | `concepts/yatudhana_A.png` | `characters/sources/yatudhana_meshy7.glb` |
+| The cave runts (Chapter III) | `public/assets/characters/cave_runt.glb` (decimated to 17k) | `concepts/cave_runt_A.png` | `characters/sources/cave_runt_meshy7.glb` |
+| The cave hurlers (Chapter III) | `public/assets/characters/cave_hurler.glb` | `concepts/cave_hurler_A.png` (sparks painted out) | `characters/sources/cave_hurler_meshy7.glb` |
+
+The raiders' talwar (`public/assets/weapons/raider_talwar.glb`) is "Indian Talwar Weapon (low poly)" by Sangam
+Senapati (Sketchfab, CC BY 4.0; credited above with the island's models), prepared as a weapon: re-origined at the
+grip and scaled to 0.95 m.
