@@ -134,7 +134,9 @@ export class Level1_Baoli extends GLBLevel {
         if (scroll && mat.map && !scrolledMaps.has(mat.map)) {
           scrolledMaps.add(mat.map);
           mat.map.wrapS = mat.map.wrapT = THREE.RepeatWrapping;
-          this.scrollers.push({ texture: mat.map, speed: new THREE.Vector2(scroll[0], scroll[1]) });
+          // `uv_scroll` is authored in Blender, where V runs up the image; glTF's V runs down (the exporter flips it),
+          // so V's sign flips here too. Without it the falls ran up their cliffs.
+          this.scrollers.push({ texture: mat.map, speed: new THREE.Vector2(scroll[0], -scroll[1]) });
         }
       });
     });
@@ -283,7 +285,8 @@ gl_FragColor.rgb *= smoothstep(${NEAR_GLOW_FADE.from.toFixed(2)}, ${NEAR_GLOW_FA
     this.fires?.update(time);
     super.update(time, dt, camera);
     for (const s of this.scrollers) {
-      s.texture.offset.set(s.speed.x * time, s.speed.y * time);
+      // Wrapped to one repeat (the maps repeat), so the offset stays small and precise however long the level runs.
+      s.texture.offset.set((s.speed.x * time) % 1, (s.speed.y * time) % 1);
     }
     this.waterMaterial?.update(time);
     // Mist rising off the water: twelve puffs a second (W-11: by game time, so the same at any frame rate and none
