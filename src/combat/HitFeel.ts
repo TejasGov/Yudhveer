@@ -50,9 +50,13 @@ const CAMERA: Record<BlowKind, Record<BlowTier, Tune>> = {
 const SWING_FOLLOW: Record<BlowKind, number> = { blade: 0.7, wood: 0.25, crush: 0 };
 /** Below this the blade is not really travelling across (m/s on the ground): the nudge goes straight from attacker to victim. */
 const MIN_SWING = 1.5;
-/** A weapon brought down on the floor: at least this fast (m/s) and this near the stone (m). */
-const STRIKE_SPEED = 2.5;
-const STRIKE_REACH = 0.14;
+/**
+ * A weapon brought down on the floor: still falling at least this fast (m/s) within this height (m) of the stone. A mace's
+ * head stops well short of the floor in every one of its downswings (the clips were made for a longer blade), 0.4 to 0.5 m
+ * above it at the bottom, so this is where the swing is bottoming out, as the water's splash (Dwarka's WetGround) reads it.
+ */
+const STRIKE_SPEED = 4.5;
+const STRIKE_REACH = 0.55;
 
 const _swing = new THREE.Vector3();
 const _swingH = new THREE.Vector3();
@@ -91,6 +95,17 @@ export function bladeVelocityAt(c: Character, point: THREE.Vector3, dt: number, 
   return out.subVectors(_b, _a).divideScalar(Math.max(dt, 1e-4));
 }
 
+/**
+ * The way a spray of chingaari goes: along the blade's own travel (what a scrape throws), back out from the surface it met
+ * toward whoever swung (sparks thrown into a body are hidden by it, and a blade turned aside throws them away from it), and a
+ * little up. `toward`: from the clash to the one who swung, on the ground (unit).
+ */
+function sprayDir(out: THREE.Vector3, swingH: THREE.Vector3, follows: boolean, toward: THREE.Vector3): THREE.Vector3 {
+  if (follows) out.copy(swingH).multiplyScalar(0.8).addScaledVector(toward, 0.28);
+  else out.copy(toward);
+  return out.addScaledVector(_up, 0.22).normalize();
+}
+
 export interface LandedBlow {
   attacker: Character;
   victim: Character;
@@ -119,6 +134,8 @@ export interface BlowFeel {
 
 const _dir = new THREE.Vector3();
 const _spill = new THREE.Vector3();
+const _spray = new THREE.Vector3();
+const _back = new THREE.Vector3();
 
 export class HitFeel {
   /** A blow of the hero's lands (or glances): the victim's flinch, push and flash; sparks; the layers of sound; the dust. */
@@ -142,7 +159,10 @@ export class HitFeel {
       const power = b.glancing ? 1 : 0.5;
       if (b.weapon !== 'wood') {
         const iron = b.weapon === 'crush';
-        ClashFX.getInstance().sparks(b.point, follows ? swingH : along, iron ? 'iron' : 'steel', power * (1 + 0.15 * tier), feet.y);
+        // The contact is inside the body the capsule stands for: the sparks start out on its near side, where they can be seen.
+        const toward = _back.copy(along).negate();
+        const out = _p.copy(b.point).addScaledVector(toward, 0.18 + 0.25 * (b.victim.motor?.radius ?? 0.4));
+        ClashFX.getInstance().sparks(out, sprayDir(_spray, swingH, follows, toward), iron ? 'iron' : 'steel', power * (1 + 0.15 * tier), feet.y);
         sound.playClang(iron ? 'iron' : 'steel', power);
       } else if (b.glancing) {
         ParticleFX.getInstance().spawnDustPuff(feet, 5);
@@ -174,27 +194,29 @@ export class HitFeel {
       return;
     }
     const tangent = _mix;
-    if (o.attacker) {
-      bladeVelocityAt(o.attacker, o.point, o.dt, tangent);
-    } else {
-      tangent.set(0, 0, 0);
-    }
-    tangent.y *= 0.5;
-    if (tangent.lengthSq() < MIN_SWING * MIN_SWING) {
-      // No blade to follow (a bolt, a blow with nothing swung): across the shield, from where it came.
-      const away = o.from ? _a.subVectors(o.point, o.from).setY(0) : _a.set(0, 0, 1);
-      if (away.lengthSq() < 1e-6) away.set(0, 0, 1);
-      tangent.crossVectors(away.normalize(), _up).multiplyScalar(Math.random() < 0.5 ? 1 : -1).addScaledVector(_up, 0.4);
-    }
-    ClashFX.getInstance().sparks(o.point, tangent, o.weapon === 'crush' ? 'iron' : 'steel', o.power, o.floor);
+    if (o.attacker) bladeVelocityAt(o.attacker, o.point, o.dt, tangent);
+    else tangent.set(0, 0, 0);
+    // Toward whoever swung (the shield turns the spray back out to them).
+    const source = o.attacker ? o.attacker.group.position : o.from;
+    const toward = _back.set(0, 0, 0);
+    if (source) toward.set(source.x - o.point.x, 0, source.z - o.point.z);
+    if (toward.lengthSq() < 1e-6) toward.set(0, 0, 1);
+    toward.normalize();
+    const flat = _swingH.set(tangent.x, 0, tangent.z);
+    const across = flat.length();
+    const follows = across > MIN_SWING;
+    if (follows) flat.divideScalar(across);
+    else flat.crossVectors(toward, _up).multiplyScalar(Math.random() < 0.5 ? 1 : -1);
+    ClashFX.getInstance().sparks(_p.copy(o.point).addScaledVector(toward, 0.15), sprayDir(_spray, flat, true, toward), o.weapon === 'crush' ? 'iron' : 'steel', o.power, o.floor);
   }
 
   /**
    * Each simulation step, for a character swinging: a blade or mace brought down on the floor (the mace's slam, any weapon's
-   * leaping strike) throws sparks and dust, shakes the camera a little and thuds. Once per swing.
-   * `impact` is CombatSystem's: the camera, the hit-stop and the rumble.
+   * leaping strike) throws sparks and dust, shakes the camera a little and thuds. Once per swing, and not if the swing has
+   * already landed on someone (`landed`: its force went into them). `impact` is CombatSystem's: the camera, the hit-stop and
+   * the rumble.
    */
-  public static floorStrike(c: Character, dt: number, impact: (kind: CameraKind, dir?: THREE.Vector3, scale?: number) => void): void {
+  public static floorStrike(c: Character, dt: number, landed: boolean, impact: (kind: CameraKind, dir?: THREE.Vector3, scale?: number) => void): void {
     const sm = c.stateMachine;
     const state = sm.currentState;
     let track = this.tracks.get(c);
@@ -205,13 +227,13 @@ export class HitFeel {
     if (state !== track.state || sm.stateTime < track.time) track.struck = false;
     track.state = state;
     track.time = sm.stateTime;
-    if (track.struck || !state.startsWith('ATTACK')) return;
+    if (track.struck || landed || !state.startsWith('ATTACK')) return;
     const weapon = weaponKindOf(c);
     if (weapon !== 'crush' && state !== 'ATTACK_JUMP') return;
     const { prev, curr } = HitboxManager.getInstance().blade(c);
     const fall = (prev.tip.y - curr.tip.y) / Math.max(dt, 1e-4);
     if (fall < STRIKE_SPEED) return;
-    const floor = CharacterMotor.groundBelow(_p.set(curr.tip.x, curr.tip.y + 0.7, curr.tip.z), 2.4);
+    const floor = CharacterMotor.groundBelow(_p.set(curr.tip.x, curr.tip.y + 0.7, curr.tip.z), 3);
     if (floor === null || curr.tip.y - floor > STRIKE_REACH) return;
     track.struck = true;
 

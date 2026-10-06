@@ -44,9 +44,9 @@ export interface TrailLook {
 }
 
 const BASE: Record<TrailKind, { life: number; span: number; heat: number; body: number; hero: number; foe: number }> = {
-  blade: { life: 0.13, span: 0.2, heat: 2.6, body: 0.5, hero: 0xffc462, foe: 0xff6a45 },
-  wood: { life: 0.16, span: 0.26, heat: 2.0, body: 0.45, hero: 0xf0c880, foe: 0xe8905a },
-  crush: { life: 0.17, span: 0.28, heat: 2.4, body: 0.6, hero: 0xff9a48, foe: 0xff5a2e },
+  blade: { life: 0.13, span: 0.2, heat: 2.6, body: 0.85, hero: 0xffb347, foe: 0xff5a38 },
+  wood: { life: 0.16, span: 0.26, heat: 2.0, body: 0.7, hero: 0xf0b866, foe: 0xe8804a },
+  crush: { life: 0.17, span: 0.28, heat: 2.4, body: 0.9, hero: 0xff8a3a, foe: 0xff4a28 },
 };
 const LOOKS = new Map<string, TrailLook>();
 
@@ -106,9 +106,9 @@ void main() {
   float age = clamp(vUv.y, 0.0, 1.0);
   float fade = pow(1.0 - age, 1.8);
   float edge = clamp(vUv.x, 0.0, 1.0);             // 0 on the tip's own path, 1 at the inner edge (a pow of a negative is NaN, and one NaN blacks the bloom out)
-  float hot = exp(-edge * 9.0);                    // a thin white-hot line along the tip's path
-  float body = pow(1.0 - edge, 2.2) * uBody;       // and the faint tinted body behind it
-  vec3 col = uTint * body * (0.55 + 0.45 * (1.0 - age)) + vec3(1.0, 0.95, 0.82) * hot * uHeat;
+  float hot = exp(-edge * 10.0);                   // a thin white-hot line along the tip's path
+  float body = pow(1.0 - edge, 1.5) * uBody;       // and the translucent tinted body behind it, thinning to nothing
+  vec3 col = uTint * body * (0.6 + 0.4 * (1.0 - age)) + vec3(1.0, 0.95, 0.82) * hot * uHeat;
   gl_FragColor = vec4(col * fade * uOpacity, 1.0);
 }`;
 

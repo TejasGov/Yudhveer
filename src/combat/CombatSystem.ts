@@ -193,7 +193,7 @@ export class CombatSystem {
       }
     }
     // A weapon brought down on the floor (the mace's slam, a leaping strike): sparks, dust, a thud.
-    HitFeel.floorStrike(player, dt, this.impactHook);
+    HitFeel.floorStrike(player, dt, (this.strikes.get(player.id)?.landed.size ?? 0) > 0, this.impactHook);
     this.hitboxManager.commitBlades([player, ...enemies]);
   }
 

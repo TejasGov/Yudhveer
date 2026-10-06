@@ -472,7 +472,7 @@ export function installHitFlash(mat: THREE.MeshToonMaterial): void {
       .replace('#include <common>', '#include <common>\nuniform float uHitFlash;\nuniform vec3 uHitFlashColor;')
       .replace('#include <opaque_fragment>', `if (uHitFlash > 0.0) {
   float hitEdge = 1.0 - saturate(abs(dot(normalize(vNormal), normalize(vViewPosition))));
-  outgoingLight += uHitFlashColor * uHitFlash * (0.4 + 1.1 * smoothstep(0.3, 0.9, hitEdge));
+  outgoingLight += uHitFlashColor * uHitFlash * (0.2 + 1.0 * smoothstep(0.3, 0.9, hitEdge));
 }
 #include <opaque_fragment>`);
   });
