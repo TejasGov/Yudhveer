@@ -60,6 +60,13 @@ const BOSS = { flinch: 0.85, push: 0.5, flash: 0.85 };
 /** Already reeling (its own hit clip is playing): less is added on top. */
 const REELING = 0.6;
 const BROKEN = 0.5;
+/**
+ * Struck in the middle of its own swing: the spine carries the arms, so leaning or twisting it throws the blade off its
+ * line (Milestone 12's bot measured a boss's blows landing half as often). Only the head and neck snap, a little harder
+ * so it still reads, and a lean already under way fades out fast once a swing begins.
+ */
+const SWINGING_HEAD = 1.4;
+const SWINGING_FADE = 0.6;
 
 /** The torso's spring: peaks in ~52 ms, back inside 6 % in ~234 ms. `snap`: share of the peak jumped to at once. */
 const TORSO = { omega: 18, zeta: 0.8, snap: 0.3, kick: 33.9 };
@@ -175,19 +182,23 @@ export class HitReact {
     _a.normalize();
     const k = (boss ? BOSS.flinch : 1) * (blow.reeling || sm === 'STAGGER' || sm === 'DEFLECTED' ? REELING : sm === 'POSTURE_BROKEN' ? BROKEN : 1);
     const amp = THREE.MathUtils.degToRad(FLINCH_DEG[blow.kind][blow.tier]) * k;
-    s.lean.x.x += TORSO.snap * amp * _a.x;
-    s.lean.x.v += TORSO.kick * amp * _a.x;
-    s.lean.z.x += TORSO.snap * amp * _a.z;
-    s.lean.z.v += TORSO.kick * amp * _a.z;
-    s.head.x.x += HEAD.snap * amp * _a.x;
-    s.head.x.v += HEAD.kick * amp * _a.x;
-    s.head.z.x += HEAD.snap * amp * _a.z;
-    s.head.z.v += HEAD.kick * amp * _a.z;
+    const swinging = this.committed(victim);
+    if (!swinging) {
+      s.lean.x.x += TORSO.snap * amp * _a.x;
+      s.lean.x.v += TORSO.kick * amp * _a.x;
+      s.lean.z.x += TORSO.snap * amp * _a.z;
+      s.lean.z.v += TORSO.kick * amp * _a.z;
+    }
+    const headAmp = amp * (swinging ? SWINGING_HEAD : 1);
+    s.head.x.x += HEAD.snap * headAmp * _a.x;
+    s.head.x.v += HEAD.kick * headAmp * _a.x;
+    s.head.z.x += HEAD.snap * headAmp * _a.z;
+    s.head.z.v += HEAD.kick * headAmp * _a.z;
     this.clampLean(s);
 
     // The twist: a blow across the body's middle turns it, by which side of the victim's axis it struck and which
-    // way the blade was going (a torque about the vertical).
-    if (blow.swing && blow.point) {
+    // way the blade was going (a torque about the vertical). Not mid-swing: it would turn the blade with it.
+    if (!swinging && blow.swing && blow.point) {
       const p = victim.group.position;
       const rx = blow.point.x - p.x;
       const rz = blow.point.z - p.z;
@@ -229,6 +240,14 @@ export class HitReact {
     advance(s.head.x, HEAD, dt);
     advance(s.head.z, HEAD, dt);
     advance(s.twist, TWIST, dt);
+    if (this.committed(c)) {
+      // A swing begun while the torso still leans: let the lean go quickly, so the blade keeps its line.
+      const fade = Math.pow(SWINGING_FADE, dt * 60);
+      for (const q of [s.lean.x, s.lean.z, s.twist]) {
+        q.x *= fade;
+        q.v *= fade;
+      }
+    }
     s.push.multiplyScalar(Math.exp(-PUSH_RATE * dt));
     if (s.push.lengthSq() > 1e-8) {
       if (this.committed(c)) s.push.set(0, 0, 0);
