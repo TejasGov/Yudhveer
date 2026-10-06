@@ -58,9 +58,10 @@ export class BossAndhaka extends Boss {
     });
     this.displayName = 'Andhaka';
     this.epithet = 'Crowned in the eclipse';
-    // Milestone 12: health 640 -> 760, blows at 130 % (was 110 %).
-    this.maxHealth = 760;
-    this.currentHealth = 760;
+    // Milestone 12: health 640 -> 840, blows at 130 % (was 110 %). (How many blows land decides this fight, not how hard
+    // they are: 130 to 140 % made no difference to a steady player's chances, 760 and 840 health did.)
+    this.maxHealth = 840;
+    this.currentHealth = 840;
     this.damageScale = 1.3; // the last fight: his blows land harder than any other's
     this.armorDamage = 0.4; // light blows thrown into his swing glance off his hide
     this.maxMarma = 200;

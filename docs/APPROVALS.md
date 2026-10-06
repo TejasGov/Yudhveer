@@ -904,12 +904,12 @@ Made while you were away (docs/STORY.md, "Milestone 12"): code and numbers only.
 | | `attackInterval` (phase two's 0.95 is unchanged) | 1.4 | 1.3 |
 | | the wave of fire (28) leaves him | on the first frame of his breath | 0.75 s into it |
 | | the wave's damage | a fixed 28 | 28 x his 1.19 = 33.3 |
-| Andhaka (V) | health | 640 | 760 |
+| Andhaka (V) | health | 640 | 840 |
 | | blows (`damageScale`) | 1.1 (19.8, 26.4) | 1.3 (23.4, 31.2) |
 | Yatudhana (V) | its bolt (its blows were already 0.75; the bolt was a fixed 18) | 18 | 13.5 (18 x 0.75) |
 | Bolts, generally | what a bolt, a firebrand and the wave of fire do to the hero | a fixed number per kind | the kind's number times its caster's `damageScale` (`Projectile.scale`); what a bolt deflected back does is unchanged |
 
-Results (steady bot 24 runs (96 on the island), the others 16 (12 in the prologue); win rate / median seconds of fight / health lost in the wins; IV and V add two health bars, since the hero's health is restored when the last boss arrives):
+Results (the steady bot 24 runs a chapter, 96 on the island, in Dwarka and on the summit; the novice and the expert 16, 32 on the summit, 12 in the prologue; win rate / median seconds of fight / health lost in the wins; IV and V add two health bars, since the hero's health is restored when the last boss arrives):
 
 | Chapter | Steady, before | Steady, after | Novice, before | Novice, after | Expert, before | Expert, after |
 |---|---|---|---|---|---|---|
@@ -917,11 +917,11 @@ Results (steady bot 24 runs (96 on the island), the others 16 (12 in the prologu
 | I Baoli | 100 % / 17 s / 74 | 100 % / 24 s / 40 | 92 % / 14 s / 76 | 100 % / 20 s / 50 | 100 % / 25 s / 44 | 100 % / 25 s / 36 |
 | II Akhada | 83 % / 52 s / 64 | 96 % / 55 s / 64 | 92 % / 70 s / 82 | 88 % / 70 s / 85 | 92 % / 49 s / 62 | 100 % / 50 s / 56 |
 | III Island | 88 % / 89 s / 71 | 91 % / 86 s / 61 | 75 % / 82 s / 75 | 81 % / 84 s / 70 | 100 % / 82 s / 42 | 88 % / 82 s / 52 |
-| IV Dwarka | 100 % / 27 s / 43 | 83 % / 53 s / 93 | 100 % / 19 s / 42 | 100 % / 29 s / 129 | 100 % / 37 s / 46 | 94 % / 59 s / 107 |
-| V Summit | 92 % / 68 s / 79 | 71 % / 65 s / 52 | 50 % / 67 s / 115 | 63 % / 59 s / 66 | 100 % / 63 s / 44 | 100 % / 58 s / 33 |
+| IV Dwarka | 100 % / 27 s / 43 | 78 % / 48 s / 90 | 100 % / 19 s / 42 | 100 % / 29 s / 129 | 100 % / 37 s / 46 | 94 % / 59 s / 107 |
+| V Summit | 92 % / 68 s / 79 | 70 % / 63 s / 55 | 50 % / 67 s / 115 | 66 % / 60 s / 72 | 100 % / 63 s / 44 | 94 % / 62 s / 34 |
 
-- **The curve for the steady player:** 100, 96, 91, 83, 71 per cent (it was 100, 83, 88, 100, 92). The Guardian costs 39 health (was 73); Dwarka's two bosses now cost 56 and 37 and last 53 s (were 26 and 17 in 27 s); the summit is lost three times in ten.
-- **Why Dwarka's novice is not a curve:** a blow-trading novice with the mace wins every time at Shalva 1.14 and Takshaka 1.19 (and at every setting below), and a third of the time at 1.15 and 1.20. The mace ends each boss in 15 s whatever his health, so what decides it is whether the fifth blow lands before he falls, and that flips between neighbouring settings. I settled on the strongest setting before the cliff (the steady bot loses one fight in six there) and tuned Dwarka on 72 runs.
+- **The curve for the steady player:** 100, 96, 91, 78 and 70 per cent (it was 100, 83, 88, 100, 92). The Guardian costs 39 health (was 73); Dwarka's two bosses now cost 54 and 36 and last 48 s (were 26 and 17 in 27 s); the summit is lost three times in ten. (Andhaka's blows at 130, 135 and 140 % won 73, 73 and 75 times in a hundred for a steady player, at 150 % 65: how many land decides it, not how hard, so I raised his health, 760, 820, 860 giving 73, 63, 67, and settled on 840.)
+- **Why Dwarka's novice is not a curve:** a blow-trading novice with the mace wins every time at Shalva 1.14 and Takshaka 1.19 (and at every setting below), and a third of the time at 1.15 and 1.20. The mace ends each boss in 15 s whatever his health, so what decides it is whether the fifth blow lands before he falls, and that flips between neighbouring settings. I settled on the strongest setting before the cliff (the steady bot loses about one fight in five there) and checked Dwarka on 168 runs.
 - **No hero number was touched** (health, blows, the moves, the guard, the parry window): that is what the weapons pass and the chapters' kits are for.
 - **Bolts now take their caster's `damageScale`** (a rule change, the only one): they were a fixed 18, 13 and 28 whatever their caster was set to, so the island's firebrands and the akhada's bolts could not be eased without easing every caster's. Mayavi's bolt is 14.4 now (was 18), the yatudhana's 13.5 (was 18), a hurler's 11 (was 13), Takshaka's wave 33 (was 28: he is stronger now). A bolt turned back still hurts by the same.
 - **Takshaka's breath now leaves him 0.75 s into his cast**, where it left on the first frame: a wave of fire from the 3 m and more he breathes at, reaching the hero a third of a second later with nothing to see. His head drawn back is the warning now.
