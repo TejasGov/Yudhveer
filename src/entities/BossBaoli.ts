@@ -22,7 +22,7 @@ export class BossBaoli extends Boss {
     // Milestone 12 (docs/STORY.md): health 450 -> 1000 and blows at 60 % (18 and 24 -> 10.8 and 14.4): the fight lasts longer
     // and costs far less (a steady player lost 74 health of 100 in it before, 39 now). "Bosses fight back": a posture that breaks
     // now starts over (it never did, so he was broken again by the next blow and stood there) and he guards, so he swings twice as
-    // often and is struck for longer: health 1000 -> 650 and blows 60 -> 40 % (8.4 and 11.3) keep what a steady player pays at 36
+    // often and is struck for longer: health 1000 -> 650 and blows 60 -> 40 % (7.2 and 9.6) keep what a steady player pays at 36
     // health of 100 in a fight of 28 s.
     this.maxHealth = 650;
     this.currentHealth = 650;
