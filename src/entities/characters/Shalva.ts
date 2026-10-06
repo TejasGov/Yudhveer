@@ -1,4 +1,5 @@
 import type { CharacterDefinition } from '../animation/CharacterRig';
+import { asset } from '../../core/Assets';
 
 /**
  * Chapter III boss, Shalva: a 2.6 m grey-skinned asura raider with a spiked gada. Rigged from the bare mesh
@@ -14,8 +15,8 @@ import type { CharacterDefinition } from '../animation/CharacterRig';
  * His gada is `level 3 boss mace weapon.fbx` through prepare_weapon.py --hafted.
  */
 export const SHALVA: CharacterDefinition = {
-  model: '/assets/characters/shalva.glb',
-  manifest: '/assets/characters/shalva.manifest.json',
+  model: asset('characters/shalva.glb'),
+  manifest: asset('characters/shalva.manifest.json'),
   states: {
     IDLE: { clip: 'great_sword_strafe_in_place', fade: 0.3 },
     // At ease (out of the fight his guard, a strafe on the spot, would read as jogging in place): the orc idle.
@@ -41,7 +42,7 @@ export const SHALVA: CharacterDefinition = {
   // The gada in the fist the build curled; its head (the striking part) runs 0.68-1.17 m up the haft.
   weapon: {
     socket: 'Socket_Hand_R', socketFrame: true, restWorldRotation: [0, 0, 0], grip: [0, 0, 0],
-    model: '/assets/weapons/shalva_gada.glb', blade: [0.5, 1.2],
+    model: asset('weapons/shalva_gada.glb'), blade: [0.5, 1.2],
     stateRotations: { REST: [0, 0, -1.3] }, // at ease: held upright at his side, the head above his shoulder
   },
 };

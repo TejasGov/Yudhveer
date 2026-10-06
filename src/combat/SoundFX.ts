@@ -1,6 +1,7 @@
 import { Settings } from '../core/Settings';
 import sampleIds from 'virtual:sfx-samples';
 import trackIds from 'virtual:music-tracks';
+import { asset } from '../core/Assets';
 
 /**
  * The recorded effects (public/assets/sfx, ElevenLabs takes, each peak-normalised) and how loud each plays against the
@@ -267,7 +268,7 @@ export class SoundFX {
   private loadSamples(ctx: AudioContext): void {
     for (const id of Object.keys(SAMPLE_GAIN) as Sample[]) {
       if (!SAMPLES.has(id)) continue;
-      fetch(`/assets/sfx/${id}.mp3`)
+      fetch(asset(`sfx/${id}.mp3`))
         .then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(`HTTP ${r.status}`))))
         .then((data) => ctx.decodeAudioData(data))
         .then((buffer) => this.samples.set(id, buffer))
@@ -2032,7 +2033,7 @@ class Music {
     let p = this.pending.get(track);
     if (!p) {
       const ctx = this.ctx!;
-      p = fetch(`/assets/music/${track}.mp3`)
+      p = fetch(asset(`music/${track}.mp3`))
         .then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(`HTTP ${r.status}`))))
         .then((data) => ctx.decodeAudioData(data))
         .then((buffer) => {

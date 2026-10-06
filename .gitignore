@@ -1,6 +1,8 @@
 node_modules
 dist
 dist-ssr
+dist-itch
+yudhveer-itch.zip
 *.local
 .DS_Store
 .env

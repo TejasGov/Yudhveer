@@ -1,4 +1,5 @@
 import type { CharacterDefinition } from '../animation/CharacterRig';
+import { asset } from '../../core/Assets';
 
 /*
  * Chapter II's people (docs/STORY.md, "Chapter II").
@@ -21,8 +22,8 @@ import type { CharacterDefinition } from '../animation/CharacterRig';
  * Both the sparring partner (`entities/Vanara.ts`) and the story's cast member (`MENTOR_CAST`) use this model.
  */
 export const MENTOR: CharacterDefinition = {
-  model: '/assets/characters/vanara.glb',
-  manifest: '/assets/characters/vanara.manifest.json',
+  model: asset('characters/vanara.glb'),
+  manifest: asset('characters/vanara.manifest.json'),
   states: {
     // On guard, the staff held low across him and ready.
     IDLE: { clip: 'great_sword_idle', fade: 0.3 },
@@ -46,7 +47,7 @@ export const MENTOR: CharacterDefinition = {
   // The staff in the right fist, its beaded end up (+Y); the game lays it through both fists when they are together.
   weapon: {
     socket: 'Socket_Hand_R', socketFrame: true, restWorldRotation: [0, 0, 0], grip: [0, 0, 0],
-    model: '/assets/weapons/vanara_staff.glb', blade: [0.1, 0.96], twoHanded: 'Socket_Hand_L',
+    model: asset('weapons/vanara_staff.glb'), blade: [0.1, 0.96], twoHanded: 'Socket_Hand_L',
   },
 };
 

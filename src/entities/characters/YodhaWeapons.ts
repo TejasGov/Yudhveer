@@ -5,6 +5,7 @@ import type { Attire, WeaponId } from '../../game/Progression';
 import { ATTIRE_MODELS, YODHA } from './Yodha';
 import { buildScabbard, KHANDA_SCABBARD, SWORD_SCABBARD } from './Scabbard';
 import type { SwingKind, ImpactKind } from '../../combat/SoundFX';
+import { asset } from '../../core/Assets';
 
 /** What one blow of a weapon does to whoever it lands on. `heavy` blows break through a committed attack. */
 export interface Blow {
@@ -301,7 +302,7 @@ export const WEAPON_SETS: Record<WeaponId, WeaponSet> = {
       // pommel, its guard at 0.10 m and its point at 0.88 m, which reaches as far as the khanda's.
       weapon: {
         socket: 'Socket_Hand_R', socketFrame: true, restWorldRotation: [0, 0, 0], grip: SWORD_GRIP,
-        model: '/assets/weapons/hero_sword.glb', blade: [0.1, 0.87],
+        model: asset('weapons/hero_sword.glb'), blade: [0.1, 0.87],
         stateRotations: { REST: [0, 0, 1.1] }, // lowered at ease, as the khanda
       },
       sheath: { socket: 'Socket_Sheath', socketFrame: true, restWorldRotation: SHEATHED, grip: SWORD_GRIP, build: () => buildScabbard(SWORD_SCABBARD) },
@@ -328,7 +329,7 @@ export const WEAPON_SETS: Record<WeaponId, WeaponSet> = {
       // hand's breadth of it below (not on the butt), the haft laid through both.
       weapon: {
         socket: 'Socket_Hand_R', socketFrame: true, restWorldRotation: [0, 0, 0], grip: [0, 0.06, 0],
-        model: '/assets/weapons/hero_mace.glb', blade: [0.42, 0.82], scale: 1, twoHanded: 'Socket_Hand_L',
+        model: asset('weapons/hero_mace.glb'), blade: [0.42, 0.82], scale: 1, twoHanded: 'Socket_Hand_L',
         // At ease, one-handed by the haft, its head resting by his foot.
         stateRotations: { REST: [0, 0, 1.25] },
       },

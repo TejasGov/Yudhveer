@@ -5,8 +5,12 @@
   "main": "index.js",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
-    "preview": "vite preview"
+    "build": "node scripts/check-asset-urls.mjs && tsc && vite build",
+    "build:pages": "node scripts/check-asset-urls.mjs && tsc && vite build --base=/Yudhveer/",
+    "build:itch": "node scripts/pack-itch.mjs",
+    "preview": "vite preview",
+    "serve": "node scripts/serve-dist.mjs",
+    "pack:glb": "node scripts/pack-glb.mjs"
   },
   "repository": {
     "type": "git",

@@ -8,8 +8,9 @@ import { CharacterRig } from '../entities/animation/CharacterRig';
 import { WEAPON_SETS } from '../entities/characters/YodhaWeapons';
 import { ease, type Shot } from '../cinematics/CinematicDirector';
 import type { IntroContext } from '../cinematics/Intros';
+import { asset } from '../core/Assets';
 
-const LEVEL_URL = '/assets/levels/island_caves.glb';
+const LEVEL_URL = asset('levels/island_caves.glb');
 
 const v = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
 

@@ -6,8 +6,9 @@ import { Smoulder } from './environment/Smoulder';
 import { FireField, type FireSpot } from './environment/FireField';
 import { Emitter, ParticleFX } from '../combat/ParticleFX';
 import { SceneManager } from '../core/SceneManager';
+import { asset } from '../core/Assets';
 
-const LEVEL_URL = '/assets/levels/village_dusk.glb';
+const LEVEL_URL = asset('levels/village_dusk.glb');
 
 /** Toward the setting sun: low over the north gate, a little west (the raid, and Andhaka, come out of it). */
 export const VILLAGE_SUN = new THREE.Vector3(-0.26, 0.07, -0.96).normalize();

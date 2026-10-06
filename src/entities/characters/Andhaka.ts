@@ -1,4 +1,5 @@
 import type { CharacterDefinition } from '../animation/CharacterRig';
+import { asset } from '../../core/Assets';
 
 /**
  * His calm standing idle for cutscenes (not the fight, whose IDLE is a guard shuffle): Mixamo's "Standing Idle With
@@ -21,8 +22,8 @@ export const ANDHAKA_CALM_IDLE = 'standing_idle_with_axe';
  * The crown rides the offhand slot (Socket_Crown on his head); the entrance moves it and the sword at its marks.
  */
 export const ANDHAKA: CharacterDefinition = {
-  model: '/assets/characters/andhaka.glb',
-  manifest: '/assets/characters/andhaka.manifest.json',
+  model: asset('characters/andhaka.glb'),
+  manifest: asset('characters/andhaka.manifest.json'),
   states: {
     // On guard, the cleaver held low and ready.
     IDLE: { clip: 'great_sword_strafe_in_place', fade: 0.3 },
@@ -51,11 +52,11 @@ export const ANDHAKA: CharacterDefinition = {
   // The cleaver in the fist the build closed (Socket_Hand_R sits in its hole); the blade runs 0.23-1.47 m up.
   weapon: {
     socket: 'Socket_Hand_R', socketFrame: true, restWorldRotation: [0, 0, 0], grip: [0, 0, 0],
-    model: '/assets/weapons/andhaka_cleaver.glb', blade: [0.25, 1.47],
+    model: asset('weapons/andhaka_cleaver.glb'), blade: [0.25, 1.47],
   },
   // The crown on his head (its base on Socket_Crown).
   offhand: {
     socket: 'Socket_Crown', socketFrame: true, restWorldRotation: [0, 0, 0], grip: [0, 0, 0],
-    model: '/assets/weapons/andhaka_crown.glb',
+    model: asset('weapons/andhaka_crown.glb'),
   },
 };

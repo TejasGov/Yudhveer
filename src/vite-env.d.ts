@@ -19,3 +19,9 @@ declare module 'virtual:music-tracks' {
   const ids: string[];
   export default ids;
 }
+
+/** Content hashes of every file in public/assets, by its path in that folder (empty under `npm run dev`; see vite.config.ts and src/core/Assets.ts). */
+declare module 'virtual:asset-versions' {
+  const versions: Record<string, string>;
+  export default versions;
+}

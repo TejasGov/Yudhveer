@@ -6,8 +6,9 @@ import { WaterRippleMaterial } from './environment/WaterRippleMaterial';
 import { addRimLight, createToonRamp, patchShader, toonifyModel, toToonMaterial } from './environment/ToonRelight';
 import { FireField, findModelledFlames, spotForFlame, type FireSpot } from './environment/FireField';
 import { Emitter, ParticleFX } from '../combat/ParticleFX';
+import { asset } from '../core/Assets';
 
-const LEVEL_URL = '/assets/levels/moonlit_baoli.glb';
+const LEVEL_URL = asset('levels/moonlit_baoli.glb');
 // The fighting platform; the level is re-centred so its top-centre is the origin (spawns, bounds are relative).
 const ARENA_FLOOR = 'Arena_Floor';
 // Direction from the arena toward the moon baked into the sky (Blender -> three axes).
@@ -96,8 +97,8 @@ export class Level1_Baoli extends GLBLevel {
 
   protected async loadEnvironment(): Promise<void> {
     const [bg, hdr] = await Promise.all([
-      new THREE.TextureLoader().loadAsync('/assets/sky/baoli_night_sky_4k.jpg'),
-      new HDRLoader().loadAsync('/assets/sky/baoli_night_sky_1k.hdr'),
+      new THREE.TextureLoader().loadAsync(asset('sky/baoli_night_sky_4k.jpg')),
+      new HDRLoader().loadAsync(asset('sky/baoli_night_sky_1k.hdr')),
     ]);
     bg.mapping = THREE.EquirectangularReflectionMapping;
     bg.colorSpace = THREE.SRGBColorSpace;

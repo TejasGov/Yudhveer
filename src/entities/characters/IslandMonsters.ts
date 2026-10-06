@@ -1,6 +1,7 @@
 import type { CharacterDefinition } from '../animation/CharacterRig';
 import { RAKSHASA } from './Rakshasa';
 import { MAYAVI } from './Mayavi';
+import { asset } from '../../core/Assets';
 
 /*
  * Chapter III's creatures (docs/STORY.md, "Chapter III"): Meshy 7 models made for the island, auto-rigged and built
@@ -24,8 +25,8 @@ import { MAYAVI } from './Mayavi';
  * time). They claw (no weapon) with the brute's clips, quicker than the brute: the placeholder's timings.
  */
 export const MINI_MONSTER: CharacterDefinition = {
-  model: '/assets/characters/cave_runt.glb',
-  manifest: '/assets/characters/cave_runt.manifest.json',
+  model: asset('characters/cave_runt.glb'),
+  manifest: asset('characters/cave_runt.manifest.json'),
   states: {
     ...RAKSHASA.states,
     ATTACK_1: { clip: 'standing_melee_attack_downward', timeScale: 1.6, timesState: true, fade: 0.1 },
@@ -45,8 +46,8 @@ export const MINI_MONSTER: CharacterDefinition = {
  * his cast is the throw.
  */
 export const ARCHER_MONSTER: CharacterDefinition = {
-  model: '/assets/characters/cave_hurler.glb',
-  manifest: '/assets/characters/cave_hurler.manifest.json',
+  model: asset('characters/cave_hurler.glb'),
+  manifest: asset('characters/cave_hurler.manifest.json'),
   states: MAYAVI.states,
   locomotion: { walkSpeed: 1.3, moveSpeed: 3.4, sprintSpeed: 4.2 },
   // Cornered, it claws: a short reach along the right hand.

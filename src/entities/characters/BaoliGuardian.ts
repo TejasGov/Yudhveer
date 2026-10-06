@@ -1,4 +1,5 @@
 import type { CharacterDefinition } from '../animation/CharacterRig';
+import { asset } from '../../core/Assets';
 
 /**
  * Chapter I boss, the Baoli Guardian: a 3.2 m horned demon in plate armour with a talwar. Rigged from the bare mesh
@@ -12,8 +13,8 @@ import type { CharacterDefinition } from '../animation/CharacterRig';
  * His hands have finger bones: the right closes on the talwar's grip, the empty left hangs relaxed (CharacterRig).
  */
 export const BAOLI_GUARDIAN: CharacterDefinition = {
-  model: '/assets/characters/baoli_guardian.glb',
-  manifest: '/assets/characters/baoli_guardian.manifest.json',
+  model: asset('characters/baoli_guardian.glb'),
+  manifest: asset('characters/baoli_guardian.manifest.json'),
   states: {
     // Hunched and heaving.
     IDLE: { clip: 'mutant_breathing_idle', fade: 0.3 },
@@ -40,7 +41,7 @@ export const BAOLI_GUARDIAN: CharacterDefinition = {
   // The talwar, in the fist the build curled (socket +Y along the grip toward the thumb: a prepared weapon fits as is).
   weapon: {
     socket: 'Socket_Hand_R', socketFrame: true, restWorldRotation: [0, 0, 0], grip: [0, 0, 0],
-    model: '/assets/weapons/level1_boss_talwar.glb', blade: [0.3, 1.35],
+    model: asset('weapons/level1_boss_talwar.glb'), blade: [0.3, 1.35],
     stateRotations: { REST: [0, 0, -1.1] }, // at ease: lowered, pointing down and ahead
   },
 };

@@ -1,5 +1,6 @@
 import type { CharacterDefinition } from '../animation/CharacterRig';
 import { MAYAVI } from './Mayavi';
+import { asset } from '../../core/Assets';
 
 /**
  * Chapter V, the yatudhanas: the sorcerer-demons of Vedic lore who cross the summit's bridges among the brutes and
@@ -14,8 +15,8 @@ import { MAYAVI } from './Mayavi';
  *     --height 1.8 --prefixes "NPC" --clips "casting,casting_2,magic_attack_01,idle_2,impact_3,impact_2,strafe,strafe_2,walk_2,crouch_idle,calm_idle"
  */
 export const YATUDHANA: CharacterDefinition = {
-  model: '/assets/characters/yatudhana.glb',
-  manifest: '/assets/characters/yatudhana.manifest.json',
+  model: asset('characters/yatudhana.glb'),
+  manifest: asset('characters/yatudhana.manifest.json'),
   states: MAYAVI.states,
   locomotion: MAYAVI.locomotion,
   // No weapon: a claw's reach along the right hand (the rig rests in a T-pose, hand pointing out to his right).

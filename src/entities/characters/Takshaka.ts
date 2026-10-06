@@ -1,4 +1,5 @@
 import type { CharacterDefinition } from '../animation/CharacterRig';
+import { asset } from '../../core/Assets';
 
 /**
  * Chapter III final boss, Takshaka: a 2.6 m cobra-hooded naga with claws and a tail. Rigged from the bare mesh
@@ -9,8 +10,8 @@ import type { CharacterDefinition } from '../animation/CharacterRig';
  *           <out>/takshaka.glb --prefixes "Boss1-" --height 2.6 --clips "orc_idle"
  */
 export const TAKSHAKA: CharacterDefinition = {
-  model: '/assets/characters/takshaka.glb',
-  manifest: '/assets/characters/takshaka.manifest.json',
+  model: asset('characters/takshaka.glb'),
+  manifest: asset('characters/takshaka.manifest.json'),
   states: {
     IDLE: { clip: 'mutant_breathing_idle', fade: 0.3 },
     REST: { clip: 'orc_idle', fade: 0.4 }, // at ease: standing tall and heavy (Stance-Orc Idle)

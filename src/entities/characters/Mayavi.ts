@@ -1,4 +1,5 @@
 import type { CharacterDefinition } from '../animation/CharacterRig';
+import { asset } from '../../core/Assets';
 
 /**
  * Chapter II, Mayavi: a horned asura sorcerer (`level 2 magician.fbx`, already Mixamo-rigged) who throws spells
@@ -8,8 +9,8 @@ import type { CharacterDefinition } from '../animation/CharacterRig';
  *     --prefixes "NPC" --clips "casting,casting_2,magic_attack_01,idle_2,impact_3,impact_2,strafe,strafe_2,walk_2,crouch_idle,calm_idle"
  */
 export const MAYAVI: CharacterDefinition = {
-  model: '/assets/characters/mayavi.glb',
-  manifest: '/assets/characters/mayavi.manifest.json',
+  model: asset('characters/mayavi.glb'),
+  manifest: asset('characters/mayavi.manifest.json'),
   states: {
     IDLE: { clip: 'idle_2', fade: 0.3 },
     REST: { clip: 'calm_idle', fade: 0.4 }, // at ease: a relaxed stand (Stance-Calm Idle)

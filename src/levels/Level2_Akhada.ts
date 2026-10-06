@@ -6,8 +6,9 @@ import { addLampGlow, addRimLight, createToonRamp, toonifyModel, toToonMaterial 
 import { FireField, type FireSpot } from './environment/FireField';
 import { SkyDome, prepareEquirect } from './environment/SkyDome';
 import { WaterRippleMaterial } from './environment/WaterRippleMaterial';
+import { asset } from '../core/Assets';
 
-const LEVEL_URL = '/assets/levels/akhada_atrium.glb';
+const LEVEL_URL = asset('levels/akhada_atrium.glb');
 
 /**
  * Toward the setting sun, as the sky draws it: low in the north-west, behind the Hanuman monolith's shoulder, so the

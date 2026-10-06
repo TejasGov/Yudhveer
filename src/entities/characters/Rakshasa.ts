@@ -1,4 +1,5 @@
 import type { CharacterDefinition } from '../animation/CharacterRig';
+import { asset } from '../../core/Assets';
 
 /**
  * Chapter IV minions, the rakshasas: grey brutes with a cleaver fused into the right hand. Rigged from the bare mesh
@@ -9,8 +10,8 @@ import type { CharacterDefinition } from '../animation/CharacterRig';
  *     standing_melee_attack_downward,standing_melee_attack_horizontal,standing_react_large_gut,mutant_dying,mutant_roaring,orc_idle"
  */
 export const RAKSHASA: CharacterDefinition = {
-  model: '/assets/characters/rakshasa.glb',
-  manifest: '/assets/characters/rakshasa.manifest.json',
+  model: asset('characters/rakshasa.glb'),
+  manifest: asset('characters/rakshasa.manifest.json'),
   states: {
     IDLE: { clip: 'mutant_breathing_idle', fade: 0.25 },
     REST: { clip: 'orc_idle', fade: 0.4 }, // at ease: standing tall and heavy (Stance-Orc Idle)

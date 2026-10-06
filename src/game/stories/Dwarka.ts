@@ -12,6 +12,7 @@ import { WEAPON_SETS } from '../../entities/characters/YodhaWeapons';
 import { SHALVA } from '../../entities/characters/Shalva';
 import { TAKSHAKA } from '../../entities/characters/Takshaka';
 import { shade, shadeConversation, shadeOf, shadeRises } from '../Story';
+import { asset } from '../../core/Assets';
 
 /*
  * Chapter IV, Dwarka (docs/STORY.md, "Milestone 8"). The hero comes with the island's mace; Shalva taunts him at
@@ -54,7 +55,7 @@ function pair(s: Stage, a: string, b: string) {
 
 // ------------------------------------------------------------------------------------------------- the sword
 
-const KHANDA_URL = '/assets/weapons/yodha_khanda.glb';
+const KHANDA_URL = asset('weapons/yodha_khanda.glb');
 /**
  * The khanda's hold in his fist: the summit's own (`WEAPON_SETS.khanda`, its grip on `Socket_Hand_R` at its own size),
  * so it is the same sword here as there, and at ease (REST) it lowers as it does there.

@@ -1,5 +1,6 @@
 import type { CharacterDefinition } from '../animation/CharacterRig';
 import type { Attire } from '../../game/Progression';
+import { asset } from '../../core/Assets';
 
 /**
  * Yudhveer's protagonist, built by `game asset/characters/build_character.py` from `game asset/characters/yodha.fbx` + `game asset/characters/animations`
@@ -17,8 +18,8 @@ import type { Attire } from '../../game/Progression';
  * attack_2, kick, casting, crouch*, death_2, slide_run (the slide). States without a fitting clip use the closest one (marked PLACEHOLDER).
  */
 export const YODHA: CharacterDefinition = {
-  model: '/assets/characters/yodha.glb',
-  manifest: '/assets/characters/yodha.manifest.json',
+  model: asset('characters/yodha.glb'),
+  manifest: asset('characters/yodha.manifest.json'),
   states: {
     IDLE: { clip: 'idle' },
     // At ease (cutscenes, before and after a fight): Mixamo's relaxed standing "Idle" (Stance-Calm Idle), every weapon.
@@ -69,13 +70,13 @@ export const YODHA: CharacterDefinition = {
   // shield carried facing out along the forearm, so there it turns to face that way (0.8-0.9 forward).
   weapon: {
     socket: 'Socket_Hand_R', socketFrame: true, restWorldRotation: [0, 0, 0], grip: [0, 0, 0],
-    model: '/assets/weapons/yodha_khanda.glb', blade: [0.17, 0.87],
+    model: asset('weapons/yodha_khanda.glb'), blade: [0.17, 0.87],
     // At ease the blade hangs lowered, pointing down and ahead, instead of straight out of the relaxed fist.
     stateRotations: { REST: [0, 0, 1.1] },
   },
   offhand: {
     socket: 'Socket_Hand_L', socketFrame: true, restWorldRotation: [0, Math.PI, 0], grip: [0, 0, 0],
-    model: '/assets/weapons/yodha_dhal.glb',
+    model: asset('weapons/yodha_dhal.glb'),
     stateRotations: { WALK: [0, Math.PI / 2, 0], MOVE: [0, Math.PI / 2, 0], SPRINT: [0, Math.PI / 2, 0] },
   },
 };
@@ -88,5 +89,5 @@ export const YODHA: CharacterDefinition = {
  */
 export const ATTIRE_MODELS: Record<Attire, Pick<CharacterDefinition, 'model' | 'manifest'>> = {
   kavach: { model: YODHA.model, manifest: YODHA.manifest },
-  training: { model: '/assets/characters/yodha_training.glb', manifest: '/assets/characters/yodha_training.manifest.json' },
+  training: { model: asset('characters/yodha_training.glb'), manifest: asset('characters/yodha_training.manifest.json') },
 };

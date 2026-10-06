@@ -1,5 +1,6 @@
 import available from 'virtual:voice-lines';
 import { SoundFX } from './SoundFX';
+import { asset } from '../core/Assets';
 
 const AVAILABLE = new Set(available);
 
@@ -29,7 +30,7 @@ export class Voices {
     if (ready) return Promise.resolve(ready);
     let p = Voices.pending.get(id);
     if (!p) {
-      p = fetch(`/assets/voice/${id}.mp3`)
+      p = fetch(asset(`voice/${id}.mp3`))
         .then((r) => (r.ok ? r.arrayBuffer() : null))
         .then((data) => (data ? SoundFX.getInstance().decodeVoice(data) : null))
         .catch(() => null)

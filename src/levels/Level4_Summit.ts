@@ -12,22 +12,23 @@ import { FireField, findModelledFlames, meshPieces, spotForFlame, type FireSpot 
 import { SceneManager } from '../core/SceneManager';
 import { Emitter, ParticleFX } from '../combat/ParticleFX';
 import { SoundFX } from '../combat/SoundFX';
+import { asset } from '../core/Assets';
 
-const LEVEL_URL = '/assets/levels/charnel_ridge.glb';
-const SKY_URL = '/assets/sky/charnel_eclipse_4096.jpg';
+const LEVEL_URL = asset('levels/charnel_ridge.glb');
+const SKY_URL = asset('sky/charnel_eclipse_4096.jpg');
 /**
  * Where Andhaka stands up from his throne at the head of Shiva's stair (Engine's FINALES), facing down the stair (+z).
  * The throne is built behind it from his entrance clip's "seat" blocks (andhaka_intro.py measures them off his seated
  * body), so the rock always fits the model.
  */
 export const ANDHAKA_THRONE = new THREE.Vector3(0, 4.05, -9.6);
-const ANDHAKA_MANIFEST = '/assets/characters/andhaka.manifest.json';
+const ANDHAKA_MANIFEST = asset('characters/andhaka.manifest.json');
 // From game asset/levels/04_summit/web_sky/sky_manifest.json (three axes, from the sky bake origin).
 const ECLIPSE_DIR = new THREE.Vector3(0.0, 0.35112, -0.93633);
 const FLASHES = [
-  { url: '/assets/sky/charnel_flash1_2048.jpg', dir: new THREE.Vector3(0.8713, 0.3746, 0.3171) },
-  { url: '/assets/sky/charnel_flash2_2048.jpg', dir: new THREE.Vector3(-0.6243, 0.4695, 0.6243) },
-  { url: '/assets/sky/charnel_flash3_2048.jpg', dir: new THREE.Vector3(-0.8236, 0.309, -0.4755) },
+  { url: asset('sky/charnel_flash1_2048.jpg'), dir: new THREE.Vector3(0.8713, 0.3746, 0.3171) },
+  { url: asset('sky/charnel_flash2_2048.jpg'), dir: new THREE.Vector3(-0.6243, 0.4695, 0.6243) },
+  { url: asset('sky/charnel_flash3_2048.jpg'), dir: new THREE.Vector3(-0.8236, 0.309, -0.4755) },
 ];
 // Exported lights further out than this sit inside the baked sky's reach; their glow is emissive + bloom.
 // The Agni beacon's fire light is the exception - the animated beacon drives it.

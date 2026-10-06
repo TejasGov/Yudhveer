@@ -11,6 +11,7 @@ import { SceneManager } from '../core/SceneManager';
 import { ParticleFX } from '../combat/ParticleFX';
 import { SoundFX } from '../combat/SoundFX';
 import { BloodFX } from '../combat/BloodFX';
+import { asset } from '../core/Assets';
 
 /**
  * Level 3: Dwarka, Krishna's sea city at sunset - a ruined circular arena on an island among temple islands, the
@@ -28,8 +29,8 @@ import { BloodFX } from '../combat/BloodFX';
  * through it, foam hugs the shores and laps in and out with both, the rock is dark and glossy where the water has just
  * been, and the moored boat rides it (`LivingSea`).
  */
-const LEVEL_URL = '/assets/dwarka/dwarka_browser.glb';
-const SKY_URL = '/assets/dwarka/dwarka_horizon_sunset_2k.hdr';
+const LEVEL_URL = asset('dwarka/dwarka_browser.glb');
+const SKY_URL = asset('dwarka/dwarka_horizon_sunset_2k.hdr');
 
 // scene-config.js (Three.js coordinates; Blender (x, y, z) -> (x, z, -y)).
 const ENVIRONMENT_QUATERNION = new THREE.Quaternion(0.016459044069051743, -0.5674096941947937, -0.005852972157299519, 0.8232503533363342);

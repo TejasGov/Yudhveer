@@ -1,6 +1,7 @@
 import type { CharacterDefinition } from '../animation/CharacterRig';
 import { RAKSHASA } from './Rakshasa';
 import { ANDHAKA, ANDHAKA_CALM_IDLE } from './Andhaka';
+import { asset } from '../../core/Assets';
 
 /*
  * The prologue's people (docs/STORY.md, "Prologue"). The raiders and the guru are their own models; the villagers are
@@ -19,14 +20,14 @@ import { ANDHAKA, ANDHAKA_CALM_IDLE } from './Andhaka';
  *     --height 1.75 --fists --finger-markers rigs/raider.fingers.json --clips "<the rakshasa's nine, see Rakshasa.ts>"
  */
 export const RAIDER: CharacterDefinition = {
-  model: '/assets/characters/raider.glb',
-  manifest: '/assets/characters/raider.manifest.json',
+  model: asset('characters/raider.glb'),
+  manifest: asset('characters/raider.manifest.json'),
   states: RAKSHASA.states,
   locomotion: RAKSHASA.locomotion,
   // The talwar in the fist's grip (prepared: grip at the origin, blade up +Y out of the thumb side, as the hero's).
   weapon: {
     socket: 'Socket_Hand_R', socketFrame: true, restWorldRotation: [0, 0, 0], grip: [0, 0, 0],
-    model: '/assets/weapons/raider_talwar.glb', blade: [0.05, 0.89],
+    model: asset('weapons/raider_talwar.glb'), blade: [0.05, 0.89],
   },
 };
 
@@ -42,8 +43,8 @@ export const RAIDER: CharacterDefinition = {
  *     --prefixes "Guru-" --clips "run,impact,death,kneeling_idle" --height 1.75 --decimate 0.75 --post guru_post.py
  */
 export const GURU: CharacterDefinition = {
-  model: '/assets/characters/guru.glb',
-  manifest: '/assets/characters/guru.manifest.json',
+  model: asset('characters/guru.glb'),
+  manifest: asset('characters/guru.manifest.json'),
   states: {
     IDLE: { clip: 'breathing_idle', fade: 0.3 },
     WALK: { clip: 'iv_pole_walking', matchSpeed: true, fade: 0.25 },
@@ -79,8 +80,8 @@ export const ANDHAKA_SHADOW: CharacterDefinition = (({ offhand: _crown, ...rest 
  */
 function villager(name: string, tint?: number): CharacterDefinition {
   return {
-    model: `/assets/characters/${name}.glb`,
-    manifest: `/assets/characters/${name}.manifest.json`,
+    model: asset(`characters/${name}.glb`),
+    manifest: asset(`characters/${name}.manifest.json`),
     states: {
       IDLE: { clip: 'calm_idle', fade: 0.4 },
       REST: { clip: 'calm_idle', fade: 0.4 },
