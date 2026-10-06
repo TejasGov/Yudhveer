@@ -1170,7 +1170,7 @@ export class SoundFX {
   public playClang(strike: 'steel' | 'iron' = 'steel', power = 1): void {
     const g = 0.5 + 0.5 * Math.min(1.4, power);
     const iron = strike === 'iron';
-    if (!this.sample('blade_clang', { gain: g * (iron ? 1.6 : 1), rate: iron ? 0.72 : 1, wet: 0.08 })) {
+    if (!this.sample('blade_clang', { gain: g * (iron ? 1.6 : 1.5), rate: iron ? 0.72 : 1, wet: 0.08 })) {
       this.tone({ type: 'triangle', freq: iron ? 900 : 1700, to: iron ? 300 : 650, gain: 0.3 * g, duration: 0.05 });
       this.ring(vary(iron ? 640 : 1250, 0.02), [1, 2.4, 3.9], [0.3, 0.2, 0.12], 0.2 * g, { wet: 0.08 });
     }

@@ -767,3 +767,98 @@ delete its line.
 
 **To undo:** empty `LOOPS`. Every track then repeats whole, exactly as before (`loopOf` finds nothing, `blendSeam`
 never runs).
+
+### Hit feel and sparks (2026-10-06): DONE; judgement calls, tuning numbers
+
+The user's report: no blow of the sword, lathi or gada is felt on the enemy, only blows taken; sparks at the sword's strike
+"a nice touch to have"; the weapon trails read as big flat yellow fans. What was built is in docs/STORY.md, "Hit feel";
+before and after contact sheets (the original build against this one, the same scene, camera and frames, stepped at 60 a second)
+in `game asset/audit/fixes/hitfeel/`: `sheet_flinch_<lathi|sword|gada|khanda>.jpg` (each weapon on a normal enemy and a boss),
+`sheet_sparks_blows.jpg` (a khanda glancing off Andhaka, a sword chipping the Guardian mid-swing), `sheet_sparks_clash.jpg`
+(parry and block), `sheet_slam.jpg` and `sheet_slam_khanda.jpg` (blades on stone), `sheet_trails.jpg` (three moments of one
+swing, each weapon). `make_sheets.py` rebuilds them from the captures. **ElevenLabs: 52 credits as `estimate_only` quoted them
+(17.3 as the six finished takes report), against the 150 allowed.** Three new sounds, two takes each (flow
+`VpXZs6ZaWgoOvx9xSfVa`; `game asset/sfx/_hitfeel_sources.json` has every take and why one was picked); at the default length
+each node was quoted at 100 credits for two takes, so `duration_seconds` was set (0.8, 1.2 and 0.6 s). No re-rolls, nothing
+else paid for or downloaded, no sign-ins.
+
+**The numbers** (each in one place, so each is easy to change):
+
+- *The flinch* (`HitReact.ts`): peak lean of the head in degrees by weapon and tier (light, heavy, slam): staff 5.5, 8, 10;
+  blade 5.5, 8.5, 11; mace 9.5, 12.5, 14.5. A boss 0.85 of that; a victim in its own hit clip 0.6, a broken posture 0.5.
+  Springs (the head's angle is the sum of its shares: spine 0.78 split evenly, neck 0.14, head 0.05 plus 0.3 of its own
+  lagging spring): torso omega 18/s, zeta 0.8, 30 % of the peak jumped to at once, peak at 52 ms and back within 6 % by 234
+  ms; head omega 14, zeta 0.7, peak at 76 ms, settled by 280 ms; the twist (omega 20) is 0.55 of the lean at a blow
+  straight across the body, 9 degrees at most; no more than 22 degrees however many blows add up. Pushback along the blow:
+  staff 3 cm, blade 3.5, mace 7, times 1, 1.3, 1.6 by tier, a boss 0.5 of it, none while the victim is committed to a
+  swing, decaying at 14/s (90 % in ~160 ms). The lean follows the blow's direction plus, for a slash, the cut's (blade
+  0.56, staff 0.2 of it): from behind the hero a recoil straight away from him is mostly foreshortened.
+- *The flash:* a warm-white wash (1, 0.84, 0.58) times 0.16 plus up to 1.0 toward the silhouette; starts at 0.8 (staff), 0.85
+  (blade), 1.0 (mace), times 0.8 for a light blow, 0.85 on a boss; lasts 80, 75, 100 ms (slam 1.25 times), fading as the
+  square, on real time (a hit-stop does not hold it).
+- *The camera and hit-stop* (`HitFeel.ts`, `ImpactCamera.ts`): freeze in ms, trauma, kick in degrees, dip, by weapon and
+  tier (light, heavy, slam). Staff 65/.09/.42/0, 90/.26/.8/.15, 115/.42/.6/.6; blade 60/.08/.38/0, 90/.24/.75/.12,
+  120/.4/.55/.7; mace 85/.18/.35/.3, 120/.45/.6/.55, 150/.65/.5/1.2. The table's own were 40, 75 and 110 ms and are 65, 95
+  and 130; a glance 30 is 45 (a mace's 60); the new `thud` (a weapon on stone) 55 ms, trauma .2, dip .55. The budget of
+  hit-stop in any half second is 240 ms (was 180). The blade's camera nudge follows the swing for 0.7 of its direction, the
+  staff's for 0.25, the mace's not at all. The shake slider scales shake and kick as before and not the freeze.
+- *Chingaari* (`ClashFX.ts`): steel 28 sparks, a 0.42 rad cone, 28 % thrown every way, 5 to 12 m/s, living 0.2 to 0.42 s, 2 to
+  4 cm wide, tails twice the others'; iron (the mace) 36, 0.55 rad, 35 %, 4 to 10 m/s, 0.22 to 0.46 s, 2.6 to 5 cm; stone
+  32, a 1.1 rad fan, 20 %, 3 to 9 m/s. They fall at 18 m/s squared and skitter up to twice (0.34 of their fall, 0.62 of their
+  run kept). They start 0.32 m toward the camera and 0.1 to 0.2 m to the near side of the body. Strength: a glance 1.0 (times
+  1.15 a tier), a light blow chipping a committed boss 0.5, a parry 1.5, a block 0.65, a floor strike 0.6 to 1.4 by how fast
+  the head was falling (0.75 for a blade, 0.6 on Dwarka's wet stone). The light: one PointLight (6.5 m, decay 2), 8, 10 and 9
+  candela at the clash for steel, iron and stone, gone in 70, 85 and 80 ms, 0 the rest of the time; the scene's lights go
+  from three to four, once, at start.
+- *Trails* (`SlashRibbon.ts`): life 0.13 s (blade), 0.16 (staff), 0.17 (mace); breadth the last 20, 26, 28 % of the weapon;
+  the white-hot line 3.0, 2.4, 2.8 times in HDR, the tinted body 0.85, 0.7, 0.9; the hero's tints gold (`0xffb347`), pale
+  bamboo (`0xf0b866`), orange (`0xff8a3a`), an enemy's red (`0xff5a38`, `0xe8804a`, `0xff4a28`). From 60 ms before an attack's
+  first strike window to 50 ms after its last.
+- *Sound* (`SoundFX.ts`): `hit_wood` 0.6 to 1.5 (see below), `blade_clang` 1.4, `stone_slam` 0.7, `lathi_crack` 1.0; the
+  synthesized layers under every blow (a sine falling from ~120 Hz for the staff, ~108 for the blade, ~78 for the mace, 0.17
+  to 0.34 s) and each weapon's own (the crack, a 5 kHz hiss, a 62 Hz boom and a recording of the mace's blow at 0.62 speed,
+  and the chips falling); one set per 45 ms however many are struck in a sweep. Levels through the real chain (peaks): the
+  staff's blow -6.3 dB (-4.7 heavy), the blade's -6.4, the mace's -4.3 (-4.8 slam), a steel glance -7.5, an iron one -6.4, a
+  stone strike -5.8, against the parry's -6.5 and the block's -7.
+
+**Calls made**, each easy to undo:
+
+- **The flinch is a layer of the simulation step, after the rig update, as asked, and not a render-time effect.** So it
+  lives in the pose the hit-stop holds and the render interpolation blends, a hit starts it at 30 % of its peak at the very
+  frame of contact, and it also moves the victim's weapon hand by a few centimetres for a quarter of a second (a boss's
+  swing a hair short, never a state change). A render-time layer would have left even that alone but would not have shown
+  up in the stepped captures; if the weapon hand's few centimetres ever matter, it is a change to `applyBones`.
+- **Sparks where it is armour or stone, not on flesh.** A committed enemy's light chip draws chingaari only on a boss
+  (`armored && isBoss`, steel and iron, not the staff), the one that already says "your blow did not interrupt this": a
+  minion's blow draws its blood (or the old puff with Gore off) as before. Andhaka's hide (the only `armorDamage` below 1)
+  is the glance. The staff throws no sparks anywhere (on a hide, a puff of dust; on the dhal, a little dust shaken loose).
+- **The old parry starburst and the red block puff are gone**, replaced by the same chingaari (the parry at 1.5). The parry's
+  and the shield's sounds are as they were.
+- **The mace's floor strike is where the downswing bottoms out within 0.55 m of the stone,** still falling at 4.5 m/s or more:
+  its head stops 0.4 to 0.5 m short of the floor in every downswing (the clips were made for a longer blade, as Dwarka's
+  splash already reads it). That is the plain chop (`ATTACK_1`), the spin finisher and the leap, not the sweep (`ATTACK_2`,
+  0.79 m). A blade only on its leap. Not if the swing has already landed on someone. Measured on the khanda's leap on the
+  summit's stair: the blade is planted at 0.2 m by frame 48 and the sparks come at 47. Enemies' own slams (Shalva's, Andhaka's)
+  already have dust, a ring and a quake of their own (their files are another pass's) and were left alone: giving them
+  `HitFeel.floorStrike` is one call per fighter.
+- **`hit_wood` was 11 to 13 dB under the blade's and the mace's** (the old recording peaks at -24 dBFS, a low thud with no
+  crack in it), which is part of why the lathi felt like nothing. Raised from 0.6 to 1.5 in `SAMPLE_GAIN`, and the crack
+  laid over it. This changes the mix of the first two chapters: their blows are 12 dB louder.
+- **The trails are not in the bloom.** They were not before; tried, it changed nothing visible (the levels' thresholds sit
+  above them), so no per-character selection to keep and release.
+- **The hero is not flinched** when he is struck (his hit clips and the screen's pulses already carry it).
+- **Not done:** the island's expedition fights were checked for their bones (every rig resolves its spine, neck and head by
+  ancestry) and one cave runt was hit, not played through; the real-time loop was driven by hand (frames at 14 ms in a hidden
+  pane) for the freeze, the flash and the shake, not played with a pad. Sound was measured, not listened to.
+
+**Checks.** `npx tsc --noEmit` and `npm run build` pass, and the production bundle has no `__debug`. No console errors across
+all chapters, Gore off and full, the shake at 0. Stun-lock: fifteen seconds of light blows on the Guardian (twice), Shalva and
+Andhaka, the original build against this one, the same harness: the Guardian's two runs are identical to the blow (21 blows,
+2 attacks, 0 staggers, 93 hp left; then 15 blows, 1 attack, 4 posture breaks, dead), Shalva's too (11 blows, 1 attack, dead);
+Andhaka (random in his choices) 13 blows and 5 attacks before, 19 and 4 after; no stagger anywhere, and every boss that lived
+kept attacking. Frame time in the heavy fights (three raiders on the hero in the village, Shalva at Dwarka, the summit with its
+rakshasas, all attacking, 400 stepped frames each with render and a GPU sync), the two builds interleaved: the simulation step
+1.64 ms before and 1.63 to 1.70 after (village), 0.65 and 0.78 (Dwarka), 1.21 and 1.49 (summit, random fights), the frame
+7.18 and 7.30 ms, 5.99 and 6.32, 6.50 and 6.72, all inside the noise of a GPU shared with other work (the fourth light itself:
+the same 7.45 ms with it hidden); nothing is allocated per blow but the sparks' own small objects, as before, and no light,
+material or geometry.
