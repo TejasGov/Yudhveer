@@ -56,25 +56,113 @@ function heroWith(parts: Pick<CharacterDefinition, 'weapon' | 'sheath'> & { stat
   return def;
 }
 
+/** Where the lathi's foot and head are up its +Y (m), and the bamboo's radius at each: it tapers toward the head. */
+const LATHI = { foot: -0.57, head: 1.05, footRadius: 0.0255, headRadius: 0.0192 } as const;
+/** The bamboo's radius at height `y` (m). */
+const lathiRadius = (y: number) => THREE.MathUtils.lerp(LATHI.footRadius, LATHI.headRadius, (y - LATHI.foot) / (LATHI.head - LATHI.foot));
 /**
- * The lathi: a 1.55 m bamboo staff shod in iron at both ends, from -0.57 to +1.05 up its +Y (the striking end up).
+ * The bamboo's nodes, up from the foot. A culm's joints crowd toward its thick end and spread toward the thin one, so
+ * the internodes run from 29 cm to 34 cm. The cord hides the stretch below the first.
+ */
+const LATHI_NODES = [-0.16, 0.13, 0.44, 0.78];
+/**
+ * The cord wound round the grip, from just above the foot's iron to a hand's breadth above the right fist: both hands
+ * lie on it. Its turns touch (a turn is a little under the cord's width), and it sinks into the bamboo by a fifth of
+ * its thickness.
+ */
+const LATHI_CORD = { from: -0.512, to: -0.232, turns: 35, radius: 0.0042, sink: 0.0018 } as const;
+
+/**
+ * A surface of revolution about +Y from a profile of (radius, height, colour) points, the colour laid in as vertex
+ * colours: a hard edge is two points at the same place with two colours (the lathe's own normals then split there too).
+ */
+function turned(profile: [radius: number, y: number, colour: number][], sides = 12): THREE.BufferGeometry {
+  const geometry = new THREE.LatheGeometry(profile.map(([r, y]) => new THREE.Vector2(r, y)), sides);
+  // LatheGeometry lays its vertices out one profile point after another round each of the `sides + 1` columns.
+  const colour = new THREE.Color();
+  const colours: number[] = [];
+  for (let column = 0; column <= sides; column++) {
+    for (const [, , hex] of profile) colours.push(...colour.setHex(hex).toArray());
+  }
+  geometry.setAttribute('color', new THREE.Float32BufferAttribute(colours, 3));
+  return geometry;
+}
+
+/**
+ * The lathi: a bamboo staff from -0.57 to +1.05 up its +Y (the striking end up), 1.62 m with its iron. It tapers from
+ * the thick foot to the thin head; the bamboo is darker at its nodes, each a ridge standing proud of the shaft, with a
+ * slight change of tone between one internode and the next; a red cord is wound round the grip, under both fists, and
+ * both ends are shod in iron: the foot's a ferrule with a ridge, the head's a brass band under a longer cap with a
+ * ridge and a dome. Plain colours and strong shapes, so the cel ramp and
+ * the ink lines do the rest (as on the scabbards); one vertex-coloured material for the whole staff but the cord.
  * Built in code until the user's model arrives (drop a GLB in and use `model` instead of `build`).
  */
-function buildLathi(): THREE.Group {
+export function buildLathi(): THREE.Group {
   const lathi = new THREE.Group();
-  const bamboo = new THREE.MeshStandardMaterial({ color: 0x9a7a3c, roughness: 0.7, metalness: 0 });
-  const knot = new THREE.MeshStandardMaterial({ color: 0x5e4620, roughness: 0.8, metalness: 0 });
-  const iron = new THREE.MeshStandardMaterial({ color: 0x3a3a42, roughness: 0.45, metalness: 0.8 });
-  const add = (geo: THREE.BufferGeometry, mat: THREE.Material, y: number) => {
-    const m = new THREE.Mesh(geo, mat);
-    m.position.y = y;
-    m.castShadow = true;
-    lathi.add(m);
+  lathi.name = 'Lathi';
+  const add = (geometry: THREE.BufferGeometry, material: THREE.Material) => {
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.castShadow = true;
+    lathi.add(mesh);
   };
-  add(new THREE.CylinderGeometry(0.022, 0.027, 1.55, 12), bamboo, 0.225);
-  for (const y of [-0.2, 0.28, 0.7]) add(new THREE.CylinderGeometry(0.03, 0.03, 0.025, 12), knot, y);
-  for (const y of [-0.52, 0.97]) add(new THREE.CylinderGeometry(0.032, 0.032, 0.1, 12), iron, y);
-  add(new THREE.SphereGeometry(0.03, 10, 8), iron, 1.02);
+  const turnedMaterial = new THREE.MeshStandardMaterial({ name: 'Lathi_Turned', vertexColors: true, roughness: 0.75, metalness: 0 });
+
+  // The shaft: from inside the foot's iron to inside the head's. An internode is lighter mid-way and a shade darker where
+  // it meets a node, and each is a touch different from its neighbours (cut from one culm, no two joints alike).
+  const tones = [0xa07f45, 0xa8884c, 0x9a7a42, 0xa48449, 0x9d7d44, 0xa58549];
+  const NODE = 0x4b3318;
+  const shade = (hex: number, k: number) => new THREE.Color(hex).multiplyScalar(k).getHex();
+  const shaft: [number, number, number][] = [];
+  const bounds = [LATHI.foot + 0.04, ...LATHI_NODES, LATHI.head - 0.09];
+  for (let i = 0; i < bounds.length - 1; i++) {
+    const below = i === 0 ? bounds[0] : bounds[i] + 0.02;
+    const above = i === bounds.length - 2 ? bounds[i + 1] : bounds[i + 1] - 0.02;
+    // The internode: a few points up it, the tone eased from darker at each node to lighter between.
+    for (const [k, light] of [[0, 0.86], [0.25, 0.97], [0.5, 1.0], [0.75, 0.97], [1, 0.86]] as const) {
+      const y = THREE.MathUtils.lerp(below, above, k);
+      shaft.push([lathiRadius(y), y, shade(tones[i % tones.length], light)]);
+    }
+    if (i < LATHI_NODES.length) {
+      // The node itself: a ridge 3.5 mm proud with sloped shoulders, 22 mm across at its top.
+      const y = LATHI_NODES[i];
+      for (const dy of [-0.011, 0.011]) shaft.push([lathiRadius(y + dy) + 0.0035, y + dy, NODE]);
+    }
+  }
+  add(turned(shaft), turnedMaterial);
+
+  // The iron: the foot's ferrule (a flat heel, chamfered, a ridge near its top) and the head's (a brass band, then a cap
+  // with a ridge that rises to a dome). Their ends lie over the shaft's.
+  const IRON = 0x5d6068;
+  const BRASS = 0xb48a3a;
+  const foot = LATHI.foot;
+  const head = LATHI.head;
+  add(turned([
+    [0, foot, IRON], [0.02, foot, IRON], [0.027, foot + 0.007, IRON], [0.029, foot + 0.014, IRON], [0.029, foot + 0.034, IRON],
+    [0.0312, foot + 0.034, IRON], [0.0312, foot + 0.0425, IRON], [0.029, foot + 0.0425, IRON], [0.029, foot + 0.05, IRON],
+    [0.0268, foot + 0.0505, IRON], [0.0245, foot + 0.0506, IRON],
+  ]), turnedMaterial);
+  add(turned([
+    [0.018, head - 0.097, BRASS], [0.0226, head - 0.097, BRASS], [0.0226, head - 0.083, BRASS], [0.0212, head - 0.081, BRASS],
+    [0.0245, head - 0.081, IRON], [0.0245, head - 0.056, IRON], [0.0266, head - 0.056, IRON], [0.0266, head - 0.046, IRON],
+    [0.0245, head - 0.046, IRON], [0.0245, head - 0.027, IRON], [0.0225, head - 0.0155, IRON], [0.0152, head - 0.0045, IRON],
+    [0.0072, head - 0.001, IRON], [0, head, IRON],
+  ]), turnedMaterial);
+
+  // The cord: one round of a tube about the grip, laid in turns that touch.
+  const { from, to, turns, radius, sink } = LATHI_CORD;
+  class Wound extends THREE.Curve<THREE.Vector3> {
+    constructor() {
+      super();
+    }
+
+    override getPoint(t: number, target = new THREE.Vector3()): THREE.Vector3 {
+      const y = THREE.MathUtils.lerp(from, to, t);
+      const a = t * turns * Math.PI * 2;
+      const r = lathiRadius(y) + radius - sink;
+      return target.set(Math.cos(a) * r, y, Math.sin(a) * r);
+    }
+  }
+  add(new THREE.TubeGeometry(new Wound(), turns * 10, radius, 8, false), new THREE.MeshStandardMaterial({ name: 'Lathi_Cord', color: 0x7c3027, roughness: 0.9, metalness: 0 }));
   return lathi;
 }
 
@@ -87,6 +175,16 @@ function buildLathi(): THREE.Group {
  */
 const LATHI_GRIP: [number, number, number] = [0, -0.3, 0];
 
+/**
+ * The gathering of Shakti with a weapon held in both hands: the Great Sword Pack's "Power Up" (`great_sword_power_up`,
+ * 3.03 s: he bows over the weapon held before him, draws a breath and lifts it, the fists ~0.2 m apart on its haft the
+ * whole way), played at 1.536x so the charge lasts the 1.975 s the hero's own "Power Up" (2.37 s at 1.2x) gave it: how
+ * long the button is held is balance, not look. Measured over the clip with the mace and with the lathi laid through
+ * both fists (`CharacterRig.aimTwoHanded`'s rule), the weapon's line comes no nearer his head than 0.39 m (the hero's
+ * own clip: 0.15 m, through the head).
+ */
+const CHARGE_TWO_HANDED: StateAnimation = { clip: 'great_sword_power_up', timeScale: 1.536, timesState: true };
+
 // The lathi's moves are the mace's two-handed Great Sword Pack clips, timed as the old lathi's (each swing ~0.7 s,
 // the finisher ~1 s): a wide sweep (entered past its back-swing, as the mace's is, so the back-swing never counts as
 // a blow), an overhead blow, and the high spin as the finisher (two blows, travelling ~2 m), the staff aimed through
@@ -95,11 +193,12 @@ const LATHI_GRIP: [number, number, number] = [0, -0.3, 0];
 // line through them (so the staff) runs through his head for a few frames, whenever in the sweep's recovery it is
 // chained. It only ever follows the sweep. Its guard, run, hit reactions and death keep both hands on it too; the
 // walk is the hero's own (the staff carried in one hand), because the cutscenes walk him: up to the Devi's shrine,
-// into the stepwell, out of the burning village, where a guard walk read as stalking. The slide, jump, charge and
-// posture break keep the hero's own clips as well (the fists part and the staff slides back into the right fist).
+// into the stepwell, out of the burning village, where a guard walk read as stalking. The slide, jump and posture break
+// keep the hero's own clips as well (the fists part and the staff slides back into the right fist).
 // Measured frame by frame over the chain (chained at every moment it can be) and those clips: no part of him comes
-// within the staff's radius but the hands that hold it. (The charge, Mixamo's "Power Up", draws both fists in to his
-// chest: any staff in his hand crosses his head for a few frames there, as the old lathi did.)
+// within the staff's radius but the hands that hold it. The charge is the Great Sword Pack's own (`CHARGE_TWO_HANDED`),
+// not the hero's Mixamo "Power Up", which draws both fists in to his chest and crossed any staff in his hand over his
+// head for a few frames.
 const LATHI_STATES: Partial<Record<CharacterState, StateAnimation>> = {
   IDLE: { clip: 'great_sword_idle', fade: 0.3 },
   MOVE: { clip: 'great_sword_run_2', matchSpeed: true, fade: 0.22 },
@@ -107,18 +206,19 @@ const LATHI_STATES: Partial<Record<CharacterState, StateAnimation>> = {
   ATTACK_1: { clip: 'great_sword_slash', startAt: 0.34, endAt: 1.05, timeScale: 1, timesState: true, fade: 0.08 },
   ATTACK_2: { clip: 'great_sword_slash_3', startAt: 0.72, endAt: 1.3, timeScale: 0.8, timesState: true, fade: 0.22 },
   ATTACK_3: { clip: 'great_sword_high_spin_attack', startAt: 0.2, endAt: 1.6, timeScale: 1.35, timesState: true, rootMotion: true, fade: 0.12 },
+  CHARGE: CHARGE_TWO_HANDED,
   STAGGER: { clip: 'great_sword_impact_2', timeScale: 1.3, timesState: true, fade: 0.05 },
   DEFLECTED: { clip: 'great_sword_impact', timeScale: 1.3, fade: 0.05 },
   DEAD: { clip: 'two_handed_sword_death_2', fade: 0.1 },
 };
 
 /**
- * The basic sword's grip on its model (the Vetala's notched blade, `vetala_sword_r.glb`, not prepared to the
- * convention): the middle of its wrapped grip, on the grip's axis. The Vetala's own offset ([0.096, 0.023, -0.026])
- * suits his sockets, which are not at the fist's hole; on the hero's (--fists) socket it held the grip 9 cm off the
- * fist, beside the open fingers.
+ * The basic sword's grip on its model: none to speak of. `hero_sword.glb` is the hero's own talwar (Meshy 7.1, made for
+ * the game and prepared with `prepare_weapon.py`), so its grip is at the origin and its blade runs up +Y like the
+ * khanda's, and the fist closes on it with no offset. (It used to be the Vetala's notched blade, whose model was
+ * never prepared and needed an offset onto its wrapped grip.)
  */
-const SWORD_GRIP: [number, number, number] = [0.028, 0.125, 0.006];
+const SWORD_GRIP: [number, number, number] = [0, 0, 0];
 
 /**
  * How a sheathed blade hangs, in `Socket_Sheath`'s frame (its +Y ran straight back, level, from where the hand was at
@@ -143,6 +243,7 @@ const MACE_STATES: Partial<Record<CharacterState, StateAnimation>> = {
   ATTACK_2: { clip: 'great_sword_slash_3', startAt: 0.35, endAt: 1.3, timeScale: 1.15, timesState: true, fade: 0.1 },
   ATTACK_3: { clip: 'great_sword_high_spin_attack', startAt: 0.2, endAt: 1.6, timeScale: 1.1, timesState: true, rootMotion: true, fade: 0.12 },
   ATTACK_JUMP: { clip: 'great_sword_jump_attack', startAt: 0.25, endAt: 1.9, timeScale: 1.2, timesState: true, rootMotion: true, fade: 0.12 },
+  CHARGE: CHARGE_TWO_HANDED,
   STAGGER: { clip: 'great_sword_impact_2', timeScale: 1.3, timesState: true, fade: 0.05 },
   DEFLECTED: { clip: 'great_sword_impact', timeScale: 1.3, fade: 0.05 },
   DEAD: { clip: 'two_handed_sword_death_2', fade: 0.1 },
@@ -152,9 +253,9 @@ const MACE_STATES: Partial<Record<CharacterState, StateAnimation>> = {
  * The hero's arms, one set per weapon (`WeaponId`). A set with no ATTACK_JUMP has no leaping strike whatever the
  * kit allows. The dhal comes with the sword sets only: the lathi and the two-handed mace leave the left hand free.
  *
- * PLACEHOLDERS to replace with proper models and clips: the lathi (built in code), the basic sword (the Vetala's
- * notched blade) and the mace (the hero's own gada). The mace's and the lathi's clips are two-handed ones (the Great
- * Sword Pack); the sword and the khanda hang in code-built scabbards (Scabbard.ts) when sheathed.
+ * The lathi is built in code (a model of it is still to come) and the mace is the hero's own gada; the basic sword is a
+ * talwar made for him with Meshy. The mace's and the lathi's clips are two-handed ones (the Great Sword Pack); the sword
+ * and the khanda hang in code-built scabbards (Scabbard.ts) when sheathed.
  */
 export const WEAPON_SETS: Record<WeaponId, WeaponSet> = {
   lathi: {
@@ -190,9 +291,12 @@ export const WEAPON_SETS: Record<WeaponId, WeaponSet> = {
     id: 'sword',
     name: 'Sword',
     definition: heroWith({
+      // His own talwar (game asset/weapons/hero_sword_meshy7.glb, 0.98 m): a gently curved blade, 5.7 cm across (a half
+      // broader than the model made it: at 3.8 cm it was a thread beside the dhal and the khanda's 12 cm) over a disc
+      // pommel, its guard at 0.10 m and its point at 0.88 m, which reaches as far as the khanda's.
       weapon: {
         socket: 'Socket_Hand_R', socketFrame: true, restWorldRotation: [0, 0, 0], grip: SWORD_GRIP,
-        model: '/assets/weapons/vetala_sword_r.glb', blade: [0.11, 0.97],
+        model: '/assets/weapons/hero_sword.glb', blade: [0.1, 0.87],
         stateRotations: { REST: [0, 0, 1.1] }, // lowered at ease, as the khanda
       },
       sheath: { socket: 'Socket_Sheath', socketFrame: true, restWorldRotation: SHEATHED, grip: SWORD_GRIP, build: () => buildScabbard(SWORD_SCABBARD) },

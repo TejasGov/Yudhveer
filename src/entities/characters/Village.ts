@@ -34,11 +34,12 @@ export const RAIDER: CharacterDefinition = {
  * The guru (secretly Shiva): an old ascetic with his staff, made in Meshy 7 from `game asset/concepts/guru.png`. The
  * staff is part of his mesh, bound to his right hand, and that arm is held at rest in every clip (`guru_post.py`):
  * he only ever carries it. His own clips (`Guru-`, Mixamo): Breathing Idle, and Iv Pole Walking (a steady walk
- * with one hand on a pole); run, impact and death are Yodha's. Built from `game asset/characters`:
+ * with one hand on a pole); run, impact and death are Yodha's, and his kneel (`kneeling_idle`, the summit's captive) is
+ * the hero's Kneeling Idle (`Hero-`). Built from `game asset/characters`:
  *
  *   blender -b --factory-startup --python autorig.py -- sources/guru_A_meshy7.glb rigs/guru.markers.json rigs/guru.rigged.glb
  *   blender -b --factory-startup --python build_character.py -- rigs/guru.rigged.glb animations <out>/guru.glb
- *     --prefixes "Guru-" --clips "run,impact,death" --height 1.75 --decimate 0.75 --post guru_post.py
+ *     --prefixes "Guru-" --clips "run,impact,death,kneeling_idle" --height 1.75 --decimate 0.75 --post guru_post.py
  */
 export const GURU: CharacterDefinition = {
   model: '/assets/characters/guru.glb',

@@ -240,3 +240,12 @@ telegraph, the phase surge, the slide, and the conch) are listed in `game asset/
 | `card_hit.mp3` | the chapter card's dhol stroke |
 | `ui_move.mp3`, `ui_confirm.mp3` | the menus' small bronze bell, tapped and struck |
 | `defeat.mp3` | the great bronze bell tolled when the hero falls |
+
+## The hero's sword, made with Meshy (2026-10-05)
+
+His basic sword (Chapters II and III, the akhada and the island) is a talwar generated for this game with Meshy: the
+concept with nano-banana text to image (`game asset/concepts/sword_A.png`, picked over `sword_B.png`, a straight
+arming sword that read as European), the model with Meshy 7.1 image to 3D (textured, remeshed to about 10k triangles,
+one 2k colour map; `game asset/weapons/hero_sword_meshy7.glb`). Prepared as a weapon with `prepare_weapon.py` (grip at
+the origin, 0.98 m, blade broadened by half and pommel scaled to 0.8 so it reads from the game's camera, texture 1k) as
+`public/assets/weapons/hero_sword.glb`. Made for the game; no third-party licence. The Vetala keeps his own swords.

@@ -26,6 +26,9 @@ const allDown = (s: Stage, ids: string[]) => ids.every((id) => s.actor(id)?.stat
 /** Where he will walk off toward, mace in hand: back up the way he came. */
 const WAY_OUT = v(0.6, -2.5, -63);
 
+/** How long `great_sword_power_up` plays (s): the mace is gathered, then he stands at ease. */
+const POWER_UP_SECONDS = 3.03;
+
 export const ISLAND_STORY: ChapterStory = {
   // Ashore at the landing: the boatman stays under his canopy in the dark of the boat and will go no further.
   opening: {
@@ -197,7 +200,10 @@ export const ISLAND_STORY: ChapterStory = {
         camera: (s): CameraKey[] => [{ pos: s.at('hero', 1.4, 1.3, 1.2), look: s.pos('hero').add(v(0, 0.9, 0)), fov: 38 }],
       },
       // From the dark: he has turned from the altar with the mace in his hands, the lamps behind him; the voice sends
-      // him on.
+      // him on. The mace gathers its power in his two fists (the Great Sword Pack's "Power Up", the mace laid through
+      // both hands as in the fight), then he settles at ease with it low at his side. The hero's own one-handed "Power
+      // Up" swung the mace's gold head across his face about 3 s in, and was held on its last frame, there, for the
+      // rest of the voice's 13 s.
       {
         fadeIn: 1.4,
         ease: ease.drift,
@@ -206,16 +212,18 @@ export const ISLAND_STORY: ChapterStory = {
         cues: [
           { at: 0, actor: 'hero', place: ISLAND.beforeAltar, face: WAY_OUT },
           { at: 0, actor: 'hero', play: 'IDLE' },
-          { at: 0.5, actor: 'hero', clip: 'power_up' },
+          { at: 0.5, actor: 'hero', clip: 'great_sword_power_up' },
+          { at: 0.5 + POWER_UP_SECONDS + 0.1, actor: 'hero', play: 'IDLE' },
         ],
         lines: [{
           speaker: 'Voice in the shrine',
           text: 'Then it will not grow heavy in your hands. Go to Dwarka. The one who holds it fights with a mace, and has not met its equal.',
           voice: 'island_end_voice_2',
         }],
+        // From his left (it was from his right, where the mace held out before him came between the lens and his face).
         camera: (s): CameraKey[] => [
-          { pos: s.at('hero', 3.0, -1.0, 0.8), look: s.pos('hero').add(v(0, 1.3, 0)), fov: 40 },
-          { pos: s.at('hero', 2.5, -0.85, 0.9), look: s.pos('hero').add(v(0, 1.35, 0)), fov: 37 },
+          { pos: s.at('hero', 2.9, 1.3, 0.8), look: s.pos('hero').add(v(0, 1.3, 0)), fov: 40 },
+          { pos: s.at('hero', 2.5, 1.1, 0.9), look: s.pos('hero').add(v(0, 1.35, 0)), fov: 37 },
         ],
       },
       // Close on him.

@@ -28,6 +28,16 @@
     1.0
    ]
   },
+  "kneeling_idle": {
+   "source": "Hero-Kneeling Idle.fbx",
+   "duration": 4.2667,
+   "loop": true,
+   "speed": 0.0,
+   "direction": [
+    0.0,
+    0.0
+   ]
+  },
   "death": {
    "source": "Yodha-death.fbx",
    "duration": 2.3,

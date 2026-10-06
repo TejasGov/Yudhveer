@@ -2,9 +2,13 @@ import * as THREE from 'three';
 import { ease, type CameraKey } from '../../cinematics/CinematicDirector';
 import { awaken, kavachLight, kindleEyes, type KavachLight, type StatueMarks } from '../../cinematics/DivineLight';
 import type { ChapterStory, Stage } from '../../cinematics/Scene';
+import { SceneFX } from '../../cinematics/SceneFX';
 import { Enemy } from '../../entities/Enemy';
 import { GURU } from '../../entities/characters/Village';
 import { BAOLI_GUARDIAN } from '../../entities/characters/BaoliGuardian';
+import { buildLathi } from '../../entities/characters/YodhaWeapons';
+import { createToonRamp, toonifyModel } from '../../levels/environment/ToonRelight';
+import { disposeObject } from '../../levels/GLBLevel';
 import { SoundFX } from '../../combat/SoundFX';
 import { shade, shadeOf, shadeRises, shadeShots, twoShot } from '../Story';
 
@@ -68,6 +72,103 @@ function prayer(s: Stage): string {
   return s.player.rig?.clipInfo('praying_anjali') ? 'praying_anjali' : 'praying';
 }
 
+/**
+ * The lathi laid down before the Devi, and taken up again. He lays it on the stone at his right (the cut into the kneel
+ * puts it there: he stands at his mark with it already down) and it lies there through his prayer, her gift and the
+ * flash that changes his clothes (a copy of it, since the change of clothes gives him a new rig and a new lathi in his
+ * hand). Rising, he takes it up: `kneel_take` (game asset/characters/take_post.py) bends him to his right, closes his fist
+ * on it where it lies and brings it up with him as he stands, and at the moment his fist closes (the clip's `grasp` mark)
+ * the real lathi is in his hand and the copy is gone, the same stick in the same place. (It used to vanish as he knelt
+ * and reappear in his hand 1.9 s into the rise.)
+ */
+const TAKE_CLIP = 'kneel_take';
+/**
+ * Where the clip's fist closes on it, if a model has not got the clip to sample: metres to his right, ahead and up from
+ * where he kneels (the numbers in take_post.py); the stick lies along his facing, its head to his back.
+ */
+const LAID = { right: 0.27, ahead: 0.12, up: 0.04 };
+/** The grasp mark's fallback (s into the clip), should the manifest not give it. */
+const GRASP_FALLBACK = 0.6;
+
+/** The lathi on the ground, while it lies there (null otherwise). */
+let laid: THREE.Group | null = null;
+
+/** Takes the lathi off the ground: gone from the scene and freed. */
+function pickUpLaid(): void {
+  if (!laid) return;
+  laid.removeFromParent();
+  disposeObject(laid);
+  laid = null;
+}
+
+/** Where his right fist closes on the lathi (world), as the take clip has it: from the clip itself, else from the numbers. */
+function laidPose(s: Stage): { position: THREE.Vector3; quaternion: THREE.Quaternion } {
+  const p = s.player;
+  const socket = p.rig?.socket('Socket_Hand_R');
+  const mark = p.rig?.clipInfo(TAKE_CLIP)?.marks?.grasp;
+  p.group.updateMatrixWorld(true);
+  const sampled = socket && mark !== undefined
+    ? p.rig!.sampleAt(TAKE_CLIP, mark, () => ({ position: socket.getWorldPosition(new THREE.Vector3()), quaternion: socket.getWorldQuaternion(new THREE.Quaternion()) }))
+    : undefined;
+  if (sampled) return sampled;
+  // His facing, his right, and the stick's head toward his back (+Y of the lathi runs along the fist's bar).
+  const yaw = p.group.rotation.y;
+  const ahead = v(Math.sin(yaw), 0, Math.cos(yaw));
+  const right = v(-Math.cos(yaw), 0, Math.sin(yaw));
+  const position = p.group.position.clone().addScaledVector(right, LAID.right).addScaledVector(ahead, LAID.ahead).add(v(0, LAID.up, 0));
+  const quaternion = new THREE.Quaternion().setFromUnitVectors(v(0, 1, 0), ahead.clone().negate());
+  return { position, quaternion };
+}
+
+/**
+ * Lays the lathi on the stone at his right: the one in his hand goes out of sight and a copy lies where his fist will meet
+ * it. He stands at his mark with empty hands (the fingers open as the prop leaves the socket: CharacterRig).
+ */
+function layLathiDown(s: Stage): void {
+  s.player.swordMesh.visible = false;
+  if (laid) return;
+  const pose = laidPose(s);
+  const level = s.level.group;
+  const lathi = buildLathi();
+  // The look of every prop in a hand (CharacterRig.attach): the cel ramp, no rim.
+  const ramp = createToonRamp([0.18, 0.46, 0.8, 1.0]);
+  toonifyModel(lathi, ramp);
+  lathi.scale.setScalar(1 / level.getWorldScale(new THREE.Vector3()).x);
+  lathi.position.copy(level.worldToLocal(pose.position.clone()));
+  lathi.quaternion.copy(level.getWorldQuaternion(new THREE.Quaternion()).invert().multiply(pose.quaternion));
+  level.add(lathi);
+  laid = lathi;
+  SceneFX.onClear(() => {
+    pickUpLaid();
+    ramp.dispose();
+  });
+}
+
+/** His fist has closed on the lathi: the real one is in his hand, and the one on the ground is gone. */
+function lathiInHand(s: Stage): void {
+  pickUpLaid();
+  s.player.swordMesh.visible = true;
+}
+
+/**
+ * Rising from his prayer he bends to his right and takes the lathi up (`kneel_take`), his fist closing on it at the clip's
+ * `grasp` mark. A model without the clip (an older build) simply rises, and the lathi is in his hand when the shot ends.
+ */
+function takeLathiUp(s: Stage): void {
+  const p = s.player;
+  if (!p.playClip(TAKE_CLIP, { fade: 0 })) {
+    kneel(s, 'kneel_to_stand', 'calm_idle', 0.3);
+    return;
+  }
+  const mark = p.rig?.clipInfo(TAKE_CLIP)?.marks?.grasp ?? GRASP_FALLBACK;
+  SceneFX.every(() => {
+    if (p.rig?.clip !== TAKE_CLIP) return false;
+    if (p.rig.time < mark) return true;
+    lathiInHand(s);
+    return false;
+  });
+}
+
 /** The Guardian (its enemy id), and the framings for its shade (Story.ts `shadeShots`), on the island's open side. */
 const GUARDIAN = 'baoli_guardian';
 const shadeOn = (s: Stage) => shadeShots(s, shade(GUARDIAN), twoShot(s, 'hero', shade(GUARDIAN), BAOLI_CENTRE).side);
@@ -114,19 +215,21 @@ export const BAOLI_STORY: ChapterStory = {
           { pos: v(-1.8, 5.4, 48.8), look: v(0, 10.2, 66), fov: 44 },
         ],
       },
-      // Side on, close: he lays the lathi down, kneels, and joins his hands (held a breath and a half once joined).
+      // Side on, close, from his right: the lathi lies on the stone at his side (laid down across the cut: he stands at his
+      // mark with it already down), and he kneels and joins his hands (held a breath and a half once joined).
       {
         duration: 4.4,
         fadeIn: 0.15,
         ease: ease.drift,
         cues: [
           { at: 0, actor: 'hero', place: DEVI_KNEEL, face: DEVI_FACE },
-          { at: 0.1, run: (s) => { s.player.swordMesh.visible = false; kneel(s, 'kneeling_down', 'crouch'); } },
+          { at: 0, run: layLathiDown },
+          { at: 0.1, run: (s) => kneel(s, 'kneeling_down', 'crouch') },
           { at: 2.7, run: (s) => kneel(s, prayer(s), 'crouch_idle', 0.35) },
         ],
         camera: [
-          { pos: v(3.3, 5.25, 55.7), look: v(0, 4.85, 58.0), fov: 40 },
-          { pos: v(2.9, 5.15, 56.0), look: v(0, 4.75, 58.0), fov: 38 },
+          { pos: v(-3.3, 5.25, 55.7), look: v(0, 4.85, 58.0), fov: 40 },
+          { pos: v(-2.9, 5.15, 56.0), look: v(0, 4.75, 58.0), fov: 38 },
         ],
       },
       // Low behind him, up at the Devi towering over him: her stone warms, her lamps are answered, her eyes open in light.
@@ -213,21 +316,25 @@ export const BAOLI_STORY: ChapterStory = {
           { pos: v(3.1, 5.15, 54.4), look: v(-0.4, 5.85, 59.4), fov: 48 },
         ],
       },
-      // Low in front of him: he rises in the kavach, the light lifting off him, and takes up the lathi.
+      // Low in front of him, from his right: in the kavach he bends over to his right and takes up the lathi where it lies,
+      // the light lifting off him, and rises with it.
       {
         duration: 4.0,
         fadeIn: 0.15,
         fadeOut: 0.7,
         ease: ease.out,
         cues: [
-          { at: 0.2, run: (s) => kneel(s, 'kneel_to_stand', 'calm_idle', 0.3) },
-          { at: 1.9, essential: true, run: (s) => { s.player.swordMesh.visible = true; } },
+          { at: 0.2, run: takeLathiUp },
+          // Standing, he lets the lathi come upright at his side and stands at ease (the clip carries it level beside him).
+          { at: 2.8, actor: 'hero', play: 'IDLE' },
+          // Skipped or settled, the lathi is in his hand and none lies on the ground.
+          { at: 3.9, essential: true, run: lathiInHand },
         ],
         camera: (s): CameraKey[] => {
           const p = s.pos('hero');
           return [
-            { pos: p.clone().add(v(0.9, 0.55, 2.6)), look: p.clone().add(v(0, 1.0, 0)), fov: 40 },
-            { pos: p.clone().add(v(0.75, 0.45, 2.3)), look: p.clone().add(v(0, 1.45, 0)), fov: 40 },
+            { pos: p.clone().add(v(-1.15, 0.5, 2.5)), look: p.clone().add(v(-0.1, 0.55, 0)), fov: 40 },
+            { pos: p.clone().add(v(-0.95, 0.5, 2.2)), look: p.clone().add(v(0, 1.3, 0)), fov: 40 },
           ];
         },
       },

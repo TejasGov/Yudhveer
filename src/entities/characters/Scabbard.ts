@@ -164,8 +164,8 @@ export function buildScabbard(shape: ScabbardShape): THREE.Group {
 }
 
 /*
- * The two shapes were fitted to their blades' meshes (every vertex, edge midpoint and face centre of the blade lies
- * inside the scabbard's cross-section: at most 0.96 and 0.99 of the way to its surface).
+ * The two shapes were fitted to their blades' meshes: every vertex, edge midpoint and face centre of the blade lies
+ * inside the scabbard's cross-section (the talwar's at most 0.93 of the way to its surface, the khanda's under 1).
  */
 
 /** The magical khanda's (`yodha_khanda.glb`): a straight broad blade, ~0.12 m across, from its guard at ~0.21. */
@@ -182,19 +182,25 @@ export const KHANDA_SCABBARD: ScabbardShape = {
 };
 
 /**
- * The basic sword's (the Vetala's notched blade, `vetala_sword_r.glb`): broad and curving, its notched edge out to
- * 0.16 at the middle, from its guard collar at 0.32; the tab standing off its spine at ~0.47 goes in the locket.
+ * The basic sword's (his talwar, `hero_sword.glb`): a slim blade, 5.7 cm across and 1.6 cm thick, curving gently to its
+ * point (its middle 3.7 cm to the edge's side of the grip's axis), from its crossguard's top at 0.10; the stations are
+ * every 7 cm so the leather bends with it, and `tip` is where the chape closes, 3.7 cm past the blade's point.
+ * Fitted by `game asset/audit/fixes/m11b-weapons/scripts/fit_scabbard.py`, which also checks it against the blade.
  */
 export const SWORD_SCABBARD: ScabbardShape = {
   stations: [
-    [0.33, -0.05, 0.112],
-    [0.46, -0.044, 0.135],
-    [0.6, -0.02, 0.16],
-    [0.76, -0.008, 0.18],
-    [0.88, -0.014, 0.172],
-    [0.95, -0.01, 0.138],
+    [0.108, -0.0156, 0.0574],
+    [0.178, -0.0156, 0.0606],
+    [0.248, -0.0128, 0.0636],
+    [0.319, -0.006, 0.0665],
+    [0.389, -0.0031, 0.0683],
+    [0.459, 0.0008, 0.0712],
+    [0.529, 0.0013, 0.0724],
+    [0.6, 0.0011, 0.0724],
+    [0.67, -0.0018, 0.0709],
+    [0.74, -0.0048, 0.0705],
   ],
-  tip: [1.05, 0.022],
-  thickness: [0.031, 0.026],
-  locket: [0.41, 0.53, 0.012],
+  tip: [0.915, -0.012],
+  thickness: [0.0135, 0.0115],
+  locket: [0.17, 0.25, 0.008],
 };

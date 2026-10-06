@@ -35,16 +35,13 @@ const STAIR_FOOT = v(0.7, 0, 3.4);
 const CLEAR_OF_GURU = v(2.6, DAIS_Y, -9.7);
 
 /**
- * How far into his `death` clip the guru is held: sunk to the ground, slumped, his staff still in his hand (a
- * captive's pose; he has no kneel of his own). PLACEHOLDER until he has a bound, kneeling clip.
+ * The guru on his knees at Shiva's feet, upright, his staff in his hand and planted in the stone beside him: Mixamo's
+ * Kneeling Idle (`Hero-Kneeling Idle`, the hero's own kneel) retargeted onto his rig (`kneeling_idle`, game asset/
+ * README.md), his staff arm held at rest as in every clip of his. (He used to be held at 1.5 s into his `death` clip,
+ * which sits him down and throws his legs out: it read as a fall, not a captive's kneel.)
  */
-const KNEEL_AT = 1.5;
-
-/** The guru, held slumped on the ground (see KNEEL_AT). */
 function kneel(s: Stage): void {
-  const guru = s.actor('guru');
-  if (!guru?.playClip('death', { fade: 0 })) return;
-  guru.rig?.hold(KNEEL_AT);
+  s.actor('guru')?.playClip('kneeling_idle', { fade: 0 });
 }
 
 /** The boy goes down on one knee (Mixamo "Kneeling Down", held on the knee once down). */

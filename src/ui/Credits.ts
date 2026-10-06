@@ -58,6 +58,8 @@ const CREDITS: [string, string[], 'small'?][] = [
     'The raiders, the yatudhanas, the cave runts and the cave hurlers: made with Meshy',
     "The raiders' talwars: the Sketchfab talwar above",
   ], 'small'],
+  // The hero's basic sword (docs/ASSET_CREDITS.md, "The hero's sword").
+  ["The hero's sword", ['His talwar, the sword of the akhada and the island: made with Meshy'], 'small'],
 ];
 
 /**

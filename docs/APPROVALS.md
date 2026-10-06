@@ -484,6 +484,7 @@ else was paid for or downloaded; no sign-ins. Calls made on the way, each easy t
 **Still to do (needs a yes on credits):** the basic sword's model, about **36 credits** (two nano-banana concepts at 3
 and a Meshy 7 model at 30). The weapon-grips helper is changing the lathi's and the basic sword's holds now, so
 the sword was left alone here.
+*Done since (milestone 11b, below): the sword, 36 credits.*
 
 **Blocked on a sign-in (Mixamo):** a bow draw-and-loose (or an overarm throw) for the hurlers, and a cast and death of
 the yatudhana's own (both borrow Mayavi's). Nothing was tried: Mixamo is out of bounds without the user's login.
@@ -574,3 +575,69 @@ spectrum, and played live each one reached the master output. In Dwarka, played 
 recordings (both takes), and Shalva's dive called `plunge`, `wake`, the telegraph, the splashes, the roar and the smash,
 none falling back to the synth. To hear one: in a dev build, click once, then in the console
 `__yudhveer.soundFX.playCardHit()` (or any `play...` method).
+
+### Milestone 11b: the weapons pass (2026-10-05): DONE; judgement calls
+
+Made while the user was away (docs/STORY.md, "The weapons pass"; captures, Blender renders and the lab scripts in
+`game asset/audit/fixes/m11b-weapons/`). **Meshy: 36 credits** within the cap of 40 (balance 668 before, 632 after): two
+nano-banana text-to-image concepts at 3 (sword A `01a10e8e-75b8-7347-997a-dc9aa7c6bedd`, sword B
+`01a10e8e-7847-7665-a7f7-6c8c0b31112b`) and one Meshy 7.1 image-to-3D model at 30 (`01a10e90-4f0c-70bb-91fa-c831e6bc0a02`:
+`meshy-7.1`, textured, 2k, no PBR, remeshed to a target of 10,000 triangles, triangle topology, no pose options; it came
+out at 9,906, first time). Nothing else was paid for or downloaded; no sign-ins. Calls made on the way, each easy to undo:
+
+- **The pick: A.** A is a gently curved single-edged talwar with a shallow fuller, downturned quillons and a bronze disc
+  pommel: an Indian sword a young warrior could carry, and nothing like the Vetala's broad notched blades or the khanda.
+  B (a slim straight arming sword with a red-corded grip) read European. Both are in `game asset/concepts/`.
+- **A broader blade and a smaller pommel than the model made** (`prepare_weapon.py --widen 1.5 --pommel 0.8`, two new
+  opt-in flags). Meshy's blade came out true to the concept but 3.8 cm across and 1.1 cm thick: at the game's camera it
+  was a thread beside the dhal. Broadened by half (5.7 by 1.6 cm, from 2 cm above the guard) it holds its own, and the
+  pommel's disc (it was 11 cm across) is a fifth smaller so it reads as a pommel, not a plate. To undo: prepare again
+  without the flags and refit the scabbard (`fit_scabbard.py`, whose output is `SWORD_SCABBARD`).
+- **Reach.** His hit segment is now `[0.1, 0.87]` (it was `[0.11, 0.97]` with the Vetala's longer blade): 10 cm shorter,
+  the same as the khanda's. Strike windows are measured from the clips as always. For the old reach, prepare it at
+  `--length 1.08` (and `blade: [0.11, 0.97]`, a refit scabbard).
+- **The sword's grip is the model's origin** (`SWORD_GRIP = [0, 0, 0]`): `prepare_weapon.py` puts the grip's middle (55 %
+  of the way from the pommel to the guard) there, and the fist closes on it in every state (checked: guard, rest, the
+  three blows, the leap, parry, block, stagger, deflection, posture break, charge, slide, run, sprint, sheathe, draw).
+- **The lathi stays built in code** (no credits). Its look is mine: the bamboo's tones (a tan from `0x9a7a42` to
+  `0xa8884c`), dark node ridges (`0x4b3318`), an iron ferrule and cap (`0x5d6068`), brass (`0xb48a3a`) and a red cord
+  (`0x7c3027`). The cord is the loudest thing on it (the only saturated colour); to quieten it, change its colour in
+  `buildLathi` (or `LATHI_CORD.turns`). 6,920 triangles (the cord's tube is 5,600 of them: 35 turns, 10 segments a turn, 8 sides).
+- **The guru kneels upright and free,** in Mixamo's Kneeling Idle (the one the hero's own kneel uses). Not bound: his staff
+  arm is held at rest in every clip (`guru_post.py`, unchanged: the audit left his rig alone), so there are no hands to
+  tie. The staff in that hand stands 0.46 m into the dais (it is the length of his whole body; the stone hides it): he
+  seems to have planted it. The `death` clip held at 1.5 s read as a fall, not a captive.
+- **Island, the last shot:** the mace is gathered in the Great Sword Pack's "Power Up", held in both hands as in the fight
+  (the same clip is the lathi's and the mace's charge, below), and after it he stands at ease with the mace low at his
+  side (the hold of the clip's end, with the head beside his face, is gone). The camera is on his left now (the mace held
+  before him came between the lens and his face from his right): the next shot's close-up was already on his left.
+- **The charge for two-handed weapons:** `great_sword_power_up` at 1.536x for the lathi and the mace, so the charge lasts
+  1.975 s (the hero's own "Power Up" at 1.2x gave 1.972 s): **no balance change** (the m12 helper's `timeScale` knob is
+  `CHARGE_TWO_HANDED` in `YodhaWeapons.ts`). The sword and the khanda keep the hero's own "Power Up" (neither crosses his
+  head). The clip is in `yodha.glb` and `yodha_training.glb` (both rebuilt; every older clip and socket is as it was: a
+  rebuild with the old clip list is byte for byte the old file).
+- **The Baoli's lathi:**
+  - *Laid down across the cut, not by a gesture.* There is no lay-down clip (Mixamo's "Put Down" or "Pick Up" would
+    need a sign-in); authoring the reach down was the harder half, and the cut into the kneel is where the old version
+    already hid the lathi (it popped out of his hand 0.1 s in). He stands at his mark with empty hands, the lathi on the
+    stone at his right.
+  - *Taken up with an authored reach* (`kneel_take`, `take_post.py`; 3.47 s; +62 KB in each hero model). With arms 40 cm to
+    the wrist, taking something off the ground from a kneel is a deep stoop; the right arm is laid by IK. Tried and left:
+    both hands on a staff laid across his front (the arms cannot reach it from a kneel short of a prostration), and a
+    thumb-forward grasp (the staff passed through the ground and his spine on the lift).
+  - *Its iron foot points at the Devi* (head to his back): that is how the bar through the fist runs in the grasp that
+    works. If a head toward her matters, flip `TAKE.bar` and rework the lift in `take_post.py` (the hand's path differs).
+  - *The camera is on his right for the kneel and the rise* (it was on his left, where the lathi, on his right, would be
+    hidden behind him). The rise shot is as long as it was (4.0 s): the fade begins as he settles at ease.
+  - *A copy lies on the stone through the prayer and the flash* (the change of clothes gives him a new rig and a new
+    lathi), and at the clip's `grasp` mark the real lathi is in his fist and the copy is gone: 9 mm of the hand's own
+    motion between two frames, no turn. Skipped or on a retry, the lathi is simply in his hand (an essential cue).
+- **Hero models:** `yodha.glb` 8.51 to 8.58 MB, `yodha_training.glb` 4.74 to 4.80 MB, `guru.glb` 2.61 to 2.64 MB. The
+  scratch rebuilds with the old clip lists were compared with the shipped files first (sha-256 identical) so that the
+  only change is the added clips.
+- **Credits:** `docs/ASSET_CREDITS.md` ("The hero's sword, made with Meshy") and the credits roll (a small block, "The
+  hero's sword"). The Vetala keeps his own swords (nothing of his changed).
+
+**Blocked on a sign-in (Mixamo):** a real pick-up and put-down (so the Baoli's lathi could be laid by a gesture too, and
+the Baoli's reach could be Mixamo's own), and a bound, kneeling captive of the guru's own with his hands tied (his staff
+arm is held at rest, so his hands cannot take a pose). Nothing was tried: Mixamo is out of bounds without the user's login.

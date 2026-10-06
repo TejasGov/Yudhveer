@@ -111,7 +111,9 @@ Shakti, once the guru has taught it, stays his in every chapter after (since 202
 - ~~The island's mini monsters and archer monsters (Chapter III).~~ Done (milestone 11): cave runts and cave hurlers.
 - ~~The second minion type on the summit (Chapter V).~~ Done (milestone 11): the yatudhana.
 - ~~The village raiders (prologue).~~ Done (milestone 11): desert dacoits with talwars.
-- The lathi, the basic sword and the blessed mace models (to source or make).
+- ~~The basic sword's model.~~ Done (milestone 11b): a Meshy talwar, see "The weapons pass" below.
+- The lathi (built in code, with nodes, ferrules and a cord wrap since milestone 11b) and the blessed mace models (to
+  source or make).
 - Village characters (prologue). The guru is done (Meshy 7, 2026-10-04); so is the old vanara (the user's model,
   2026-10-05).
 
@@ -163,8 +165,8 @@ Suggested order: progression system and weapon sets first, then the prologue, th
   from the vanara to explain it.
 - **A move a chapter is the first to grant** gets its control hint early in that chapter's fight (4 s in), once a
   session and only with "Combat hints" on: Dwarka's leap is the one (the first fights teach everything else).
-- **Placeholders:** the lathi is a staff built in code (`buildLathi`); the basic sword is the Vetala's notched blade;
-  the mace is Shalva's gada at 0.7 scale. The lathi's swings are cut from Mixamo's One Hand Club Combo; the mace's
+- **Placeholders:** the lathi is a staff built in code (`buildLathi`); the basic sword is the Vetala's notched blade
+  *(since milestone 11b his own Meshy talwar)*; the mace is Shalva's gada at 0.7 scale. The lathi's swings are cut from Mixamo's One Hand Club Combo; the mace's
   from the Mace Attack Combo, Spin Mace Attack and the brute's run-jump attack. The mace is held in the right hand
   only: both hands on the haft needs a clip authored for it. *(Since milestone 8 the mace has its own two-handed
   clips from the Great Sword Pack, held in both hands: see "Milestone 8". Since the audit fixes the lathi is two-handed
@@ -402,7 +404,8 @@ the hint for a move just learned). The map and the Guardian's fight are unchange
   at its middle; he tells it to stand aside; it rises and roars (its name card); for a breath his guru stands at his
   shoulder, pale and see-through, and tells him to look at its feet; gone, and over his shoulder into the fight.
   *(Since 2026-10-05 the opening begins at the Devi's shrine above the well, where he is given the divya kavach:
-  see "The divya kavach".)*
+  see "The divya kavach". There he lays the lathi down on the stone at his right and takes it up again as he rises:
+  see "The weapons pass".)*
 - **The guru's remembered voice** (in-fight `lines` beats, each once per attempt): the lesson of the gathered blow
   (teaches `charge` through `Player.learn`) once the Guardian is under 60 % or 45 s have passed; "feet first" when the
   boy is under half health; "now" when the Guardian's posture breaks; slide clear when it leaps or starts its
@@ -626,8 +629,9 @@ docs/ASSET_CREDITS.md).
   claw. A hit during the draw cancels the throw.
 - **Story:** the opening on the landing (the boatman, unseen under his boat's canopy, will go no further); his own
   thoughts over the walk; the voice in the shrine as he enters and when the keepers are down; the extraction: he
-  steps up to the altar, the voice, the picture goes dark as he lifts it, then he stands with the mace raised, the
-  voice sends him to Dwarka, and he walks back up the way he came. Yudhveer is subtitles only.
+  steps up to the altar, the voice, the picture goes dark as he lifts it, then he stands with the mace in both fists,
+  gathering its power (the Great Sword Pack's "Power Up": see "The weapons pass"), the voice sends him to Dwarka, and
+  he walks back up the way he came. Yudhveer is subtitles only.
 - **Left for later:** (the creatures' real models: done in milestone 11; there is still no bow clip, so the archers
   are hurlers who throw with Mayavi's cast); a clip for lifting
   the mace (the reach is the crouch idle, the lift is hidden in the dark); no map or compass (the way is linear);
@@ -780,8 +784,9 @@ effects clock, the credits after the last chapter). The map, Andhaka and his ent
   the statue wakes, its chorus as the eclipse passes; it plays on into the credits and hands over to the title's loop
   when it ends.
 - **The guru on the summit** is a story cast member (`GURU`), out of sight through the fight and found in the ending.
-  He has no kneel: he is held at 1.5 s into his `death` clip (sunk to the ground, slumped, his staff in his hand).
-  Placeholder until he has a bound or kneeling clip.
+  He kneels at Shiva's feet in Mixamo's Kneeling Idle, retargeted onto his rig (since the weapons pass, milestone 11b;
+  he used to be held at 1.5 s into his `death` clip, sunk to the ground and slumped), his staff in his hand and planted
+  in the stone beside him.
 - **Credits:** after the last chapter's ending the chapter-complete screen is replaced by a slow roll over black in the
   title's type (first, alone, the chapter's cleared line, "The summit is silent." (since 2026-10-05: no screen showed it
   before); then the Devanagari name, YUDHVEER, Created by TejasGov; Built with Three.js, Rapier, Vite; Characters:
@@ -801,7 +806,7 @@ effects clock, the credits after the last chapter). The map, Andhaka and his ent
 - **Decided here:** the guru is found slumped, not visibly bound; Shiva speaks in the guru's voice (speaker "Shiva",
   ids `summit_reveal_shiva_*`, to be recorded with the guru's narrator voice); the eclipse passes at the end (only for
   the scene; the map is untouched); the reveal is light and the statue, not a model change.
-- **Left for later:** no bonds or kneel clip for the captive guru; the yatudhana's own cast and death clips (it has
+- **Left for later:** no bonds for the captive guru (he kneels free; the kneel clip came with milestone 11b); the yatudhana's own cast and death clips (it has
   its model since milestone 11, and still moves with Mayavi's clips); a hold-to-skip on the credits rather than a
   button. (Every line is recorded: see the table below.)
 - **Testing:** in a dev build, `__debug.chapter(5, false)`, then `__debug.win()` per wave until Andhaka arrives, let
@@ -1353,8 +1358,8 @@ an open palm, and prayer (C-06) was two claws at the chin. The user asked that t
   `game asset/audit/fixes/fix-hands/blender/`; in-game captures of every held weapon, both prayers and the posture
   break in `game asset/audit/fixes/fix-hands/` (`before_*` and `after_*`).
 - **Left as is:** the basic sword's hold (C-03, the grip 8.8 cm off the socket) and the sheathed blade (C-05) are
-  separate fixes; the fists close where the sockets are. The guru's shoulder (C-12) is not changed (see
-  docs/APPROVALS.md).
+  separate fixes (both done since: see "Holds and hand-offs" and "The weapons pass"); the fists close where the sockets
+  are. The guru's shoulder (C-12) is not changed (see docs/APPROVALS.md).
 
 ## Holds and hand-offs (audit fixes, 2026-10-05)
 
@@ -1379,7 +1384,8 @@ sheathed blade sticking straight out of the hip. What changed (no model rebuilt;
   the summit starts with its own kit and a retry of Chapter IV with the mace (both checked).
 - **The basic sword's grip** (`YodhaWeapons.ts`, `SWORD_GRIP`). It reused the Vetala's grip offset, which suits his
   sockets but held the hero's 9 cm off his fist, beside the open fingers; it is now the middle of the sword's wrapped
-  grip, on its axis (the fingers close round it).
+  grip, on its axis (the fingers close round it). *(Superseded by milestone 11b: the sword is his own model, grip at
+  the origin.)*
 - **The Vetala's spare swords:** his model's `Swords_Sheathed` (a second pair crossed on his back) is hidden
   (`Vetala.attachRig`).
 - **The hiding villager** in the prologue's dusk shots crouches 1.6 m from the dead woman's head (it was 0.2 m: his foot
@@ -1419,11 +1425,12 @@ into it from any moment it can be chained, put the staff through his head). Meas
 and those clips, no part of him comes within the staff's radius but the hands that hold it. The swings take as long as
 the old ones (~0.7 s; the finisher ~1 s); hit windows are measured from the clips as always. Kept one-handed: the
 walk (the cutscenes walk him to the Devi, into the stepwell and out of the burning village, where a guard walk read
-as stalking), the slide, the jump, the charge and the posture break; when his fists part the staff slides back
+as stalking), the slide, the jump and the posture break; when his fists part the staff slides back
 through his hand to its old one-handed grip (`oneHandGrip`), so the prologue's beating and night look as they did. At
 ease it stands at his side, its top a little ahead of him, its foot by his heel. The prologue's lesson now shows him
-on guard and swinging it in both hands. Not fixed: the charge (Mixamo's "Power Up") draws both fists to his chest,
-and any staff in his hand crosses his head there for a few frames, as before.
+on guard and swinging it in both hands. The charge (Mixamo's "Power Up") drew both fists to his chest and crossed any
+staff in his hand over his head for a few frames; it is now the Great Sword Pack's own two-handed "Power Up" for the
+lathi and the mace (milestone 11b, "The weapons pass").
 
 ## The summit's snow, and memory between chapters (2026-10-05)
 
@@ -1494,8 +1501,78 @@ docs/APPROVALS.md, "Milestone 11".
   the hall of bones, clawing, struck (ichor) and dying, and the hurlers at the black pool drawing, throwing, struck and
   dying (`runts_*`, `hurler_*`). Blender checks (poses of every clip, the fist on the talwar) in `blender/`.
 - **Left for later:** the yatudhana has no cast or death of its own (Mayavi's); the hurlers no throw clip of their own
-  (a bow or a throw from Mixamo needs a sign-in); the basic sword's model (about 36 credits) is still to do with the
-  weapon-grips pass; the villagers are still Mixamo placeholders.
+  (a bow or a throw from Mixamo needs a sign-in); the villagers are still Mixamo placeholders. (The basic sword's model
+  was left for the weapons pass: done, below.)
+
+## The weapons pass (milestone 11b, 2026-10-05)
+
+Made while the user was away: the hero's own sword, a lathi that reads as bamboo, the captive guru's kneel, and three
+scene leftovers the audit's fixes had seen and not changed. Meshy: **36 credits** (cap 40: two nano-banana concepts at 3 and
+one Meshy 7.1 model at 30; balance 668 to 632). Judgement calls in docs/APPROVALS.md, "Milestones (2026-10-05)";
+before and after captures for every item in `game asset/audit/fixes/m11b-weapons/` (`item1_*` to `item4c_*`, the finished
+ones; earlier passes in `iterations/`; Blender renders in `blender/`, the lab and capture scripts in `scripts/`).
+
+- **The hero's sword (chapters II and III).** His basic sword was the Vetala's notched blade (`vetala_sword_r.glb`, held
+  by an offset). It is now a talwar made for him: `concepts/sword_A.png` (nano-banana text to image, 3 credits; B, a
+  straight arming sword that read European, is kept beside it), turned into a model by Meshy 7.1 image to 3D (textured,
+  2k, remeshed to 9,906 triangles: `weapons/hero_sword_meshy7.glb`), and prepared as a weapon with `prepare_weapon.py
+  --length 0.98 --texture 1024 --widen 1.5 --pommel 0.8` (`public/assets/weapons/hero_sword.glb`, 0.41 MB): grip at the
+  origin, blade up +Y, a gently curved single-edged blade with a shallow fuller, a steel crossguard with downturned
+  quillons, a leather-wrapped grip and a bronze disc pommel; guard at 0.10 m, point at 0.88 m. It is distinct from the
+  Vetala's blades (broad, notched, a collar for a guard) and from the summit's khanda (straight, 12 cm across). Two new
+  opt-in flags for `prepare_weapon.py`: the generated blade was true to its concept but only 3.8 cm across, a thread
+  beside the dhal and the khanda's 12 cm at the game's camera, so `--widen 1.5` broadens it about its own curved
+  centreline (to 5.7 cm across and 1.6 cm thick, from 2 cm above the guard so the hilt keeps its size) and `--pommel
+  0.8` takes a fifth off the pommel's width. `SWORD_GRIP` is `[0, 0, 0]` now and the hit segment `[0.1, 0.87]` (it was `[0.11, 0.97]` with the longer
+  Vetala blade: the talwar reaches as far as the khanda). **The scabbard** (`Scabbard.ts`, `SWORD_SCABBARD`) is refitted:
+  ten stations every 7 cm that follow the blade's curve, its chape closing 3.7 cm past the point; every vertex, edge
+  midpoint and face centre of the blade lies inside it (the body at most 0.934 of the way to the leather's surface, the
+  chape 0.70: `game asset/audit/fixes/m11b-weapons/scripts/fit_scabbard.py`). Checked on the model: the fist closes round
+  the grip in the guard, at ease, in all three blows and the leap, the parry, the block, the stagger, the deflection, the
+  posture break, the charge, the slide and the run and sprint; and through the sheathe (the blade turns into the
+  scabbard at the clip's mark, the hilt the only part that shows) and the draw. Made with Meshy: credited in
+  `docs/ASSET_CREDITS.md` and the credits roll ("The hero's sword").
+- **The lathi** (`buildLathi`, still built in code, no credits). A bamboo staff: it tapers from 5.1 cm across at the foot
+  to 3.8 cm at the head; four nodes stand proud of the shaft as darker ridges (a culm's joints crowd toward its thick
+  end: 29 to 34 cm apart, the cord covering the stretch below the first) and each internode has a slightly different tone;
+  the foot is shod in an iron ferrule with a ridge and a flat heel, the head in a brass band under an iron cap with a
+  ridge and a dome; a red cord is wound 35 turns round the grip under both fists (28 cm, from just above the foot's
+  iron). Plain colours and strong shapes (vertex colours on lathe profiles, one material but the cord) for the cel ramp
+  and the ink; four meshes, 6,920 triangles (the cord's round tube is 5,600 of them). Its length (-0.57 to +1.05),
+  `LATHI_GRIP`, the hit segment and every two-handed hold are unchanged. It is exported now (the Baoli lays a copy on the stone).
+- **The captive guru's kneel** (`Summit.ts`). `guru.glb` is rebuilt with one more clip, Mixamo's Kneeling Idle
+  (`Hero-Kneeling Idle`, 4.27 s, looped) retargeted onto his rig: his README command with `kneeling_idle` added to `--clips`, so his
+  other clips (breathing idle, iv pole walk, run, impact, death) and `guru_post.py`'s hold of the staff arm at rest are
+  as they were (2.61 to 2.64 MB; nothing else in his model changed: a rebuild with the old list is byte for byte the old
+  file). At the summit he kneels upright at Shiva's feet, his staff in his hand and planted in the dais, and stands for
+  "You kept your feet". It replaces the `death` clip held at 1.5 s.
+- **The island's last shot** (`Island.ts`). After the mace is taken, the hero's own one-handed "Power Up" swung the
+  mace's gold head across his face about 3 s in, and was held on its last frame, there, for the voice's 13 s. The mace is
+  now gathered with the Great Sword Pack's "Power Up" (`great_sword_power_up`, 3.03 s; it is in `yodha.glb` and
+  `yodha_training.glb` since this pass), the mace laid through both fists as in the fight (its line comes no nearer his
+  head than 0.39 m; the old clip's: 0.15 m), after which he stands at ease with it low at his side. The camera is on his
+  left (it was on his right, where the mace held out before him came between the lens and his face).
+- **The charge** (`CHARGE_TWO_HANDED` in `YodhaWeapons.ts`). The same clip is the lathi's and the mace's Shakti: "a hold
+  for the charge with two-handed weapons". Played at 1.536x so it lasts 1.975 s, the 1.972 s the hero's own "Power Up"
+  gave (how long the button is held is balance, not look). Measured over the clip in Blender
+  (`scripts/weapon_clip.py`) and in the game (`item4c_*`), neither weapon crosses his head. The sword and the khanda keep
+  the hero's own "Power Up".
+- **The Baoli** (`Baoli.ts`, `take_post.py`). The lathi used to vanish as he knelt (0.1 s into the kneel, in plain view)
+  and reappear in his hand 1.9 s into the rise with nothing picked up. Now it is laid on the stone at his right across the
+  cut into the kneel (he stands at his mark with empty hands, the lathi on the ground along his facing, its iron foot
+  toward the Devi), the camera is on his right so it shows, and it lies there through the prayer, the Devi's words and
+  the flash (a copy of the lathi: the change of clothes gives him a new rig and a new lathi in his hand). Rising, he takes
+  it up with `kneel_take`, a new clip authored by `game asset/characters/take_post.py` (in both hero builds, 3.47 s): from
+  the prayer he bends over to his right (his arms are 40 cm to the wrist, so the ground at his side takes a deep stoop), his
+  right arm laid by IK so the fist's grip socket lies on the staff, back of the hand up; the fist closes (the open hand
+  comes down over the staff, the fingers close, 0.25 s), the hand carries the staff up level along his side, and he rises
+  with it (Mixamo's Kneel To Stand for the rest of him), standing with it held beside his hip, from where the lathi's
+  REST hold brings it upright at his side as he settles at ease. At the clip's `grasp` mark (0.6 s) the copy on the stone
+  gives way to the real lathi in his fist, the same stick in the same place (measured: 9 mm of the hand's own motion
+  between two frames, no turn). The fist's place is read off the clip itself (`rig.sampleAt`), so the numbers in
+  `take_post.py` and `Baoli.ts` cannot drift apart; the shot is as long as it was (4.0 s).
+- **Left for later:** the lathi laid down is a cut, not a gesture (no lay-down clip: the reach down is authored, the
+  reverse would be a second clip); a Meshy model of the lathi, if the user wants a hero prop of it.
 
 ## Tools
 
@@ -1559,7 +1636,8 @@ Each milestone is one chat. Start it with: "Read docs/STORY.md, let's do milesto
   now (33 recordings in all, each with its synth as fallback); all ten music tracks play, the island's on Chapter III.*
 - [ ] **11. Replace placeholders:** the user's Meshy models (island monsters, second minion, weapons;
   the mentor is done). *The raiders, the island's runts and hurlers and the yatudhana: done 2026-10-05 (see
-  "Milestone 11"). Left: the basic sword's model; the villagers.*
+  "Milestone 11"); the hero's basic sword: done 2026-10-05 (see "The weapons pass"). Left: the villagers; a lathi
+  and a mace model, if wanted.*
 - [ ] **12. Polish and balance:** full playthroughs, difficulty curve across the five chapters, performance,
   loading sizes.
 - [ ] **13. Release:** final build, deploy, a trailer if wanted.
