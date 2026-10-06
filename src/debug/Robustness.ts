@@ -582,19 +582,22 @@ async function rateCases(r: Run, chapters: number[]): Promise<void> {
       let ran = 0;
       let playClock = 0;
       let playGame = 0;
-      let prev: { mode: string; fight: number; dt: number } | null = null;
+      let prev: { mode: string; fight: number; dt: number; held: boolean } | null = null;
       const last = new Map<unknown, THREE.Vector3>();
       // The same ten seconds of the clock at every rate.
       const total = Math.round(10 * fps);
       // The bot decides once a frame, as a player's hands do.
       await r.frames(total, dt, (_i, d) => {
         ran++;
-        // The frame before: how much game time it ran in the fight, against the clock it was given.
-        if (prev && prev.mode === 'play' && I.mode === 'play') {
+        // The frame before: how much game time it ran in the fight, against the clock it was given. Frames in a hit-stop or
+        // a slow-motion beat are left out: both run on the wall clock (the beat is a gsap tween), which this harness races
+        // ahead of, so half a second of slow motion would cover seconds of these frames. The loop is what is checked here.
+        if (prev && prev.mode === 'play' && I.mode === 'play' && !prev.held) {
           playClock += Math.min(prev.dt, 0.25);
           playGame += I.fightTime - prev.fight;
         }
-        prev = { mode: I.mode, fight: I.fightTime, dt: d };
+        const cs = e.combatSystem;
+        prev = { mode: I.mode, fight: I.fightTime, dt: d, held: cs.slowScale < 0.999 || cs.globalTimeScale === 0 };
         if (I.mode === 'play') bot.step(Math.min(d, 0.25));
         for (const c of [e.player!, ...e.enemies]) {
           const p = c.getPosition();
