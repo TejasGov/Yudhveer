@@ -20,12 +20,13 @@ const out = join(root, 'dist-itch');
 const zipFile = join(root, 'yudhveer-itch.zip');
 
 if (!process.argv.includes('--no-build')) {
-  const run = (cmd, args) => {
-    const r = spawnSync(cmd, args, { cwd: root, stdio: 'inherit', shell: process.platform === 'win32' && cmd !== process.execPath });
+  const run = (cmd, args = []) => {
+    // (A bare command string goes through the shell, which finds npx on Windows too; node and its arguments do not need one.)
+    const r = args.length ? spawnSync(cmd, args, { cwd: root, stdio: 'inherit' }) : spawnSync(cmd, { cwd: root, stdio: 'inherit', shell: true });
     if (r.status !== 0) process.exit(r.status ?? 1);
   };
   run(process.execPath, [join(root, 'scripts', 'check-asset-urls.mjs')]);
-  run('npx', ['tsc']);
+  run('npx tsc');
   const vite = join(dirname(createRequire(import.meta.url).resolve('vite/package.json')), 'bin', 'vite.js');
   rmSync(out, { recursive: true, force: true });
   run(process.execPath, [vite, 'build', '--base=./', '--outDir', out, '--emptyOutDir']);
