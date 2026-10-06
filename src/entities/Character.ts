@@ -86,6 +86,14 @@ export class Character extends Entity {
   public marmaDecayRate = 12; // Decays per second when not taking posture damage
   public marmaDecayDelay = 1.8; // Delay before decay starts
   public timeSinceLastPostureHit = 0;
+  /**
+   * Its posture bar starts over when a break is over. Before this, the bar the break had filled stayed full (the line that was
+   * meant to empty it could never run: the state had already left POSTURE_BROKEN), so a boss that was spammed was broken again
+   * by the very next blow, every 2.5 s for as long as he kept clicking, and never got to act. The bosses that fight back have it
+   * (`Guard`'s constructor turns it on); the hero and the minions keep their bars as they always played (the balance of the
+   * prologue, the island and the waves rests on it).
+   */
+  public renewsPosture = false;
 
   public stateMachine: CharacterStateMachine;
   public walkSpeed = 1.8;
@@ -1002,7 +1010,9 @@ export class Character extends Entity {
 
   public override update(dt: number): void {
     super.update(dt);
+    const wasBroken = this.stateMachine.currentState === 'POSTURE_BROKEN';
     this.stateMachine.update(dt);
+    if (wasBroken && this.renewsPosture && this.stateMachine.currentState !== 'POSTURE_BROKEN') this.currentMarma = 0;
     if (this.rig) this.updateRig(dt);
     // A blow's flinch and push, laid over the pose the rig has just taken (combat/HitReact.ts).
     HitReact.step(this, dt);
@@ -1014,10 +1024,6 @@ export class Character extends Entity {
     this.timeSinceLastPostureHit += dt;
     if (this.timeSinceLastPostureHit > this.marmaDecayDelay && this.stateMachine.currentState !== 'POSTURE_BROKEN') {
       this.currentMarma = Math.max(0, this.currentMarma - this.marmaDecayRate * dt);
-    }
-
-    if (this.stateMachine.currentState === 'POSTURE_BROKEN' && this.stateMachine.stateTime >= this.stateMachine.POSTURE_BROKEN_DURATION) {
-      this.currentMarma = 0;
     }
 
     this.coastTurn(dt);

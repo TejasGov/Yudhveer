@@ -103,6 +103,8 @@ export interface GuardHost {
   readonly group: THREE.Object3D;
   getPosition(): THREE.Vector3;
   getWeaponPoints(): { tip: THREE.Vector3; hilt: THREE.Vector3 };
+  /** Its posture bar starts over when a break ends (a boss that fights back is not left standing broken: `Character.renewsPosture`). */
+  renewsPosture: boolean;
   /** Its guard just went up (a sound). */
   onGuardRaised(): void;
 }
@@ -110,7 +112,7 @@ export interface GuardHost {
 /** The front arc a guard covers (radians either side of where it faces). */
 export const GUARD_ARC = THREE.MathUtils.degToRad(80);
 /** The guard counts as up this long after the state begins: the raise takes a moment, and a blow inside it lands. */
-const RAISED_AT = 0.09;
+const RAISED_AT = 0.12;
 /** An answer waits this long after the block that earned it: the hero's weapon is still bouncing back. */
 const ANSWER_DELAY = 0.42;
 /** After an answer, none for this long (a run of blows is not answered every other second). */
@@ -127,6 +129,8 @@ const ALARM_RANGE = 4.6;
 const ALARM_CLOSE = 3.0;
 /** He must be there this long (s) before it turns on him for merely standing behind it. */
 const ALARM_AFTER = 0.25;
+/** A blow from behind is "just now" for this long (s): the answer to it is a backhand. */
+const FLANK_MEMORY = 2.5;
 
 const _a = new THREE.Vector3();
 const _b = new THREE.Vector3();
@@ -153,6 +157,8 @@ export class Guard {
   private seen = -1;
   private alarm = 0;
   private behindFor = 0;
+  /** Seconds since a blow of his struck it from outside its front arc (an answer to that is the wide cut, a backhand). */
+  private sinceFlank = 99;
   /** What it will do once the blow that earned it has bounced off, and in how long. */
   private answer: 'counter' | 'shove' | null = null;
   private answerWait = 0;
@@ -161,6 +167,7 @@ export class Guard {
 
   constructor(private readonly host: GuardHost, spec: Partial<GuardSpec> = {}) {
     this.spec = { ...DEFAULT_GUARD, ...spec };
+    host.renewsPosture = true;
   }
 
   /** Whether it is turning on him (quickly) now. */
@@ -214,11 +221,38 @@ export class Guard {
     }
   }
 
-  /** A blow of his lands (it was not guarding, or could not): it remembers; from behind, it turns on him. */
+  /**
+   * A blow of his lands (it was not guarding, or could not): it remembers; from behind, it turns on him. The blows that fall on
+   * it while it is staggered, broken or knocked aside are the price of that, not pressure to answer: they count for nothing.
+   */
   public struck(heroPos: THREE.Vector3): void {
+    const state = this.host.stateMachine.currentState;
+    if (state === 'STAGGER' || state === 'POSTURE_BROKEN' || state === 'DEFLECTED' || state === 'DEAD') return;
     const flank = !this.covers(heroPos);
     this.pressure += flank ? STRUCK_FLANK : STRUCK;
-    if (flank) this.alarm = Math.max(this.alarm, ALARM_TIME);
+    if (flank) {
+      this.alarm = Math.max(this.alarm, ALARM_TIME);
+      this.sinceFlank = 0;
+    }
+  }
+
+  /** It was struck from behind or the flank within the last couple of seconds: it answers with a backhand, its wide cut. */
+  public get flanked(): boolean {
+    return this.sinceFlank < FLANK_MEMORY;
+  }
+
+  /**
+   * Every simulation step, whatever it is doing (staggered, broken, swinging): what it remembers fades and its waits run down. (Only
+   * counted while it was free, a stagger or a posture break would leave its memory of a spammer as full as it was.)
+   */
+  public tick(dt: number): void {
+    this.pressure *= Math.exp(-dt / this.spec.memory);
+    if (this.pressure < 0.01) this.pressure = 0;
+    if (this.cooldown > 0) this.cooldown -= dt;
+    if (this.answerCooldown > 0) this.answerCooldown -= dt;
+    if (this.alarm > 0) this.alarm -= dt;
+    this.sinceAttack += dt;
+    this.sinceFlank += dt;
   }
 
   /** A blow of its own (a swing, a cast, the kick) has just ended: the opening after it begins. */
@@ -243,6 +277,7 @@ export class Guard {
     this.seen = -1;
     this.alarm = 0;
     this.behindFor = 0;
+    this.sinceFlank = 99;
     this.answer = null;
     this.answerWait = 0;
     this.host.stateMachine.guardHeld = false;
@@ -254,13 +289,7 @@ export class Guard {
    */
   public step(dt: number, v: GuardView): GuardAction {
     const sm = this.host.stateMachine;
-    this.pressure *= Math.exp(-dt / this.spec.memory);
-    if (this.pressure < 0.01) this.pressure = 0;
-    if (this.cooldown > 0) this.cooldown -= dt;
-    if (this.answerCooldown > 0) this.answerCooldown -= dt;
-    if (this.alarm > 0) this.alarm -= dt;
     this.watchBack(dt, v);
-    this.sinceAttack += dt;
 
     if (this.isUp()) return this.holding(dt, v);
     this.raisedFor = 0;

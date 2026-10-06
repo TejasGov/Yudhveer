@@ -234,7 +234,7 @@ export class Enemy extends Character {
     }
 
     if (state === 'SHOVE') {
-      this.updateShove(dt, toTarget, distance);
+      this.updateShove(dt);
       return;
     }
 
@@ -369,9 +369,8 @@ export class Enemy extends Character {
     this.stateMachine.changeState('SHOVE');
   }
 
-  /** The kick: it keeps turning on him until it commits, and the clip carries it in (CombatSystem lands it at `shoveContact`). */
-  protected updateShove(dt: number, toTarget: THREE.Vector3, distance: number): void {
-    if (distance > 0.1 && this.stateMachine.stateTime < this.shoveContact() - 0.2) this.turnToward(this.bearingTo(toTarget, distance), this.turnRate, dt);
+  /** The kick: the clip carries it in, and CombatSystem lands it at `shoveContact` (it turned on him until a moment before: `mayTrack`). */
+  protected updateShove(dt: number): void {
     this.updateProceduralAnimations(dt, 0);
   }
 
@@ -429,6 +428,7 @@ export class Enemy extends Character {
   public override update(dt: number): void {
     if (!this.steered) this.velocity.set(0, 0, 0);
     this.steered = false;
+    this.guard?.tick(dt);
     super.update(dt);
     const now = this.stateMachine.currentState;
     if (now !== this.lastState) {
@@ -533,11 +533,12 @@ export class Enemy extends Character {
     if (this.telegraphTimer < windUp) return;
     this.cancelTelegraph();
     let attack = this.attackStates[this.attackIndex % this.attackStates.length];
-    // An answer to a run of blocked blows is its quickest, not the string.
+    // An answer to a run of blocked blows is its quickest, not the string; to a blow from behind, its wide cut.
     if (this.counterNext && attack === 'ATTACK_3' && this.attackStates.length > 1) {
       this.attackIndex++;
       attack = this.attackStates[this.attackIndex % this.attackStates.length];
     }
+    if (this.counterNext && this.guard?.flanked && this.attackStates.includes('ATTACK_2')) attack = 'ATTACK_2';
     this.counterNext = false;
     this.attackIndex++;
     this.stateMachine.changeState(this.hasClip(attack) || !this.rig ? attack : 'ATTACK_1');
@@ -570,7 +571,7 @@ export class Enemy extends Character {
 
   /** Its guard just went up: a rasp of steel on the move (combat/Guard.ts). */
   public onGuardRaised(): void {
-    this.soundFX.playSwordSwing(1.15, 'blade');
+    this.soundFX.playSwordSwing(this.isBoss ? 0.9 : 1.15, this.swingSound);
   }
 
   /** A swing begins from the AI (not a chained follow-up). */
@@ -590,6 +591,8 @@ export class Enemy extends Character {
   /** May still turn toward the target: always outside attacks, and inside one only until it commits. */
   protected mayTrack(): boolean {
     const state = this.stateMachine.currentState;
+    // The kick turns on him until a moment before it connects, as a swing does.
+    if (state === 'SHOVE') return this.stateMachine.stateTime < this.shoveContact() - 0.2;
     if (!state.startsWith('ATTACK')) return true;
     return this.stateMachine.stateTime < this.trackUntil(state);
   }

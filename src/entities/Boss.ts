@@ -85,6 +85,8 @@ export class Boss extends Enemy {
       const quick = options.filter((s) => s !== 'ATTACK_3');
       if (quick.length) options = quick;
       this.counterNext = false;
+      // Struck from behind a moment ago: the wide cut, a backhand across where he stands.
+      if (this.guard?.flanked && options.includes('ATTACK_2')) return 'ATTACK_2';
     }
     this.attackChoice = (this.attackChoice + 1) % options.length;
     return options[this.attackChoice];
@@ -124,7 +126,7 @@ export class Boss extends Enemy {
       return;
     }
     if (state === 'SHOVE') {
-      this.updateShove(dt, toTarget, distance);
+      this.updateShove(dt);
       return;
     }
     // The roar and casts play out where it stands.

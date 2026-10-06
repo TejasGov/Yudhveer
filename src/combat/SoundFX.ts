@@ -26,6 +26,10 @@ const SAMPLE_GAIN = {
   blade_clang: 1.4,
   stone_slam: 0.7,
   lathi_crack: 1.0,
+  // Boss guards (2026-10-06): the clang of a boss's weapon turning the hero's blow aside, a heavy iron one for a gada, a
+  // cleaver or a mace and a second steel one to alternate with blade_clang in a run of blocks.
+  guard_clang_iron: 1.5,
+  guard_clang_steel: 1.4,
   posture_break: 0.6,
   slide: 0.6,
   katar_slash: 0.45,
@@ -1199,10 +1203,16 @@ export class SoundFX {
       this.thump(96, 0.14, 0.14 * p);
       return;
     }
-    this.playClang(strike, 1.15 * p);
-    // The ring the metals leave (the recording of steel on bronze, pitched to the weapon) and the blow's own weight.
-    this.sample('parry_clash', { gain: iron ? 0.55 : 0.4, rate: iron ? 0.78 : 1.12, wet: 0.12 });
-    this.thump(iron ? 68 : 104, iron ? 0.22 : 0.15, (iron ? 0.2 : 0.14) * p);
+    // Their own recordings (the iron one a gada's, a cleaver's or a mace's; the steel one alternates with the blade's clang so a
+    // run of blocks does not repeat one sound); the old clang if they are not decoded. Levels from an offline render through the
+    // real chain: the clang at these gains peaks at -5 dB (the parry's is -7.5, the dhal's block -6.5, a blade's blow -5.6).
+    const own = iron ? 'guard_clang_iron' : this.pick('guard_clang_steel', 'blade_clang');
+    const level = own === 'guard_clang_iron' ? 0.58 : own === 'guard_clang_steel' ? 1.45 : 2;
+    if (!this.sample(own, { gain: level * p, rate: iron ? 0.94 : 1, wet: 0.1 })) this.playClang(strike, 1.15 * p);
+    // The ring the metals leave (the recording of steel on bronze, pitched to the weapon); under an iron one the low body of a bong
+    // (the dhal's block, an octave down) that a gada has and a sword has not.
+    this.sample('parry_clash', { gain: iron ? 0.35 : 0.3, rate: iron ? 0.78 : 1.12, wet: 0.12 });
+    if (iron) this.sample('shield_block', { gain: 0.23 * p, rate: 0.8, wet: 0.1 });
     if (hero === 'crush') this.sample('hit_crush', { rate: 0.62, gain: 0.35 });
   }
 

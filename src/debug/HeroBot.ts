@@ -266,6 +266,7 @@ export class HeroBot {
    */
   private inReach(e: Enemy, dist: number, state: string, landing = false): boolean {
     const p = priv(e);
+    if (state === 'SHOVE') return dist <= e.shoveReach() + 0.9;
     if (state === 'ATTACK_JUMP' && landing) return dist <= (p.tuning?.leapMax ?? 8) + 2;
     const reach = e.isBoss ? (p.tuning?.strikeRange ?? 3.5) + 1.6 : p.engageRange + (p.lungeSpec?.maxDist ?? 1.2) + 0.7;
     return dist <= reach;
@@ -286,14 +287,14 @@ export class HeroBot {
       tr.telegraphing = telegraphing;
       if (state !== tr.state) {
         // A new swing: part of the telegraph that preceded it, else an attack of its own (a boss's, or a chained blow).
-        if (state.startsWith('ATTACK') && this.now - tr.telegraphEndedAt > 0.15) {
+        if ((state.startsWith('ATTACK') || state === 'SHOVE') && this.now - tr.telegraphEndedAt > 0.15) {
           tr.serial++;
           tr.seenAt = this.now;
         }
         tr.state = state;
       }
       const group = `${e.id}:${tr.serial}`;
-      if (!this.noticeAt.has(group) && (telegraphing || state.startsWith('ATTACK'))) {
+      if (!this.noticeAt.has(group) && (telegraphing || state.startsWith('ATTACK') || state === 'SHOVE')) {
         this.noticeAt.set(group, tr.seenAt + this.skill.react + Math.abs(this.gauss()) * 0.03);
       }
       if (telegraphing) {
@@ -308,7 +309,7 @@ export class HeroBot {
             tHit: lead + w.t0, tContact: lead + w.t0 + 0.3 * (w.t1 - w.t0), tEnd: lead + w.t1, seenAt: tr.seenAt,
           });
         }
-      } else if (state.startsWith('ATTACK')) {
+      } else if (state.startsWith('ATTACK') || state === 'SHOVE') {
         const t = e.stateMachine.stateTime;
         const windows = e.hitWindows(state);
         windows.forEach((w, i) => {
@@ -385,7 +386,9 @@ export class HeroBot {
       return at === undefined ? Math.max(0, sm.attackDuration(state) - sm.stateTime) : Math.max(0, at - sm.stateTime);
     }
     if (state === 'DODGE') return Math.max(0, 0.8 - sm.stateTime);
-    if (state === 'STAGGER' || state === 'DEFLECTED' || state === 'BLOCK_HIT') return 9;
+    // Rocked back by a boss's guard: he may slide, guard or parry out of it a moment in (Player.RECOIL_FREE).
+    if (state === 'DEFLECTED') return Math.max(0, 0.14 - sm.stateTime);
+    if (state === 'STAGGER' || state === 'BLOCK_HIT') return 9;
     return 0;
   }
 
@@ -594,6 +597,9 @@ export class HeroBot {
     const swingCost = state.startsWith('ATTACK') ? 0.3 : 0.5;
     const safe = skill.patience === 0 || soonest > swingCost + skill.patience;
     const nearest = views[0]?.dist ?? 99;
+    // A boss with its guard up turns light blows aside and bounces the blade (combat/Guard.ts): a player who has met it waits for
+    // the guard to come down, or breaks it with Shakti (a charged blow) or a finisher; one who has not keeps clicking.
+    const guarded = skill.patience > 0 && !!target.e.guard?.isUp() && player.chargedHits === 0 && target.e.guard.covers(player.getPosition());
 
     // Shakti: on a quiet moment, far from everyone, held until it is whole.
     if (skill.tricks) {
@@ -619,13 +625,13 @@ export class HeroBot {
       // Chain: the next blow is queued from the moment this one's blade starts, if there is a blow to follow it with.
       const first = player.hitWindows(state as CharacterState)[0];
       const chaining = (state === 'ATTACK_1' || state === 'ATTACK_2') && player.can('combo');
-      if (chaining && !sm.comboQueued && safe && tdist <= swingRange + 0.8 && sm.stateTime >= (first?.t0 ?? 0)) {
+      if (chaining && !sm.comboQueued && safe && !guarded && tdist <= swingRange + 0.8 && sm.stateTime >= (first?.t0 ?? 0)) {
         this.tap('attack');
         return;
       }
       // After the last blow of a string (or a lone one), a fresh string starts once the swing may be cut.
       const cancel = sm.cancelAt[state];
-      if ((state === 'ATTACK_3' || !chaining) && cancel !== undefined && sm.stateTime >= cancel && safe && tdist <= swingRange + 0.6
+      if ((state === 'ATTACK_3' || !chaining) && cancel !== undefined && sm.stateTime >= cancel && safe && !guarded && tdist <= swingRange + 0.6
         && this.now - this.lastAttackPress > 0.15) {
         this.tap('attack');
         this.lastAttackPress = this.now;
@@ -642,7 +648,7 @@ export class HeroBot {
     }
 
     if (tdist <= swingRange) {
-      if (safe && this.now - this.lastAttackPress > 0.12) {
+      if (safe && !guarded && this.now - this.lastAttackPress > 0.12) {
         this.tap('attack');
         this.lastAttackPress = this.now;
       }

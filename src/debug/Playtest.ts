@@ -10,6 +10,7 @@ import { Boss } from '../entities/Boss';
 import { WEAPON_SETS, type Blow } from '../entities/characters/YodhaWeapons';
 import type { WeaponId } from '../game/Progression';
 import { HeroBot, SKILLS, type BotSkill } from './HeroBot';
+import type { GuardSpec } from '../combat/Guard';
 
 /*
  * The playtest (docs/STORY.md, "Milestone 12"): plays a chapter's fight with the hero bot (HeroBot.ts) on the engine's own
@@ -48,6 +49,8 @@ export interface EnemyTune {
   strikeRange?: number;
   /** The share of a light blow's damage that gets through while it swings (Enemy.armorDamage). */
   armorDamage?: number;
+  /** Its guard's numbers (combat/Guard.ts, `GuardSpec`): `{ base: 0.2, hold: 1 }`; `{ base: 0, max: 0 }` takes the guard away. */
+  guard?: Partial<GuardSpec>;
 }
 
 export interface PlaytestOptions {
@@ -100,7 +103,9 @@ export interface RunResult {
   hpLeft: number;
   damageTaken: number;
   lowestHp: number;
-  stats: { hitsTaken: number; blocks: number; deflections: number; postureBreaks: number; damageDealt: number };
+  stats: { hitsTaken: number; blocks: number; deflections: number; postureBreaks: number; damageDealt: number; bossBlocks: number; guardBreaks: number };
+  /** What each boss's guard did (combat/Guard.ts): raised, blows turned aside, broken by a heavy blow, answers made, kicks. */
+  guards: Record<string, { name: string; raised: number; blocked: number; broken: number; answers: number; shoves: number }>;
   /** Each foe: when it first fought, seconds it stood in the fight, when it fell (fight seconds) and the hero's health then. */
   foes: Record<string, { name: string; first: number; alive: number; fell: number | null; hpAtFirst: number; hpAtFall: number | null }>;
   hits: HitRecord[];
@@ -212,6 +217,7 @@ function tuneEnemy(e: Enemy, t: EnemyTune): void {
   if (t.posture !== undefined) e.maxMarma = t.posture;
   if (t.damageScale !== undefined) e.damageScale = t.damageScale;
   if (t.armorDamage !== undefined) e.armorDamage = t.armorDamage;
+  if (t.guard && e.guard) Object.assign(e.guard.spec, t.guard);
   if (t.moveSpeed !== undefined) e.moveSpeed = t.moveSpeed;
   if (t.attackCooldown !== undefined) p.attackCooldown = t.attackCooldown;
   if (t.telegraphDuration !== undefined) p.telegraphDuration = t.telegraphDuration;
@@ -285,7 +291,7 @@ export async function playOnce(engine: Engine, chapterId: number, skill: BotSkil
         }
         if (state !== lastState.get(e.id)) {
           lastState.set(e.id, state);
-          if (state.startsWith('ATTACK') && I.mode === 'play') attacks[`${e.displayName} ${state}`] = (attacks[`${e.displayName} ${state}`] ?? 0) + 1;
+          if ((state.startsWith('ATTACK') || state === 'SHOVE') && I.mode === 'play') attacks[`${e.displayName} ${state}`] = (attacks[`${e.displayName} ${state}`] ?? 0) + 1;
         }
       }
       for (const p of engine.projectileManager.projectiles) {
@@ -355,6 +361,8 @@ export async function playOnce(engine: Engine, chapterId: number, skill: BotSkil
     sampleFoes();
 
     const stats = { ...cs.stats };
+    const guards: RunResult['guards'] = {};
+    for (const e of engine.enemies) if (e.guard) guards[e.id] = { name: e.displayName, ...e.guard.tally };
     let outcome: RunResult['outcome'] = 'stall';
     let trigger: string | undefined;
     if (I.beaten) {
@@ -368,7 +376,7 @@ export async function playOnce(engine: Engine, chapterId: number, skill: BotSkil
     for (const ev of bot.events) answers[ev.kind] = (answers[ev.kind] ?? 0) + 1;
     return {
       chapter: chapterId, seed, skill: skill.name, outcome, trigger, fightTime: +I.fightTime.toFixed(2), gameTime: +game.toFixed(1),
-      hpLeft: Math.round(hero.currentHealth), damageTaken: Math.round(taken), lowestHp: Math.round(lowest), stats, foes, hits, attacks, answers, errors, trace,
+      hpLeft: Math.round(hero.currentHealth), damageTaken: Math.round(taken), lowestHp: Math.round(lowest), stats, guards, foes, hits, attacks, answers, errors, trace,
     };
   } finally {
     Math.random = realRandom;
@@ -427,7 +435,9 @@ export interface ChapterReport {
   damageAll: number;
   /** Mean lowest health reached. */
   lowest: number;
-  stats: { hitsTaken: number; blocks: number; deflections: number; postureBreaks: number };
+  stats: { hitsTaken: number; blocks: number; deflections: number; postureBreaks: number; bossBlocks: number; guardBreaks: number };
+  /** Per boss that guards, per run on average: its guard raised, blows turned aside, guards broken, answers, kicks. */
+  guards: { name: string; raised: number; blocked: number; broken: number; answers: number; shoves: number }[];
   sources: SourceRow[];
   foes: { id: string; name: string; alive: number; first: number; hpAtFirst: number; hpAtFall: number | null; fell: number }[];
   /** The deaths: who finished the hero, and when in the fight (seconds), per losing run. */
@@ -497,7 +507,11 @@ export function summarise(chapter: number, results: RunResult[], detail = false)
     time: { mean: r1(mean(times)), median: r1(quantile(times, 0.5)), p10: r1(quantile(times, 0.1)), p90: r1(quantile(times, 0.9)) },
     damage: { mean: r1(mean(dmg)), median: r1(quantile(dmg, 0.5)), p90: r1(quantile(dmg, 0.9)) },
     damageAll: m((r) => r.damageTaken), lowest: m((r) => r.lowestHp),
-    stats: { hitsTaken: m((r) => r.stats.hitsTaken), blocks: m((r) => r.stats.blocks), deflections: m((r) => r.stats.deflections), postureBreaks: m((r) => r.stats.postureBreaks) },
+    stats: {
+      hitsTaken: m((r) => r.stats.hitsTaken), blocks: m((r) => r.stats.blocks), deflections: m((r) => r.stats.deflections), postureBreaks: m((r) => r.stats.postureBreaks),
+      bossBlocks: m((r) => r.stats.bossBlocks ?? 0), guardBreaks: m((r) => r.stats.guardBreaks ?? 0),
+    },
+    guards: summariseGuards(results),
     sources, foes, deaths, answers, triggers: Object.keys(triggers).length ? triggers : undefined,
     summary: [],
   };
@@ -506,12 +520,33 @@ export function summarise(chapter: number, results: RunResult[], detail = false)
   return report;
 }
 
+/** Each boss's guard, averaged over the runs it was in. */
+function summariseGuards(results: RunResult[]): ChapterReport['guards'] {
+  const by = new Map<string, { name: string; n: number; raised: number; blocked: number; broken: number; answers: number; shoves: number }>();
+  for (const r of results) {
+    for (const g of Object.values(r.guards ?? {})) {
+      const row = by.get(g.name) ?? { name: g.name, n: 0, raised: 0, blocked: 0, broken: 0, answers: 0, shoves: 0 };
+      row.n++;
+      row.raised += g.raised;
+      row.blocked += g.blocked;
+      row.broken += g.broken;
+      row.answers += g.answers;
+      row.shoves += g.shoves;
+      by.set(g.name, row);
+    }
+  }
+  return [...by.values()].map((g) => ({
+    name: g.name, raised: r1(g.raised / g.n), blocked: r1(g.blocked / g.n), broken: r1(g.broken / g.n), answers: r1(g.answers / g.n), shoves: r1(g.shoves / g.n),
+  }));
+}
+
 /** A report as a few lines of text, for a table or a log. */
 function lines(r: ChapterReport, results: RunResult[]): string[] {
   const out: string[] = [];
   const head = `${r.chapter} ${r.name} [${r.skill}] ${r.runs} runs: win ${Math.round(r.winRate * 100)}% (${r.wins} won, ${r.scripted} scripted, ${r.losses} lost, ${r.stalls} stalled)`;
   out.push(head);
   out.push(`  fight ${r.time.median}s median (${r.time.p10}-${r.time.p90}), mean ${r.time.mean}s; damage taken ${r.damage.mean} (median ${r.damage.median}, p90 ${r.damage.p90}); lowest hp ${r.lowest}; hits ${r.stats.hitsTaken}, blocks ${r.stats.blocks}, deflections ${r.stats.deflections}, breaks ${r.stats.postureBreaks}`);
+  for (const g of r.guards) out.push(`  ${g.name}'s guard per run: raised ${g.raised}, turned aside ${g.blocked}, broken ${g.broken}; answers ${g.answers} (kicks ${g.shoves})`);
   // One line per kind of foe (a pack's members are alike).
   const kinds = new Map<string, { n: number; alive: number; first: number; fell: number }>();
   for (const f of r.foes) {

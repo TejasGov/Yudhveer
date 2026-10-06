@@ -369,6 +369,7 @@ export class CombatSystem {
     HitFeel.blocked({ point: at, attacker: player, weapon, strike: spec.ring, power: weapon === 'crush' ? 1.25 : 1.1, floor: enemy.group.position.y, dt: this.stepDt });
     // The camera is thrown back along the bounce, away from the boss; a mace's rebound is the heavier.
     this.impact('clash', along.clone().negate().normalize(), weapon === 'crush' ? 1.3 : weapon === 'wood' ? 0.8 : 1);
+    this.record({ attacker: player.id, defender: enemy.id, attack: attackState, at: player.stateMachine.stateTime, result: 'guarded', point: at.toArray() });
     player.recoil(enemy.getPosition(), weapon === 'crush' ? 0.75 : weapon === 'wood' ? 0.35 : 0.5);
     if (broken) {
       guard.broke();
@@ -377,7 +378,6 @@ export class CombatSystem {
       this.callout({ text: 'Marma broken', sub: 'Strike now', tone: 'red' });
       this.impact('postureBreak', along);
     }
-    this.record({ attacker: player.id, defender: enemy.id, attack: attackState, at: player.stateMachine.stateTime, result: 'guarded', point: at.toArray() });
   }
 
   /** A heavy blow (a finisher, a charged blow, the leaping strike) broke a boss's raised guard: the clash of it, and the word. */

@@ -108,7 +108,7 @@ export async function telegraphTable(engine: Engine): Promise<EnemyRow[]> {
     const p = e as unknown as Private;
     const sm = e.stateMachine;
     const attacks: AttackRow[] = [];
-    for (const state of ['ATTACK_1', 'ATTACK_2', 'ATTACK_3', 'ATTACK_JUMP', 'CAST', 'CHARGE'] as CharacterState[]) {
+    for (const state of ['ATTACK_1', 'ATTACK_2', 'ATTACK_3', 'ATTACK_JUMP', 'CAST', 'CHARGE', 'SHOVE'] as CharacterState[]) {
       if (!rig.states[state]) continue;
       const windows = e.hitWindows(state).map((w) => [Math.round(w.t0 * 100) / 100, Math.round(w.t1 * 100) / 100] as [number, number]);
       const first = windows[0]?.[0] ?? 0;
