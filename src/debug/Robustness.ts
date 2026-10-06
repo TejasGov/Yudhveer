@@ -357,6 +357,7 @@ async function reach(r: Run, id: number, stage: Stage): Promise<boolean> {
 /** Quit from every stage of every chapter, then play on. */
 async function quitCases(r: Run, chapters: number[]): Promise<void> {
   const base = new Map<number, Census>();
+  const last = new Map<number, Census>();
   let n = 0;
   for (const id of chapters) {
     for (const stage of STAGES) {
@@ -377,13 +378,14 @@ async function quitCases(r: Run, chapters: number[]): Promise<void> {
       r.expectTitle(`${where} (quit by the ${how})`);
       // At rest the title holds the same of the world, cycle after cycle: a rig or a mesh left behind shows as growth.
       const c = r.census();
+      r.note(`${where}: ${c.geometries} geometries, ${c.textures} textures, ${c.skinned} skinned meshes at the title`);
       const level = chapterLevel(id);
       const first = base.get(level);
+      last.set(level, c);
       if (!first) base.set(level, c);
-      else {
-        r.check(c.skinned <= first.skinned, `${where}: ${c.skinned} skinned meshes at the title, ${first.skinned} the first time (a rig left behind)`);
-        r.check(c.geometries <= first.geometries + 40, `${where}: ${c.geometries} geometries on the GPU at the title, ${first.geometries} the first time`);
-      }
+      // (A rig left behind shows as another skinned mesh at once. What a scene made in its level - a fire, a shot's props -
+      // stays until the level is started again, so the GPU's geometries are compared at the end of a level's cycles.)
+      else r.check(c.skinned <= first.skinned, `${where}: ${c.skinned} skinned meshes at the title, ${first.skinned} the first time (a rig left behind)`);
       // And the game goes on: another chapter, straight from the title.
       const next = chapters[(chapters.indexOf(id) + 1) % chapters.length];
       await r.begin(next, false);
@@ -394,6 +396,11 @@ async function quitCases(r: Run, chapters: number[]): Promise<void> {
       r.check(r.engine.enemies.length > 0 || !!chapterById(next).expedition || next === 0, `${where}: the next chapter (${next}) has no enemies`);
       n++;
     }
+  }
+  for (const [level, first] of base) {
+    const end = last.get(level)!;
+    r.check(end.geometries <= first.geometries + 40, `level ${level}: ${end.geometries} geometries on the GPU at the title after its last cycle, ${first.geometries} after its first (something is not freed)`);
+    r.check(end.textures <= first.textures + 30, `level ${level}: ${end.textures} textures on the GPU at the title after its last cycle, ${first.textures} after its first`);
   }
   r.note(`${n} quits to the title, each followed by another chapter`);
   r.unfreeze();

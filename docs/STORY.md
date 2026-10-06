@@ -621,10 +621,10 @@ docs/ASSET_CREDITS.md).
   runts come down the tunnel behind him. Checkpoints after the hall and the pool.
 - **Creatures (their own files; their own Meshy models since milestone 11, see "Milestone 11"):** *cave runts* (mini
   monsters, 1.1 m, clawing goblin-things; placeholder: the rakshasa at 0.6 scale): 24 health, fast (5.4 m/s), quicker
-  swings, light blows; each closes in on its own side of him so a pack surrounds him. *Cave archers*, now *cave
+  swings, light blows (at 0.6 of a brute's since milestone 12, was 0.45); each closes in on its own side of him so a pack surrounds him. *Cave archers*, now *cave
   hurlers* (1.8 m, soot-black with ember cracks that glow; placeholder: Mayavi at 0.85 scale): 50 health; they keep 6
   to 12 m off, circle, back off, and every 3 to 4.6 s draw (a brand catches fire in the hand, the glow gathering, and
-  the telegraph sounds, 0.85 s) and hurl it, a shaft of fire (13 damage; slide under it, block it or parry it back);
+  the telegraph sounds, 0.85 s) and hurl it, a shaft of fire (13 damage times the hurler's 0.85 since milestone 12, so 11, where it was 13 whatever the hurler's blows were; slide under it, block it or parry it back);
   only with a clear line to him (a ray against the rock), otherwise they come round; cornered (under 2.4 m), they
   claw. A hit during the draw cancels the throw.
 - **Story:** the opening on the landing (the boatman, unseen under his boat's canopy, will go no further); his own
@@ -756,7 +756,7 @@ effects clock, the credits after the last chapter). The map, Andhaka and his ent
 - **The second minion, the yatudhana** (a sorcerer-demon of Vedic lore, about 1.8 m; its own Meshy model since
   milestone 11, see "Milestone 11"; the placeholder was Mayavi's model at 0.86 scale, tinted ash-grey). A ranged caster: it runs its bridge route like the brutes but leaves it once the hero is within
   11 m, keeps 5 to 9.5 m off, and throws a single fire bolt (Mayavi's, deflectable back at it) every 3.8 s or so; cornered
-  inside 2.2 m it claws and kicks. Frail: 38 health, 30 posture, its blows at 0.75. The brutes press in while the
+  inside 2.2 m it claws and kicks. Frail: 38 health, 30 posture, its blows and its bolts at 0.75 (the bolt did 18 whatever that said until milestone 12; 13.5 now). The brutes press in while the
   casters hang back, so the hero has to deflect while crowded or break off to run them down. The waves are now 8 (was
   6): the third, sixth and eighth are yatudhanas (`Horde.alt`). The intro card's epithet no longer counts them.
 - **The ending** (`summit-ending`, after Andhaka falls and the victory beat):
@@ -1310,7 +1310,9 @@ This pass (audit batches 6 and 7) puts every flame in the game in the village's 
   reach and whose glass heads have no flame, glow warm across the gulf.
 - **Takshaka's wave of fire** (`ProjectileManager.spawnFlameWave`): flames on an arc bowed forward, tallest in the
   middle, trailing back as it runs, in the bloom, throwing licks and embers and leaving scorched stone behind it that
-  cools and fades (one instanced draw for every mark). The arc spreads as it goes, its flames keeping their height.
+  cools and fades (one instanced draw for every mark). The arc spreads as it goes, its flames keeping their height. Since
+  milestone 12 it leaves Takshaka 0.75 s into his breath (his head drawn back is the warning; it used to leave on the
+  cast's first frame) and hurts by 28 times his `damageScale`.
 - **The village:** the gate torches, the hearth and the shrine's lamps light with their own flames' flicker (each torch
   its own); the mandir's diyas burn at their wicks, at the spouts' tips (`build_village.py`, the GLB rebuilt; nothing
   else in it changed); the sandstone's gain is a little lower (`STONE_GAIN`) so the torch-lit gate pillars do not clip.
@@ -1632,6 +1634,204 @@ and after contact sheets (the original build against this one, frame by frame, 6
   (`process_sfx.py` builds them from the takes). Stepping a fight frame by frame (`__debug.step`) shows the flinch; the
   hit-stop, the flash's real-time decay and the camera need the real loop.
 
+## Milestone 12: polish and balance (2026-10-06)
+
+Made while the user was away, on the standing rules (code and numbers only: no asset was re-exported, rebuilt or paid for; loading-size compression is left to release prep). Four things: a bot that plays the game (the playtest), the difficulty curve it showed to be missing, the frame hitches it and a frame probe found, and what a player can do to the game that the happy path never does. Judgement calls and before/after numbers are also in docs/APPROVALS.md, "Milestones (2026-10-05)", "Milestone 12".
+
+### The playtest (dev builds only)
+
+Everything below is under `src/debug/` and reached through `__debug` (`src/main.ts`, inside `import.meta.env.DEV`): none of it is in the production bundle (checked: no `__debug`, `HeroBot`, `Playtest`, `PerfProbe` or the GPU timer extension in `dist/`).
+
+- **`await __debug.playtest(chapters, runs = 10, options)`** (`Playtest.ts`) has a bot play each chapter's fight `runs` times and returns a report per chapter (`.summary` is the text). A run starts the chapter as a first attempt that has skipped its intro and opening (the bosses have roared, nothing is learned or seen), every story scene inside the fight plays, and it ends as the engine decides: the last foe falls, the hero does, the prologue's scripted loss comes, or a time cap passes (a "stall": the bot could not finish). It is stepped on the engine's own fixed 1/60 step (`debugAdvance`), with `Math.random` seeded per run, so **a seed replays the same fight** (to within the order in which a chapter's models arrive) and a chapter's 24 runs take from half a minute (Dwarka) to three (the summit). The report gives the win rate, the fight's time and the health it cost (median, p10 to p90), the lowest health reached, how many blows landed, were blocked or deflected and how many postures broke, how long each foe stood and the hero's health as it first fought and as it fell (the cost of a boss's fight), the deaths (who landed the last blow and when), and **per source**: how many of each kind of blow ("Shalva ATTACK_1", "ORB", "ARROW") were thrown, how many landed on the hero or met his guard, the damage per run, and the warning they gave (the earliest and the mean time into the attack at which one landed).
+  Options: `skill` (`'novice' | 'steady' | 'expert'`, default `'steady'`), `seed` (the first run's; each next adds one), `maxSeconds`, `detail` (keep every run), `trace`, and **`tune`**, what-if numbers for the length of the run without editing code: `{ enemies: { Shalva: { health: 800, damageScale: 1.1, interval: 1.25 } }, weapons: { mace: { ATTACK_1: { damage: 30 } } }, health: 120 }` (per enemy by its name on screen: `health, posture, damageScale, moveSpeed, attackCooldown, telegraphDuration, engageRange, comboChance, interval, strikeRange, armorDamage`). The tuning in "The difficulty curve" was found this way.
+- **`__debug.playtestTrace(chapter, { seed, trace: { every } })`** is one fight blow by blow: a line of the fight every `every` seconds (positions, states, health) and a line for every blow the hero takes.
+- **`await __debug.telegraphs()`** is the warning table: for each enemy kind, every attack's strike windows (state seconds), its length, and the time before the first window (the warning), flagged FAST under 0.5 s.
+- **`await __debug.playtestFlow({ from, to, skill, skip })`** (`Flow.ts`) plays the campaign as a player meets it, chapter after chapter, through the menus' own buttons (the intro, the opening scene, the fight, the ending, the chapter-complete screen's Continue, the retry after a defeat, the credits, the title), with `console.error` and `console.warn`, `window.onerror` and unhandled rejections hooked. `skip: true` holds the skip button through every cutscene.
+- **`await __debug.robustness({ only, chapters })`** (`Robustness.ts`): see "Robustness".
+- **`await __debug.perf(chapter)` and `perfScenes(chapter)`** (`PerfProbe.ts`): see "Performance".
+
+**The bot** (`HeroBot.ts`) plays through the engine's own input path (the patched `getState`, the mouse's own path for the camera), and sees what a player sees: where everyone is and what state they are in, a blow's wind-up (the strike windows of the attack in progress, measured from its animation, and a minion's telegraph), a bolt or a wave of fire in the air (and the cast that threw it, as the cue), Shalva's water boiling. It answers a blow a reaction time after it sees it: a parry (with the dhal), a guard, or a slide (a direction that leaves the blow's reach, away from the others), with timing error, and it can miss one entirely. Between blows it closes in, strikes, chains and holds off a swing when a blow is about to land; with the skill it charges Shakti when the field is quiet and leaps in out of a run. It walks the island's way to the altar and steps round what blocks it. It is a proxy for a player, not a solver: the three skills bracket the players the game has.
+
+| Skill | Reaction | Timing error | Answers a blow | Parries (of answers, with the dhal) | Guards (of the rest) | Holds off a swing | Shakti and the leap |
+|---|---|---|---|---|---|---|---|
+| `novice`: a first-time player | 0.42 s | 0.10 s | 70 % | 10 % | 50 % | never (trades blows) | no |
+| `steady`: a few fights played (**the yardstick**) | 0.30 s | 0.06 s | 90 % | 40 % | 35 % | within 0.35 s of a blow | yes |
+| `expert`: a veteran | 0.20 s | 0.035 s | 97 % | 75 % | 20 % | within 0.5 s of a blow | yes |
+
+### The difficulty curve
+
+**Where it started.** The playtest's first numbers (a steady player, 12 runs a chapter) showed no curve at all: the first boss cost more health than the last, Dwarka was the easiest chapter in the game, and the one fight that was meant to be hardest was beaten nine times in ten.
+
+| Chapter | Steady win | Fight | Health lost (of 100) | What the numbers said |
+|---|---|---|---|---|
+| I Baoli | 100 % | 17 s | **74** | the Guardian's three-blow string (24 a blow, three blows) was 82 % of the damage, and it landed on the steady bot 1.7 times in every string |
+| II Akhada | 83 % | 52 s (38 of them the lesson) | 64 | Mayavi's bolts (a fixed 18) were 46 % of it; the Vetala and Mayavi died in 10 and 14 s |
+| III Island | 88 % | 89 s | 71 | the hurlers' firebrands (a fixed 13) were 76 % of it |
+| IV Dwarka | **100 %** | **27 s** | **43** | the mace (77 damage a second) ended Shalva in 13 s and Takshaka in 10; both bosses together cost less than the first |
+| V Summit | 92 % | 68 s | 79 | the waves cost 3 %: the fight was Andhaka's three-blow string (36 %) and the yatudhanas' bolts (29 %) |
+
+**What it should be**, and the numbers it was tuned to (the steady bot is the yardstick; 24 runs a chapter): the win rate falls a step a chapter, from the first boss nobody loses to (100 %) through about 95, 90 and 85 % to the summit at about 70; the Guardian costs a steady player well under half his health; every boss fight is longer than the last was short; and **no blow lands without warning**. The prologue is a scripted loss and stays one.
+
+**Where it is now** (the same bot, 24 runs of the steady skill (96 on the island) and 16 of each of the others (12 in the prologue); each cell is win rate / median seconds of fight / health lost in the runs that were won; Chapters IV and V add up two health bars, since the hero's health is restored when their last boss arrives):
+
+| Chapter | Steady, before | Steady, after | Novice, before | Novice, after | Expert, before | Expert, after |
+|---|---|---|---|---|---|---|
+| 0 Prologue | 100 % / 17 s / 6 | 100 % / 17 s / 5 | 100 % / 12 s / 17 | 100 % / 11 s / 18 | 100 % / 21 s / 5 | 100 % / 22 s / 0 |
+| I Baoli | 100 % / 17 s / 74 | 100 % / 24 s / 40 | 92 % / 14 s / 76 | 100 % / 20 s / 50 | 100 % / 25 s / 44 | 100 % / 25 s / 36 |
+| II Akhada | 83 % / 52 s / 64 | 96 % / 55 s / 64 | 92 % / 70 s / 82 | 88 % / 70 s / 85 | 92 % / 49 s / 62 | 100 % / 50 s / 56 |
+| III Island | 88 % / 89 s / 71 | 91 % / 86 s / 61 | 75 % / 82 s / 75 | 81 % / 84 s / 70 | 100 % / 82 s / 42 | 88 % / 82 s / 52 |
+| IV Dwarka | 100 % / 27 s / 43 | 83 % / 53 s / 93 | 100 % / 19 s / 42 | 100 % / 29 s / 129 | 100 % / 37 s / 46 | 94 % / 59 s / 107 |
+| V Summit | 92 % / 68 s / 79 | 71 % / 65 s / 52 | 50 % / 67 s / 115 | 63 % / 59 s / 66 | 100 % / 63 s / 44 | 100 % / 58 s / 33 |
+
+*The steady player's curve is the "Steady, after" column: 100, 96, 91, 83 and 71 per cent for chapters I to V (it was 100, 83, 88, 100 and 92).* The novice and expert are brackets, not a second curve: the novice bot trades blows, and with the mace's burst (Shalva falls to it in 15 s whatever his health) trading wins; the expert has the parry, which is most of what the summit asks. Neither is the player the numbers are tuned for.
+
+What changed, every number (no hero number, weapon blow or move was touched):
+
+| Who | What | Before | After |
+|---|---|---|---|
+| Baoli Guardian (I) | health | 450 | 1000 |
+| | blows (`damageScale`; its blows were 18, its string's 24) | 1.0 | 0.6 (10.8, 14.4) |
+| | seconds between its attacks (`attackInterval`) | 1.6 | 2.0 |
+| Vetala (II) | health | 160 | 200 |
+| | blows | 1.0 (16) | 0.92 (14.7) |
+| Mayavi (II) | health | 90 | 110 |
+| | blows and bolts (his bolt was a fixed 18) | 1.0 (16 and 18) | 0.8 (12.8 and 14.4) |
+| Cave runt (III) | blows | 0.45 (7.2) | 0.6 (9.6) |
+| Cave hurler (III) | blows | 0.7 (11.2) | 0.85 (13.6) |
+| | its firebrand (a fixed 13, whatever its blows were) | 13 | 11 (13 x its 0.85) |
+| Shalva (IV) | health | 380 | 800 |
+| | blows | 1.0 (18, 24) | 1.14 (20.5, 27.4) |
+| | `attackInterval` | 1.35 | 1.25 |
+| Takshaka (IV) | health | 460 | 1000 |
+| | blows | 1.0 (18, 24) | 1.19 (21.4, 28.6) |
+| | `attackInterval` (phase two's 0.95 is unchanged) | 1.4 | 1.3 |
+| | the wave of fire (28) leaves him | on the first frame of his breath | 0.75 s into it |
+| | the wave's damage | a fixed 28 | 28 x his 1.19 = 33.3 |
+| Andhaka (V) | health | 640 | 760 |
+| | blows (`damageScale`) | 1.1 (19.8, 26.4) | 1.3 (23.4, 31.2) |
+| Yatudhana (V) | its bolt (its blows were already 0.75; the bolt was a fixed 18) | 18 | 13.5 (18 x 0.75) |
+| Bolts, generally | what a bolt, a firebrand and the wave of fire do to the hero | a fixed number per kind | the kind's number times its caster's `damageScale` (`Projectile.scale`); what a bolt deflected back does is unchanged |
+
+**Why these and not others** (the judgement calls, more of them in docs/APPROVALS.md):
+
+- *Health up, blows down, for the first boss* (the Guardian: 450 to 1000 health, blows to 0.6, a pause of 2 s between attacks): the fight is half again as long, and a mistake costs 11 or 14 health, not 18 or 24. The cost fell from 74 to 40. Its three-blow string still lands (it is a string: one slide does not clear it), but a steady player no longer pays 24 three times for it.
+- *Health up, blows up a little, for Dwarka and the summit*: Shalva 380 to 800 and Takshaka 460 to 1000 stretch two fights from 27 s to 53; their blows are 14 and 19 % harder, because longer fights at the old strength were fine but not frightening. Andhaka's 640 to 760 and his blows from 110 to 130 % make the summit's fight the one a steady player loses in three attempts of ten. Dwarka's win rate is the least stable number (a novice there wins 100 % at one setting and a third of the time at a setting 3 % stronger: the mace kills so fast that it all comes down to whether the fifth blow lands before the boss falls), which is why the setting it ended on was checked on 72 runs.
+- *Bolts follow their caster's `damageScale`*: they were a fixed 18 (Mayavi, the yatudhana), 13 (the hurlers) and 28 (the wave of fire) whatever their caster's blows were set to, so the only way to ease the island's firebrands (76 % of its damage) or the akhada's bolts (46 %) was a change to the projectile's own numbers for every caster at once. They now take their caster's scale at the moment they are thrown (`Projectile.scale`). What a bolt turned back does to the thing it hits is unchanged. This is the one rule change in the pass.
+- *Takshaka's breath is loosed 0.75 s into his cast*: the wave of fire left him on the cast's first frame, so from the 3 m and more he breathes it from (phase two) it reached the hero a third of a second later with nothing yet to read. Now his head drawn back is the warning and the fire follows. (Checked by stepping him: cast at 14.13 s, the wave at 14.88 s.)
+- *The prologue is untouched.* The scripted loss came in 100 % of 36 runs, after 11 to 22 s and three felled raiders, and cost the hero 0 to 18 health. Its raiders hit at 0.85 and there is nothing in it to balance.
+- *The akhada's lesson is untouched* (the vanara hits at 0.3, cannot be hurt, and costs 7 health in its 38 s).
+- *The posture break is where the hero's damage comes from*, and was left alone: a broken posture takes 2.2 times the blow for the length of the break, so most of a boss's health goes in two or three breaks, and a lathi chain breaks the Guardian every few swings. That is why 1000 health makes the Guardian's fight 24 s and not 40.
+
+**Hardest moments** (the steady bot; the source's share of the damage, and how often its blows landed):
+
+- **I Baoli:** Baoli Guardian's string 85 % (56 landed from 33 thrown); Baoli Guardian's first blow 15 % (13 landed from 30 thrown). No run lost in 24.
+- **II Akhada:** the bolts 41 % (45 landed from 109 thrown); Vetala's first blow 23 % (25 landed from 32 thrown); Vetala's second blow 21 % (23 landed from 37 thrown, 1 more blocked). 1 of 24 runs lost, to Vetala's second blow, at 84 s.
+- **III Island:** the firebrands 73 % (464 landed from 966 thrown); Cave runt's first blow 26 % (160 landed from 509 thrown, 19 more blocked); Cave runt's second blow 2 % (10 landed from 94 thrown, 2 more blocked). 9 of 96 runs lost, to Cave runt's first blow and the firebrands, between 65 and 83 s.
+- **IV Dwarka:** Shalva's first blow 49 % (58 landed from 82 thrown); Takshaka's string 23 % (19 landed from 30 thrown); Takshaka's first blow 9 % (11 landed from 27 thrown). 4 of 24 runs lost, to Shalva's second blow and Takshaka's first blow and Shalva's first blow, between 27 and 40 s.
+- **V Summit:** Andhaka's string 45 % (25 landed from 55 thrown, 12 more blocked); Andhaka's second blow 25 % (16 landed from 63 thrown, 8 more blocked); the bolts 23 % (36 landed from 90 thrown). 7 of 24 runs lost, to Andhaka's string and Andhaka's first blow, between 56 and 76 s.
+
+**Fairness: no blow without warning.** `__debug.telegraphs()` lists, for every attack of every enemy, how long after the first sign of it its strike windows open (its warning: a minion's glint, 0.3 s, then the clip's lead-in; a boss has no glint, so the clip's own wind-up); the playtest records, for every blow that landed on a bot, how far into its attack it landed. Over the last battery's 388 fights (a novice, a steady and an expert bot, chapters 0 to 5), **no blow landed on the hero with less than 0.73 s of warning from the first sign of its attack**, and no boss's blow with less than 0.73 s, against reactions of 0.20 (expert), 0.30 (steady) and 0.42 s (novice):
+
+| Enemy | Warning of each attack's first window (s) | Earliest a blow landed (s from the first sign) |
+|---|---|---|
+| Baoli Guardian | chop 0.4, sweep 0.8, three-blow string 0.87, leap 0.3 | 0.85, 0.93, 0.98 |
+| Vetala | cut 0.82, cut 0.68, string 1.33 | 0.87, 0.73, 1.33 |
+| Shalva | swing 0.33, swing 0.32, string 0.64, leap 1.7; the dive: the water boils 0.55 s | 0.77, 1.1, 0.75 |
+| Takshaka | claw 0.56, sweep 0.7, four-blow string 0.77, leap 0.3; the breath 0.75 (was none) | 0.73, 0.82, 0.95 |
+| Andhaka | cleave 0.74, chop 0.71, three-blow string 0.75, leap 1.7 | 0.85, 0.77, 0.87 |
+| Cave runt, raider, rakshasa | one or two swings, 0.62 to 0.95 | 0.73, 0.97, 0.93 |
+| Mayavi, the hurlers, the yatudhana | a bolt: the cast (the hurler's brand takes light for 0.85 s), then 0.4 to 0.7 s of flight | not a swing: see the bolts |
+
+The attacks the table flags FAST (a first window under 0.5 s: Shalva's two swings, the Guardian's chop and leap, Takshaka's leap, the casters' claws) never landed at that window in any run: it is a flourish of the weapon that does not reach the hero's body, and the blow that lands is the next window, 0.4 s on; the claws are only used when a caster is cornered. So nothing was changed for readability; the one blow that had no warning at all was Takshaka's wave of fire (above).
+
+### Performance
+
+**How it was measured** (`__debug.perf(chapter)` for a fight, `__debug.perfScenes(chapter)` for the cutscenes, `__debug.perfShot(chapter, seconds, { part, change })` for one held picture, `src/debug/PerfProbe.ts`): the engine's real frame (`gameLoop`: the fixed steps, the interpolation, the level, the HUD, the render and its post chain) called by hand on a clock that moves 1/60 s a frame, so it runs with the Browser pane hidden. A frame's CPU time is the time of that call; its GPU time is a `EXT_disjoint_timer_query_webgl2` query round it; draw calls and triangles are `renderer.info` over every pass (the shadow pass and the bloom's too). A fight is played by the steady bot to its end; the cutscenes are each chapter's intro and opening, then every scene after the fight is won. Chrome 154 on the machine's AMD Radeon RX 9060 XT (ANGLE, Direct3D 11), a 1280x720 window at a pixel ratio of 1.25 (a 1600x900 canvas), nothing else running. "Before" is the code at the start of this milestone (a288019) with only the probe added, "after" is this branch, each in the same browser one after the other, two rounds each to show the noise.
+
+**What the numbers said.** The steady cost of a frame was never the trouble: 2.4 to 4.7 ms of CPU and 1.9 to 2.9 ms of GPU in a fight, against the 16.7 ms of 60 frames a second, and the same in the cutscenes (the dearest picture in the game, the akhada's ending, is 3.8 ms of CPU and 2.7 of GPU, 292 draw calls: the shadow pass is 0.9 ms of that CPU and 0.6 of that GPU, and nothing else is as much). What a player feels is the **hitch**, a frame of 20 to 460 ms, and the probe named every one by what the frame had added to the GPU (programs compiled, geometries and textures uploaded) and what had just spawned:
+
+| Hitch (before) | Cost | Cause |
+|---|---|---|
+| The akhada's two bosses come on at the end of the lesson (+4 programs, +15 geometries, +18 textures); Shalva's fall scene begins (+2 programs); two moments of Baoli's fight (+1 and +2 programs) | 40 to 460 ms | they were loaded or made but never drawn, so their shaders and textures were built the first time they were seen |
+| A foe spawns mid-fight: a wave's rakshasa or yatudhana, a pack of the island's runts and hurlers, Takshaka, Andhaka | 20 to 230 ms (Andhaka's 180 ms) | its 1 to 9 MB model parsed again for each one (a pack of five parsed it five times), then its geometry and textures uploaded the first time it was drawn, then its strike windows measured (sixty samples of the pose for every clip of every attack) |
+| A frame on the summit that only added a program (the first of the yatudhanas' bolts) | 230 ms (+1 program) | a bolt built its own spheres and materials and freed them when it ended, the last of a kind taking its shader program with it, so the next bolt compiled it again |
+
+The summit had seven such frames in one round and eleven in the other (the worst 229 ms), the akhada 2 and 3 (the worst 457 ms), the island 3, Dwarka 2, Baoli 2 and 0.
+
+**What was done** (all in code; no asset touched):
+
+1. **A model is parsed once and cloned** (`CharacterRig`): the parsed scene is a template; a character is a `SkeletonUtils.clone` of it (its own bones, the geometry, textures and clips shared, marked `userData.shared` so freeing one character leaves the others their meshes). Templates a chapter does not need are freed when the next starts (`CharacterRig.trim`), the raw downloaded buffer is dropped after its parse, and the weapon and shield models are cached.
+2. **Strike windows are measured once per definition** (`Character.fitProps`, and `dressed()` hands out one definition per weapon and look), not once per spawn.
+3. **A warm-up frame under the loading screen** (`Engine.warmUp`): everyone in the chapter, hidden or not, and everyone who will come later (a wave's second kind, the island's creatures, the final boss) is made once and drawn once, the late ones kept hidden for as long as the chapter lasts, with the things that are only sometimes drawn (Shalva's pool, a hurler's glow) and one of each bolt. The programs compile, the geometry and textures reach the GPU and the windows are measured while the loading bar is up, and `prefetchLater` starts those models parsing as soon as the chapter starts.
+4. **Bolts are shared pieces** (`ProjectileManager`): their spheres and materials are made once and kept (an anchor in the scene, hidden, keeps their programs alive), so a shot is a mesh and a transform.
+5. **The canvas has no buffers of its own** (`SceneManager`): the post chain draws the scene into its own multisampled buffer and the canvas only ever gets its last, full-screen pass, so the renderer is made without the default multisampling, depth and stencil (the post-processing library's own advice): a screen-sized set of buffers less, and one resolve less a frame. Its effect is below the noise of the timer (the GPU's mean is unchanged to a tenth of a millisecond), so it is counted as a saving of memory, not of time.
+
+**A fight**, the steady bot to its end (two rounds of each build, one after the other; CPU is the frame's own time in ms: the mean and the 95th percentile of the two rounds, and the worst frame of either; GPU the mean; draw calls and thousands of triangles the mean; a hitch is a frame over 20 ms, its count in each round):
+
+| Chapter | CPU mean, before > after | CPU p95 | Worst frame | Frames over 20 ms | GPU mean | Draw calls | Triangles (k) |
+|---|---|---|---|---|---|---|---|
+| 0 Prologue | 4.7 > 3.9 | 6.7 > 4.9 | 26.8 > 21.3 | 1, 1 > 1, 1 | 2.8 > 2.3 | 104 > 109 | 457 > 489 |
+| I Baoli | 3.2 > 3.2 | 4.1 > 3.8 | 112.6 > 6.9 | 2, 0 > 0, 0 | 2.5 > 2.5 | 159 > 161 | 430 > 415 |
+| II Akhada | 3.9 > 3.9 | 4.9 > 4.8 | 457.2 > 12.1 | 2, 3 > 0, 0 | 2.8 > 2.8 | 285 > 286 | 727 > 727 |
+| III Island | 4 > 3.8 | 5.7 > 5.4 | 153.7 > 60.7 | 3, 3 > 4, 4 | 2.3 > 2.4 | 126 > 125 | 822 > 818 |
+| IV Dwarka | 2.4 > 2.5 | 3.1 > 3.2 | 95.8 > 65.6 | 2, 2 > 0, 1 | 1.9 > 2 | 78 > 85 | 496 > 516 |
+| V Summit | 4.5 > 4.1 | 6.4 > 5.7 | 229.2 > 52.4 | 7, 11 > 2, 3 | 2.9 > 2.8 | 165 > 156 | 1303 > 1264 |
+
+**The cutscenes**, each chapter's intro with its opening and the scenes after its fight (a burst of frames every two seconds of scene; CPU is the mean in ms with the worst sampled frame after it in brackets; GPU the mean; the draw calls are the busiest frame's):
+
+| Chapter | Intro CPU, before > after | Ending CPU, before > after | GPU (intro, ending) | Draw calls (intro, ending) |
+|---|---|---|---|---|
+| 0 Prologue | 3.3 (4.4) > 3 (4.4) | 3.5 (118.3) > 3 (5.4) | 2, 2.4 | 97, 216 |
+| I Baoli | 2.9 (33.1) > 2.7 (8.9) | 2.7 (4.2) > 2.7 (4.6) | 2.1, 2.3 | 179, 165 |
+| II Akhada | 3.8 (7.5) > 3.6 (5.1) | 2.9 (4.5) > 3.1 (5) | 2.6, 2.4 | 372, 278 |
+| III Island | 1.6 (6.6) > 1.8 (15.6) | 1.7 (3.6) > 2.1 (46.1) | 1.5, 1.6 | 102, 101 |
+| IV Dwarka | 2.6 (5.4) > 2.4 (5) | 2.5 (4.6) > 2.4 (8.6) | 2, 1.8 | 95, 95 |
+| V Summit | 3.2 (5.6) > 3.6 (7.6) | 3.8 (7.7) > 4.1 (10) | 2.6, 3 | 161, 203 |
+
+**Starting a chapter** (milliseconds from the call to the fight ready: the first start of it in a session, then a retry; the JS heap in MB just after; the geometries and textures the GPU holds then):
+
+| Chapter | First start | Retry | JS heap (MB) | GPU geometries / textures |
+|---|---|---|---|---|
+| 0 Prologue | 1074 > 838 | 612 > 210 | 166 > 137 | 21 / 38 > 47 / 80 |
+| I Baoli | 272 > 116 | 288 > 97 | 273 > 110 | 110 / 64 > 126 / 78 |
+| II Akhada | 951 > 932 | 311 > 67 | 237 > 158 | 9 / 31 > 234 / 120 |
+| III Island | 265 > 524 | 0 > 28 | 265 > 146 | 22 / 37 > 78 / 100 |
+| IV Dwarka | 588 > 825 | 200 > 50 | 307 > 145 | 50 / 12 > 86 / 79 |
+| V Summit | 927 > 1360 | 126 > 86 | 296 > 218 | 10 / 8 > 102 / 90 |
+
+**Reading the tables.** The steady frame is unchanged, as it should be: what changed is the tail. No frame over 20 ms is left in Baoli or the akhada (the worst frame fell from 113 and 457 ms to 7 and 12), and the summit's eleven became two or three (229 to 52 ms). What is left is the making of a pack: five runts or hurlers arriving together are 40 to 60 ms (what costs is making that many characters at once, not their models: staggering the clones one to a turn of the event loop was tried and changed nothing), Andhaka's and Takshaka's arrival, and the first draw of a cutscene's own things (the island's ending has a frame of 46 ms where two textures first reach the GPU). The price is in the **first start of a chapter**, which does more under its loading bar (250 to 430 ms more on the island, Dwarka and the summit, where a second kind of foe and a final boss are made ready); a retry takes 30 to 210 ms where it took up to 610, the JS heap is 17 to 60 % lower after a start (the downloaded buffers and the parsed copies are gone), and the GPU already holds everyone's geometry and textures at the start of a fight (the akhada 9 to 234 geometries), where it used to take them as each was first drawn. Draw calls and triangles are the same (the bot's fights differ a little, a few percent).
+
+**Measured and left** (so nobody measures them again): the shadow pass (0.2 to 1.9 ms of CPU) and its 2048 map, the 6 to 13 lights of a level, the allocation of about 430 KB a frame (four fifths of it inside three.js's own render and the post chain's), the matrix update of a level's 400 to 1600 nodes (0.15 to 1.25 ms, the prologue's the dearest), and the updates of hidden characters (the prologue's villagers, 0.1 ms a rig). Each is small beside the hitches, and each is a change to the look or a risk to a scene for a gain of under a millisecond. Held on the akhada's dearest picture, switching things off costs this much: the shadows 0.9 ms of CPU and 0.6 of GPU (and 100 draw calls), the lamps and other lights 0.6 and 0.3, the characters 0.6 and 0.1, a pixel ratio of 1 instead of 1.25 0.1 and 0.4, the bloom's selection nothing. The one steady cost big enough for a pass of its own is the akhada's 285 meshes in view (see "Left for later").
+
+### Robustness
+
+`__debug.robustness({ only, chapters })` (`src/debug/Robustness.ts`) does to the game what a player can do and the happy path never does, and checks for a crash, a console error or a state it cannot leave. It drives the real thing (the menus' buttons, the browser's `blur` and `resize` events, the real frame loop on a clock of its own), so it runs with the Browser pane hidden. The last full run, on this branch, had no console error and no failure (3.5 minutes):
+
+| Check | What it does | Last run |
+|---|---|---|
+| `quit` | Quits to the title from every point of every chapter: the intro, the opening scene, the fight, a boss's entrance, the ending scene, the defeat screen, the chapter-complete screen (by the pause menu, or the screen's own button), then goes straight into another chapter. At the title: no enemy or cast member, no loading screen, no HUD, no pause, the hero out of view; the next fight plays; no skinned mesh is left in the scene, and what the GPU holds at the title does not grow over a level's cycles. | 36 quits |
+| `retry` | The defeat screen's Retry and the pause menu's Restart pressed twelve times at once; Restart in the middle of an intro; two chapters started at once. One fight, with the foes there should be, no rig left over from a load that was replaced, no loading screen over it. | chapters I to V |
+| `pause` | Pauses in cutscenes and in the fight (the menu, and the window losing focus), runs a second and a half of frames while paused (nothing moves, neither clock runs), resumes through the button, and ends a cutscene by holding skip. | 26 pauses |
+| `rate` | The real loop for ten seconds of clock at 30, 60, 144 and 240 frames a second, with frames of 5 to 45 ms, and with a 0.4 s stall every 90 frames: game time keeps pace with the clock (100 %; stalls run at 82 to 90 %, since a frame over a quarter of a second is capped), no position goes NaN, nobody moves more than 1 m in a frame. | 30 runs |
+| `resize` | The window made 1x1, 0x0, 320x200, 200x3000, 3000x200, 3840x2160, 1x4000, and with one side empty, in a cutscene and in a fight: the camera's aspect and the renderer's size stay valid, the GPU raises no error, no health plate has a NaN position. | 120 sizes |
+| `menus` | New game, Chapters, Settings (every setting pressed), Controls, Pause from a chapter and Settings and Controls from it, Resume, Quit to title, New game again. | |
+
+And the campaign, played end to end (`__debug.playtestFlow`): the steady bot through all six chapters with every cutscene watched (intro, opening, fight, ending, the Continue button, the credits, the title): 20 minutes of game time in 54 s (5 in intros and openings, 9 fighting, 6 in endings), one defeat on the summit and its Retry, no error and four warnings, all "Pointer lock refused" (the page was not given a gesture); and a novice with every cutscene held through, 9 minutes in 33 s, no error (and a D3D compiler warning about one shader's float precision).
+
+**Found and fixed:**
+
+- **Spam retry leaked rigs and could leave the loading screen over a fight.** Every Retry or Restart starts a load; a load that is replaced (the button pressed again, the title chosen) finished its rigs late: they were added to the new fight's scene (about three rigs a press, never freed), and its progress bar drew the loading screen over a fight already begun. `Character.retire()` (a character that was cleared before its rig arrived frees the rig when it does) and the load token's guard on the loading screen (`Engine.startChapter`'s `report`) fix both.
+- **A window with no size broke the render.** A minimised or hidden window has an inner size of 0: the camera's aspect went NaN and every pass of the post chain raised `GL_INVALID_FRAMEBUFFER_OPERATION`. `SceneManager.onWindowResize` keeps the last real size until the window has one (and the first aspect falls back to 16:9).
+- **A new game kept what the last one taught.** New game from the title now clears the scenes seen, the hints shown, the akhada's lesson and the moves the fights taught (`Engine.newCampaign`), so the story and its teaching play again; the chapters stay unlocked.
+
+### Left for later
+
+- **A person at the controls.** The numbers are tuned against a bot (the steady skill is the yardstick). It reads blows from the engine's own data, as a player does from the screen, but it does not get tired, tense or lost: treat the curve as a first draft to be felt, and re-run `__debug.playtest([1, 2, 3, 4, 5], 24)` after any change to a weapon, a clip or an enemy (milestone 11b's weapons pass landed in `main` while this was being made: the hero's blows and hit windows are the hero's side of every number above).
+- **Loading sizes** (the roadmap's last word on this milestone) are for release prep, as agreed: the per-chapter downloads are 3.9 to 13.6 MB for a level, 8.5 MB for the hero (4.7 MB more for his training look) and 8.7 MB for Andhaka; nothing was compressed.
+- **Draw calls in the akhada** (285 meshes in view) are the biggest steady cost left (about 3.6 ms of the frame's 3.9 ms of CPU is the render): merging the level's static meshes by material would cut it by half, but the level's code finds meshes by name (lamps, fires, the oculus), so it needs a pass of its own.
+- **A pack's arrival** (five runts, six hurlers and runts) is still a frame of 40 to 60 ms, and a cutscene's own first draws are a frame of 45 ms here and there (the island's ending); a pool of foes made ahead and hidden would remove the first, and a warm-up that plays each story scene's first shot under the loading screen the second.
+- **Hidden characters** (the prologue's villagers, the Vetala and Mayavi until the lesson ends) are still updated every step (0.1 ms a rig); skipping them is easy and was not done, because a scene cue that poses a hidden actor before showing it would then start its clip late.
+
 ## Tools
 
 - **ElevenLabs:** voices, character sound effects, music.
@@ -1699,6 +1899,9 @@ Each milestone is one chat. Start it with: "Read docs/STORY.md, let's do milesto
   the mentor is done). *The raiders, the island's runts and hurlers and the yatudhana: done 2026-10-05 (see
   "Milestone 11"); the hero's basic sword: done 2026-10-05 (see "The weapons pass"). Left: the villagers; a lathi
   and a mace model, if wanted.*
-- [ ] **12. Polish and balance:** full playthroughs, difficulty curve across the five chapters, performance,
-  loading sizes.
+- [x] **12. Polish and balance:** a bot plays every chapter's fight and the whole campaign (`__debug.playtest`,
+  `playtestFlow`), the difficulty curve (a steady player wins 100, 96, 91, 83 and 71 per cent of the chapters' fights, it
+  was 100, 83, 88, 100 and 92; no blow comes without warning), the frame hitches of 100 to 240 ms gone (models parsed
+  once, a warm-up under the loading screen), the quit, retry, pause, frame-rate and resize checks (see "Milestone 12").
+  *Loading sizes: left to release prep.*
 - [ ] **13. Release:** final build, deploy, a trailer if wanted.
