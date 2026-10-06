@@ -645,9 +645,9 @@ arm is held at rest, so his hands cannot take a pose). Nothing was tried: Mixamo
 
 ### Music loop seams (milestone 12): DONE; measured, not listened to
 
-Made while the user was away. **Nothing was listened to, so every claim here is a measurement** (the scripts, tables,
-spectrograms and renders are in `game asset/music/loops/`, outside git). No credits, no downloads, no sign-ins; the mp3
-files are untouched. It fixes what milestone 10 measured (above): `village`, `title`, `island` and `boss` dipped for
+Made while the user was away. **Nothing was listened to, so every claim here is a measurement** (the scripts, the
+tables, the spectrograms and the envelopes are in `game asset/music/loops/`, outside git). No credits, no downloads, no
+sign-ins; the mp3 files are untouched. It fixes what milestone 10 measured (above): `village`, `title`, `island` and `boss` dipped for
 1.5 to 8 s at every repeat, `akhada` fell silent at both ends, `summit` dropped from its loud ending to its quiet
 opening, and `baoli`, `andhaka_final` and `dwarka` repeated from the middle of a phrase, a bar or a section.
 
@@ -687,8 +687,8 @@ edits in `Music`):
 
 - Every recording is an integer tempo (the onset envelope repeats at exact multiples of the beat: 70, 115, 82, 70, 70,
   72, 104, 71 and 69 BPM) and its 60 s hold exactly that many beats. So `end` is a whole number of bars (4 beats) after
-  `start`, and the beat carries on across the join (the title, a drone piece with no beat, is the one exception). The sections come from the 50 ms RMS envelope, the log-mel spectrogram and
-  the chroma.
+  `start`, and the beat carries on across the join (the title, a drone piece with no beat, is the one exception). The
+  sections come from the 50 ms RMS envelope, the log-mel spectrogram and the chroma.
 - The candidates were every beat as `start` and every whole bar count after it as `end` (300 to 1,200 pairs a track).
   Each was scored on the two seconds before both ends (the difference in level, in log-mel spectrum and in chroma, the
   correlation of the onset patterns with `end` free to move 40 ms to line them up, and the simulated seam's dips) and
@@ -697,15 +697,15 @@ edits in `Music`):
   for `village` a different chord), a morph rather than a continuation. And why the title joins its drone to its own
   drone: same pitch, partials and level (chroma distance 0.005, 0.7 dB).
 - Among the clean ones the longest was taken that kept the dips natural (`dwarka`'s 30 s loop had a 3.4 dB dip, so its
-  26.7 s one was taken; `summit`'s 20.8 s one had less alike ends). `end` is `start` plus a whole number of beats to within
-  1 ms for all but `baoli`, whose `end` is 3 ms early, which flattened its blend. `fade` is 1.0 s (a beat or two at these tempi), 1.5 s for the title's drone; 0.5 to 1.5 s moved
-  the dips by 0.7 dB at most on the four tracks tried.
+  26.7 s one was taken; `summit`'s 20.8 s one had less alike ends). `end` is `start` plus a whole number of beats to
+  within 1 ms for all but `baoli`, whose `end` is 3 ms early, which flattened its blend. `fade` is 1.0 s (a beat or two
+  at these tempi), 1.5 s for the title's drone; 0.5 to 1.5 s moved the dips by 0.7 dB at most on the four tracks tried.
 
 **Measured**, on the real `Music` class rendered offline (`OfflineAudioContext`, three joins a track; the unmodified
 class from git HEAD rendered the same way for "before"). Dip: the lowest of the 0.5 s windows centred within 1 s of the
-join, against the surrounding 4 s (power mean), in dB (the target: no deeper than about 1.5). "Its own" is the same number
-taken at every position inside the loop, so it shows how much of a dip is just the pulse of the music (median, and the
-5th percentile). Step: the largest change between two neighbouring samples at the join, full scale being 1.
+join, against the surrounding 4 s (power mean), in dB (the target: no deeper than about 1.5). "Its own" is the same
+number taken at every position inside the loop, so it shows how much of a dip is just the pulse of the music (median,
+and the 5th percentile). Step: the largest change between two neighbouring samples at the join, full scale being 1.
 
 | Track | dip before | dip after | its own | step before -> after | after, against the steps near it |
 |---|---|---|---|---|---|
@@ -722,9 +722,9 @@ taken at every position inside the loop, so it shows how much of a dip is just t
 Five are inside 1.5 dB, `dwarka` and `summit` at 1.5 and 1.6, `island` at -2.0 (its own median is -1.5, and its lowest
 window is the groove's own pulse 1 s after the join, not the blend). `akhada` cannot be judged by a window rule (its hits
 decay 40 dB); its seam is at the floor (-44 dB) before a hit, and the hit spacing across the join is 3.434 s against the
-recording's own 3.428 +- 0.004. The step at the join is 0.03 to 0.43 of the 99.9th-percentile step within 50 ms of it: no click
-(before, `village`, `dwarka`, `summit` and `andhaka_final` jumped by 0.64 to 0.69 of full scale, `island` by 6 times its
-neighbours). Inside the blend, the short-time level (0.2 s windows) stays within 1.8 dB of what two unrelated signals
+recording's own 3.428 +- 0.004. The step at the join is 0.03 to 0.43 of the 99.9th-percentile step within 50 ms of
+it: no click (before, `village`, `dwarka`, `summit` and `andhaka_final` jumped by 0.64 to 0.69 of full scale, `island` by
+6 times its neighbours). Inside the blend, the short-time level (0.2 s windows) stays within 1.8 dB of what two unrelated signals
 would give (`title` +-1.8, `village` +-1.3, `baoli` +-1.1, the rest 0.9 or less). Where two near-full-scale sides add, a
 sample peak can rise a little: `village` 0.90 -> 0.94 and `dwarka` 1.02 -> 1.05 (decoded, before `TRACK_GAIN`; the file
 itself decodes above 1), nothing else by more than 0.01; the master compressor takes it.
@@ -736,7 +736,7 @@ itself decodes above 1), nothing else by more than 0.01; the master compressor t
 - The live dev build (Chromium 152, 48 kHz), after a click: all six chapters (`__debug.chapter(0..5, false)`) start the
   expected track (village, boss, akhada, island, boss, summit) with its loop points and `TRACK_GAIN`, and one music
   source alive. For all nine tracks the real-time output at the join (a gap-free AudioWorklet tap, a seek to 3 s before
-  it) matches the offline render within 0.05 dB, with no gap and no zero frame. The title's first pass reached its loop
+  it) matches the offline render within 0.1 dB, with no gap and no zero frame. The title's first pass reached its loop
   end in real time (54 s): dip -1.1, no errors.
 - Rapid changes: 80 random `play` calls 20 to 350 ms apart (all tracks, `null`, `shiva`, fade-ins from 0.03 to 2 s,
   `duck`, `dim`, `prefetch`, `then`), and then 12 chapter starts 350 ms apart. After the last, exactly one music source
