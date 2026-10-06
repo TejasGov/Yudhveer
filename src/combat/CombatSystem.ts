@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import gsap from 'gsap';
 import { Player, CHARGED_MULTIPLIER } from '../entities/Player';
 import { Enemy } from '../entities/Enemy';
+import type { Blow } from '../entities/characters/YodhaWeapons';
 import { HitboxManager } from './HitboxManager';
 import { ParticleFX } from './ParticleFX';
 import { BloodFX } from './BloodFX';
@@ -14,6 +15,12 @@ import type { BlowTier } from './HitReact';
 import type { Character } from '../entities/Character';
 import type { CharacterState } from '../entities/CharacterStateMachine';
 
+/** What a boss's kick (its answer to a run of blocked blows) does: a little damage and posture (times its blows' scale), and how far it throws him. */
+const SHOVE_DAMAGE = 8;
+const SHOVE_POSTURE = 16;
+const SHOVE_KNOCK = 2.6;
+/** Posture a guard breaking adds, as a share of the boss's bar. */
+const GUARD_BREAK_POSTURE = 0.16;
 /** Posture a chip hit deals into an armoured (committed) enemy attack, as a share of normal. */
 const ARMORED_POSTURE = 0.3;
 /** After a stagger ends, this long before another hit can stagger the player again (s). */
@@ -49,6 +56,9 @@ export interface FightStats {
   hitsTaken: number;
   postureBreaks: number;
   damageDealt: number;
+  /** His blows a boss's guard turned aside, and the guards he broke (combat/Guard.ts). */
+  bossBlocks: number;
+  guardBreaks: number;
 }
 
 /** One resolved blow, for the combat log. */
@@ -59,7 +69,7 @@ export interface CombatEvent {
   attack: string;
   /** State time of the attacker when it landed. */
   at: number;
-  result: 'hit' | 'armored' | 'break' | 'blocked' | 'deflected' | 'evaded' | 'player-hit';
+  result: 'hit' | 'armored' | 'break' | 'blocked' | 'deflected' | 'evaded' | 'player-hit' | 'guarded' | 'guard-break';
   point: number[];
 }
 
@@ -174,6 +184,10 @@ export class CombatSystem {
     this.stepDt = dt;
     const living = enemies.filter((e) => e.stateMachine.currentState !== 'DEAD');
     for (const enemy of living) {
+      // A boss's kick connects partway through its clip (it has no blade to sweep).
+      if (enemy.stateMachine.currentState === 'SHOVE' && !enemy.shoveLanded && enemy.stateMachine.stateTime >= enemy.shoveContact()) {
+        this.landShove(enemy, player);
+      }
       const w = this.activeStrike(player);
       if (w !== null && !enemy.submerged) {
         const { hit, hitPoint } = this.hitboxManager.checkWeaponIntersection(player, enemy);
@@ -263,6 +277,12 @@ export class CombatSystem {
     // Committed enemy attacks are armoured: a chip hit lands but barely dents posture and does not interrupt.
     // Heavy blows (finisher, leaping strike, a charged hit) still break through.
     const heavyBlow = charged || !!blow.heavy;
+    // A boss with its guard up turns a light blow aside; a heavy one breaks the guard (combat/Guard.ts).
+    const verdict = enemy.guard?.meet(heavyBlow, player.getPosition()) ?? null;
+    if (verdict === 'block') {
+      this.resolveBlocked(player, enemy, hitPoint, attackState, blow);
+      return;
+    }
     const armored = enemy.isArmored();
     if (armored && !heavyBlow) postureDmg *= ARMORED_POSTURE;
     postureDmg *= enemy.isBoss ? BOSS_BLADE_POSTURE : BLADE_POSTURE;
@@ -270,8 +290,15 @@ export class CombatSystem {
     const glancing = armored && !heavyBlow && enemy.armorDamage < 1;
     if (glancing) damage *= enemy.armorDamage;
 
+    const guardBroken = verdict === 'break';
+    if (guardBroken) {
+      enemy.guard!.broke();
+      postureDmg += enemy.maxMarma * GUARD_BREAK_POSTURE;
+    }
     enemy.takeDamage(damage);
     const broken = enemy.addMarmaDamage(postureDmg);
+    // It remembers the blow (and from where it came): the more it takes, the likelier it guards and answers.
+    enemy.guard?.struck(player.getPosition());
 
     const crush = player.weapon.sound.impact === 'crush';
     const heavy = charged || crush || attackState === 'ATTACK_JUMP';
@@ -304,6 +331,7 @@ export class CombatSystem {
     }
     this.impact(kind, feel.dir, 1, blowSpec(kind, weapon, tier));
     if (broken) this.impact('postureBreak', along);
+    if (guardBroken && !broken && enemy.currentHealth > 0) this.announceGuardBreak(player, enemy, hitPoint, along);
 
     this.stats.damageDealt += damage;
     if (broken) {
@@ -317,9 +345,102 @@ export class CombatSystem {
     }
     this.record({
       attacker: player.id, defender: enemy.id, attack: attackState, at: player.stateMachine.stateTime,
-      result: broken ? 'break' : enemy.stateMachine.currentState === 'STAGGER' ? 'hit' : armored ? 'armored' : 'hit', point: hitPoint.toArray(),
+      result: guardBroken ? 'guard-break' : broken ? 'break' : enemy.stateMachine.currentState === 'STAGGER' ? 'hit' : armored ? 'armored' : 'hit', point: hitPoint.toArray(),
     });
 
+  }
+
+  /**
+   * His light blow lands on a boss's raised guard: nothing gets through but a little posture. The weapons ring and throw
+   * chingaari where they met, the freeze and the camera's kick say it was stopped, and his blade bounces off and him with it
+   * (`Player.recoil`). A run of these is what the boss answers (combat/Guard.ts).
+   */
+  private resolveBlocked(player: Player, enemy: Enemy, hitPoint: THREE.Vector3, attackState: string, blow: Blow): void {
+    const guard = enemy.guard!;
+    const spec = guard.spec;
+    // Where the weapons met: the closest points of his blade and its weapon.
+    const at = guard.contactPoint(player, hitPoint, _contact);
+    guard.blocked();
+    if (spec.chip > 0) enemy.takeDamage(blow.damage * spec.chip);
+    const broken = enemy.addMarmaDamage(blow.posture * (enemy.isBoss ? BOSS_BLADE_POSTURE : BLADE_POSTURE) * spec.posture);
+    this.stats.bossBlocks++;
+    const weapon = weaponKindOf(player);
+    const along = enemy.getPosition().clone().sub(player.getPosition()).setY(0);
+    HitFeel.blocked({ point: at, attacker: player, weapon, strike: spec.ring, power: weapon === 'crush' ? 1.25 : 1.1, floor: enemy.group.position.y, dt: this.stepDt });
+    // The camera is thrown back along the bounce, away from the boss; a mace's rebound is the heavier.
+    this.impact('clash', along.clone().negate().normalize(), weapon === 'crush' ? 1.3 : weapon === 'wood' ? 0.8 : 1);
+    player.recoil(enemy.getPosition(), weapon === 'crush' ? 0.75 : weapon === 'wood' ? 0.35 : 0.5);
+    if (broken) {
+      guard.broke();
+      this.stats.postureBreaks++;
+      this.soundFX.playPostureBreak();
+      this.callout({ text: 'Marma broken', sub: 'Strike now', tone: 'red' });
+      this.impact('postureBreak', along);
+    }
+    this.record({ attacker: player.id, defender: enemy.id, attack: attackState, at: player.stateMachine.stateTime, result: 'guarded', point: at.toArray() });
+  }
+
+  /** A heavy blow (a finisher, a charged blow, the leaping strike) broke a boss's raised guard: the clash of it, and the word. */
+  private announceGuardBreak(player: Player, enemy: Enemy, hitPoint: THREE.Vector3, along: THREE.Vector3): void {
+    this.stats.guardBreaks++;
+    const weapon = weaponKindOf(player);
+    const iron = weapon === 'crush' || enemy.guard!.spec.ring === 'iron';
+    this.soundFX.playGuardBreak(iron ? 'iron' : enemy.guard!.spec.ring);
+    if (weapon !== 'wood') {
+      HitFeel.clash({ point: hitPoint, attacker: player, weapon: iron ? 'crush' : 'blade', power: 1.5, floor: enemy.group.position.y, dt: this.stepDt });
+    }
+    this.impact('postureBreak', along);
+    this.callout({ text: 'Guard broken', sub: 'Strike now', tone: 'gold' });
+  }
+
+  /**
+   * A boss's kick connects: a little damage and posture, and he is thrown back. He can slide it (an evasion), parry it
+   * (the boss is deflected), or take it on the dhal (a block that still pushes him back less).
+   */
+  private landShove(enemy: Enemy, player: Player): void {
+    enemy.shoveLanded = true;
+    const here = enemy.getPosition();
+    const hero = player.getPosition();
+    const dx = hero.x - here.x;
+    const dz = hero.z - here.z;
+    const entry = { attacker: enemy.id, defender: player.id, attack: 'SHOVE', at: enemy.stateMachine.stateTime };
+    if (Math.hypot(dx, dz) > enemy.shoveReach() || !enemy.isFacing(hero, THREE.MathUtils.degToRad(70)) || player.isDown()) return;
+    const point = _contact.set(hero.x, hero.y + 1.1, hero.z);
+    if (player.isEvading()) {
+      this.resolveEvasion(enemy, player);
+      return;
+    }
+    if (player.stateMachine.currentState === 'PARRY' && player.stateMachine.isParryActive) {
+      this.handlePerfectParry(player, enemy, point);
+      this.record({ ...entry, point: point.toArray(), result: 'deflected' });
+      return;
+    }
+    const k = enemy.damageScale;
+    const damage = SHOVE_DAMAGE * k;
+    const posture = SHOVE_POSTURE * k;
+    const away = _away.set(dx, 0, dz);
+    if (player.isGuarding() && player.isFacing(here)) {
+      this.handleBlockedHit(player, point, damage, posture, here, enemy);
+      player.knock(away, SHOVE_KNOCK * 0.4);
+      this.record({ ...entry, point: point.toArray(), result: 'blocked' });
+      return;
+    }
+    this.record({ ...entry, point: point.toArray(), result: 'player-hit' });
+    this.stats.hitsTaken++;
+    player.takeDamage(damage);
+    const broken = player.addMarmaDamage(posture);
+    this.onPlayerHurt?.(damage);
+    if (broken && player.stateMachine.currentState !== 'DEAD') this.callout({ text: 'Posture broken', tone: 'red' });
+    // A boot, not a blade: the weight of a body, dust off him and no blood.
+    this.soundFX.playHitImpact('crush');
+    this.soundFX.playBlowWeight('crush', 0);
+    this.particleFX.spawnDustPuff(player.group.position, 10);
+    this.impact(broken ? 'guardBroken' : 'hurtHeavy', away.clone().normalize(), 0.9);
+    player.knock(away, SHOVE_KNOCK);
+    if (!broken && player.stateMachine.currentState !== 'DEAD' && this.clock >= this.playerStaggerImmuneUntil) {
+      player.stateMachine.changeState('STAGGER');
+      this.playerStaggerImmuneUntil = this.clock + player.stateMachine.STAGGER_DURATION + STAGGER_GRACE;
+    }
   }
 
   /** A blow that would have landed passes over the sliding player: a beat of slow motion marks the near miss. */
@@ -442,8 +563,11 @@ export class CombatSystem {
 }
 
 function emptyStats(): FightStats {
-  return { deflections: 0, blocks: 0, hitsTaken: 0, postureBreaks: 0, damageDealt: 0 };
+  return { deflections: 0, blocks: 0, hitsTaken: 0, postureBreaks: 0, damageDealt: 0, bossBlocks: 0, guardBreaks: 0 };
 }
+
+const _contact = new THREE.Vector3();
+const _away = new THREE.Vector3();
 
 /** Damage and posture a blow from `enemy` deals the player: bosses hit harder. */
 function enemyBlow(enemy: Enemy): { damage: number; posture: number } {

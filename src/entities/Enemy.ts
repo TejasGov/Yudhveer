@@ -1,16 +1,19 @@
 import * as THREE from 'three';
-import { Character, type HitWindow } from './Character';
+import { Character, wrapAngle, type HitWindow } from './Character';
 import { CharacterMotor } from '../physics/CharacterMotor';
 import type { CharacterState } from './CharacterStateMachine';
 import { SoundFX, type SwingKind, type ImpactKind } from '../combat/SoundFX';
 import { ParticleFX } from '../combat/ParticleFX';
 import type { BloodKind } from '../combat/BloodFX';
+import { Guard, type GuardAction, type GuardView, type HeroSwing } from '../combat/Guard';
 
 /** What an enemy's AI needs to know about the one it is fighting. */
 export interface FightTarget {
   getPosition(): THREE.Vector3;
   /** Down: enemies stop pressing the attack. */
   isDown(): boolean;
+  /** The blow he is making, if he is swinging (a boss with a guard watches for it); the hero reports it. */
+  swing?(): HeroSwing | null;
 }
 
 const UP = new THREE.Vector3(0, 1, 0);
@@ -42,6 +45,14 @@ const STOPPED = 0.4;
 const SLOT_SPREAD = THREE.MathUtils.degToRad(70);
 /** Minions this far from the hero (m) or nearer take a slot round him. */
 const SLOT_RANGE = 9;
+/**
+ * A boss struck from behind (or with the hero swinging at its back) turns on him this much faster than its usual turn, with
+ * this much more acceleration: the rate and the weight of Shalva squaring up to the hero as he sinks (combat/Guard.ts).
+ */
+const ALARM_RATE = 2.2;
+const ALARM_ACCEL = 3;
+/** Whether a state is one of its own blows (a swing, a cast, the kick): `Guard.attackEnded` fires when one ends. */
+const isOwnBlow = (s: string) => s.startsWith('ATTACK') || s === 'SHOVE' || s === 'CAST';
 const _want = new THREE.Vector3();
 const _dv = new THREE.Vector3();
 
@@ -76,6 +87,16 @@ export class Enemy extends Character {
   public damageScale = 1;
   /** Share of a light blow's damage that gets through while it is armoured (committed to an attack). */
   public armorDamage = 1;
+  /**
+   * How it answers a hero who will not stop hitting it: it turns on him quickly, guards, and strikes back (combat/Guard.ts,
+   * docs/STORY.md "Bosses fight back"). Null: it does none of that (the minions).
+   */
+  public guard: Guard | null = null;
+  /** The kick (SHOVE) has connected, or missed, in this one (CombatSystem resolves it at `shoveContact`). */
+  public shoveLanded = false;
+  /** Its next blow is an answer to a run of blocked ones: its quickest, not its string. */
+  protected counterNext = false;
+  private lastState: CharacterState = 'IDLE';
 
   // AI timing
   private aiTimer = 0;
@@ -198,7 +219,7 @@ export class Enemy extends Character {
     }
 
     // Face the target the short way round at a limited rate, but not once a swing is committed.
-    if (distance > 0.1 && this.mayTrack()) this.turnToward(this.bearingTo(toTarget, distance), this.turnRate, dt);
+    if (distance > 0.1 && this.mayTrack()) this.faceTarget(this.bearingTo(toTarget, distance), dt);
 
     if (this.isTelegraphing) {
       this.updateTelegraph(dt, distance);
@@ -212,6 +233,11 @@ export class Enemy extends Character {
       return;
     }
 
+    if (state === 'SHOVE') {
+      this.updateShove(dt, toTarget, distance);
+      return;
+    }
+
     // Nothing left to fight: lower the blade and wait.
     if (target.isDown()) {
       this.settle('IDLE');
@@ -221,6 +247,18 @@ export class Enemy extends Character {
 
     this.aiTimer += dt;
     const dir = toTarget.clone().normalize();
+    // Guarding, or answering a run of blows: before anything else it might do (combat/Guard.ts).
+    if (this.guard) {
+      const action = this.guard.step(dt, this.guardView(target, toTarget, distance, Math.max(0, this.attackCooldown - this.aiTimer), distance <= this.engageRange));
+      if (action === 'hold') {
+        this.holdGuard(dt);
+        return;
+      }
+      if (this.answer(action)) {
+        this.updateProceduralAnimations(dt, 0);
+        return;
+      }
+    }
     const mode = this.chooseMoveMode(distance, this.engageRange, this.crowdRange, dt);
     let moveMagnitude = 0;
     // Ready and within reach: attack, however close the player has pressed in (backing off forever under
@@ -259,8 +297,82 @@ export class Enemy extends Character {
 
   /** The heading to its target: kept as it was once very close (see BEARING_HOLD). */
   protected bearingTo(toTarget: THREE.Vector3, distance: number): number {
-    if (distance > BEARING_HOLD || this.bearing === null) this.bearing = Math.atan2(toTarget.x, toTarget.z);
+    if (distance > BEARING_HOLD || this.bearing === null || this.guard?.alarmed) this.bearing = Math.atan2(toTarget.x, toTarget.z);
     return this.bearing;
+  }
+
+  /** Faces `yaw` at its usual rate, or quickly while it is turning on someone at its back (`Guard.alarmed`). */
+  protected faceTarget(yaw: number, dt: number): void {
+    if (this.guard?.alarmed) this.turnToward(yaw, this.turnRate * ALARM_RATE, dt, { accel: this.turnAccel * ALARM_ACCEL });
+    else this.turnToward(yaw, this.turnRate, dt);
+  }
+
+  /** What the guard sees of it and the hero this step. `readyIn`: seconds until its own next blow is due. */
+  protected guardView(target: FightTarget, toTarget: THREE.Vector3, distance: number, readyIn: number, inReach: boolean): GuardView {
+    const off = distance > 0.05 ? Math.abs(wrapAngle(Math.atan2(toTarget.x, toTarget.z) - this.group.rotation.y)) : 0;
+    const guard = this.guard!;
+    guard.canShove = this.hasClip('SHOVE') && distance <= guard.spec.shoveRange;
+    return { distance, off, swing: target.swing?.() ?? null, heroDown: target.isDown(), readyIn, inReach, free: this.guardFree() };
+  }
+
+  /** Standing, walking or circling (or already guarding), not winding up, swinging, casting, diving or at ease. */
+  protected guardFree(): boolean {
+    const s = this.stateMachine.currentState;
+    const stance = s === 'IDLE' || s === 'MOVE' || s === 'WALK' || s === 'WALK_BACK' || s.startsWith('STRAFE') || s === 'BLOCK' || s === 'BLOCK_HIT';
+    return stance && !this.isTelegraphing && !this.submerged && !this.atEase;
+  }
+
+  /** The guard is up: it plants itself and turns to face him, nothing else. */
+  protected holdGuard(dt: number): void {
+    this.steer(null, 0, dt);
+    this.updateProceduralAnimations(dt, 0);
+  }
+
+  /**
+   * Its answer to a run of blocked blows (or of blows it took): the kick, or its quickest blow made ready now. True when
+   * the step is taken (the kick began).
+   */
+  protected answer(action: GuardAction): boolean {
+    if (action === 'shove') {
+      this.beginShove();
+      return true;
+    }
+    if (action === 'counter') {
+      this.counterNext = true;
+      this.readyNow();
+      // The cue: a glint along the weapon and the rising warning minions give (a boss has none of its own).
+      if (this.rig) this.particleFX.spawnSparks(this.getWeaponPoints().tip, 12, true);
+      this.soundFX.playTelegraphSound();
+    }
+    return false;
+  }
+
+  /** Its next blow is due now (an answer): the timer that spaces its blows is filled. */
+  protected readyNow(): void {
+    this.aiTimer = this.attackCooldown;
+  }
+
+  /** Seconds into SHOVE that the kick connects (the clip's `contact`, at its playback rate). */
+  public shoveContact(): number {
+    const config = this.rig?.definition.states.SHOVE;
+    return (config?.contact ?? 0.78) / (config?.timeScale ?? 1);
+  }
+
+  /** How far from where it stands as the kick lands (m, on the ground) it reaches. */
+  public shoveReach(): number {
+    return this.visualHeight() * 0.8 + 0.7;
+  }
+
+  protected beginShove(): void {
+    this.shoveLanded = false;
+    this.lungePlan = null;
+    this.stateMachine.changeState('SHOVE');
+  }
+
+  /** The kick: it keeps turning on him until it commits, and the clip carries it in (CombatSystem lands it at `shoveContact`). */
+  protected updateShove(dt: number, toTarget: THREE.Vector3, distance: number): void {
+    if (distance > 0.1 && this.stateMachine.stateTime < this.shoveContact() - 0.2) this.turnToward(this.bearingTo(toTarget, distance), this.turnRate, dt);
+    this.updateProceduralAnimations(dt, 0);
   }
 
   /** Which way to close in on `target`: toward its slot round him if it has one (`assignSlots`), else straight at him. */
@@ -318,6 +430,12 @@ export class Enemy extends Character {
     if (!this.steered) this.velocity.set(0, 0, 0);
     this.steered = false;
     super.update(dt);
+    const now = this.stateMachine.currentState;
+    if (now !== this.lastState) {
+      // One of its own blows has ended (not chained into the next): the opening after it begins (combat/Guard.ts).
+      if (isOwnBlow(this.lastState) && !isOwnBlow(now)) this.guard?.attackEnded();
+      this.lastState = now;
+    }
   }
 
   /** Runs toward the next waypoint of `route`, dropping each as it is reached. */
@@ -414,7 +532,13 @@ export class Enemy extends Character {
     }
     if (this.telegraphTimer < windUp) return;
     this.cancelTelegraph();
-    const attack = this.attackStates[this.attackIndex % this.attackStates.length];
+    let attack = this.attackStates[this.attackIndex % this.attackStates.length];
+    // An answer to a run of blocked blows is its quickest, not the string.
+    if (this.counterNext && attack === 'ATTACK_3' && this.attackStates.length > 1) {
+      this.attackIndex++;
+      attack = this.attackStates[this.attackIndex % this.attackStates.length];
+    }
+    this.counterNext = false;
     this.attackIndex++;
     this.stateMachine.changeState(this.hasClip(attack) || !this.rig ? attack : 'ATTACK_1');
     this.onAttackStart(this.stateMachine.currentState);
@@ -441,6 +565,12 @@ export class Enemy extends Character {
   /** Every state change: swing sounds. Subclasses add their own cues. */
   protected onStateChange(state: CharacterState, _previous: CharacterState): void {
     if (state.startsWith('ATTACK')) this.soundFX.playSwordSwing(this.isBoss ? 0.72 : 0.85, this.swingSound);
+    else if (state === 'SHOVE') this.soundFX.playSwordSwing(0.62, 'heavy');
+  }
+
+  /** Its guard just went up: a rasp of steel on the move (combat/Guard.ts). */
+  public onGuardRaised(): void {
+    this.soundFX.playSwordSwing(1.15, 'blade');
   }
 
   /** A swing begins from the AI (not a chained follow-up). */
@@ -452,6 +582,8 @@ export class Enemy extends Character {
    */
   public isArmored(): boolean {
     const state = this.stateMachine.currentState;
+    // The kick is committed from its wind-up to its contact, and open after.
+    if (state === 'SHOVE') return this.stateMachine.stateTime <= this.shoveContact() + 0.1;
     return this.isTelegraphing || state.startsWith('ATTACK') || state === 'CAST';
   }
 
@@ -486,6 +618,8 @@ export class Enemy extends Character {
 
   /** The greybox swing (0.38 s) cuts through the middle of its arc. */
   protected override defaultHitWindows(state: CharacterState): HitWindow[] {
+    // The kick lands at its contact: a short window round it (the bot, the telegraph table).
+    if (state === 'SHOVE') return [{ t0: Math.max(0, this.shoveContact() - 0.06), t1: this.shoveContact() + 0.1 }];
     const d = this.stateMachine.attackDuration(state);
     if (d <= 0) return [];
     return state === 'ATTACK_1' ? [{ t0: Math.min(0.08, d * 0.2), t1: Math.min(0.3, d * 0.8) }] : [{ t0: d * 0.15, t1: d * 0.75 }];

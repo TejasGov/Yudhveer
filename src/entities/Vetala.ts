@@ -1,4 +1,5 @@
 import { Enemy } from './Enemy';
+import { Guard } from '../combat/Guard';
 import type { CharacterState } from './CharacterStateMachine';
 import type { CharacterDefinition, CharacterRig } from './animation/CharacterRig';
 
@@ -20,6 +21,11 @@ export class Vetala extends Enemy {
     this.currentHealth = 200;
     this.damageScale = 0.92;
     this.maxMarma = 110;
+    // Two blades crossed before him: quick to raise, quick to drop, and his answer is his quick cut or a kick.
+    this.guard = new Guard(this, {
+      base: 0.12, perBlow: 0.2, max: 0.65, hold: 0.7, extend: 0.6, longest: 1.2, cooldown: 1.4, recovery: 0.6, react: 0.09, reach: 3.4,
+      answerAfter: [2, 3], shove: 0.3, shoveRange: 2.4, ring: 'steel',
+    });
     this.moveSpeed = 6.2;
     this.attackCooldown = 1.8;
     this.telegraphDuration = 0.45;

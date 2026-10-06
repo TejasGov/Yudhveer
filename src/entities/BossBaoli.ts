@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { Boss } from './Boss';
+import { Guard } from '../combat/Guard';
 
 /**
  * Chapter I boss, the Baoli Guardian: a 3.2 m horned demon with a talwar (see characters/BaoliGuardian.ts). A slow walker who
@@ -24,6 +25,11 @@ export class BossBaoli extends Boss {
     this.currentHealth = 1000;
     this.damageScale = 0.6;
     this.maxMarma = 140;
+    // He guards with the talwar held high across his face, seldom, and answers after three blocked blows (docs/STORY.md,
+    // "Bosses fight back"): the first boss only teaches that a blow can be turned aside.
+    this.guard = new Guard(this, {
+      base: 0.1, perBlow: 0.2, max: 0.6, hold: 0.8, extend: 0.65, longest: 1.4, cooldown: 1.9, answerAfter: [3, 3], shove: 0.35, ring: 'steel',
+    });
     this.moveSpeed = 3.8;
     this.marmaDecayRate = 9;
     this.lungeSpec = { a: 0.1, b: 0.6, maxDist: 1.6, stopDist: 2.2 };

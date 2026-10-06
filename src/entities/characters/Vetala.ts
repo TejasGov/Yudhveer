@@ -27,6 +27,12 @@ export const VETALA: CharacterDefinition = {
     STAGGER: { clip: 'impact_3', timeScale: 1.3, timesState: true, fade: 0.05 },
     DEFLECTED: { clip: 'impact_2', timeScale: 1.2, fade: 0.05 },
     POSTURE_BROKEN: { clip: 'crouch_idle', fade: 0.2 },
+    // The guard (combat/Guard.ts), the Great Sword Pack's: a raise into a crouched guard that holds on its last pose; a blow
+    // taken in it, after which the guard settles back into the held pose (`from`); and a front kick, the answer to a run of
+    // blocked blows (it connects 0.78 s into the clip: `contact`).
+    BLOCK: { clip: 'great_sword_blocking', timeScale: 1.5, fade: 0.1, from: { BLOCK_HIT: 0.46 } },
+    BLOCK_HIT: { clip: 'great_sword_impact', timeScale: 1.5, timesState: true, fade: 0.04 },
+    SHOVE: { clip: 'great_sword_kick_2', timeScale: 1.15, timesState: true, rootMotion: true, fade: 0.15, contact: 0.78 },
     DEAD: { clip: 'death_2', fade: 0.1 },
   },
   locomotion: { walkSpeed: 1.3, moveSpeed: 3.6, sprintSpeed: 5 },

@@ -29,6 +29,12 @@ export const TAKSHAKA: CharacterDefinition = {
     STAGGER: { clip: 'standing_react_large_gut', timeScale: 1.7, timesState: true, fade: 0.08 }, // ~0.95 s: a beat, not a free combo
     DEFLECTED: { clip: 'standing_react_large_gut', timeScale: 0.8, fade: 0.08 },
     POSTURE_BROKEN: { clip: 'standing_react_large_gut', timeScale: 0.5, fade: 0.1 },
+    // The guard (combat/Guard.ts), the Great Sword Pack's: a raise into a crouched guard that holds on its last pose; a blow
+    // taken in it, after which the guard settles back into the held pose (`from`); and a front kick, the answer to a run of
+    // blocked blows (it connects 0.78 s into the clip: `contact`).
+    BLOCK: { clip: 'great_sword_blocking', timeScale: 1.5, fade: 0.1, from: { BLOCK_HIT: 0.46 } },
+    BLOCK_HIT: { clip: 'great_sword_impact', timeScale: 1.5, timesState: true, fade: 0.04 },
+    SHOVE: { clip: 'great_sword_kick_2', timeScale: 1.15, timesState: true, rootMotion: true, fade: 0.15, contact: 0.78 },
     DEAD: { clip: 'mutant_dying', fade: 0.15 },
   },
   locomotion: { walkSpeed: 1.8, moveSpeed: 2.2, sprintSpeed: 4 },

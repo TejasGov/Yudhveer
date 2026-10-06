@@ -1179,6 +1179,41 @@ export class SoundFX {
   }
 
   /**
+   * The hero's blow turned aside by a boss's weapon (combat/Guard.ts): the clang of the two (`strike`: steel on steel, iron
+   * for a gada or a cleaver, the same an octave down and a longer ring, a claw's dull scrape and a small clang), the ring of the
+   * bronze after it, and the weight of his own blow meeting a guard under it (his staff's crack, a mace's boom). `power` ~1.
+   */
+  public playBlocked(strike: 'steel' | 'iron' | 'claw', power = 1, hero: ImpactKind = 'blade'): void {
+    const p = Math.min(1.4, power);
+    const iron = strike === 'iron';
+    if (hero === 'wood') {
+      // A staff on a raised blade: the crack of bamboo and a knock, the metal's ring a faint thing behind it.
+      this.playBlowWeight('wood', 0);
+      this.playClang(iron ? 'iron' : 'steel', 0.45 * p);
+      return;
+    }
+    if (strike === 'claw') {
+      // Steel on a forearm and its claws: a dull knock, a scrape, a small clang.
+      if (!this.sample('glancing_blow', { gain: 1.2 * p })) this.playGlancingBlow();
+      this.playClang('steel', 0.55 * p);
+      this.thump(96, 0.14, 0.14 * p);
+      return;
+    }
+    this.playClang(strike, 1.15 * p);
+    // The ring the metals leave (the recording of steel on bronze, pitched to the weapon) and the blow's own weight.
+    this.sample('parry_clash', { gain: iron ? 0.55 : 0.4, rate: iron ? 0.78 : 1.12, wet: 0.12 });
+    this.thump(iron ? 68 : 104, iron ? 0.22 : 0.15, (iron ? 0.2 : 0.14) * p);
+    if (hero === 'crush') this.sample('hit_crush', { rate: 0.62, gain: 0.35 });
+  }
+
+  /** A boss's guard is broken by a heavy blow: the clash of the metals, struck hard, and the gong of a stance giving way. */
+  public playGuardBreak(strike: 'steel' | 'iron' | 'claw' = 'steel'): void {
+    this.playClang(strike === 'iron' ? 'iron' : 'steel', 1.4);
+    this.sample('parry_clash', { gain: 0.8, rate: strike === 'iron' ? 0.82 : 1, wet: 0.15 });
+    this.sample('posture_break', { gain: 0.45, rate: 1.1, delay: 0.03 });
+  }
+
+  /**
    * A weapon struck on stone (the mace's slam, a leaping strike): the recording of a mace on flagstone, a boom under it
    * and the chips. `power` ~0.6 to 1.4.
    */

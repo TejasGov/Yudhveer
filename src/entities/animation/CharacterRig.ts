@@ -78,6 +78,16 @@ export interface StateAnimation {
    * long as that span; the next state's cross-fade takes the pose from there.
    */
   endAt?: number;
+  /**
+   * Clip seconds to start from when the state is entered from a particular other one: a guard that went up, took a blow
+   * and settles back into the guard carries on from the held pose (the end of its raise), not from the raise again.
+   */
+  from?: Partial<Record<CharacterState, number>>;
+  /**
+   * Clip seconds at which the move lands (a boss's kick connects), for moves that are not a blade's swing and so have
+   * no strike window measured from the weapon's motion.
+   */
+  contact?: number;
 }
 
 export interface SocketAttachment {

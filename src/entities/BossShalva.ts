@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { Boss } from './Boss';
+import { Guard } from '../combat/Guard';
 import { SceneManager } from '../core/SceneManager';
 import type { FightTarget } from './Enemy';
 
@@ -100,6 +101,10 @@ export class BossShalva extends Boss {
     this.currentHealth = 800;
     this.damageScale = 1.14;
     this.maxMarma = 150;
+    // The gada held across him; iron on steel rings low.
+    this.guard = new Guard(this, {
+      base: 0.12, perBlow: 0.2, max: 0.65, hold: 0.85, extend: 0.7, longest: 1.5, cooldown: 1.6, answerAfter: [2, 3], shove: 0.4, ring: 'iron',
+    });
     this.moveSpeed = 4;
     this.marmaDecayRate = 9;
     this.turnRate = 4;

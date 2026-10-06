@@ -20,8 +20,9 @@ export type CharacterState =
   | 'CHARGE' // gathering power; held, so the controller ends it
   | 'CAST' // a ranged attack (a projectile or wave does the damage, not the blade)
   | 'PARRY'
-  | 'BLOCK' // guard held after the parry window; the controller ends it
+  | 'BLOCK' // guard held after the parry window; the controller ends it (a boss's: combat/Guard.ts)
   | 'BLOCK_HIT' // a blow taken on the guard
+  | 'SHOVE' // a boss's answer to a spammer at its feet: a kick that sends the hero back (combat/Guard.ts)
   | 'SHEATHE'
   | 'DRAW'
   | 'STAGGER'
@@ -33,7 +34,7 @@ export type CharacterState =
 export type TimedStateKey =
   | 'ATTACK_1_DURATION' | 'ATTACK_2_DURATION' | 'ATTACK_3_DURATION' | 'ATTACK_JUMP_DURATION'
   | 'CHARGE_DURATION' | 'BLOCK_HIT_DURATION' | 'SHEATHE_DURATION' | 'DRAW_DURATION' | 'STAGGER_DURATION'
-  | 'CAST_DURATION' | 'DODGE_DURATION';
+  | 'CAST_DURATION' | 'DODGE_DURATION' | 'SHOVE_DURATION';
 
 export class CharacterStateMachine {
   public currentState: CharacterState = 'IDLE';
@@ -62,12 +63,14 @@ export class CharacterStateMachine {
   public STAGGER_DURATION = 0.35;
   public CAST_DURATION = 0.7;
   public DODGE_DURATION = 0.8;
+  public SHOVE_DURATION = 1.4;
   /**
    * Per attack: from when (state seconds) a queued follow-up may cut the rest of the swing short. Without an entry
    * the whole attack plays out first (enemies). The player's are set where each swing's blade has finished.
    */
   public cancelAt: Partial<Record<CharacterState, number>> = {};
-  public readonly DEFLECTED_DURATION = 0.75;
+  /** How long a deflection (a parried enemy's) lasts; the hero's, a weapon turned aside by a boss's guard, is shorter (Player). */
+  public DEFLECTED_DURATION = 0.75;
   public readonly POSTURE_BROKEN_DURATION = 2.5;
 
   /** Length of an attack state (for hit windows); 0 for anything else. */
@@ -217,6 +220,12 @@ export class CharacterStateMachine {
 
       case 'DEFLECTED':
         if (this.stateTime >= this.DEFLECTED_DURATION) {
+          this.changeState('IDLE');
+        }
+        break;
+
+      case 'SHOVE':
+        if (this.stateTime >= this.SHOVE_DURATION) {
           this.changeState('IDLE');
         }
         break;

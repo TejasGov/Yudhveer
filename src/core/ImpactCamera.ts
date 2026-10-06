@@ -25,6 +25,7 @@ export type ImpactKind =
   | 'hitLight' | 'hitHeavy' | 'hitSlam' | 'glance' // the hero's blows landing (slam: charged, leaping, a gada finisher)
   | 'hurt' | 'hurtHeavy' // the hero struck (heavy: a boss's finisher)
   | 'block' | 'deflect' | 'postureBreak' | 'guardBroken' // guard and parry; a posture broken (an enemy's, the hero's)
+  | 'clash' // the hero's blow turned aside by a boss's guard: a short freeze and a kick back along the bounce
   | 'bossKill' | 'quake' | 'evade' // a boss's last blow; the ground shaking (a boss's roar); a slide under a blow
   | 'thud'; // a weapon brought down on stone (the mace's slam, a leaping strike): a dip, a low rumble, no side to it
 
@@ -59,6 +60,7 @@ export const IMPACTS: Record<ImpactKind, ImpactSpec> = {
   hurtHeavy: { freeze: 90, trauma: 0.45, kick: 1.0, dip: 0, push: 0.03, fov: 1, fovMs: 200, rumble: [0.75, 0.4, 200] },
   block: { freeze: 30, trauma: 0.08, kick: 0.35, dip: 0, push: 0.01, fov: 0, fovMs: 0, rumble: [0.1, 0.35, 60] },
   deflect: { freeze: 90, trauma: 0.12, kick: 0.5, dip: 0, push: 0.02, fov: -1.5, fovMs: 120, rumble: [0.15, 0.7, 60] },
+  clash: { freeze: 75, trauma: 0.14, kick: 0.55, dip: 0, push: 0.01, fov: 0, fovMs: 0, rumble: [0.25, 0.5, 90] },
   postureBreak: { freeze: 140, trauma: 0.35, kick: 0.7, dip: 0, push: 0.03, fov: -2, fovMs: 260, rumble: [0.5, 0.5, 180] },
   guardBroken: { freeze: 100, trauma: 0.4, kick: 0.9, dip: 0, push: 0.03, fov: 1.5, fovMs: 250, rumble: [0.7, 0.3, 220] },
   bossKill: { freeze: 200, trauma: 0.65, kick: 1.2, dip: 0, push: 0.04, fov: -3, fovMs: 1400, rumble: [1, 0.6, 350] },

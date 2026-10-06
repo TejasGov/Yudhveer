@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { Boss } from './Boss';
+import { Guard } from '../combat/Guard';
 import type { CharacterState } from './CharacterStateMachine';
 import { ProjectileManager } from '../combat/ProjectileManager';
 import { SceneManager } from '../core/SceneManager';
@@ -45,6 +46,10 @@ export class BossTakshaka extends Boss {
     this.currentHealth = 1000;
     this.damageScale = 1.19;
     this.maxMarma = 170;
+    // No weapon: his forearms and claws come up across his face.
+    this.guard = new Guard(this, {
+      base: 0.1, perBlow: 0.18, max: 0.6, hold: 0.8, extend: 0.65, longest: 1.4, cooldown: 1.7, answerAfter: [2, 3], shove: 0.4, ring: 'claw',
+    });
     this.moveSpeed = 4.2;
     this.marmaDecayRate = 8;
     this.turnRate = 4.5;

@@ -78,11 +78,21 @@ export class Boss extends Enemy {
     this.soundFX.playRoar(this.bodyHeight > 3 ? 0.8 : 1);
   }
 
-  /** Its next attack in rotation (the states its rig has). */
+  /** Its next attack in rotation (the states its rig has); an answer to a run of blocked blows is its quickest, not its string. */
   protected chooseAttack(): CharacterState {
-    const options = (['ATTACK_1', 'ATTACK_2', 'ATTACK_3'] as CharacterState[]).filter((s) => this.hasClip(s) || !this.rig);
+    let options = (['ATTACK_1', 'ATTACK_2', 'ATTACK_3'] as CharacterState[]).filter((s) => this.hasClip(s) || !this.rig);
+    if (this.counterNext) {
+      const quick = options.filter((s) => s !== 'ATTACK_3');
+      if (quick.length) options = quick;
+      this.counterNext = false;
+    }
     this.attackChoice = (this.attackChoice + 1) % options.length;
     return options[this.attackChoice];
+  }
+
+  /** Its next blow is due now (an answer). */
+  protected override readyNow(): void {
+    this.attackTimer = this.tuning.attackInterval;
   }
 
   /** Extra behaviour before the melee loop (phase changes, ranged attacks); true when it took the step. */
@@ -104,13 +114,17 @@ export class Boss extends Enemy {
     const toTarget = new THREE.Vector3().subVectors(target.getPosition(), this.getPosition()).setY(0);
     const distance = toTarget.length();
     if (distance > 0.1 && this.mayTrack() && state !== 'CHARGE') {
-      this.turnToward(this.bearingTo(toTarget, distance), this.turnRate, dt);
+      this.faceTarget(this.bearingTo(toTarget, distance), dt);
     }
     if (state !== 'ATTACK_JUMP') this.rootMotionScale = 1;
 
     if (state.startsWith('ATTACK')) {
       if (!this.rigDrivesMotion(state)) this.applyLunge(dt);
       this.updateProceduralAnimations(dt, 0);
+      return;
+    }
+    if (state === 'SHOVE') {
+      this.updateShove(dt, toTarget, distance);
       return;
     }
     // The roar and casts play out where it stands.
@@ -136,6 +150,18 @@ export class Boss extends Enemy {
     // crowding it cannot keep it from attacking. Kept at a distance, it leaps.
     this.attackTimer += dt;
     const { attackInterval, strikeRange, tooClose, leapRange, leapMax } = this.tuning;
+    // Guarding, or answering a run of blows: before anything else it might do (combat/Guard.ts).
+    if (this.guard) {
+      const action = this.guard.step(dt, this.guardView(target, toTarget, distance, Math.max(0, attackInterval - this.attackTimer), distance <= strikeRange));
+      if (action === 'hold') {
+        this.holdGuard(dt);
+        return;
+      }
+      if (this.answer(action)) {
+        this.updateProceduralAnimations(dt, 0);
+        return;
+      }
+    }
     const ready = this.attackTimer >= attackInterval;
     const mode = this.chooseMoveMode(distance, strikeRange, tooClose, dt);
     const leapClip = this.rig?.definition.states.ATTACK_JUMP;

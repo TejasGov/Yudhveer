@@ -215,6 +215,17 @@ export class HitFeel {
   }
 
   /**
+   * The hero's blow turned aside by a boss's guard (combat/Guard.ts): the clang of the two weapons (`strike`: what the boss's is made
+   * of), chingaari thrown along the way his blade was going and back out to him, a flash of light where they met. A staff throws no
+   * sparks: a knock and a little dust. `power` ~1.
+   */
+  public static blocked(o: { point: THREE.Vector3; attacker: Character; weapon: BlowKind; strike: 'steel' | 'iron' | 'claw'; power: number; floor: number; dt: number }): void {
+    const iron = o.strike === 'iron' || o.weapon === 'crush';
+    SoundFX.getInstance().playBlocked(iron ? 'iron' : o.strike, o.power, o.weapon);
+    this.clash({ point: o.point, attacker: o.attacker, weapon: o.weapon === 'wood' ? 'wood' : iron ? 'crush' : 'blade', power: o.power, floor: o.floor, dt: o.dt });
+  }
+
+  /**
    * Each simulation step, for a character swinging: a blade or mace brought down on the floor (the mace's slam, any weapon's
    * leaping strike) throws sparks and dust, shakes the camera a little and thuds. Once per swing, and not if the swing has
    * already landed on someone (`landed`: its force went into them). `impact` is CombatSystem's: the camera, the hit-stop and

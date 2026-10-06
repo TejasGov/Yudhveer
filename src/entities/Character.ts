@@ -25,6 +25,7 @@ const TIMED_STATES: Partial<Record<CharacterState, TimedStateKey>> = {
   STAGGER: 'STAGGER_DURATION',
   CAST: 'CAST_DURATION',
   DODGE: 'DODGE_DURATION',
+  SHOVE: 'SHOVE_DURATION',
 };
 /** A swing can be cut short this long (s) after its blade has finished. */
 const CANCEL_AFTER_STRIKE = 0.06;
@@ -42,6 +43,8 @@ const LOCOMOTION_KEYS: CharacterState[] = ['IDLE', 'REST', ...LOCOMOTION_STATES]
  * neighbour by degrees, and chasing that at full turn rate is what made headings look nervous.
  */
 const TURN_DEADZONE = THREE.MathUtils.degToRad(1.5);
+/** A shove bleeds off at this rate (1/s): 90 % of it is done in a third of a second. */
+const KNOCK_RATE = 7;
 /** Turn speed asked for per radian still to turn (1/s): a turn eases into its heading instead of stopping dead. */
 const TURN_GAIN = 8;
 /** How quickly the speed that paces the stride follows the real speed (1/s): shoves and single steps don't flicker it. */
@@ -57,6 +60,8 @@ const _scabbardQuat = new THREE.Quaternion();
 const _scabbardTurn = new THREE.Quaternion();
 const _trailTip = new THREE.Vector3();
 const _trailHilt = new THREE.Vector3();
+const _knock = new THREE.Vector3();
+const _knockTo = new THREE.Vector3();
 
 /** The strike windows measured for each character definition (see `Character.fitProps`). */
 const STRIKES = new WeakMap<CharacterDefinition, Map<CharacterState, HitWindow[]>>();
@@ -156,6 +161,8 @@ export class Character extends Entity {
   private turnedYaw = 0;
   /** Its weight in the fighter-separation push, about its capsule's volume (the hero's is 1): big bodies shove small ones. */
   public mass = 1;
+  /** A shove in progress (m/s on the ground): it bleeds off at `KNOCK_RATE` and is resolved with the rest of the step by the motor. */
+  private readonly knockVel = new THREE.Vector3();
   /** This step's shove from fighter separation (x, z metres): not its own movement, so the stride ignores it. */
   public readonly sepPush = new THREE.Vector3();
   /**
@@ -342,6 +349,20 @@ export class Character extends Entity {
     if (this.motor) this.motor.teleport(this.group.position);
     else this.rigidBody?.setTranslation({ x, y, z }, true);
     this.markTeleported();
+  }
+
+  /**
+   * Shoved `metres` along `dir` (ground plane): a quick slide that eases off over about a third of a second, never off
+   * an edge (it stops short where there is no ground) and never through a wall (the motor resolves it).
+   */
+  public knock(dir: THREE.Vector3, metres: number): void {
+    const d = _knock.set(dir.x, 0, dir.z);
+    if (d.lengthSq() < 1e-6 || metres <= 0) return;
+    d.normalize();
+    // The ground a step beyond where it will come to rest, else as far as there is ground.
+    let reach = metres;
+    while (reach > 0.3 && !CharacterMotor.hasGround(_knockTo.copy(this.group.position).addScaledVector(d, reach + 0.3), 1.2)) reach -= 0.3;
+    this.knockVel.addScaledVector(d, Math.max(0, reach) * KNOCK_RATE);
   }
 
   /** It was moved (or turned) in one go, not by walking there: no interpolation from where it was, no turn under way. */
@@ -546,7 +567,10 @@ export class Character extends Entity {
         && LOCOMOTION_KEYS.includes(this.rigKey) && this.rigKeyAge < this.visualDwell;
       if (!hop) {
         const config = this.stateAnimation(key);
-        rig.play(sm.currentState === 'JUMP' && this.jump.clip ? { ...config, clip: this.jump.clip } : config);
+        // Entered from a state whose pose this one carries on from (a guard settling back after a blow): from there on.
+        const from = this.rigState ? config.from?.[this.rigState] : undefined;
+        const played = from !== undefined ? { ...config, startAt: from, fade: Math.min(config.fade ?? 0.15, 0.05) } : config;
+        rig.play(sm.currentState === 'JUMP' && this.jump.clip ? { ...played, clip: this.jump.clip } : played);
         if (key !== this.rigKey) this.rigKeyAge = 0;
         this.rigState = sm.currentState;
         this.rigKey = key;
@@ -997,6 +1021,10 @@ export class Character extends Entity {
     }
 
     this.coastTurn(dt);
+    if (this.knockVel.lengthSq() > 1e-4) {
+      this.group.position.addScaledVector(this.knockVel, dt);
+      this.knockVel.multiplyScalar(Math.exp(-KNOCK_RATE * dt));
+    } else this.knockVel.set(0, 0, 0);
     // Last: everything this step moved the character freely; collide, step and fall in one place.
     this.motor?.resolve(this.group.position, dt);
     const pos = this.group.position;

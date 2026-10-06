@@ -6,6 +6,7 @@ import { SoundFX } from '../combat/SoundFX';
 import { ParticleFX } from '../combat/ParticleFX';
 import { KITS, Skills, type Ability, type Attire, type HeroKit } from '../game/Progression';
 import { WEAPON_SETS, dressed, type WeaponSet } from './characters/YodhaWeapons';
+import type { HeroSwing } from '../combat/Guard';
 
 /** A completed charge (hold Q) empowers this many blows, each dealing this much more damage and posture. */
 const CHARGED_HITS = 3;
@@ -52,6 +53,12 @@ const ASSIST = {
 const SLIDE = { untouchable: [0.1, 0.78], actFrom: 0.92, travel: 0.8 };
 /** After a swing's cancel point, movement takes over this much later than a slide or a follow-up blow. */
 const MOVE_CANCEL_DELAY = 0.12;
+/**
+ * His blow turned aside by a boss's guard throws him back a step and out of the swing (DEFLECTED): this long, and from this
+ * far into it he can slide, guard or parry out of it (the answer the boss makes comes after the recoil, never into it).
+ */
+const RECOIL = 0.3;
+const RECOIL_FREE = 0.14;
 
 export class Player extends Character {
   private inputManager: InputManager;
@@ -86,6 +93,8 @@ export class Player extends Character {
   /** Who might be struck, and this step's input direction (world, zero when none): attacks aim with them. */
   private foes: readonly Character[] = [];
   private aimDir = new THREE.Vector3();
+  /** Counts his swings (a chained blow is a new one): the boss's guard decides about each as it begins. */
+  private swingSerial = 0;
   /** The enemy the current swing is aimed at, and how far it steps in before its blade arrives (state seconds). */
   private attackTarget: Character | null = null;
   /** A swing at nothing turns him to where he aimed it (yaw), over its wind-up; null when it has a target or no aim. */
@@ -103,9 +112,11 @@ export class Player extends Character {
     this.soundFX = SoundFX.getInstance();
     this.particleFX = ParticleFX.getInstance();
 
+    this.stateMachine.DEFLECTED_DURATION = RECOIL;
     this.stateMachine.onStateChanged = (newState) => {
       this.rootMotionScale = 1;
       if (newState.startsWith('ATTACK')) {
+        this.swingSerial++;
         const swing = this.weapon.sound.swing;
         this.soundFX.playSwordSwing(newState === 'ATTACK_1' ? swing[0] : newState === 'ATTACK_2' ? swing[1] : swing[2], this.weapon.sound.whoosh);
         this.aimAttack(newState); // chained swings too, which the state machine starts
@@ -201,7 +212,9 @@ export class Player extends Character {
     // A swing whose blade has finished can be cut short (and a slide once he is back up).
     const recovering = this.inRecovery();
     const slideDone = state === 'DODGE' && this.slideRecovered();
-    const canAct = free || state === 'BLOCK' || recovering || slideDone;
+    // Rocked back by a boss's guard: a moment on, he may slide, guard or parry out of it (not swing again).
+    const recoiled = state === 'DEFLECTED' && sm.stateTime >= RECOIL_FREE;
+    const canAct = free || state === 'BLOCK' || recovering || slideDone || recoiled;
 
     // 0. Slide (F): out of anything but a hit, a fall or the middle of a swing.
     if (input.dodge && grounded && this.can('dodge') && (canAct || state === 'CHARGE' || (state === 'PARRY' && !sm.isParryActive))) {
@@ -497,6 +510,28 @@ export class Player extends Character {
 
   public override takeDamage(amount: number): void {
     super.takeDamage(this.mortal ? amount : Math.max(0, Math.min(amount, this.currentHealth - 1)));
+  }
+
+  /** The blow he is making, for a boss that guards to watch (combat/Guard.ts); null when he is not swinging. */
+  public swing(): HeroSwing | null {
+    const sm = this.stateMachine;
+    const state = sm.currentState;
+    if (!state.startsWith('ATTACK')) return null;
+    const first = this.hitWindows(state)[0];
+    const blow = this.weapon.blows[state] ?? this.weapon.blows.ATTACK_1;
+    return { id: this.swingSerial, until: Math.max(0, (first?.t0 ?? 0) - sm.stateTime), heavy: this.chargedHits > 0 || !!blow?.heavy };
+  }
+
+  /**
+   * A boss's guard turned his blow aside: the blade bounces, he is rocked back a step (`metres`) and loses the rest of the
+   * swing and the chain with it, for the moment `RECOIL` lasts (a slide, a guard or a parry can cut it short).
+   */
+  public recoil(from: THREE.Vector3, metres: number): void {
+    const state = this.stateMachine.currentState;
+    if (state === 'DEAD' || state === 'POSTURE_BROKEN') return;
+    this.stateMachine.changeState('DEFLECTED');
+    this.speed = 0;
+    this.knock(this.getPosition().clone().sub(from), metres);
   }
 
   /** Down and out of the fight (enemies stop pressing). */

@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { Boss } from './Boss';
+import { Guard } from '../combat/Guard';
 import type { CharacterRig, CharacterDefinition } from './animation/CharacterRig';
 import { SceneManager } from '../core/SceneManager';
 import { Voices } from '../combat/Voices';
@@ -65,6 +66,11 @@ export class BossAndhaka extends Boss {
     this.damageScale = 1.3; // the last fight: his blows land harder than any other's
     this.armorDamage = 0.4; // light blows thrown into his swing glance off his hide
     this.maxMarma = 200;
+    // The cleaver held across him. He swings so often (every 1.1 s, 0.8 s in his second phase) that the guard can only ever be
+    // short: it comes down into his next blow.
+    this.guard = new Guard(this, {
+      base: 0.1, perBlow: 0.2, max: 0.65, hold: 0.75, extend: 0.65, longest: 1.3, cooldown: 1.4, answerAfter: [2, 3], shove: 0.35, ring: 'iron',
+    });
     this.moveSpeed = 4;
     this.marmaDecayRate = 8;
     this.turnRate = 4;
