@@ -42,8 +42,13 @@ export interface WeaponSet {
 
 /** A weapon set's rig on the model of what he wears (the same clips and sockets either way). */
 export function dressed(set: WeaponSet, attire: Attire): CharacterDefinition {
-  return { ...set.definition, ...ATTIRE_MODELS[attire] };
+  // The same definition each time (his strike windows are measured once for it, `Character.fitProps`).
+  const key = `${set.id}:${attire}`;
+  let definition = DRESSED.get(key);
+  if (!definition) DRESSED.set(key, (definition = { ...set.definition, ...ATTIRE_MODELS[attire] }));
+  return definition;
 }
+const DRESSED = new Map<string, CharacterDefinition>();
 
 /** A hero rig on `YODHA`'s model, clips and locomotion with the pieces a weapon changes swapped in. */
 function heroWith(parts: Pick<CharacterDefinition, 'weapon' | 'sheath'> & { states?: Partial<Record<CharacterState, StateAnimation>>; offhand?: false }): CharacterDefinition {

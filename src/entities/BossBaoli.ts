@@ -8,7 +8,7 @@ import { Boss } from './Boss';
 export class BossBaoli extends Boss {
   constructor(id = 'baoli_guardian') {
     super(id, 0x2a3342, {
-      attackInterval: 1.6,
+      attackInterval: 2, // was 1.6 (milestone 12: the first boss is gentle)
       strikeRange: 3.8, // 2.9 m tall with a 1.7 m blade
       tooClose: 1.8,
       leapRange: 6.5,
@@ -18,8 +18,11 @@ export class BossBaoli extends Boss {
     this.displayName = 'Baoli Guardian';
     // The well's own protector, bound by Andhaka (docs/STORY.md, Chapter I), not a demon of it.
     this.epithet = 'Keeper of the stepwell';
-    this.maxHealth = 450;
-    this.currentHealth = 450;
+    // Milestone 12 (docs/STORY.md): health 450 -> 1000 and blows at 60 % (18 and 24 -> 10.8 and 14.4): the fight lasts longer
+    // and costs far less (a steady player lost 74 health of 100 in it before, 39 now).
+    this.maxHealth = 1000;
+    this.currentHealth = 1000;
+    this.damageScale = 0.6;
     this.maxMarma = 140;
     this.moveSpeed = 3.8;
     this.marmaDecayRate = 9;

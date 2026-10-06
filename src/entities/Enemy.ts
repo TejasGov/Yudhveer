@@ -72,7 +72,7 @@ export class Enemy extends Character {
   public introCardDelay = 1.2;
   /** Light hits never make it flinch (bosses): only heavy blows, deflections and a posture break do. */
   public heavyPoise = false;
-  /** Its blows deal this much more (or less) than the usual for its kind (CombatSystem's enemyBlow). */
+  /** Its blows, and the bolts and fire it throws, deal this much more (or less) than the usual for its kind (CombatSystem's enemyBlow). */
   public damageScale = 1;
   /** Share of a light blow's damage that gets through while it is armoured (committed to an attack). */
   public armorDamage = 1;

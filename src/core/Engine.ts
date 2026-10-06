@@ -40,12 +40,13 @@ import { ANDHAKA } from '../entities/characters/Andhaka';
 import { ANDHAKA_THRONE } from '../levels/Level4_Summit';
 import { RAIDER } from '../entities/characters/Village';
 import { MENTOR } from '../entities/characters/Akhada';
-import { AKHADA_MARKS } from '../game/stories/Akhada';
+import { ATTIRE_MODELS } from '../entities/characters/Yodha';
+import { AKHADA_MARKS, forgetLesson } from '../game/stories/Akhada';
 import { CharacterRig, type CharacterDefinition } from '../entities/animation/CharacterRig';
 import { Character } from '../entities/Character';
 import { separateFighters } from '../physics/CharacterMotor';
 import { CHAPTERS, LAST_CHAPTER, chapterById, chapterTitle, type Chapter } from '../game/Chapters';
-import { KITS, type Ability } from '../game/Progression';
+import { KITS, forgetLearned, type Ability } from '../game/Progression';
 import { ExpeditionRun, type ExpeditionSpawn } from '../game/Expedition';
 import { CinematicDirector } from '../cinematics/CinematicDirector';
 import { buildIntro, buildArrival, ATTRACT, type IntroContext } from '../cinematics/Intros';
@@ -540,7 +541,10 @@ export class Engine {
 
     click('title', (action) => {
       if (action === 'continue') void this.beginCampaign(Math.min(Progress.unlocked(), LAST_CHAPTER));
-      else if (action === 'new') void this.beginCampaign(CHAPTERS[0].id);
+      else if (action === 'new') {
+        this.newCampaign();
+        void this.beginCampaign(CHAPTERS[0].id);
+      }
       else if (action === 'chapters') this.openChapters();
       else if (action === 'settings') this.openSettings();
       else if (action === 'controls') this.screens.push('controls');
@@ -615,6 +619,17 @@ export class Engine {
       return;
     }
     this.enterTitle();
+  }
+
+  /**
+   * A new game: what the last one left in the session is forgotten (the scenes seen, the hints shown, the akhada's lesson
+   * passed, the moves the fights taught), so the story and its teaching play again. The chapters stay unlocked.
+   */
+  private newCampaign(): void {
+    this.seenScenes.clear();
+    this.hintsShown.clear();
+    forgetLesson();
+    forgetLearned();
   }
 
   /** Starts a chapter from a menu: the click is a user gesture, so the mouse can be locked now. */
@@ -826,7 +841,11 @@ export class Engine {
     const needLevel = !this.levelManager.isLoaded(chapter.level);
     let levelShare = needLevel ? 0 : 1;
     let rigShare = 0;
-    const report = () => this.showLoading(kicker, chapter.name, levelShare * 0.75 + rigShare * 0.25);
+    // Only the load that is still the current one may draw the loading screen: one that was replaced (a retry sent twice,
+    // the title chosen meanwhile) finishes its rigs late, and drew it over a fight already begun.
+    const report = () => {
+      if (token === this.loadToken) this.showLoading(kicker, chapter.name, levelShare * 0.75 + rigShare * 0.25);
+    };
     report();
     this.soundFX.music.play(LEVEL_MUSIC[chapter.level] ?? 'title');
     this.soundFX.playAmbience(LEVEL_AMBIENCE[chapter.level] ?? null);
@@ -843,16 +862,21 @@ export class Engine {
     // A (re)started chapter puts back what its story changed in the place (the summit's beacon smoulders again).
     this.levelManager.activeLevel?.cue?.('chapter-start');
 
+    // Models nothing here uses go (a chapter's own stay for its retries); the rest of what it will need starts parsing.
+    CharacterRig.trim(this.chapterModels(chapter));
+    this.prefetchLater(chapter);
+
     // The chapter decides his weapon and moves; a new weapon is a new rig, so it loads with the rest.
     const hero = this.player.equip(KITS[chapter.kit])
       .catch((err) => console.error('[Engine] Yodha failed to arm; keeping the previous weapon', err));
     const rigs = [hero, ...this.spawnEnemies(chapter), ...this.startHorde(chapter), ...this.spawnCast(chapter)];
     this.finale = FINALES[chapter.level] ? { def: FINALES[chapter.level], boss: null } : null;
-    if (this.finale) CharacterRig.prefetch(this.finale.def.rig);
     // The boss's music, ready for when he comes.
     if (this.finale || this.enemies.some((e) => e.isBoss)) this.soundFX.music.prefetch(this.finale?.def.music ?? 'boss');
     let done = 0;
     await Promise.all(rigs.map((p) => p.finally(() => { rigShare = ++done / rigs.length; report(); })));
+    if (token !== this.loadToken) return;
+    await this.warmUp(chapter);
     if (token !== this.loadToken) return;
 
     this.placeHero();
@@ -869,7 +893,6 @@ export class Engine {
     this.linesEndedAt = -Infinity;
     Voices.preload(storyVoices(chapter.story));
     this.expedition = chapter.expedition ? new ExpeditionRun(chapter.expedition, chapter.id, options.intro) : null;
-    for (const e of chapter.expedition?.encounters ?? []) for (const s of e.spawns) CharacterRig.prefetch(s.rig);
     this.hideLoading();
 
     if (options.intro) this.playIntro(chapter);
@@ -881,12 +904,86 @@ export class Engine {
     }
   }
 
+  /** Every character model a chapter can need (the hero's two looks, its foes, the story's cast): what stays loaded for its retries. */
+  private chapterModels(chapter: Chapter): string[] {
+    const defs: CharacterDefinition[] = [];
+    for (const s of SPAWNS[chapter.level] ?? []) defs.push(s.rig);
+    const horde = HORDES[chapter.level];
+    if (horde) defs.push(horde.minionRig, ...(horde.alt ? [horde.alt.rig] : []));
+    const finale = FINALES[chapter.level];
+    if (finale) defs.push(finale.rig);
+    for (const m of chapter.story?.cast ?? []) defs.push(m.rig);
+    for (const e of chapter.expedition?.encounters ?? []) for (const s of e.spawns) defs.push(s.rig);
+    const kit = KITS[chapter.kit];
+    const looks = [kit.attire, kit.becomes].filter((a): a is NonNullable<typeof a> => !!a).map((a) => ATTIRE_MODELS[a].model);
+    return [...defs.map((d) => d.model), ...looks];
+  }
+
+  /** Everyone who comes into a chapter after it starts (a wave's second kind, the final boss, an expedition's creatures): who and how. */
+  private laterFoes(chapter: Chapter): { make: () => Enemy; rig: CharacterDefinition }[] {
+    const later: { make: () => Enemy; rig: CharacterDefinition }[] = [];
+    const horde = HORDES[chapter.level];
+    if (horde?.alt) later.push({ make: () => horde.alt!.minion(0), rig: horde.alt.rig });
+    const finale = FINALES[chapter.level];
+    if (finale) later.push({ make: finale.make, rig: finale.rig });
+    for (const e of chapter.expedition?.encounters ?? []) for (const s of e.spawns) later.push({ make: () => s.make(`warm_${s.id}`), rig: s.rig });
+    return later;
+  }
+
+  /** The models those later foes are made from start downloading and parsing now, so their spawn is only a clone. */
+  private prefetchLater(chapter: Chapter): void {
+    for (const f of this.laterFoes(chapter)) CharacterRig.prefetch(f.rig);
+  }
+
+  /** The later foes made once under the loading screen, kept (hidden) for as long as the chapter: their programs and strike windows. */
+  private warmFoes: Enemy[] = [];
+
+  /**
+   * Under the loading screen the chapter is drawn once with everyone in it, and everyone who will come later too: the
+   * programs compile, the geometry and textures reach the GPU, and the strike windows are measured here, not as a wave's
+   * rakshasa or the final boss walks in (each used to cost a fight 100 to 250 ms in one frame). The later foes stay
+   * (hidden, out of the fight) so their programs are not freed while the chapter lasts; `clearEnemies` lets them go.
+   */
+  private async warmUp(chapter: Chapter): Promise<void> {
+    const seen = new Set<string>();
+    for (const f of this.laterFoes(chapter)) {
+      if (seen.has(f.rig.model)) continue;
+      seen.add(f.rig.model);
+      try {
+        const foe = f.make();
+        foe.group.visible = false;
+        await foe.attachRig(f.rig);
+        this.sceneManager.scene.add(foe.group);
+        this.warmFoes.push(foe);
+      } catch (err) {
+        console.error('[Engine] a later foe could not be made ready', err);
+      }
+    }
+    const shown: [THREE.Object3D, boolean][] = [];
+    const show = (o: THREE.Object3D) => {
+      shown.push([o, o.visible]);
+      o.visible = true;
+    };
+    if (this.player) show(this.player.group);
+    for (const c of [...this.enemies, ...this.cast, ...this.warmFoes]) {
+      show(c.group);
+      // What a character shows only now and then (a hurler's glow, Shalva's pool: `userData.warm`) is drawn once too.
+      c.group.traverse((o) => { if (o.userData.warm) show(o); });
+    }
+    try {
+      this.projectileManager.warm(() => this.sceneManager.render(1 / 60));
+    } catch (err) {
+      console.warn('[Engine] the warm-up frame failed', err);
+    }
+    for (const [o, v] of shown) o.visible = v;
+    for (const f of this.warmFoes) f.group.visible = false;
+  }
+
   /** Sets up a wave chapter: the first minions (one per lane) now. */
   private startHorde(chapter: Chapter): Promise<unknown>[] {
     const def = HORDES[chapter.level];
     if (!def) return [];
     this.horde = { def, minions: [], timer: def.interval };
-    if (def.alt) CharacterRig.prefetch(def.alt.rig);
     return def.lanes.slice(0, Math.min(def.lanes.length, def.maxAlive, def.total)).map(() => this.spawnMinion());
   }
 
@@ -1428,6 +1525,7 @@ export class Engine {
 
   private clearEnemies(): void {
     for (const enemy of this.enemies) {
+      enemy.retire();
       this.sceneManager.scene.remove(enemy.group);
       this.sceneManager.scene.remove(enemy.slashRibbon.mesh);
       enemy.detachPhysics();
@@ -1438,7 +1536,15 @@ export class Engine {
       HitboxManager.getInstance().forget(enemy.id);
     }
     this.enemies = [];
+    for (const foe of this.warmFoes) {
+      foe.retire();
+      this.sceneManager.scene.remove(foe.group);
+      foe.rig?.dispose();
+      disposeObject(foe.group);
+    }
+    this.warmFoes = [];
     for (const extra of this.cast) {
+      extra.retire();
       this.sceneManager.scene.remove(extra.group);
       extra.rig?.dispose();
       disposeObject(extra.group);

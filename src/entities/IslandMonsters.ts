@@ -33,7 +33,7 @@ export class MiniMonster extends Enemy {
     this.engageRange = 1.7;
     this.crowdRange = 0.9;
     this.turnRate = 9;
-    this.damageScale = 0.45;
+    this.damageScale = 0.6; // milestone 12: was 0.45
     this.attackStates = ['ATTACK_1', 'ATTACK_2'];
     this.lungeSpec = { a: 0, b: 0.25, maxDist: 1.4, stopDist: 1.0 };
     this.swingSound = 'blade';
@@ -99,7 +99,8 @@ export class ArcherMonster extends Enemy {
     this.attackCooldown = 2.4;
     this.engageRange = 1.9;
     this.crowdRange = 0;
-    this.damageScale = 0.7;
+    // Milestone 12: was 0.7. A hurler's firebrand follows it now (it did 13 whatever this said; 11 at 0.85).
+    this.damageScale = 0.85;
     this.attackStates = ['ATTACK_1', 'ATTACK_2'];
     const socket = this.getSocket('mixamorigRightHand');
     socket?.remove(this.swordMesh);
@@ -112,6 +113,8 @@ export class ArcherMonster extends Enemy {
       new THREE.MeshBasicMaterial({ color: new THREE.Color(2.2, 0.9, 0.25), transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, fog: false }),
     );
     this.glow.visible = false;
+    // Drawn once under the loading screen, so its shader is built before the first throw (Engine.warmUp).
+    this.glow.userData.warm = true;
     this.group.add(this.glow);
   }
 
@@ -181,7 +184,7 @@ export class ArcherMonster extends Enemy {
     this.loosed = true;
     const origin = this.handPoint();
     const aim = target.getPosition().clone().add(new THREE.Vector3(0, 1.1, 0));
-    this.projectiles.spawnArrow(origin, aim, this.id);
+    this.projectiles.spawnArrow(origin, aim, this.id, this.damageScale);
   }
 
   /** No rock between its hand and his chest. */

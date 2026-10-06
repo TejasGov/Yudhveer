@@ -6,6 +6,10 @@ import { Level3_Dwarka } from './levels/Level3_Dwarka';
 import { BossShalva } from './entities/BossShalva';
 import { SoundFX, VICTORY_STINGER, type VictoryGrade, type VictoryStinger } from './combat/SoundFX';
 import { JitterProbe, type ProbeOptions } from './debug/JitterProbe';
+import type { PlaytestOptions } from './debug/Playtest';
+import type { PerfOptions } from './debug/PerfProbe';
+import type { FlowOptions } from './debug/Flow';
+import type { RobustnessOptions } from './debug/Robustness';
 import { IMPACTS, type ImpactKind } from './core/ImpactCamera';
 
 window.addEventListener('DOMContentLoaded', async () => {
@@ -66,6 +70,29 @@ window.addEventListener('DOMContentLoaded', async () => {
       },
       // The jitter probe (docs/proposals/JITTER.md): `jitter({ seconds, mode, hero })` measures the fight as it stands;
       // `jitterScenario('S1')` loads a scripted scenario first (`jitterScenario()` lists them).
+      // The playtest (docs/STORY.md, "Milestone 12"): the hero bot plays a chapter's fight on the fixed step, `runs` times,
+      // and reports win rate, time, damage and who dealt it. `playtest(4, 10, { skill: 'expert' })`; `playtest([1, 2, 3])`.
+      playtest: async (chapters: number | number[], runs?: number, options?: PlaytestOptions) =>
+        (await import('./debug/Playtest')).runPlaytest(engine, chapters, runs, options),
+      // One run, blow by blow: `playtestTrace(4, { seed: 2, trace: { every: 0.5, from: 10 } })` gives { run, lines }.
+      playtestTrace: async (chapter: number, options?: PlaytestOptions) => (await import('./debug/Playtest')).traceFight(engine, chapter, options),
+      // The campaign as a player meets it, chapter after chapter (intro, opening, fight, ending, Continue), console errors
+      // hooked: `playtestFlow({ from: 0, to: 5, skip: true })`.
+      playtestFlow: async (options?: FlowOptions) => (await import('./debug/Flow')).playFlow(engine, options),
+      // What a player can do to the game that the happy path never does (quit to the title mid-scene, spam retry, pause in
+      // a cutscene, 30 and 144 fps, resize): `robustness()` runs all, `robustness({ only: ['retry'], chapters: [1, 4] })`.
+      robustness: async (options?: RobustnessOptions) => (await import('./debug/Robustness')).runRobustness(engine, options),
+      // How long each enemy's blows give warning (the first strike window after its wind-up): `await __debug.telegraphs()`.
+      telegraphs: async () => (await import('./debug/Telegraphs')).telegraphTable(engine),
+      // Frame time, draw calls and triangles through the real loop, with where the CPU time goes: `perf(4)` plays a chapter's
+      // fight with the bot; `perfScenes(4)` its cutscenes. (Run with the Browser pane at 1280x720 for comparable numbers.)
+      perf: async (chapter: number, options?: PerfOptions) => (await import('./debug/PerfProbe')).perfFight(engine, chapter, options),
+      perfScenes: async (chapter: number, options?: Parameters<typeof import('./debug/PerfProbe').perfScenes>[2]) =>
+        (await import('./debug/PerfProbe')).perfScenes(engine, chapter, options),
+      // One held cutscene picture drawn over and over, with an optional change to see what it costs:
+      // `perfShot(2, 100, { part: 'ending', change: (e) => { e.sceneManager.renderer.shadowMap.enabled = false; } })`.
+      perfShot: async (chapter: number, at: number, options?: Parameters<typeof import('./debug/PerfProbe').perfShot>[3]) =>
+        (await import('./debug/PerfProbe')).perfShot(engine, chapter, at, options),
       jitter: (options?: ProbeOptions) => probe.run(options),
       jitterScenario: (name?: string, options?: ProbeOptions) => (name ? probe.scenario(name, options) : JitterProbe.scenarios()),
       // The impact camera (docs/proposals/IMPACT_CAMERA.md): `impact('deflect', { dirX: 0, dirZ: -1 })` fires an event of

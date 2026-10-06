@@ -28,8 +28,10 @@ export class Mayavi extends Enemy {
     super(id, 0x2b3f6b);
     this.displayName = 'Mayavi';
     this.epithet = 'Deflect his spells back at him';
-    this.maxHealth = 90;
-    this.currentHealth = 90;
+    // Milestone 12: health 90 -> 110, blows and bolts at 80 % (his bolts did 18).
+    this.maxHealth = 110;
+    this.currentHealth = 110;
+    this.damageScale = 0.8;
     this.maxMarma = 70;
     this.moveSpeed = 4.5;
     this.attackCooldown = 2.6;
@@ -94,7 +96,7 @@ export class Mayavi extends Enemy {
       this.aimAt.copy(target.getPosition()).setY(target.getPosition().y + 1.1);
       // The volley fans out a little either side.
       if (volley) this.aimAt.add(new THREE.Vector3((this.released - 1) * 1.2, 0, 0).applyAxisAngle(new THREE.Vector3(0, 1, 0), this.group.rotation.y));
-      this.projectiles.spawnOrb(origin, this.aimAt, this.id);
+      this.projectiles.spawnOrb(origin, this.aimAt, this.id, this.damageScale);
       this.released++;
     }
     if (volley && sm.stateTime >= sm.CHARGE_DURATION) sm.changeState('IDLE');

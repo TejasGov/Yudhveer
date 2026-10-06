@@ -28,7 +28,8 @@ export function disposeObject(root: THREE.Object3D): void {
   const materials = new Set<THREE.Material>();
   root.traverse((obj) => {
     const mesh = obj as THREE.Mesh;
-    mesh.geometry?.dispose();
+    // (A character's geometry and textures are shared by every clone of its model: its template frees them, `CharacterRig.trim`.)
+    if (!mesh.geometry?.userData.shared) mesh.geometry?.dispose();
     if (mesh.material) (Array.isArray(mesh.material) ? mesh.material : [mesh.material]).forEach((m) => materials.add(m));
     (obj as THREE.PointLight).shadow?.dispose();
     (obj as THREE.SkinnedMesh).skeleton?.dispose();
@@ -40,7 +41,7 @@ export function disposeObject(root: THREE.Object3D): void {
     if (uniforms) Object.values(uniforms).forEach((u) => { if ((u as THREE.IUniform).value?.isTexture) textures.add((u as THREE.IUniform).value); });
     mat.dispose();
   });
-  textures.forEach(disposeTexture);
+  textures.forEach((t) => { if (!t.userData.shared) disposeTexture(t); });
 }
 
 export function disposeTexture(tex: THREE.Texture): void {

@@ -54,12 +54,16 @@ export class SceneManager {
 
     this.camera = new THREE.PerspectiveCamera(
       65,
-      window.innerWidth / window.innerHeight,
+      // (A window with no size yet, a hidden frame, has no aspect: 16:9 until the first real resize.)
+      window.innerWidth / window.innerHeight || 16 / 9,
       0.1,
       1000
     );
 
-    this.renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' });
+    // The post chain draws the scene into its own multisampled buffer; the canvas itself only ever gets its last, full-screen
+    // pass. A multisampled canvas with a depth and stencil buffer of its own (the defaults) was a second set of buffers
+    // the size of the screen, resolved every frame, for a pass that draws a quad (milestone 12; the library's advice too).
+    this.renderer = new THREE.WebGLRenderer({ antialias: false, depth: false, stencil: false, powerPreference: 'high-performance' });
     this.renderer.setSize(window.innerWidth, window.innerHeight);
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.shadowMap.enabled = true;
@@ -151,10 +155,15 @@ export class SceneManager {
   }
 
   private onWindowResize(): void {
-    this.camera.aspect = window.innerWidth / window.innerHeight;
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    // A window with no width or height (minimised, a hidden frame) has nothing to draw into: a zero-sized target makes the
+    // aspect NaN and every pass of the post chain raise a framebuffer error. Keep the last real size until it has one.
+    if (!(w >= 1 && h >= 1)) return;
+    this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
-    this.renderer.setSize(window.innerWidth, window.innerHeight);
-    this.postFX.setSize(window.innerWidth, window.innerHeight);
+    this.renderer.setSize(w, h);
+    this.postFX.setSize(w, h);
   }
 
   /**

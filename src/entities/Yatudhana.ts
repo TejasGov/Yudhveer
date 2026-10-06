@@ -102,7 +102,7 @@ export class Yatudhana extends Enemy {
     const origin = this.rig ? this.swordMesh.getWorldPosition(new THREE.Vector3()) : this.getPosition().clone().setY(this.getPosition().y + 1.3);
     const aim = target.getPosition().clone();
     aim.y += 1.1;
-    this.projectiles.spawnOrb(origin, aim, this.id);
+    this.projectiles.spawnOrb(origin, aim, this.id, this.damageScale);
   }
 
   protected override onStateChange(state: CharacterState): void {

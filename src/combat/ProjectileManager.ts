@@ -36,6 +36,46 @@ interface WaveFire {
   yaw: number;
 }
 
+/**
+ * What a bolt and a shaft are made of, made once and kept for the session (milestone 12): every shot used to build its
+ * own spheres and materials and free them when it ended, and the last one of a kind taking its shader program with it,
+ * so each hurler's firebrand (and each bolt) compiled a program again in the middle of the fight (a frame of 100 ms or
+ * more). `ProjectileManager.anchor` draws one of each under the loading screen and keeps them in the scene.
+ */
+interface Parts {
+  orbCore: THREE.Mesh;
+  orbHalo: THREE.Mesh;
+  arrowShaft: THREE.Mesh;
+  arrowHead: THREE.Mesh;
+}
+let parts: Parts | null = null;
+
+function sharedParts(): Parts {
+  if (parts) return parts;
+  const make = (geometry: THREE.BufferGeometry, material: THREE.Material) => {
+    geometry.userData.shared = true;
+    material.userData.shared = true;
+    return new THREE.Mesh(geometry, material);
+  };
+  parts = {
+    orbCore: make(new THREE.SphereGeometry(0.11, 12, 10), new THREE.MeshBasicMaterial({ color: new THREE.Color(2.6, 1.1, 3.2) })),
+    orbHalo: make(
+      new THREE.SphereGeometry(0.24, 12, 10),
+      new THREE.MeshBasicMaterial({ color: new THREE.Color(0.55, 0.25, 1), transparent: true, opacity: 0.45, blending: THREE.AdditiveBlending, depthWrite: false }),
+    ),
+    arrowShaft: make(new THREE.CylinderGeometry(0.018, 0.018, 0.75, 5), new THREE.MeshBasicMaterial({ color: 0x2a1a10 })),
+    arrowHead: make(new THREE.SphereGeometry(0.06, 8, 6), new THREE.MeshBasicMaterial({ color: new THREE.Color(2.4, 0.9, 0.2) })),
+  };
+  return parts;
+}
+
+/** A shot's own mesh from a shared piece: the same geometry and material, a transform of its own. */
+function instance(piece: THREE.Mesh): THREE.Mesh {
+  const mesh = new THREE.Mesh(piece.geometry, piece.material);
+  mesh.userData.shared = true;
+  return mesh;
+}
+
 export interface Projectile {
   id: string;
   type: 'CHAKRAM' | 'FLAME_WAVE' | 'ORB' | 'ARROW';
@@ -45,6 +85,12 @@ export interface Projectile {
   radius: number;
   damage: number;
   postureDamage: number;
+  /**
+   * How hard it lands on the hero as a multiple of `damage` and `postureDamage`: its caster's `damageScale` (milestone 12:
+   * a bolt is one of its caster's blows, so a weak caster's bolts are weak too). A bolt deflected back hurts by `damage`
+   * whoever cast it.
+   */
+  scale: number;
   life: number;
   maxLife: number;
   ownerId: string;
@@ -79,9 +125,37 @@ export class ProjectileManager {
   public init(scene: THREE.Scene): void {
     this.scene = scene;
     scene.add(this.scorches.mesh);
+    // One of each kind of bolt stays in the scene, hidden: it keeps their shader programs alive, and the loading screen's
+    // warm-up frame (Engine.warmUp) draws it, so the first shot of a fight compiles nothing.
+    const shared = sharedParts();
+    const anchor = new THREE.Group();
+    anchor.name = 'ProjectileAnchor';
+    for (const piece of [shared.orbCore, shared.orbHalo, shared.arrowShaft, shared.arrowHead]) {
+      const mesh = instance(piece);
+      mesh.position.set(0, -500, 0);
+      mesh.frustumCulled = false;
+      anchor.add(mesh);
+    }
+    anchor.visible = false;
+    scene.add(anchor);
+    this.anchor = anchor;
   }
 
-  public spawnChakram(origin: THREE.Vector3, targetPos: THREE.Vector3, ownerId: string): void {
+  /** Hidden anchors holding the bolts' programs (see `init`). */
+  private anchor: THREE.Group | null = null;
+
+  /** Shows the anchors for the loading screen's warm-up frame (they are drawn once, far below the world), then hides them. */
+  public warm(draw: () => void): void {
+    if (!this.anchor) return;
+    this.anchor.visible = true;
+    try {
+      draw();
+    } finally {
+      this.anchor.visible = false;
+    }
+  }
+
+  public spawnChakram(origin: THREE.Vector3, targetPos: THREE.Vector3, ownerId: string, scale = 1): void {
     if (!this.scene) return;
 
     // Glowing golden sharpened ring
@@ -113,6 +187,7 @@ export class ProjectileManager {
       radius: 0.45,
       damage: 16,
       postureDamage: 25,
+      scale,
       life: 0,
       maxLife: 3.5,
       ownerId,
@@ -123,16 +198,14 @@ export class ProjectileManager {
   }
 
   /** A bolt of fire from a sorcerer's hand, flying straight at `targetPos` (deflectable like a chakram). */
-  public spawnOrb(origin: THREE.Vector3, targetPos: THREE.Vector3, ownerId: string): void {
+  public spawnOrb(origin: THREE.Vector3, targetPos: THREE.Vector3, ownerId: string, scale = 1): void {
     if (!this.scene) return;
     const group = new THREE.Group();
     group.position.copy(origin);
     // An unlit HDR core (it blooms) inside a soft additive halo.
-    const core = new THREE.Mesh(new THREE.SphereGeometry(0.11, 12, 10), new THREE.MeshBasicMaterial({ color: new THREE.Color(2.6, 1.1, 3.2) }));
-    const halo = new THREE.Mesh(
-      new THREE.SphereGeometry(0.24, 12, 10),
-      new THREE.MeshBasicMaterial({ color: new THREE.Color(0.55, 0.25, 1), transparent: true, opacity: 0.45, blending: THREE.AdditiveBlending, depthWrite: false }),
-    );
+    const shared = sharedParts();
+    const core = instance(shared.orbCore);
+    const halo = instance(shared.orbHalo);
     group.add(core, halo);
     this.scene.add(group);
     SceneManager.getInstance().postFX.addBloom(core);
@@ -146,6 +219,7 @@ export class ProjectileManager {
       radius: 0.3,
       damage: 18,
       postureDamage: 28,
+      scale,
       life: 0,
       maxLife: 3,
       ownerId,
@@ -158,15 +232,16 @@ export class ProjectileManager {
    * A shaft of fire from a cave archer, the hurlers' firebrand (Chapter III): fast and straight at `targetPos`, its
    * burning head first. Deflectable like the others.
    */
-  public spawnArrow(origin: THREE.Vector3, targetPos: THREE.Vector3, ownerId: string): void {
+  public spawnArrow(origin: THREE.Vector3, targetPos: THREE.Vector3, ownerId: string, scale = 1): void {
     if (!this.scene) return;
     const group = new THREE.Group();
     group.position.copy(origin);
     // Along local +Z: a dark shaft, and an unlit burning head (it blooms) at the front.
-    const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.75, 5), new THREE.MeshBasicMaterial({ color: 0x2a1a10 }));
+    const shared = sharedParts();
+    const shaft = instance(shared.arrowShaft);
     shaft.rotation.x = Math.PI / 2;
     shaft.position.z = -0.2;
-    const head = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 6), new THREE.MeshBasicMaterial({ color: new THREE.Color(2.4, 0.9, 0.2) }));
+    const head = instance(shared.arrowHead);
     head.scale.set(1, 1, 2.2);
     head.position.z = 0.2;
     group.add(shaft, head);
@@ -183,6 +258,7 @@ export class ProjectileManager {
       radius: 0.22,
       damage: 13,
       postureDamage: 20,
+      scale,
       life: 0,
       maxLife: 2.2,
       ownerId,
@@ -197,7 +273,7 @@ export class ProjectileManager {
    * it is breathed, trail back as it runs, throw licks and embers, scorch the stone behind them, and die down at the end
    * of its run. The arc spreads as it goes (the flames keep their height). One instanced draw, in the bloom.
    */
-  public spawnFlameWave(origin: THREE.Vector3, forwardDir: THREE.Vector3, ownerId: string): void {
+  public spawnFlameWave(origin: THREE.Vector3, forwardDir: THREE.Vector3, ownerId: string, scale = 1): void {
     if (!this.scene) return;
 
     const waveGroup = new THREE.Group();
@@ -239,6 +315,7 @@ export class ProjectileManager {
       radius: 1.5,
       damage: 28,
       postureDamage: 40,
+      scale,
       life: 0,
       maxLife: 2.2,
       ownerId,
@@ -332,8 +409,8 @@ export class ProjectileManager {
 
           if (player.isGuarding() && player.isFacing(p.position)) {
             // Caught on the raised dhal
-            player.takeDamage(p.damage * 0.2);
-            if (!player.addMarmaDamage(p.postureDamage * 1.25)) player.stateMachine.changeState('BLOCK_HIT');
+            player.takeDamage(p.damage * p.scale * 0.2);
+            if (!player.addMarmaDamage(p.postureDamage * p.scale * 1.25)) player.stateMachine.changeState('BLOCK_HIT');
             this.soundFX.playShieldBlock();
             this.particleFX.spawnSparks(p.position, 18, false);
             this.onPlayerContact?.('blocked');
@@ -342,8 +419,8 @@ export class ProjectileManager {
           }
 
           // Direct Hit on Player
-          player.takeDamage(p.damage);
-          if (!player.addMarmaDamage(p.postureDamage) && player.currentHealth > 0) {
+          player.takeDamage(p.damage * p.scale);
+          if (!player.addMarmaDamage(p.postureDamage * p.scale) && player.currentHealth > 0) {
             player.stateMachine.changeState('STAGGER');
           }
           this.soundFX.playHitImpact();
@@ -380,6 +457,8 @@ export class ProjectileManager {
       this.scene.remove(p.mesh);
       p.mesh.traverse((c) => {
         const mesh = c as THREE.Mesh;
+        // (The bolts' own pieces are shared and stay: see `sharedParts`. A wave's flames are its own.)
+        if (mesh.userData.shared) return;
         mesh.geometry?.dispose();
         (mesh.material as THREE.Material | undefined)?.dispose();
       });

@@ -57,6 +57,9 @@ const _scabbardTurn = new THREE.Quaternion();
 const _trailTip = new THREE.Vector3();
 const _trailHilt = new THREE.Vector3();
 
+/** The strike windows measured for each character definition (see `Character.fitProps`). */
+const STRIKES = new WeakMap<CharacterDefinition, Map<CharacterState, HitWindow[]>>();
+
 /** How a jump plays out, in state seconds: when to leave the ground and how fast, and how long landing takes. */
 export interface JumpPlan {
   clip: string | null;
@@ -364,7 +367,21 @@ export class Character extends Entity {
    * rig's hand sockets, locomotion speeds and attack timings come from the definition and its clips.
    */
   public async attachRig(definition: CharacterDefinition): Promise<CharacterRig> {
-    return this.mountRig(await this.prepareRig(definition));
+    const prepared = await this.prepareRig(definition);
+    // Let go while its model was coming in (the chapter was left or tried again): nobody is left to wear it, so it is
+    // freed as it arrives, not kept on a character that is gone (a retry sent twice used to leave one behind for each).
+    if (this.retired) {
+      prepared.rig.dispose();
+      return prepared.rig;
+    }
+    return this.mountRig(prepared);
+  }
+
+  /** Let go of for good (the chapter was left or restarted): a model still on its way is freed when it comes (`attachRig`). */
+  public retired = false;
+
+  public retire(): void {
+    this.retired = true;
   }
 
   /**
@@ -397,6 +414,13 @@ export class Character extends Entity {
     if (scabbard && rig.attach(scabbard, definition.sheath!)) p.scabbard = scabbard;
     else if (scabbard) console.warn(`[Character ${this.id}] rig has no socket ${definition.sheath!.socket}`);
     if (definition.scale) rig.applyScale(definition.scale);
+    // The windows are what the definition's clips and props make of them, the same for every character built on it: measured
+    // once (sixty samples of the pose for every clip of an attack is most of what a spawn costs after the model's parse).
+    const known = STRIKES.get(definition);
+    if (known) {
+      p.strikes = known;
+      return;
+    }
     const blade = definition.weapon?.blade ?? this.bladeSpan;
     // Hit windows straight from each attack clip's motion (scaled to the state's playback rate and start).
     const windows = new Map<CharacterState, HitWindow[]>();
@@ -411,6 +435,7 @@ export class Character extends Entity {
       windows.set(state, spans);
     }
     p.strikes = windows;
+    STRIKES.set(definition, windows);
   }
 
   /**

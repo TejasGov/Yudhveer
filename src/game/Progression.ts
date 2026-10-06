@@ -71,6 +71,15 @@ function readLearned(): Partial<Record<KitId, Ability[]>> {
   return {};
 }
 
+/** A new game: nothing a fight taught him is known yet (the saved lessons are wiped). */
+export function forgetLearned(): void {
+  try {
+    localStorage.removeItem(LEARNED_KEY);
+  } catch {
+    // Storage blocked: nothing saved to forget.
+  }
+}
+
 /** What the hero can do right now: a kit plus what he has learned in it. */
 export class Skills {
   private learned = new Set<Ability>();

@@ -65,6 +65,12 @@ const AKHADA_GATE = v(0, 0, 40);
  * fight. `hitsAtArrival` and `blocksAtParry` are tallies at the moment a stage of it began.
  */
 const drill = { done: false, hitsAtArrival: 0, blocksAtParry: 0 };
+/** The lesson is to be taught afresh: a new campaign, or a first attempt measured by the playtest (src/debug/Playtest.ts). */
+export function forgetLesson(): void {
+  drill.done = false;
+  drill.hitsAtArrival = 0;
+  drill.blocksAtParry = 0;
+}
 const stats = () => CombatSystem.getInstance().stats;
 const sfx = () => SoundFX.getInstance();
 

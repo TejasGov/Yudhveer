@@ -74,5 +74,6 @@ The Blender files, character models, Mixamo animation clips and weapon models be
 In `npm run dev` builds (or any build with `?debug` in the URL for F3):
 
 - **F3**: combat overlay (blades, hurt capsules, strike windows, the hit log).
-- **Shift+0 / 1 / 2 / 3 / 4**: jump straight into a chapter's fight (0: the prologue).
+- **Shift+0 / 1 / 2 / 3 / 4 / 5**: jump straight into a chapter's fight (0: the prologue).
 - Console: `__debug.chapter(id, intro?)`, `__debug.shot(index, seconds)` to freeze a cutscene on a shot, `__debug.advance(seconds)`, `__debug.resume()`, `__debug.step(frames)` and `__debug.log()` for deterministic combat tests, `__debug.win()` to win the fight at once (and see the chapter's ending scene; in the prologue it brings on the scripted loss). `__yudhveer` is the engine.
+- Balance and soak tools (docs/STORY.md, "Milestone 12"): `await __debug.playtest(chapters, runs, { skill: 'novice' | 'steady' | 'expert', seed, tune })` has a bot play each chapter's fight on the fixed step (seeded: a seed replays the same fight) and reports the win rate, time, damage taken and who dealt it; `__debug.playtestTrace(chapter)` is one fight blow by blow, `__debug.telegraphs()` the warning each enemy's blows give, `__debug.playtestFlow()` the whole campaign (intros, fights, endings, credits) with console errors hooked, `__debug.robustness()` the quit, retry, pause, frame-rate and resize checks, `__debug.perf(chapter)` and `__debug.perfScenes(chapter)` frame time, draw calls and triangles in a fight and in its cutscenes.

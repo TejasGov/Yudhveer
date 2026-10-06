@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
+import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import type { CharacterState } from '../CharacterStateMachine';
 import { addRimLight, createToonRamp, toToonMaterial } from '../../levels/environment/ToonRelight';
 import { disposeObject } from '../../levels/GLBLevel';
@@ -190,11 +191,88 @@ export interface CharacterDefinition {
 }
 
 const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
-/**
- * Downloaded GLBs by URL. Several characters can share one model (the rakshasa waves); each still parses its own copy,
- * so disposing one never frees geometry or textures another is drawing.
- */
+/** Downloaded GLBs by URL. */
 const buffers = new Map<string, Promise<ArrayBuffer>>();
+
+/**
+ * A model parsed once and kept for every character made from it (milestone 12). A wave of rakshasas, a pack of runts or a
+ * retry used to parse the same file again for each of them (100 ms a character, in the middle of a fight) and upload a
+ * copy of its geometry and textures to the GPU the first time each was drawn (another 100 ms or more). Now the parsed
+ * scene is the template: a character is a clone of it (`SkeletonUtils.clone`: its own bones, the geometry, textures and
+ * clips shared), and what is shared is marked (`userData.shared`) so freeing one character leaves the others their
+ * meshes (`disposeObject`). A template is freed when nothing is made from it and no chapter asks for it (`trim`).
+ */
+interface Template {
+  scene: THREE.Group;
+  animations: THREE.AnimationClip[];
+  /** Characters alive that were cloned from it. */
+  users: number;
+}
+const templates = new Map<string, Promise<Template>>();
+const parsedTemplates = new Map<string, Template>();
+const manifests = new Map<string, Promise<CharacterManifest>>();
+/** Weapon and shield models: small, so kept for the session (every use is a clone). */
+const props = new Map<string, Promise<THREE.Object3D>>();
+
+/** Marks a parsed scene's geometry and textures as shared by every clone of it. */
+function markShared(scene: THREE.Object3D): void {
+  scene.traverse((obj) => {
+    const mesh = obj as THREE.Mesh;
+    if (mesh.geometry) mesh.geometry.userData.shared = true;
+    if (!mesh.material) return;
+    for (const m of Array.isArray(mesh.material) ? mesh.material : [mesh.material]) {
+      Object.values(m).forEach((v) => { if ((v as THREE.Texture)?.isTexture) (v as THREE.Texture).userData.shared = true; });
+    }
+  });
+}
+
+/** Frees a template's own geometry, materials and textures (the clones are gone). */
+function freeTemplate(scene: THREE.Object3D): void {
+  const textures = new Set<THREE.Texture>();
+  scene.traverse((obj) => {
+    const mesh = obj as THREE.Mesh;
+    mesh.geometry?.dispose();
+    (obj as THREE.SkinnedMesh).skeleton?.dispose();
+    if (!mesh.material) return;
+    for (const m of Array.isArray(mesh.material) ? mesh.material : [mesh.material]) {
+      Object.values(m).forEach((v) => { if ((v as THREE.Texture)?.isTexture) textures.add(v as THREE.Texture); });
+      m.dispose();
+    }
+  });
+  textures.forEach((t) => {
+    t.dispose();
+    const image = t.source?.data as ImageBitmap | undefined;
+    if (image && typeof image.close === 'function') image.close();
+  });
+}
+
+function templateOf(url: string): Promise<Template> {
+  let pending = templates.get(url);
+  if (!pending) {
+    pending = loadModel(url).then((gltf) => {
+      markShared(gltf.scene);
+      const t: Template = { scene: gltf.scene, animations: gltf.animations, users: 0 };
+      parsedTemplates.set(url, t);
+      return t;
+    });
+    pending.catch(() => templates.delete(url));
+    templates.set(url, pending);
+  }
+  return pending;
+}
+
+function manifestOf(url: string): Promise<CharacterManifest> {
+  let pending = manifests.get(url);
+  if (!pending) {
+    pending = fetch(url).then((r) => {
+      if (!r.ok) throw new Error(`manifest ${url}: HTTP ${r.status}`);
+      return r.json() as Promise<CharacterManifest>;
+    });
+    pending.catch(() => manifests.delete(url));
+    manifests.set(url, pending);
+  }
+  return pending;
+}
 
 function fetchModel(url: string): Promise<ArrayBuffer> {
   let pending = buffers.get(url);
@@ -211,7 +289,12 @@ function fetchModel(url: string): Promise<ArrayBuffer> {
 
 async function loadModel(url: string): Promise<{ scene: THREE.Group; animations: THREE.AnimationClip[] }> {
   const data = await fetchModel(url);
-  return loader.parseAsync(data, url.slice(0, url.lastIndexOf('/') + 1));
+  try {
+    return await loader.parseAsync(data, url.slice(0, url.lastIndexOf('/') + 1));
+  } finally {
+    // Parsed once and kept as a template (or not wanted again): the file's bytes are not kept as well (some 60 MB of them).
+    buffers.delete(url);
+  }
 }
 const DEFAULT_FADE = 0.15;
 const MATCH_SPEED_RANGE: [number, number] = [0.5, 2.4];
@@ -245,6 +328,8 @@ export class CharacterRig {
     gltf: { scene: THREE.Object3D; animations: THREE.AnimationClip[] },
     public readonly manifest: CharacterManifest,
     public readonly definition: CharacterDefinition,
+    /** Tells the template this character was made from that it is gone. */
+    private release: (() => void) | null = null,
   ) {
     this.root = gltf.scene;
     this.root.name = `CharacterRig_${manifest.model}`;
@@ -272,31 +357,53 @@ export class CharacterRig {
     this.stylise();
   }
 
-  /** Starts downloading a character's model ahead of time (a boss due mid-fight), so spawning it doesn't wait. */
+  /**
+   * Starts getting a character's model ready ahead of time (a boss due mid-fight, the rest of a wave): its file is
+   * downloaded and parsed in the background, so spawning it later is only a clone.
+   */
   public static prefetch(definition: CharacterDefinition): void {
-    void fetchModel(definition.model).catch(() => undefined);
+    void templateOf(definition.model).catch(() => undefined);
+    void manifestOf(definition.manifest).catch(() => undefined);
   }
 
-  /** Loads a weapon model for `SocketAttachment.model`. */
+  /**
+   * Frees the models nothing is made from now and `keep` does not name (a chapter's own, so a retry or the next
+   * chapter's shared ones stay): their geometry and textures leave the GPU.
+   */
+  public static trim(keep: Iterable<string>): void {
+    const wanted = new Set(keep);
+    for (const [url, t] of parsedTemplates) {
+      if (t.users > 0 || wanted.has(url)) continue;
+      parsedTemplates.delete(url);
+      templates.delete(url);
+      freeTemplate(t.scene);
+    }
+  }
+
+  /** Loads a weapon model for `SocketAttachment.model`: a clone of the model, parsed the first time it is asked for. */
   public static async loadProp(url: string): Promise<THREE.Object3D> {
-    const gltf = await loadModel(url);
-    gltf.scene.traverse((o) => {
-      if ((o as THREE.Mesh).isMesh) o.castShadow = true;
-    });
-    return gltf.scene;
+    let pending = props.get(url);
+    if (!pending) {
+      pending = loadModel(url).then((gltf) => {
+        gltf.scene.traverse((o) => {
+          if ((o as THREE.Mesh).isMesh) o.castShadow = true;
+        });
+        markShared(gltf.scene);
+        return gltf.scene;
+      });
+      pending.catch(() => props.delete(url));
+      props.set(url, pending);
+    }
+    return cloneSkinned(await pending);
   }
 
   public static async load(definition: CharacterDefinition): Promise<CharacterRig> {
-    const [gltf, manifest] = await Promise.all([
-      loadModel(definition.model),
-      fetch(definition.manifest).then((r) => {
-        if (!r.ok) throw new Error(`manifest ${definition.manifest}: HTTP ${r.status}`);
-        return r.json() as Promise<CharacterManifest>;
-      }),
-    ]);
-    const missing = Object.values(definition.states).map((s) => s!.clip).filter((c) => !gltf.animations.some((a) => a.name === c));
+    const [template, manifest] = await Promise.all([templateOf(definition.model), manifestOf(definition.manifest)]);
+    const missing = Object.values(definition.states).map((s) => s!.clip).filter((c) => !template.animations.some((a) => a.name === c));
     if (missing.length) console.warn(`[CharacterRig] ${definition.model} has no clips named ${[...new Set(missing)].join(', ')}`);
-    return new CharacterRig(gltf, manifest, definition);
+    template.users++;
+    const scene = cloneSkinned(template.scene) as THREE.Group;
+    return new CharacterRig({ scene, animations: template.animations }, manifest, definition, () => { template.users = Math.max(0, template.users - 1); });
   }
 
   /**
@@ -726,6 +833,8 @@ export class CharacterRig {
     this.root.removeFromParent();
     disposeObject(this.root);
     this.ramp.dispose();
+    this.release?.();
+    this.release = null;
   }
 }
 

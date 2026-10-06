@@ -15,8 +15,10 @@ export class Vetala extends Enemy {
     this.displayName = 'Vetala';
     this.blood = 'ash'; // a ghost in a corpse: no blood, a puff of grave-ash
     this.epithet = 'Fast, and strikes in strings';
-    this.maxHealth = 160;
-    this.currentHealth = 160;
+    // Milestone 12: health 160 -> 200, blows at 92 %.
+    this.maxHealth = 200;
+    this.currentHealth = 200;
+    this.damageScale = 0.92;
     this.maxMarma = 110;
     this.moveSpeed = 6.2;
     this.attackCooldown = 1.8;

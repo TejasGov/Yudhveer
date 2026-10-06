@@ -86,7 +86,7 @@ export class BossShalva extends Boss {
 
   constructor(id = 'shalva') {
     super(id, 0x4a3530, {
-      attackInterval: 1.35,
+      attackInterval: 1.25, // milestone 12: was 1.35
       strikeRange: 3.1, // 2.6 m tall with a 1.5 m gada
       tooClose: 1.6,
       leapRange: 6,
@@ -95,8 +95,10 @@ export class BossShalva extends Boss {
     });
     this.displayName = 'Shalva';
     this.epithet = 'Raider of Dwarka';
-    this.maxHealth = 380;
-    this.currentHealth = 380;
+    // Milestone 12: health 380 -> 800 (the mace ended him in thirteen seconds), blows at 114 %.
+    this.maxHealth = 800;
+    this.currentHealth = 800;
+    this.damageScale = 1.14;
     this.maxMarma = 150;
     this.moveSpeed = 4;
     this.marmaDecayRate = 9;
@@ -410,6 +412,8 @@ class DivePool {
     this.mesh.renderOrder = 3;
     this.mesh.visible = false;
     this.mesh.frustumCulled = false;
+    // Drawn once under the loading screen, so its shader is built before the first dive (Engine.warmUp).
+    this.mesh.userData.warm = true;
   }
 
   /** `kind` at `open` (0..1 of its radius `radius` m), `alpha`: a pool, or the shape running under the stone. */

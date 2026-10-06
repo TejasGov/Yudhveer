@@ -9,6 +9,12 @@ const PHASE_2_AT = 0.5;
 /** Seconds between flame waves in phase two, breathed at anyone further off than `WAVE_MIN_RANGE`. */
 const WAVE_COOLDOWN = 4.5;
 const WAVE_MIN_RANGE = 3.2;
+/**
+ * Seconds into his breath (the CAST) that the fire leaves him. It used to leave the moment the cast began: from 3 m and
+ * more, at 9.5 m/s, it was on the hero a third of a second later with nothing to read (milestone 12). Now the roar's
+ * first beat, his head drawn back, is the warning; the fire follows it.
+ */
+const WAVE_RELEASE = 0.75;
 
 /**
  * Chapter III final boss, Takshaka, king of the nagas. He rises to Dwarka's arena once Shalva has fallen. Phase one is
@@ -18,11 +24,13 @@ const WAVE_MIN_RANGE = 3.2;
 export class BossTakshaka extends Boss {
   public phase = 1;
   private waveTimer = 0;
+  /** A breath begun and not yet loosed. */
+  private wavePending = false;
   private projectiles = ProjectileManager.getInstance();
 
   constructor(id = 'takshaka') {
     super(id, 0x1c2418, {
-      attackInterval: 1.4,
+      attackInterval: 1.3, // milestone 12: was 1.4
       strikeRange: 3.0,
       tooClose: 1.4,
       leapRange: 6,
@@ -32,8 +40,10 @@ export class BossTakshaka extends Boss {
     this.displayName = 'Takshaka';
     this.blood = 'ichor';
     this.epithet = 'King of the nagas';
-    this.maxHealth = 460;
-    this.currentHealth = 460;
+    // Milestone 12: health 460 -> 1000, blows at 119 %.
+    this.maxHealth = 1000;
+    this.currentHealth = 1000;
+    this.damageScale = 1.19;
     this.maxMarma = 170;
     this.moveSpeed = 4.2;
     this.marmaDecayRate = 8;
@@ -83,16 +93,24 @@ export class BossTakshaka extends Boss {
 
   protected override onStateChange(state: CharacterState, previous: CharacterState): void {
     super.onStateChange(state, previous);
-    if (state !== 'CAST') return;
-    // Fire breathed along the ground in front of him.
+    // The breath is loosed at WAVE_RELEASE (`updateAI`), if nothing has broken it off by then.
+    this.wavePending = state === 'CAST';
+  }
+
+  /** Fire breathed along the ground in front of him. */
+  private breathe(): void {
     const forward = new THREE.Vector3(Math.sin(this.group.rotation.y), 0, Math.cos(this.group.rotation.y));
-    this.projectiles.spawnFlameWave(this.getPosition().clone().addScaledVector(forward, 0.9).setY(this.getPosition().y + 0.2), forward, this.id);
+    this.projectiles.spawnFlameWave(this.getPosition().clone().addScaledVector(forward, 0.9).setY(this.getPosition().y + 0.2), forward, this.id, this.damageScale);
   }
 
   public override updateAI(dt: number, target: Parameters<Boss['updateAI']>[1]): void {
     // Second phase: embers rise off his claws.
     if (this.phase === 2 && this.stateMachine.currentState !== 'DEAD' && Math.random() < 0.5) {
       this.particleFX.spawnFlames(this.getWeaponPoints().tip, 2, 0.25);
+    }
+    if (this.wavePending && this.stateMachine.currentState === 'CAST' && this.stateMachine.stateTime >= WAVE_RELEASE) {
+      this.wavePending = false;
+      this.breathe();
     }
     super.updateAI(dt, target);
   }
