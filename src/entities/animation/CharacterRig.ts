@@ -398,10 +398,22 @@ export class CharacterRig {
   }
 
   public static async load(definition: CharacterDefinition): Promise<CharacterRig> {
-    const [template, manifest] = await Promise.all([templateOf(definition.model), manifestOf(definition.manifest)]);
+    const manifesting = manifestOf(definition.manifest);
+    manifesting.catch(() => undefined);
+    // Pinned the moment its model is in hand, not once the manifest has come as well: a template nobody uses yet is what `trim`
+    // frees (bitmaps closed), and a chapter started in that gap (a retry, the debug jump) could free it from under a character
+    // about to be cloned from it.
+    const template = await templateOf(definition.model);
+    template.users++;
+    let manifest: CharacterManifest;
+    try {
+      manifest = await manifesting;
+    } catch (err) {
+      template.users = Math.max(0, template.users - 1);
+      throw err;
+    }
     const missing = Object.values(definition.states).map((s) => s!.clip).filter((c) => !template.animations.some((a) => a.name === c));
     if (missing.length) console.warn(`[CharacterRig] ${definition.model} has no clips named ${[...new Set(missing)].join(', ')}`);
-    template.users++;
     const scene = cloneSkinned(template.scene) as THREE.Group;
     return new CharacterRig({ scene, animations: template.animations }, manifest, definition, () => { template.users = Math.max(0, template.users - 1); });
   }
@@ -607,6 +619,33 @@ export class CharacterRig {
       } else spans.push({ t0: t - dt, t1: t, peak: t });
     });
     return spans.filter((s) => s.t1 - s.t0 >= 0.05);
+  }
+
+  /**
+   * When a falling clip (a death) reaches the ground, measured from the animation itself (clip seconds): the first moment
+   * the hips are within `slack` metres of the height they end the clip at. Samples a throwaway mixer at 30 Hz, so call it
+   * while the rig is not mid-frame (at load, with `measureStrikes`). Undefined for a clip or a rig without hips.
+   */
+  public measureLanding(clipName: string, slack = 0.12): number | undefined {
+    const action = this.actions.get(clipName);
+    let hips: THREE.Object3D | undefined;
+    this.root.traverse((o) => { if (!hips && (o as THREE.Bone).isBone && /hips$/i.test(o.name)) hips = o; });
+    if (!action || !hips) return undefined;
+    const clip = action.getClip();
+    const probe = new THREE.AnimationMixer(this.root);
+    probe.clipAction(clip).play();
+    const heights: number[] = [];
+    const dt = 1 / 30;
+    for (let t = 0; t <= clip.duration + 1e-6; t += dt) {
+      probe.setTime(t);
+      this.root.updateMatrixWorld(true);
+      heights.push(this.root.worldToLocal(hips.getWorldPosition(_a)).y);
+    }
+    probe.stopAllAction();
+    probe.uncacheRoot(this.root);
+    const rest = heights[heights.length - 1];
+    const i = heights.findIndex((h) => h - rest <= slack);
+    return i < 0 ? undefined : i * dt;
   }
 
   /**

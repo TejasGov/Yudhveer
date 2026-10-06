@@ -3,6 +3,7 @@ import { Entity } from './Entity';
 import { CharacterStateMachine, type CharacterState, type TimedStateKey } from './CharacterStateMachine';
 import { SlashRibbon, trailActive, trailLookOf } from '../combat/SlashRibbon';
 import { HitReact } from '../combat/HitReact';
+import { BodyFall } from '../combat/BodyFall';
 import { CharacterRig, type CharacterDefinition, type SocketAttachment, type StateAnimation } from './animation/CharacterRig';
 import { CharacterMotor, DEFAULT_MOTOR, type MotorOptions } from '../physics/CharacterMotor';
 import { PhysicsWorld } from '../core/PhysicsWorld';
@@ -414,6 +415,7 @@ export class Character extends Entity {
     if (scabbard && rig.attach(scabbard, definition.sheath!)) p.scabbard = scabbard;
     else if (scabbard) console.warn(`[Character ${this.id}] rig has no socket ${definition.sheath!.socket}`);
     if (definition.scale) rig.applyScale(definition.scale);
+    BodyFall.measure(definition, rig);
     // The windows are what the definition's clips and props make of them, the same for every character built on it: measured
     // once (sixty samples of the pose for every clip of an attack is most of what a spawn costs after the model's parse).
     const known = STRIKES.get(definition);
@@ -980,6 +982,7 @@ export class Character extends Entity {
     if (this.rig) this.updateRig(dt);
     // A blow's flinch and push, laid over the pose the rig has just taken (combat/HitReact.ts).
     HitReact.step(this, dt);
+    BodyFall.step(this);
     if (this.rig) this.updateTrail(dt);
     this.updateSwordStowage();
 
