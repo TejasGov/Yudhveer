@@ -3,8 +3,10 @@ import sampleIds from 'virtual:sfx-samples';
 import trackIds from 'virtual:music-tracks';
 
 /**
- * The recorded effects (public/assets/sfx, ElevenLabs takes) and how loud each plays against the rest. Every one has
- * a synthesized stand-in that plays until (or unless) its recording is decoded.
+ * The recorded effects (public/assets/sfx, ElevenLabs takes, each peak-normalised) and how loud each plays against the
+ * rest. Every one has a synthesized stand-in that plays until (or unless) its recording is decoded. Not recorded, by
+ * choice: the ringing in a dazed hero's ears (a pure tone whose length and level the cutscene sets), each place's
+ * ambience and its events (synthesized beds, kept as they are), and the level-clear stinger (`VICTORY_STINGER`).
  */
 const SAMPLE_GAIN = {
   swing_blade: 0.42,
@@ -25,7 +27,25 @@ const SAMPLE_GAIN = {
   roar_brute: 0.6,
   roar_naga: 0.7,
   phase_surge: 0.55,
-  // Recordings for a scene, not combat: the conch that opens the summit's "Har Har Mahadev", cut short.
+  // The world and the cutscenes: Dwarka's wet stone (two takes of a step, a light and a heavy splash, Shalva's plunge
+  // and the swell of his wake), the prologue (the giant's tread, bodies falling, the raiders' horn, the blade that
+  // falls in the dark), the chapter card's dhol stroke, the bell that tolls a defeat, the menus' bell.
+  wet_step: 0.47,
+  wet_step_2: 0.42,
+  splash_light: 0.65,
+  splash_heavy: 1.0,
+  plunge: 0.75,
+  wake: 0.45,
+  heavy_step: 0.6,
+  body_fall: 0.85,
+  falling_blow: 0.75,
+  raid_horn: 0.3,
+  card_hit: 0.5,
+  defeat: 0.42,
+  ui_move: 0.22,
+  ui_confirm: 0.32,
+  // Recordings for a scene, not combat: the conch that opens the summit's "Har Har Mahadev", cut short (and, far off,
+  // the temple's call over Dwarka).
   shankh: 0.38,
 } as const;
 export type Sample = keyof typeof SAMPLE_GAIN;
@@ -156,10 +176,11 @@ const MUFFLE_OPEN = 20000;
 const vary = (x: number, spread = 0.06) => x * (1 + (Math.random() * 2 - 1) * spread);
 
 /**
- * All game audio, through the Web Audio API. Combat sounds are recordings (public/assets/sfx) with a slightly different
- * pitch and level each time, each with a synthesized stand-in for before it has loaded; each place's ambience and
- * reverb, cutscene hits and menu ticks are synthesized; the soundtrack is recorded loops (`music`, public/assets/music)
- * over a procedural tanpura drone as its fallback; and the story's lines bring recorded dialogue (`playVoice`).
+ * All game audio, through the Web Audio API. Combat, movement, cutscene and menu sounds are recordings
+ * (public/assets/sfx) with a slightly different pitch and level each time, each with a synthesized stand-in for before
+ * it has loaded; each place's ambience and reverb are synthesized; the soundtrack is recorded loops (`music`,
+ * public/assets/music) over a procedural tanpura drone as its fallback; and the story's lines bring recorded dialogue
+ * (`playVoice`).
  * Everything runs through one master gain (Settings.masterVolume) split into effects, ambience and music buses.
  */
 export class SoundFX {
@@ -268,6 +289,12 @@ export class SoundFX {
     this.place(g, o);
     src.start(ctx.currentTime + (o.delay ?? 0));
     return true;
+  }
+
+  /** One of several takes of a sound, at random among those decoded (the first if none is, so its synth plays). */
+  private pick(...ids: Sample[]): Sample {
+    const ready = ids.filter((id) => this.samples.has(id));
+    return ready.length > 0 ? ready[Math.floor(Math.random() * ready.length)] : ids[0];
   }
 
   private applyVolumes(): void {
@@ -884,9 +911,10 @@ export class SoundFX {
     }
   }
 
-  /** The shankh blown at the temple: a long horn tone rising into its note. */
+  /** The shankh blown at the temple, far off: the recorded conch, or a long horn tone rising into its note. */
   private shankh(at: number): void {
     const pan = rand(-0.4, 0.4);
+    if (this.sample('shankh', { delay: at, pan, wet: 0.8, amb: true, gain: 0.5 })) return;
     for (const [ratio, level] of [[1, 0.06], [2, 0.03], [3, 0.012]] as const) {
       this.tone({ type: 'sawtooth', freq: 214 * ratio, to: 226 * ratio, linear: true, gain: level, attack: 0.6, duration: 3, delay: at, pan, wet: 0.8, amb: true, filter: { type: 'lowpass', freq: 1300 } });
     }
@@ -990,16 +1018,26 @@ export class SoundFX {
     this.noise({ duration: 0.22, gain: 0.22, attack: 0.05, filter: 'bandpass', from: 400 * pitch, peak: 1400 * pitch, to: 300 * pitch, q: 3 });
   }
 
-  /** A foot coming down in water on stone (`strength` ~0.6 walking to ~1.4 sprinting). */
+  /**
+   * A foot coming down in water on stone (`strength` ~0.6 walking to ~1.4 sprinting): one of two recorded takes, lower
+   * and louder the harder the step lands.
+   */
   public playWetStep(strength = 1): void {
     const k = Math.min(1.5, strength);
+    if (this.sample(this.pick('wet_step', 'wet_step_2'), { rate: 1.1 - 0.15 * k, gain: 0.5 + 0.5 * k, pan: rand(-0.1, 0.1), wet: 0.1 })) return;
     this.noise({ color: 'white', filter: 'bandpass', from: rand(1500, 2200), peak: rand(2600, 3400), to: 900, q: 1.4, duration: 0.09 + 0.03 * k, gain: 0.04 + 0.05 * k, attack: 0.004, pan: rand(-0.1, 0.1) });
     this.noise({ color: 'pink', filter: 'lowpass', from: 700, to: 180, duration: 0.07, gain: 0.05 * k, attack: 0.002 });
   }
 
-  /** Something heavy into the water on the stone: a landing, a body, a mace (`strength` ~1.5 to 5). */
+  /**
+   * Something heavy into the water on the stone: a landing, a body, a mace (`strength` ~1.5 to 5). Light blows and
+   * landings are one recording, heavy ones another; both lower and louder as the strength grows.
+   */
   public playSplash(strength = 3): void {
     const k = Math.min(5, strength) / 5;
+    if (strength >= 2.6
+      ? this.sample('splash_heavy', { rate: 1.12 - 0.22 * k, gain: 0.45 + 0.55 * k, wet: 0.2 })
+      : this.sample('splash_light', { rate: 1.1 - 0.3 * k, gain: 0.6 + 0.8 * k, wet: 0.2 })) return;
     this.noise({ color: 'white', filter: 'bandpass', from: 900, peak: 2400, to: 700, q: 0.9, duration: 0.25 + 0.35 * k, gain: 0.08 + 0.14 * k, attack: 0.006, wet: 0.3 });
     this.noise({ color: 'white', filter: 'highpass', from: 3000, to: 5200, duration: 0.5 + 0.5 * k, gain: 0.02 + 0.05 * k, attack: 0.05, delay: 0.06, wet: 0.4 });
     // The drops thrown up, falling back.
@@ -1014,6 +1052,7 @@ export class SoundFX {
    * closing over him.
    */
   public playPlunge(): void {
+    if (this.sample('plunge', { wet: 0.2 })) return;
     this.playSplash(5);
     this.tone({ type: 'sine', freq: 110, to: 38, gain: 0.32, duration: 0.55, attack: 0.01 });
     this.noise({ color: 'brown', filter: 'lowpass', from: 900, to: 120, duration: 0.9, gain: 0.3, attack: 0.01, wet: 0.2 });
@@ -1023,9 +1062,12 @@ export class SoundFX {
 
   /**
    * The wake of something moving fast under the water toward the hero, for `seconds`: a low churning rumble that
-   * swells as it nears, and a rising surge at the end (where it will come up).
+   * swells as it nears, and a rising surge at the end (where it will come up). The recording swells to its last moment,
+   * so it is stretched (a little: it is nearly as long) to end just when he surfaces.
    */
   public playWake(seconds: number): void {
+    const wake = this.samples.get('wake');
+    if (wake && this.sample('wake', { rate: wake.duration / Math.max(0.5, seconds), wet: 0.15 })) return;
     this.noise({ color: 'brown', filter: 'lowpass', from: 140, peak: 260, to: 520, q: 1.2, duration: seconds + 0.2, gain: 0.34, attack: seconds * 0.8, wet: 0.2 });
     this.noise({ color: 'pink', filter: 'bandpass', from: 500, to: 1500, q: 1.4, duration: seconds, gain: 0.07, attack: seconds * 0.9, wet: 0.3 });
     this.tone({ type: 'sawtooth', freq: 48, to: 70, gain: 0.07, duration: seconds + 0.1, attack: seconds * 0.85, filter: { type: 'lowpass', freq: 160, q: 2 } });
@@ -1131,8 +1173,12 @@ export class SoundFX {
     this.sample('shankh', { wet: 0.35 });
   }
 
-  /** Raiders at the gate: a narsingha horn blown twice, rough and rising, and a shout under it. */
+  /**
+   * Raiders at the gate: a narsingha horn blown twice, a short rough blast and then a longer one, rising (the
+   * synthesized version adds a shout under it).
+   */
   public playRaidHorn(): void {
+    if (this.sample('raid_horn', { wet: 0.3 })) return;
     for (const d of [0, 1.1]) {
       for (const [ratio, level] of [[1, 0.09], [2, 0.04], [3, 0.02]] as const) {
         this.tone({ type: 'sawtooth', freq: 150 * ratio, to: 196 * ratio, gain: level, attack: 0.18, duration: d ? 1.6 : 0.8, delay: d, wet: 0.6, filter: { type: 'lowpass', freq: 1500 } });
@@ -1143,6 +1189,7 @@ export class SoundFX {
 
   /** A heavy blade comes down, heard in the dark (the guru's fall). */
   public playFallingBlow(): void {
+    if (this.sample('falling_blow', { wet: 0.4 })) return;
     this.noise({ duration: 0.35, gain: 0.3, attack: 0.08, filter: 'bandpass', from: 300, peak: 1100, to: 200, q: 2 });
     this.thump(60, 1.4, 0.5, { delay: 0.24, wet: 0.6 });
     this.noise({ color: 'brown', filter: 'lowpass', from: 700, to: 90, duration: 1.2, gain: 0.25, attack: 0.01, delay: 0.24, wet: 0.5 });
@@ -1191,6 +1238,7 @@ export class SoundFX {
 
   /** A giant's footfall felt through the ground: a deep thud, the grit of it, a little of the place's echo. */
   public playHeavyStep(gain = 1): void {
+    if (this.sample('heavy_step', { gain, wet: 0.3 })) return;
     this.thump(vary(48), 0.7, 0.55 * gain, { wet: 0.35 });
     this.noise({ color: 'brown', filter: 'lowpass', from: 420, to: 70, duration: 0.45, gain: 0.22 * gain, attack: 0.005 });
     this.noise({ duration: 0.12, gain: 0.05 * gain, attack: 0.002, filter: 'bandpass', from: 1800, to: 600, q: 1.2, delay: 0.02 });
@@ -1198,24 +1246,29 @@ export class SoundFX {
 
   /** A body going down in the dust. */
   public playBodyFall(gain = 1): void {
+    if (this.sample('body_fall', { gain, wet: 0.2 })) return;
     this.thump(vary(70), 0.45, 0.45 * gain, { wet: 0.2 });
     this.noise({ color: 'pink', filter: 'lowpass', from: 1600, to: 200, duration: 0.5, gain: 0.18 * gain, attack: 0.004 });
     this.thump(vary(95), 0.25, 0.2 * gain, { delay: 0.14 });
   }
 
-  /** A chapter card lands: a struck bell over a deep drum. */
+  /** A chapter card lands: a heavy stroke on the dhol, the stick's crack, the boom dying away. */
   public playCardHit(): void {
+    if (this.sample('card_hit', { wet: 0.3 })) return;
     this.tone({ type: 'sine', freq: 82, to: 41, gain: 0.55, duration: 1.6 });
     this.noise({ duration: 0.25, gain: 0.12, attack: 0.002, filter: 'lowpass', from: 900, to: 120 });
     this.ring(220, [1, 1.5, 2, 2.67, 4], [3.5, 3.1, 2.7, 2.3, 1.9], 0.12, { wet: 0.5 });
   }
 
-  /** A short metallic tick as the menu focus moves. */
+  /** A small brass bell tapped as the menu focus moves. */
   public playUiMove(): void {
+    if (this.sample('ui_move')) return;
     this.tone({ type: 'sine', freq: 1320, gain: 0.05, duration: 0.07 });
   }
 
+  /** A small brass bell struck: a button pressed. */
   public playUiConfirm(): void {
+    if (this.sample('ui_confirm')) return;
     this.tone({ type: 'sine', freq: 660, gain: 0.08, duration: 0.25 });
     this.tone({ type: 'sine', freq: 990, gain: 0.05, duration: 0.3, delay: 0.04 });
   }
@@ -1379,8 +1432,9 @@ export class SoundFX {
     this.place(g, { wet: 0.5 });
   }
 
-  /** The player falls: a low bell, slowly fading. */
+  /** The player falls: a great bronze bell tolled once, slowly fading. */
   public playDefeat(): void {
+    if (this.sample('defeat', { wet: 0.4 })) return;
     [110, 164.8, 220].forEach((f, i) => this.tone({ type: 'sine', freq: f, to: f * 0.97, gain: 0.22 / (i + 1), duration: 3.5, delay: i * 0.05, wet: 0.5 }));
   }
 

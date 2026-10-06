@@ -487,3 +487,90 @@ the sword was left alone here.
 
 **Blocked on a sign-in (Mixamo):** a bow draw-and-loose (or an overarm throw) for the hurlers, and a cast and death of
 the yatudhana's own (both borrow Mayavi's). Nothing was tried: Mixamo is out of bounds without the user's login.
+
+## Milestones (2026-10-05)
+
+Made while the user was away (docs/STORY.md, Roadmap). One subsection per milestone: the calls made, each easy to undo,
+and what is left for the user.
+
+### Milestone 10: voices and sound: DONE; loop seams still to be listened to
+
+**ElevenLabs spend: 718 credits as `estimate_only` quoted them** (490 for the first run, 228 for the re-rolls) against
+the 2,000 allowed; the finished generations each report their own price, and those add up to 239. 34 takes in 17 runs of
+Sound Effects v2 (flows `EouKT1OETCbAtnrFgtel` and `V7UM1onltxC63Gd9nSLs`; every session and take is in
+`game asset/sfx/_m10_sources.json`, the raw takes in `game asset/sfx/takes/`). Nothing else was paid for or downloaded;
+no sign-ins. The rate seen is 10 credits per second quoted (3.3 reported) per take, not the 40 the older notes above
+assume, so if the declined rain bed and thunder were ever wanted they would be about 600 quoted, and the three recorded
+victory stingers about 360.
+
+**Voices (checked, nothing recorded):** all 66 voice files are used (65 by a line's `voice` id, one, the laugh, played
+by name), every id the code asks for has its file, and every speaker except Yudhveer is voiced (his lines are subtitles
+only, by design). The dialogue rewrites in docs/proposals/DIALOGUE.md are pending the user's yes and were not recorded.
+
+**The inventory** (`src/combat/SoundFX.ts`). Recorded before: the weapons' whooshes and blows, the parry, the block, the
+glancing blow, the posture break, the slide, the katar, the magic bolt, the flame burst, the telegraph, the roars, the
+phase surge and the conch (19 files). Synthesized, ranked by how often and how loudly they play, and what became of them:
+
+| Sound | Where it plays | Now |
+|---|---|---|
+| `playWetStep` | every step the hero takes in Dwarka | recorded (two takes, picked at random) |
+| `playSplash` | Dwarka landings, falls, mace slams, Shalva surfacing | recorded (a light and a heavy one) |
+| `playUiMove`, `playUiConfirm` | every menu move and press | recorded (a small bronze bell, tapped and struck) |
+| `playDefeat` | every defeat | recorded (a great bronze bell) |
+| `playCardHit` | every chapter card | recorded (a dhol stroke with its stick's crack) |
+| `playPlunge`, `playWake` | each of Shalva's dives | recorded |
+| `playHeavyStep`, `playBodyFall`, `playFallingBlow`, `playRaidHorn` | the prologue | recorded (the horn a narsingha-style Rajasthani war horn: a short blast, then a long one) |
+| `playEarRing` | the prologue's concussions | **kept synthesized:** a pure tone whose length and level the cutscene sets, and it is routed past the muffler |
+| `playLevelClear` | each chapter won | **kept synthesized:** "keep the temple bell; no recorded stinger" (above) |
+| the places' ambience events (drips, wind, waves, thunder, animals, bells) | everywhere | **kept synthesized:** the rain bed was declined, and "current is good enough" |
+| `playChakramThrow` | nothing calls it | left alone (dead code) |
+
+**Calls made:**
+
+- **Dwarka.** The recorded steps and splashes are one-shots; the declined rain bed, the waves and the thunder are
+  untouched. Dwarka's distant shankh (an ambience event every minute or two) now plays the existing conch recording
+  (synth as fallback; no credits).
+- **Levels were set by measuring** each sound through the real chain (an offline render through the effects bus, the
+  place's reverb and the master compressor, master volume 1), against the recordings already there. In that chain combat
+  blows peak near -6 dBFS (`hit_crush` -6.2, `hit_blade` -6.5), the slide -10.7 and the telegraph -13.5, and the new ones
+  come to: steps -16 to -13 (walking to sprinting), light splashes -14 to -12, heavy ones -10 to -8, plunge -6.4, wake -7.6
+  at its end, Andhaka's tread -8.7, body fall -9.3 (-15 at the guru's half level), falling blow -3.2, horn -10.3, card
+  -5.5, menu bells -21 (move) and -15 (press), defeat -7.7. Each is one number in `SAMPLE_GAIN`.
+- **This changes the mix.** The synthesized steps and menu ticks were effectively inaudible. Measured live at the master
+  output (volume 0.8): Dwarka's rain bed sits near -37 dBFS RMS and the title music near -33, while the old step peaked
+  near -48 and the old menu tick near -43. The recorded steps peak near -19 there, about 18 dB over the bed's RMS (7 dB
+  over its usual peaks), and the menus now ring. If the steps feel too forward, lower `wet_step` and `wet_step_2`; they
+  are the sounds heard most.
+- **Re-rolls (8 extra takes).** The first takes of four sounds were not usable as they came: the giant's step (94% of its
+  energy below 80 Hz, a hum), the horn (one long note, not two blasts), the wake (loudest at its start; the game needs a
+  swell) and the defeat bell (a boom with no bell partials). The re-rolls fixed the step (69% of it between 80 and 250 Hz)
+  and the bell (a true strike, its partials ringing). The horn came out as a single long note each time and the wake still
+  did not swell, so `raid_horn.mp3` is assembled from two takes (a short blast, a breath, a long one) and the wake is
+  levelled and given a swell. Every edit is in `game asset/sfx/process_sfx.py`.
+- **Small speakers.** The giant's tread, the body fall and the wake are mostly under 80 Hz (72%, 66% and 59% of their
+  energy); the synthesized tread was lower still (99%), the synthesized fall and wake less low (61% and 34%). A harmonic
+  was added to the tread. Worth hearing on laptop speakers.
+- **Two things not done, for the user:** the hero makes no footstep sound in any chapter but Dwarka (nor do the enemies in
+  the fights), and a felled enemy makes no fall sound (`playBodyFall` exists and could be called from `Enemy`'s death;
+  that file belongs to the combat passes).
+
+**Music check.** All ten tracks (title, village, baoli, akhada, island, dwarka, summit, boss, andhaka_final, shiva)
+fetch, decode (60 s each) and play, and none falls back to the drone. Wiring, confirmed by starting each chapter in a
+dev build: the prologue plays `village`, Chapter I `boss` (the Guardian is up from the start; `baoli` plays in the intro
+and after), Chapter II `akhada`, **Chapter III `island` (level 5; it was already wired, so the roadmap's "awaits its
+chapter" was stale and is gone)**, Dwarka `boss` (Shalva; `dwarka` under the intro and the ending), the summit `summit`
+with `andhaka_final` for Andhaka, and `shiva` as the reveal's one-shot. Loudness is even: integrated -11.4 to -16.4 LUFS,
+-12.8 to -15.0 once `TRACK_GAIN` is applied. **The loop seams are not clean (measured, not listened to):** `village`
+ends at full level and fades in over 3 s; `title` fades out over its last 4 s, `island` over about 5 s and `boss` over
+1.5 s before the seam (the recording then starts at full level, or fades in from silence, as `akhada` and `island` do),
+so those dip for 1.5 to 8 s at every loop; `summit` has a small step; `baoli`, `dwarka` and `andhaka_final` loop
+cleanly. A fix that needs ears: loop each from after its fade-in to before its fade-out with a short
+crossfade (an overlap schedule in `Music`, or a crossfaded copy of each file). Not done here.
+
+**Checks.** `npx tsc --noEmit` and `npm run build` pass with no warnings; the bundle carries no `__debug` or `__yudhveer`
+and lists 33 recordings and 10 tracks. In a dev build, after a real click: the audio context runs, all 33 recordings
+fetch (200) and decode, there are no console warnings or errors, each new sound renders offline with its level and
+spectrum, and played live each one reached the master output. In Dwarka, played in real time, the hero's steps called the
+recordings (both takes), and Shalva's dive called `plunge`, `wake`, the telegraph, the splashes, the roar and the smash,
+none falling back to the synth. To hear one: in a dev build, click once, then in the console
+`__yudhveer.soundFX.playCardHit()` (or any `play...` method).

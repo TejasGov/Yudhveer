@@ -218,3 +218,25 @@ with the game's Mixamo clips. Made for the game; no third-party licence.
 The raiders' talwar (`public/assets/weapons/raider_talwar.glb`) is "Indian Talwar Weapon (low poly)" by Sangam
 Senapati (Sketchfab, CC BY 4.0; credited above with the island's models), prepared as a weapon: re-origined at the
 grip and scaled to 0.95 m.
+
+## Sound effects (ElevenLabs)
+
+Every recording in `public/assets/sfx` is generated for this game with ElevenLabs Sound Effects v2
+(`eleven_text_to_sound_v2`), then cut, faded and levelled (`game asset/sfx/process_sfx.py`). Made for the game; no
+third-party licence. The first nineteen (the weapons' whooshes and blows, the roars, the parry, the block, the
+telegraph, the phase surge, the slide, and the conch) are listed in `game asset/sfx/README.md`. Milestone 10
+(2026-10-05) added fourteen, from two runs of the ElevenLabs flow editor (batch 1 `EouKT1OETCbAtnrFgtel`, re-rolls
+`V7UM1onltxC63Gd9nSLs`; every take, prompt and session is in `game asset/sfx/_m10_sources.json`, the raw takes in
+`game asset/sfx/takes/`):
+
+| File | Used for |
+|---|---|
+| `wet_step.mp3`, `wet_step_2.mp3` | the hero's step on Dwarka's rain-wet stone (two takes, alternated) |
+| `splash_light.mp3`, `splash_heavy.mp3` | a landing or a blow, and a mace slam or Shalva surfacing, in Dwarka's water |
+| `plunge.mp3`, `wake.mp3` | Shalva diving, and swimming under the stone toward the hero |
+| `heavy_step.mp3` | Andhaka's tread in the prologue |
+| `body_fall.mp3`, `falling_blow.mp3` | a body falling in the dust, and the blade that falls in the dark (prologue) |
+| `raid_horn.mp3` | the raiders' horn, a short blast and a long one: a narsingha-style Rajasthani war horn (prologue) |
+| `card_hit.mp3` | the chapter card's dhol stroke |
+| `ui_move.mp3`, `ui_confirm.mp3` | the menus' small bronze bell, tapped and struck |
+| `defeat.mp3` | the great bronze bell tolled when the hero falls |

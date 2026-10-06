@@ -376,7 +376,8 @@ roof's smoke column leaning off on the wind, lit from beneath, sparks drifting a
 
 **Sound beats:** the crushing blow, the ears ringing and the world muffled; giant footfalls; Andhaka's line muffled
 and far; the laugh; the falling blow; silence and "Guruji!"; the raid horn as they go; the fire's crackle as the
-ringing ebbs. (New synths: `playHeavyStep`, `playBodyFall`, `playEarRing`.)
+ringing ebbs. (New synths then: `playHeavyStep`, `playBodyFall`, `playEarRing`. Since milestone 10 the tread, the
+falls, the falling blow and the raid horn are recordings; the ear ring stays a synthesized tone.)
 
 **Room for a line:** the guru arrives facing the boy and only turns to Andhaka at the start of shot 9, a natural place
 for "Keep your feet, Yudhveer" (docs/proposals/DIALOGUE.md, 8A) if that is approved. Nothing else was added: no new
@@ -1064,7 +1065,9 @@ ground, walking ripples". Chapter IV now plays in a storm, every scene and the f
   the gusts, a low roar off the sea), single drops pattering close by, rain gusts, the waves as before, the shankh
   rarer, the gulls gone. Distant thunder every 28-55 s with a soft lightning flash (the sky light, the cloud deck and
   the rain flare), never while a line is up (`SoundFX.hushed`). The hero's steps splash (`playWetStep`); landings, falls
-  and the slam splash (`playSplash`). A recorded rain bed was offered and declined ("current is good enough").
+  and the slam splash (`playSplash`). A recorded rain bed was offered and declined ("current is good enough"); the rain,
+  waves and thunder stay synthesized. (Since milestone 10 the steps and the splashes themselves are recordings, and the
+  distant shankh is the recorded conch.)
 - **Cost:** 3 draw calls and ~19k triangles; at 1080p the frame was within noise of before (~8 ms either way in the
   test view); the level's update is ~0.02 ms. Nothing allocated per frame.
 - **Dev:** `__debug.rain('low')` thins the rain to a third (and the splashes), `__debug.rain(false)` stops it (the
@@ -1516,7 +1519,9 @@ docs/APPROVALS.md, "Milestone 11".
 - Sound: the per-place ambience stays (stepwell, jungle, sea, mountain with thunder and lightning). The synthesized
   character sounds were reverted; they are to be replaced with real ones. Done: 18 recorded ElevenLabs effects
   (public/assets/sfx, per-weapon whoosh and impact, roars, parry, block, telegraph, phase surge) play through
-  `SoundFX` with slight pitch and level variation, the synth kept as their fallback; recorded music loops
+  `SoundFX` with slight pitch and level variation, the synth kept as their fallback (14 more in milestone 10: Dwarka's
+  steps and splashes, Shalva's plunge and wake, the prologue's tread, falls, blade and horn, the chapter card's dhol,
+  the menus' bells and the defeat bell); recorded music loops
   (public/assets/music: title, village, baoli, akhada, island, dwarka, summit, boss, andhaka_final) crossfade per
   chapter and boss (`LEVEL_MUSIC` and `Finale.music` in Engine), dip under voices and in cutscenes; Andhaka laughs
   (voice/andhaka_laugh) as his entrance smile begins and at his second phase.
@@ -1547,8 +1552,11 @@ Each milestone is one chat. Start it with: "Read docs/STORY.md, let's do milesto
 - [x] **8. Chapter IV, Dwarka:** the hero with the mace, Shalva mace against mace, the truth about Andhaka,
   Takshaka's prophecy and the sword.
 - [x] **9. Chapter V, the summit:** the second minion type, the guru-as-Shiva ending cinematic, credits.
-- [ ] **10. Voices and sound:** ElevenLabs voices for every line, real character sound effects, music per chapter.
-  (Effects and music wired; the island track awaits its chapter; remaining: voices for every line.)
+- [x] **10. Voices and sound:** ElevenLabs voices for every line, real character sound effects, music per chapter.
+  *Done 2026-10-05 (docs/APPROVALS.md, "Milestones"). Every voiced line has its recording, and every speaker but
+  Yudhveer (unvoiced by design: subtitles only) is voiced. The dialogue rewrites in docs/proposals/DIALOGUE.md are
+  pending the user's yes, so none of them was recorded. The sound effects that were still synthesized are recordings
+  now (33 recordings in all, each with its synth as fallback); all ten music tracks play, the island's on Chapter III.*
 - [ ] **11. Replace placeholders:** the user's Meshy models (island monsters, second minion, weapons;
   the mentor is done). *The raiders, the island's runts and hurlers and the yatudhana: done 2026-10-05 (see
   "Milestone 11"). Left: the basic sword's model; the villagers.*
