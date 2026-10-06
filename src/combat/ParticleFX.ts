@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import { BloodFX } from './BloodFX';
+import { ClashFX } from './ClashFX';
+import { HitReact } from './HitReact';
 import { SceneManager } from '../core/SceneManager';
 
 /*
@@ -23,6 +25,10 @@ interface SparkParticle {
   color: THREE.Color;
   /** A hot (golden) spark: brighter, and it cools from white. */
   hot: boolean;
+  /** Chingaari (`spawnChingaari`): a longer tail (times the usual), and the ground it skitters on. */
+  streak?: number;
+  floor?: number;
+  bounces?: number;
 }
 
 interface ShockwaveRing {
@@ -84,6 +90,12 @@ export class Emitter {
 const STREAK = 0.024;
 /** What a cooling spark, flame or ember comes to before it goes out. */
 const EMBER_RED = new THREE.Color(0.55, 0.06, 0.012);
+/** Chingaari's colours at birth (they cool toward EMBER_RED): pale white-gold cores down to orange. */
+const CHINGAARI = [new THREE.Color(1, 0.96, 0.82), new THREE.Color(1, 0.84, 0.5), new THREE.Color(1, 0.66, 0.24), new THREE.Color(1, 0.48, 0.14)];
+const _up = new THREE.Vector3(0, 1, 0);
+const _right = new THREE.Vector3(1, 0, 0);
+const _u = new THREE.Vector3();
+const _v = new THREE.Vector3();
 
 const SPARK_VERTEX = /* glsl */ `
 attribute vec3 aHead;
@@ -273,6 +285,8 @@ export class ParticleFX {
     postFX.keepBloom(this.sparkMesh);
     postFX.keepBloom(this.flame.points);
     BloodFX.getInstance().init(scene);
+    // The clash's pooled light, with the other lights, before any level's materials are compiled.
+    ClashFX.getInstance().init(scene);
   }
 
   /**
@@ -317,6 +331,59 @@ export class ParticleFX {
         maxLife: isGolden ? (0.3 + Math.random() * 0.3) : 0.2 + Math.random() * 0.12,
         color: col,
         hot: isGolden,
+      });
+    }
+  }
+
+  /**
+   * Chingaari: a spray of sparks thrown along `dir` (unit; the way a blade was travelling as it scraped), within `cone`
+   * radians of it, a share `pop` thrown every which way instead (the round pop where the metal met). White-hot at the head,
+   * orange down a long tail, falling, and skittering once or twice where they meet `floor` (ClashFX is how a clash gets them).
+   */
+  public spawnChingaari(origin: THREE.Vector3, dir: THREE.Vector3, o: {
+    count: number; cone: number; pop: number; speed: [number, number]; life: [number, number]; size: [number, number];
+    streak: number; lift: number; floor?: number;
+  }): void {
+    // Two axes across the spray.
+    const across = Math.abs(dir.y) < 0.9 ? _up : _right;
+    _u.crossVectors(dir, across).normalize();
+    _v.crossVectors(dir, _u);
+    for (let i = 0; i < o.count; i++) {
+      if (this.sparks.length >= this.sparkMaxCount) this.sparks.shift();
+      let x: number;
+      let y: number;
+      let z: number;
+      if (Math.random() < o.pop) {
+        const theta = Math.random() * Math.PI * 2;
+        const cosPhi = Math.random() * 2 - 1;
+        const sinPhi = Math.sqrt(1 - cosPhi * cosPhi);
+        x = sinPhi * Math.cos(theta);
+        y = cosPhi;
+        z = sinPhi * Math.sin(theta);
+      } else {
+        const a = o.cone * Math.pow(Math.random(), 0.7);
+        const t = Math.random() * Math.PI * 2;
+        const s = Math.sin(a);
+        const c = Math.cos(a);
+        const ct = Math.cos(t) * s;
+        const st = Math.sin(t) * s;
+        x = dir.x * c + _u.x * ct + _v.x * st;
+        y = dir.y * c + _u.y * ct + _v.y * st;
+        z = dir.z * c + _u.z * ct + _v.z * st;
+      }
+      const speed = o.speed[0] + (o.speed[1] - o.speed[0]) * Math.pow(Math.random(), 0.8);
+      const col = CHINGAARI[Math.floor(Math.random() * CHINGAARI.length)].clone();
+      this.sparks.push({
+        position: origin.clone(),
+        velocity: new THREE.Vector3(x * speed, y * speed + o.lift * Math.random(), z * speed),
+        size: o.size[0] + (o.size[1] - o.size[0]) * Math.random(),
+        life: 0,
+        maxLife: o.life[0] + (o.life[1] - o.life[0]) * Math.random(),
+        color: col,
+        hot: true,
+        streak: o.streak,
+        floor: o.floor,
+        bounces: 0,
       });
     }
   }
@@ -476,6 +543,9 @@ export class ParticleFX {
   public update(dt: number): void {
     const gravity = -18;
     BloodFX.getInstance().update(dt);
+    // The hit flash on whoever was struck, and the flash of light of a clash.
+    HitReact.update(dt);
+    ClashFX.getInstance().update(dt);
     this.levelLight();
 
     // 1. Sparks: they fly, fall and slow in the air; each frame's streak is its last few hundredths of a second.
@@ -491,6 +561,15 @@ export class ParticleFX {
       p.velocity.x *= sparkDrag;
       p.velocity.z *= sparkDrag;
       p.position.addScaledVector(p.velocity, dt);
+      // Chingaari skitter where they meet the floor: up to twice, each time losing most of their pace.
+      if (p.floor !== undefined && p.position.y < p.floor && p.velocity.y < 0) {
+        p.position.y = p.floor;
+        p.velocity.y *= -0.34;
+        p.velocity.x *= 0.62;
+        p.velocity.z *= 0.62;
+        p.bounces = (p.bounces ?? 0) + 1;
+        if (p.bounces > 2 || p.velocity.y < 0.7) this.sparks.splice(i, 1);
+      }
     }
     const head = this.sparkHead.array as Float32Array;
     const tail = this.sparkTail.array as Float32Array;
@@ -502,9 +581,10 @@ export class ParticleFX {
       head[i * 3] = p.position.x;
       head[i * 3 + 1] = p.position.y;
       head[i * 3 + 2] = p.position.z;
-      tail[i * 3] = p.position.x - p.velocity.x * STREAK;
-      tail[i * 3 + 1] = p.position.y - p.velocity.y * STREAK;
-      tail[i * 3 + 2] = p.position.z - p.velocity.z * STREAK;
+      const streak = STREAK * (p.streak ?? 1);
+      tail[i * 3] = p.position.x - p.velocity.x * streak;
+      tail[i * 3 + 1] = p.position.y - p.velocity.y * streak;
+      tail[i * 3 + 2] = p.position.z - p.velocity.z * streak;
       // Hot sparks start white-hot and well over the bloom's threshold, then cool to orange and red as they die.
       const glow = p.hot ? 3.2 * Math.pow(1 - k, 1.3) + 0.15 : 1.6 * (1 - k) + 0.1;
       col.copy(p.color).lerp(EMBER_RED, Math.pow(k, p.hot ? 0.8 : 1.2)).multiplyScalar(glow);

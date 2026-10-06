@@ -8,7 +8,9 @@ import { BloodFX } from './BloodFX';
 import { SoundFX } from './SoundFX';
 import { SceneManager } from '../core/SceneManager';
 import { InputManager } from '../core/InputManager';
-import { IMPACTS, type ImpactKind } from '../core/ImpactCamera';
+import { IMPACTS, type ImpactKind, type ImpactSpec } from '../core/ImpactCamera';
+import { HitFeel, blowSpec, weaponKindOf } from './HitFeel';
+import type { BlowTier } from './HitReact';
 import type { Character } from '../entities/Character';
 import type { CharacterState } from '../entities/CharacterStateMachine';
 
@@ -30,7 +32,7 @@ const BOSS_BLADE_POSTURE = 0.35;
  * Hit-stop budget: freezes add up to at most this many milliseconds in any `FREEZE_WINDOW` (a sweep through a crowd
  * lands many blows at once and must not stall the game).
  */
-const FREEZE_BUDGET = 180;
+const FREEZE_BUDGET = 240;
 const FREEZE_WINDOW = 500;
 
 /** A short line the HUD flashes mid-screen. `tone` picks its colour. */
@@ -90,6 +92,10 @@ export class CombatSystem {
   private readonly freezes: { at: number; ms: number }[] = [];
   /** Gamepad rumble for impacts. */
   private readonly input = InputManager.getInstance();
+  /** Seconds of the step being resolved (a blade's velocity at a hit is how far it moved over it). */
+  private stepDt = 1 / 60;
+  /** `impact` as a function for HitFeel's floor strikes, made once. */
+  private readonly impactHook = (kind: ImpactKind, dir?: THREE.Vector3, scale?: number): void => this.impact(kind, dir, scale);
 
   /** The rate simulated time runs at now: 0 while frozen, else the slow-motion rate. Setting it ends any freeze. */
   public get globalTimeScale(): number {
@@ -130,10 +136,11 @@ export class CombatSystem {
    * One event of the impact table (ImpactCamera's IMPACTS): its hit-stop, the camera's kick, shake and FOV punch, and
    * the controller's rumble. `dir`: the way the force travels (attacker to victim), world space.
    */
-  public impact(kind: ImpactKind, dir?: THREE.Vector3, scale = 1): void {
-    const spec = IMPACTS[kind];
+  public impact(kind: ImpactKind, dir?: THREE.Vector3, scale = 1, own?: ImpactSpec): void {
+    // `own`: a weapon's numbers for this event (HitFeel.blowSpec) in place of the table's.
+    const spec = own ?? IMPACTS[kind];
     if (spec.freeze > 0) this.freeze(spec.freeze);
-    this.sceneManager.impact.impact(kind, this.sceneManager.camera, { dir, scale });
+    this.sceneManager.impact.impact(kind, this.sceneManager.camera, { dir, scale, spec: own });
     const [strong, weak, ms] = spec.rumble;
     this.input.rumble(strong * Math.min(scale, 1.4), weak * Math.min(scale, 1.4), ms);
   }
@@ -164,6 +171,7 @@ export class CombatSystem {
    */
   public update(player: Player, enemies: Enemy[], dt = 1 / 60): void {
     this.clock += dt;
+    this.stepDt = dt;
     const living = enemies.filter((e) => e.stateMachine.currentState !== 'DEAD');
     for (const enemy of living) {
       const w = this.activeStrike(player);
@@ -184,6 +192,8 @@ export class CombatSystem {
         }
       }
     }
+    // A weapon brought down on the floor (the mace's slam, a leaping strike): sparks, dust, a thud.
+    HitFeel.floorStrike(player, dt, this.impactHook);
     this.hitboxManager.commitBlades([player, ...enemies]);
   }
 
@@ -271,9 +281,17 @@ export class CombatSystem {
     const slam = charged || attackState === 'ATTACK_JUMP' || (crush && !!blow.heavy);
     let kind: ImpactKind = glancing ? 'glance' : slam ? 'hitSlam' : blow.heavy || crush ? 'hitHeavy' : 'hitLight';
     if (enemy.isBoss && enemy.currentHealth <= 0) kind = 'bossKill';
+    // What this weapon makes of it (HitFeel): the victim's flinch, push and flash, chingaari where steel meets hide or
+    // armour, the layers of sound and the dust; and the camera's and the blood's own direction.
+    const weapon = weaponKindOf(player);
+    const tier: BlowTier = slam ? 'slam' : blow.heavy ? 'heavy' : 'light';
+    const reeling = broken || (enemy.stateMachine.currentState !== 'POSTURE_BROKEN' && this.canStagger(enemy, armored, heavyBlow));
+    const feel = HitFeel.blowLanded({
+      attacker: player, victim: enemy, point: hitPoint, dt: this.stepDt, weapon, tier,
+      glancing, armored, boss: enemy.isBoss, along, reeling,
+    });
     if (glancing) {
       this.soundFX.playGlancingBlow();
-      this.particleFX.spawnSparks(hitPoint, 10, false);
     } else {
       this.soundFX.playHitImpact(player.weapon.sound.impact);
       // With blood on, the red sparks of a flesh blow give way to it (a charged blow keeps its gold).
@@ -281,11 +299,10 @@ export class CombatSystem {
       const bleeds = blood.bleeds(enemy.blood);
       if (!bleeds || charged) this.particleFX.spawnSparks(hitPoint, heavy ? 45 : 25, charged);
       if (bleeds) {
-        const dir = enemy.getPosition().clone().sub(player.getPosition());
-        blood.spill(hitPoint, dir, damage, enemy.blood, enemy.group.position.y, enemy.currentHealth <= 0);
+        blood.spill(hitPoint, feel.spill, damage, enemy.blood, enemy.group.position.y, enemy.currentHealth <= 0);
       }
     }
-    this.impact(kind, along);
+    this.impact(kind, feel.dir, 1, blowSpec(kind, weapon, tier));
     if (broken) this.impact('postureBreak', along);
 
     this.stats.damageDealt += damage;
@@ -327,7 +344,7 @@ export class CombatSystem {
     // Raised dhal (a guard, or a parry pressed too early): the blow lands on the shield.
     const { damage, posture } = enemyBlow(enemy);
     if (player.isGuarding() && player.isFacing(enemy.getPosition())) {
-      this.handleBlockedHit(player, hitPoint, damage, posture, enemy.getPosition());
+      this.handleBlockedHit(player, hitPoint, damage, posture, enemy.getPosition(), enemy);
       this.record({ ...entry, result: 'blocked' });
       return;
     }
@@ -360,7 +377,7 @@ export class CombatSystem {
 
   private handlePerfectParry(player: Player, enemy: Enemy, hitPoint: THREE.Vector3): void {
     this.soundFX.playParryClash();
-    this.particleFX.spawnSparks(hitPoint, 55, true);
+    HitFeel.clash({ point: hitPoint, attacker: enemy, weapon: weaponKindOf(enemy), power: 1.5, floor: enemy.group.position.y, dt: this.stepDt });
     this.particleFX.spawnDeflectionShockwave(hitPoint);
     // A deflect is a crisp snap toward the attacker (the hero meets the blow), not a shake.
     const toward = enemy.getPosition().clone().sub(player.getPosition()).setY(0);
@@ -383,12 +400,15 @@ export class CombatSystem {
    * A blow taken on the guard: a little health gets through, posture takes more, and the dhal rocks back. `from`:
    * where the blow came from (the camera is knocked back away from it).
    */
-  public handleBlockedHit(player: Player, hitPoint: THREE.Vector3, damage: number, postureDamage: number, from?: THREE.Vector3): void {
+  public handleBlockedHit(player: Player, hitPoint: THREE.Vector3, damage: number, postureDamage: number, from?: THREE.Vector3, attacker?: Enemy): void {
     this.stats.blocks++;
     player.takeDamage(damage * 0.2);
     const broken = player.addMarmaDamage(postureDamage * 1.25);
     this.soundFX.playShieldBlock();
-    this.particleFX.spawnSparks(hitPoint, 18, false);
+    HitFeel.clash({
+      point: hitPoint, attacker, from, weapon: attacker ? weaponKindOf(attacker) : 'blade', power: 0.65,
+      floor: player.group.position.y, dt: this.stepDt,
+    });
     const away = from ? player.getPosition().clone().sub(from).setY(0) : undefined;
     this.impact(broken ? 'guardBroken' : 'block', away);
     if (broken) this.callout({ text: 'Guard broken', tone: 'red' });

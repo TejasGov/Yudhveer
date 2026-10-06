@@ -18,6 +18,11 @@ const SAMPLE_GAIN = {
   parry_clash: 0.62,
   shield_block: 0.55,
   glancing_blow: 0.55,
+  // Hit feel (2026-10-06): a steel clang for the sparks of an armoured or glancing blow, a mace on stone, and the crack of
+  // a bamboo staff laid over the lathi's blow.
+  blade_clang: 0.55,
+  stone_slam: 0.7,
+  lathi_crack: 0.6,
   posture_break: 0.6,
   slide: 0.6,
   katar_slash: 0.45,
@@ -1116,6 +1121,65 @@ export class SoundFX {
       this.tone({ type: 'triangle', freq: 160, to: 35, gain: 0.42, duration: 0.16 });
       this.noise({ duration: 0.08, gain: 0.16, attack: 0.002, filter: 'lowpass', from: 2400, to: 400 });
     }
+  }
+
+  /**
+   * The weight under a landed blow, laid over its own recording (`playHitImpact`). Every blow gets a low body thump that
+   * falls in pitch, lower and longer for a heavier one, and each weapon its own signature on top: a staff the sharp crack
+   * of bamboo, a blade the hiss of a slice, a mace a boom an octave down with the chips falling after it. `tier`: 0 a plain
+   * blow, 1 a heavy one, 2 a slam.
+   */
+  public playBlowWeight(kind: ImpactKind = 'blade', tier: 0 | 1 | 2 = 0): void {
+    const heavy = 1 + 0.28 * tier;
+    if (kind === 'wood') {
+      this.thump(122 - 8 * tier, 0.16 * heavy, 0.2 * (0.85 + 0.15 * tier));
+      // A bamboo's crack: the recording, or a burst of bright noise and a dry knock.
+      if (!this.sample('lathi_crack', { gain: 0.8 + 0.18 * tier, rate: 1.03 - 0.05 * tier })) {
+        this.noise({ duration: 0.05, gain: 0.2, attack: 0.001, filter: 'highpass', from: 2600, to: 6500 });
+        this.tone({ type: 'triangle', freq: 540, to: 230, gain: 0.16, duration: 0.05 });
+      }
+    } else if (kind === 'blade') {
+      this.thump(108 - 6 * tier, 0.17 * heavy, 0.2 * (0.85 + 0.15 * tier));
+      // A slice: a short bright hiss and the faintest ring of the edge.
+      this.noise({ duration: 0.11, gain: 0.07 + 0.015 * tier, attack: 0.004, filter: 'bandpass', from: 1800, peak: 5200, to: 3000, q: 1.2 });
+      this.tone({ type: 'sine', freq: vary(3300, 0.03), to: 2300, gain: 0.025, duration: 0.14, attack: 0.002 });
+    } else {
+      this.thump(78 - 6 * tier, 0.34 * heavy, 0.3 * (0.85 + 0.15 * tier));
+      // A mace: a boom under the blow, a second recording of it an octave down, and the chips falling after.
+      this.tone({ type: 'sine', freq: 62, to: 26, gain: 0.3 * (0.85 + 0.15 * tier), duration: 0.45 + 0.1 * tier, attack: 0.004 });
+      this.sample('hit_crush', { rate: 0.62, gain: 0.4 });
+      this.noise({ duration: 0.2, gain: 0.11, attack: 0.002, filter: 'lowpass', from: 1400, to: 180 });
+      for (let i = 0; i < 3 + tier; i++) {
+        this.noise({ color: 'white', filter: 'bandpass', from: rand(1500, 3200), to: 900, q: 3, duration: 0.03, gain: rand(0.012, 0.03), attack: 0.001, delay: 0.08 + rand(0, 0.3), pan: rand(-0.5, 0.5) });
+      }
+    }
+  }
+
+  /**
+   * Metal meeting metal, short: the clang of a blade turned aside by armour or hide ('steel'), or of a mace ('iron', the
+   * same an octave down), and the hiss of the sparks it throws. `power` ~0.5 (a chip into a committed blow) to 1.4.
+   */
+  public playClang(strike: 'steel' | 'iron' = 'steel', power = 1): void {
+    const g = 0.5 + 0.5 * Math.min(1.4, power);
+    const iron = strike === 'iron';
+    if (!this.sample('blade_clang', { gain: g * (iron ? 0.95 : 1), rate: iron ? 0.72 : 1, wet: 0.08 })) {
+      this.tone({ type: 'triangle', freq: iron ? 900 : 1700, to: iron ? 300 : 650, gain: 0.3 * g, duration: 0.05 });
+      this.ring(vary(iron ? 640 : 1250, 0.02), [1, 2.4, 3.9], [0.3, 0.2, 0.12], 0.2 * g, { wet: 0.08 });
+    }
+    this.noise({ duration: 0.16, gain: 0.025 + 0.02 * Math.min(1.4, power), attack: 0.003, filter: 'highpass', from: 5000, to: 9000, delay: 0.012, pan: rand(-0.3, 0.3) });
+  }
+
+  /**
+   * A weapon struck on stone (the mace's slam, a leaping strike): the recording of a mace on flagstone, a boom under it
+   * and the chips. `power` ~0.6 to 1.4.
+   */
+  public playStoneStrike(power = 1): void {
+    const g = 0.55 + 0.45 * Math.min(1.4, power);
+    if (!this.sample('stone_slam', { gain: g, rate: 1.06 - 0.14 * Math.min(1.4, power), wet: 0.15 })) {
+      this.noise({ duration: 0.3, gain: 0.2 * g, attack: 0.002, filter: 'lowpass', from: 2600, to: 220, wet: 0.15 });
+      this.thump(70, 0.4, 0.3 * g, { wet: 0.15 });
+    }
+    this.thump(58, 0.42 * Math.min(1.4, power), 0.2 * g, { wet: 0.2 });
   }
 
   /** A blade turned aside by hide or armour: a dull knock and a short scrape. */

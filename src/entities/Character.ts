@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import { Entity } from './Entity';
 import { CharacterStateMachine, type CharacterState, type TimedStateKey } from './CharacterStateMachine';
-import { SlashRibbon } from '../combat/SlashRibbon';
+import { SlashRibbon, trailActive, trailLookOf } from '../combat/SlashRibbon';
+import { HitReact } from '../combat/HitReact';
 import { CharacterRig, type CharacterDefinition, type SocketAttachment, type StateAnimation } from './animation/CharacterRig';
 import { CharacterMotor, DEFAULT_MOTOR, type MotorOptions } from '../physics/CharacterMotor';
 import { PhysicsWorld } from '../core/PhysicsWorld';
@@ -53,6 +54,8 @@ const _scabbardTip = new THREE.Vector3();
 const _scabbardAxis = new THREE.Vector3();
 const _scabbardQuat = new THREE.Quaternion();
 const _scabbardTurn = new THREE.Quaternion();
+const _trailTip = new THREE.Vector3();
+const _trailHilt = new THREE.Vector3();
 
 /** How a jump plays out, in state seconds: when to leave the ground and how fast, and how long landing takes. */
 export interface JumpPlan {
@@ -171,8 +174,9 @@ export class Character extends Entity {
     this.primitiveRoot = new THREE.Group();
     this.modelGroup.add(this.primitiveRoot);
 
-    // Procedural weapon ribbon
+    // Procedural weapon ribbon (its newest point follows the blade as it is drawn between two steps)
     this.slashRibbon = new SlashRibbon(ribbonColor, 0.75);
+    this.slashRibbon.live = (tip, hilt) => this.weaponSegmentInto(tip, hilt);
 
     // Build stylized greybox mesh hierarchy
     const capsuleMat = new THREE.MeshStandardMaterial({
@@ -494,6 +498,12 @@ export class Character extends Entity {
     this.stateMachine.changeState('JUMP');
   }
 
+  /** The weapon's trail: it grows while the blade is in a swing and fades after (combat/SlashRibbon.ts). */
+  private updateTrail(dt: number): void {
+    this.weaponSegmentInto(_trailTip, _trailHilt);
+    this.slashRibbon.update(_trailTip, _trailHilt, trailActive(this), dt, trailLookOf(this));
+  }
+
   /** Plays the current state's clip, matches locomotion speed and applies root motion. */
   private updateRig(dt: number): void {
     const rig = this.rig!;
@@ -803,6 +813,19 @@ export class Character extends Entity {
     return this.swordMesh.localToWorld(out.set(0, this.bladeSpan[1], 0));
   }
 
+  /** The blade's tip and hilt now (world), into the given vectors; nothing allocated (the trail reads it every frame). */
+  public weaponSegmentInto(tip: THREE.Vector3, hilt: THREE.Vector3): void {
+    if (this.rig) {
+      this.swordMesh.updateWorldMatrix(true, false);
+      this.swordMesh.localToWorld(tip.set(0, this.bladeSpan[1], 0));
+      this.swordMesh.localToWorld(hilt.set(0, this.bladeSpan[0], 0));
+      return;
+    }
+    const w = this.getWeaponPoints();
+    tip.copy(w.tip);
+    hilt.copy(w.hilt);
+  }
+
   public getWeaponPoints(): { tip: THREE.Vector3; hilt: THREE.Vector3 } {
     if (this.rig) {
       // The sword rides the rig's hand socket: read its blade straight from the animated skeleton.
@@ -856,9 +879,7 @@ export class Character extends Entity {
     const state = this.stateMachine.currentState;
     const t = this.stateMachine.stateTime;
     if (this.rig) {
-      // The rig animates the body; only the weapon trail is procedural.
-      const { tip, hilt } = this.getWeaponPoints();
-      this.slashRibbon.update(tip, hilt, state.startsWith('ATTACK'));
+      // The rig animates the body; the weapon's trail is laid in `update`, every step (not only when this runs).
       return;
     }
 
@@ -924,15 +945,17 @@ export class Character extends Entity {
     this.leftArm.rotation.z = THREE.MathUtils.lerp(this.leftArm.rotation.z, targetLeftArmRot.z, lerpSpeed);
 
     // Update weapon ribbon trail
-    const isAttacking = state.startsWith('ATTACK');
     const { tip, hilt } = this.getWeaponPoints();
-    this.slashRibbon.update(tip, hilt, isAttacking);
+    this.slashRibbon.update(tip, hilt, trailActive(this), dt, trailLookOf(this));
   }
 
   public override update(dt: number): void {
     super.update(dt);
     this.stateMachine.update(dt);
     if (this.rig) this.updateRig(dt);
+    // A blow's flinch and push, laid over the pose the rig has just taken (combat/HitReact.ts).
+    HitReact.step(this, dt);
+    if (this.rig) this.updateTrail(dt);
     this.updateSwordStowage();
 
     // Marma posture natural decay

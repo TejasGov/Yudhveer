@@ -4,6 +4,7 @@ import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.j
 import type { CharacterState } from '../CharacterStateMachine';
 import { addRimLight, createToonRamp, toToonMaterial } from '../../levels/environment/ToonRelight';
 import { disposeObject } from '../../levels/GLBLevel';
+import { installHitFlash } from '../../combat/HitReact';
 
 /** One clip as described by `game asset/characters/build_character.py`'s manifest. */
 export interface ClipInfo {
@@ -317,6 +318,7 @@ export class CharacterRig {
         const toon = toToonMaterial(src, this.ramp);
         if (tint) toon.color.multiply(tint);
         addRimLight(toon, { color: 0xffe6c4, strength: 0.14, start: 0.74 });
+        installHitFlash(toon);
         converted.set(src, toon);
         src.dispose();
       }

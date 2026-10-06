@@ -25,7 +25,8 @@ export type ImpactKind =
   | 'hitLight' | 'hitHeavy' | 'hitSlam' | 'glance' // the hero's blows landing (slam: charged, leaping, a gada finisher)
   | 'hurt' | 'hurtHeavy' // the hero struck (heavy: a boss's finisher)
   | 'block' | 'deflect' | 'postureBreak' | 'guardBroken' // guard and parry; a posture broken (an enemy's, the hero's)
-  | 'bossKill' | 'quake' | 'evade'; // a boss's last blow; the ground shaking (a boss's roar); a slide under a blow
+  | 'bossKill' | 'quake' | 'evade' // a boss's last blow; the ground shaking (a boss's roar); a slide under a blow
+  | 'thud'; // a weapon brought down on stone (the mace's slam, a leaping strike): a dip, a low rumble, no side to it
 
 /** One event's numbers. Angles in degrees, distances in metres, times in milliseconds, all at a setting of 100 %. */
 export interface ImpactSpec {
@@ -48,10 +49,12 @@ export interface ImpactSpec {
 
 /** The per-event table (IMPACT_CAMERA.md, section 4). Live-editable from the console as `__debug.impactTune`. */
 export const IMPACTS: Record<ImpactKind, ImpactSpec> = {
-  hitLight: { freeze: 40, trauma: 0.1, kick: 0.25, dip: 0, push: 0, fov: 0, fovMs: 0, rumble: [0, 0.15, 50] },
-  hitHeavy: { freeze: 75, trauma: 0.3, kick: 0.55, dip: 0.15, push: 0.02, fov: -0.8, fovMs: 150, rumble: [0.35, 0.3, 110] },
-  hitSlam: { freeze: 110, trauma: 0.45, kick: 0.4, dip: 0.9, push: 0.04, fov: -1.5, fovMs: 200, rumble: [0.7, 0.4, 170] },
-  glance: { freeze: 30, trauma: 0.05, kick: 0.15, dip: 0, push: 0, fov: 0, fovMs: 0, rumble: [0, 0.2, 40] },
+  // The hero's blows (hit feel, 2026-10-06): the hit-stop is longer than it was (it read as nothing: 40, 75, 110 ms), and
+  // each weapon then bends these numbers to its own (combat/HitFeel.ts: the staff cracks, the blade slices, the mace crushes).
+  hitLight: { freeze: 65, trauma: 0.1, kick: 0.25, dip: 0, push: 0, fov: 0, fovMs: 0, rumble: [0, 0.15, 50] },
+  hitHeavy: { freeze: 95, trauma: 0.3, kick: 0.55, dip: 0.15, push: 0.02, fov: -0.8, fovMs: 150, rumble: [0.35, 0.3, 110] },
+  hitSlam: { freeze: 130, trauma: 0.45, kick: 0.4, dip: 0.9, push: 0.04, fov: -1.5, fovMs: 200, rumble: [0.7, 0.4, 170] },
+  glance: { freeze: 45, trauma: 0.06, kick: 0.2, dip: 0, push: 0, fov: 0, fovMs: 0, rumble: [0, 0.2, 40] },
   hurt: { freeze: 60, trauma: 0.25, kick: 0.6, dip: 0, push: 0.02, fov: 0, fovMs: 0, rumble: [0.4, 0.3, 120] },
   hurtHeavy: { freeze: 90, trauma: 0.45, kick: 1.0, dip: 0, push: 0.03, fov: 1, fovMs: 200, rumble: [0.75, 0.4, 200] },
   block: { freeze: 30, trauma: 0.08, kick: 0.35, dip: 0, push: 0.01, fov: 0, fovMs: 0, rumble: [0.1, 0.35, 60] },
@@ -61,6 +64,7 @@ export const IMPACTS: Record<ImpactKind, ImpactSpec> = {
   bossKill: { freeze: 200, trauma: 0.65, kick: 1.2, dip: 0, push: 0.04, fov: -3, fovMs: 1400, rumble: [1, 0.6, 350] },
   quake: { freeze: 0, trauma: 0.45, kick: 0, dip: 0, push: 0, fov: 0, fovMs: 0, rumble: [0.4, 0, 250] },
   evade: { freeze: 0, trauma: 0, kick: 0, dip: 0, push: 0, fov: -1, fovMs: 200, rumble: [0, 0.1, 40] },
+  thud: { freeze: 55, trauma: 0.2, kick: 0, dip: 0.55, push: 0.01, fov: 0, fovMs: 0, rumble: [0.5, 0.15, 90] },
 };
 
 export interface ImpactOptions {
@@ -68,6 +72,8 @@ export interface ImpactOptions {
   dir?: THREE.Vector3;
   /** Multiplies the event (damage-scaled, distance-scaled). */
   scale?: number;
+  /** This event's numbers instead of the table's (a weapon's own: combat/HitFeel.ts). */
+  spec?: ImpactSpec;
 }
 
 const DEG = Math.PI / 180;
@@ -127,7 +133,7 @@ export class ImpactCamera {
 
   /** An event from the table, along `opts.dir` (world) as seen from `camera`. */
   public impact(kind: ImpactKind, camera: THREE.Camera, opts: ImpactOptions = {}): void {
-    const spec = IMPACTS[kind];
+    const spec = opts.spec ?? IMPACTS[kind];
     const scale = opts.scale ?? 1;
     this.addTrauma(spec.trauma * scale);
     let into = 1;
