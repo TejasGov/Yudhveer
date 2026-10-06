@@ -1708,6 +1708,69 @@ const ONE_SHOT: ReadonlySet<Track> = new Set<Track>(['shiva']);
 const TRACKS = new Set(trackIds);
 /** Each loop's level, evening out how loud they came out (the akhada's was made quiet). */
 const TRACK_GAIN: Partial<Record<Track, number>> = { akhada: 1.5, baoli: 1.15, title: 1.1, boss: 0.85, andhaka_final: 0.9 };
+
+/** Where a track repeats: it plays through from its start once, then `start` to `end` (s) for good. */
+interface LoopSeam {
+  start: number;
+  end: number;
+  /** Seconds before `end` blended into the same length before `start`. */
+  fade: number;
+}
+/**
+ * The recordings were made as 60 s clips, not loops: most open on a fade-in or a long intro and close on a fade-out, so
+ * repeating a whole file left a gap of seconds at every seam. Each track named here repeats between these points instead.
+ * They were found by measuring (docs/APPROVALS.md, "Music loop seams"): the same level, spectrum and chord before both
+ * ends, and `end` a whole number of bars after `start` so the beat carries on. A track not named repeats whole; empty
+ * this table to put every track back.
+ */
+const LOOPS: Partial<Record<Track, LoopSeam>> = {
+  title: { start: 3.429, end: 53.764, fade: 1.5 },
+  village: { start: 43.826, end: 58.435, fade: 1.0 },
+  baoli: { start: 8.78, end: 55.606, fade: 1.0 },
+  akhada: { start: 15.981, end: 57.124, fade: 1.0 },
+  island: { start: 34.286, end: 51.429, fade: 1.0 },
+  dwarka: { start: 30.833, end: 57.5, fade: 1.0 },
+  summit: { start: 38.654, end: 57.115, fade: 1.0 },
+  boss: { start: 3.38, end: 57.465, fade: 1.0 },
+  andhaka_final: { start: 13.913, end: 55.652, fade: 1.0 },
+};
+
+/** A loop's points as whole frames of one decoded recording. */
+interface LoopFrames {
+  start: number;
+  end: number;
+  fade: number;
+}
+
+/**
+ * The loop points of `track`'s recording in whole frames, if it is long enough for them (a replaced file may not be).
+ * Whole frames, so the native loop wraps on a sample: a loop point between two is played interpolated, half a sample
+ * off on every other pass.
+ */
+function loopOf(track: Track, buffer: AudioBuffer): LoopFrames | null {
+  const loop = LOOPS[track];
+  if (!loop) return null;
+  const rate = buffer.sampleRate;
+  const start = Math.round(loop.start * rate);
+  const end = Math.round(loop.end * rate);
+  const fade = Math.round(loop.fade * rate);
+  return start >= fade && end - start > 2 * fade && end <= buffer.length ? { start, end, fade } : null;
+}
+
+/**
+ * Makes the seam in the decoded buffer itself: the `fade` frames before `end` are mixed (equal power) with the ones
+ * before `start`, so playing on from `end` to `start` carries on from the last frame as if the music had. The native loop
+ * then needs no timers, so it holds when the tab is hidden or the context is suspended.
+ */
+function blendSeam(buffer: AudioBuffer, loop: LoopFrames): void {
+  for (let c = 0; c < buffer.numberOfChannels; c++) {
+    const data = buffer.getChannelData(c);
+    for (let i = 0; i < loop.fade; i++) {
+      const a = ((i + 0.5) / loop.fade) * (Math.PI / 2);
+      data[loop.end - loop.fade + i] = data[loop.end - loop.fade + i] * Math.cos(a) + data[loop.start - loop.fade + i] * Math.sin(a);
+    }
+  }
+}
 /** The drone a track falls back to if its recording is missing or will not decode. */
 const FALLBACK: Record<Track, MusicMood> = {
   title: MOODS.title,
@@ -1848,6 +1911,11 @@ class Music {
     const src = ctx.createBufferSource();
     src.buffer = buffer;
     src.loop = !ONE_SHOT.has(track);
+    const loop = src.loop ? loopOf(track, buffer) : null;
+    if (loop) {
+      src.loopStart = loop.start / buffer.sampleRate;
+      src.loopEnd = loop.end / buffer.sampleRate;
+    }
     const gain = ctx.createGain();
     const t = ctx.currentTime;
     gain.gain.setValueAtTime(0.0001, t);
@@ -1893,6 +1961,8 @@ class Music {
         .then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(`HTTP ${r.status}`))))
         .then((data) => ctx.decodeAudioData(data))
         .then((buffer) => {
+          const loop = loopOf(track, buffer);
+          if (loop) blendSeam(buffer, loop);
           this.decoded.set(track, buffer);
           this.evict();
           return buffer;
