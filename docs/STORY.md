@@ -1600,8 +1600,11 @@ ones; earlier passes in `iterations/`; Blender renders in `blender/`, the lab an
   steps and splashes, Shalva's plunge and wake, the prologue's tread, falls, blade and horn, the chapter card's dhol,
   the menus' bells and the defeat bell); recorded music loops
   (public/assets/music: title, village, baoli, akhada, island, dwarka, summit, boss, andhaka_final) crossfade per
-  chapter and boss (`LEVEL_MUSIC` and `Finale.music` in Engine), dip under voices and in cutscenes; Andhaka laughs
-  (voice/andhaka_laugh) as his entrance smile begins and at his second phase.
+  chapter and boss (`LEVEL_MUSIC` and `Finale.music` in Engine), dip under voices and in cutscenes; each plays its
+  intro once, then repeats between its own loop points (`LOOPS` in SoundFX: a whole number of bars apart, the last
+  second or so before the end blended equal-power into the music before the start, in the decoded buffer, so the
+  fade-ins and fade-outs the 60 s clips were made with are not heard at the seam; docs/APPROVALS.md, "Music loop
+  seams"); Andhaka laughs (voice/andhaka_laugh) as his entrance smile begins and at his second phase.
 - Andhaka's in-game entrance at the summit (seated laughing, the smile, the crown, rising with the sword from the
   stone) is the reveal of his face. See "Andhaka's model and entrance".
 - **Yudhveer has no voice** (2026-10-05): his lines are subtitles only, with no `voice` id and no recording. Every

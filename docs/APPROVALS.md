@@ -567,6 +567,7 @@ ends at full level and fades in over 3 s; `title` fades out over its last 4 s, `
 so those dip for 1.5 to 8 s at every loop; `summit` has a small step; `baoli`, `dwarka` and `andhaka_final` loop
 cleanly. A fix that needs ears: loop each from after its fade-in to before its fade-out with a short
 crossfade (an overlap schedule in `Music`, or a crossfaded copy of each file). Not done here.
+*Done since ("Music loop seams", below): measured clean, still to be listened to.*
 
 **Checks.** `npx tsc --noEmit` and `npm run build` pass with no warnings; the bundle carries no `__debug` or `__yudhveer`
 and lists 33 recordings and 10 tracks. In a dev build, after a real click: the audio context runs, all 33 recordings
@@ -641,3 +642,127 @@ out at 9,906, first time). Nothing else was paid for or downloaded; no sign-ins.
 **Blocked on a sign-in (Mixamo):** a real pick-up and put-down (so the Baoli's lathi could be laid by a gesture too, and
 the Baoli's reach could be Mixamo's own), and a bound, kneeling captive of the guru's own with his hands tied (his staff
 arm is held at rest, so his hands cannot take a pose). Nothing was tried: Mixamo is out of bounds without the user's login.
+
+### Music loop seams (milestone 12): DONE; measured, not listened to
+
+Made while the user was away. **Nothing was listened to, so every claim here is a measurement** (the scripts, tables,
+spectrograms and renders are in `game asset/music/loops/`, outside git). No credits, no downloads, no sign-ins; the mp3
+files are untouched. It fixes what milestone 10 measured (above): `village`, `title`, `island` and `boss` dipped for
+1.5 to 8 s at every repeat, `akhada` fell silent at both ends, `summit` dropped from its loud ending to its quiet
+opening, and `baoli`, `andhaka_final` and `dwarka` repeated from the middle of a phrase, a bar or a section.
+
+**What it does** (`src/combat/SoundFX.ts`: the `LOOPS` table, `loopOf` and `blendSeam`, about 70 lines, and two small
+edits in `Music`):
+
+- A track named in `LOOPS` plays from 0 once, so its intro and fade-in are heard as before, then repeats `start` to
+  `end` for good.
+- The seam is made once, when the recording is decoded: the `fade` seconds before `end` are mixed (equal power, cos and
+  sin over the length) with the same length before `start`, in the decoded buffer itself. The one source then loops
+  natively between the two points, so what plays at the join is the music running on without a break.
+- Why not two scheduled sources: the timer that schedules the next pass is throttled to once a second, or a minute, in
+  a hidden tab, and a seam it missed would be silence. The baked seam needs no timer and no extra node, so there is
+  nothing new to cancel when a track changes mid-crossfade. Chapter changes and crossfades, ducking and dimming,
+  `TRACK_GAIN`, the volume settings, the one-shot `shiva` and its `then`, and the drone fallback run the same code as
+  before.
+- **The points are whole frames** (`loopOf` rounds them to the decoded rate and the blend uses the same frames).
+  Found by rendering the first version: the engine plays a loop point that falls between two samples interpolated, half
+  a sample off, on every second pass. With whole frames the engine plays exactly what the blend made, at 44.1 and
+  48 kHz.
+- A track not named repeats whole, as it always did; so does one whose file is too short for its points (a replaced
+  recording), without error.
+
+| Track | BPM | start s | end s | fade s | Loop | What repeats (and what plays only once) |
+|---|---|---|---|---|---|---|
+| `title` | 70 | 3.429 | 53.764 | 1.5 | 50.3 s | from the opening D drone through the phrases, the loud wash and the outro (D again) back to the drone (the first 3.4 s play once, the fade-out never) |
+| `village` | 115 | 43.826 | 58.435 | 1.0 | 14.6 s, 7 bars | the second groove's last 7 bars (the haze, the first groove and the break play once) |
+| `baoli` | 82 | 8.780 | 55.606 | 1.0 | 46.8 s, 16 bars | beat 12 to beat 76: the same chord, four 16-beat phrases apart (the first 8.8 s play once) |
+| `akhada` | 70 | 15.981 | 57.124 | 1.0 | 41.1 s, 12 hits | from 0.25 s before the first hit to 0.25 s before the 13th, both in the quiet between hits (the 16 s opening plays once; the 13th hit and the fade-out never) |
+| `island` | 70 | 34.286 | 51.429 | 1.0 | 17.1 s, 5 bars | the groove (the pads before it play once, the coda and fade-out never) |
+| `dwarka` | 72 | 30.833 | 57.500 | 1.0 | 26.7 s, 8 bars | the groove (the pad intro and the groove's first 4 s play once) |
+| `summit` | 104 | 38.654 | 57.115 | 1.0 | 18.5 s, 8 bars | the loud second half (the opening and the first half play once) |
+| `boss` | 71 | 3.380 | 57.465 | 1.0 | 54.1 s, 16 bars | nearly all of it (the first bar plays once, the fade-out never) |
+| `andhaka_final` | 69 | 13.913 | 55.652 | 1.0 | 41.7 s, 12 bars | the middle and end of it (the first 14 s play once) |
+
+**How the points were chosen** (by numbers and spectrograms, the ears being away):
+
+- Every recording is an integer tempo (the onset envelope repeats at exact multiples of the beat: 70, 115, 82, 70, 70,
+  72, 104, 71 and 69 BPM) and its 60 s hold exactly that many beats. So `end` is a whole number of bars (4 beats) after
+  `start`, and the beat carries on across the join (the title, a drone piece with no beat, is the one exception). The sections come from the 50 ms RMS envelope, the log-mel spectrogram and
+  the chroma.
+- The candidates were every beat as `start` and every whole bar count after it as `end` (300 to 1,200 pairs a track).
+  Each was scored on the two seconds before both ends (the difference in level, in log-mel spectrum and in chroma, the
+  correlation of the onset patterns with `end` free to move 40 ms to line them up, and the simulated seam's dips) and
+  the best looked at as spectrograms. Both ends have to sit in the same kind of music. That is why `village` and `island`
+  repeat one section: a seam between their grooves and their melody or pad sections has a spectrum 6 to 12 dB apart (and
+  for `village` a different chord), a morph rather than a continuation. And why the title joins its drone to its own
+  drone: same pitch, partials and level (chroma distance 0.005, 0.7 dB).
+- Among the clean ones the longest was taken that kept the dips natural (`dwarka`'s 30 s loop had a 3.4 dB dip, so its
+  26.7 s one was taken; `summit`'s 20.8 s one had less alike ends). `end` is `start` plus a whole number of beats to within
+  1 ms for all but `baoli`, whose `end` is 3 ms early, which flattened its blend. `fade` is 1.0 s (a beat or two at these tempi), 1.5 s for the title's drone; 0.5 to 1.5 s moved
+  the dips by 0.7 dB at most on the four tracks tried.
+
+**Measured**, on the real `Music` class rendered offline (`OfflineAudioContext`, three joins a track; the unmodified
+class from git HEAD rendered the same way for "before"). Dip: the lowest of the 0.5 s windows centred within 1 s of the
+join, against the surrounding 4 s (power mean), in dB (the target: no deeper than about 1.5). "Its own" is the same number
+taken at every position inside the loop, so it shows how much of a dip is just the pulse of the music (median, and the
+5th percentile). Step: the largest change between two neighbouring samples at the join, full scale being 1.
+
+| Track | dip before | dip after | its own | step before -> after | after, against the steps near it |
+|---|---|---|---|---|---|
+| `title` | -55.4 | -1.1 | -2.0 (-17.9: its phrases fall silent between) | 0.0001 -> 0.005 | 0.43 |
+| `village` | -41.2 | -1.4 | -2.7 (-3.4) | 0.66 -> 0.05 | 0.14 |
+| `baoli` | -10.0 | -0.8 | -2.5 (-9.9: its phrase-end dips) | 0.12 -> 0.002 | 0.08 |
+| `akhada` | -38.0 | -25.3 | -21.3 (-24.9: the hits decay 40 dB) | 0.0004 -> 0.001 | 0.07 |
+| `island` | -48.0 | -2.0 | -1.5 (-1.7) | 0.005 -> 0.013 | 0.09 |
+| `dwarka` | -2.0 | -1.5 | -2.9 (-4.6) | 0.67 -> 0.008 | 0.03 |
+| `summit` | -22.5 | -1.6 | -1.7 (-2.5) | 0.69 -> 0.009 | 0.05 |
+| `boss` | -32.4 | -0.9 | -1.5 (-3.2) | 0.30 -> 0.06 | 0.26 |
+| `andhaka_final` | -2.8 | -0.9 | -2.2 (-3.3) | 0.64 -> 0.02 | 0.08 |
+
+Five are inside 1.5 dB, `dwarka` and `summit` at 1.5 and 1.6, `island` at -2.0 (its own median is -1.5, and its lowest
+window is the groove's own pulse 1 s after the join, not the blend). `akhada` cannot be judged by a window rule (its hits
+decay 40 dB); its seam is at the floor (-44 dB) before a hit, and the hit spacing across the join is 3.434 s against the
+recording's own 3.428 +- 0.004. The step at the join is 0.03 to 0.43 of the 99.9th-percentile step within 50 ms of it: no click
+(before, `village`, `dwarka`, `summit` and `andhaka_final` jumped by 0.64 to 0.69 of full scale, `island` by 6 times its
+neighbours). Inside the blend, the short-time level (0.2 s windows) stays within 1.8 dB of what two unrelated signals
+would give (`title` +-1.8, `village` +-1.3, `baoli` +-1.1, the rest 0.9 or less). Where two near-full-scale sides add, a
+sample peak can rise a little: `village` 0.90 -> 0.94 and `dwarka` 1.02 -> 1.05 (decoded, before `TRACK_GAIN`; the file
+itself decodes above 1), nothing else by more than 0.01; the master compressor takes it.
+
+**Tested:**
+
+- The real `Music` class on an `OfflineAudioContext` at 44.1 and 48 kHz, all nine tracks: its output over three joins
+  equals "play 0 to `end`, then `start` to `end`" of the buffer the engine used, to 6e-8 (float rounding).
+- The live dev build (Chromium 152, 48 kHz), after a click: all six chapters (`__debug.chapter(0..5, false)`) start the
+  expected track (village, boss, akhada, island, boss, summit) with its loop points and `TRACK_GAIN`, and one music
+  source alive. For all nine tracks the real-time output at the join (a gap-free AudioWorklet tap, a seek to 3 s before
+  it) matches the offline render within 0.05 dB, with no gap and no zero frame. The title's first pass reached its loop
+  end in real time (54 s): dip -1.1, no errors.
+- Rapid changes: 80 random `play` calls 20 to 350 ms apart (all tracks, `null`, `shiva`, fade-ins from 0.03 to 2 s,
+  `duck`, `dim`, `prefetch`, `then`), and then 12 chapter starts 350 ms apart. After the last, exactly one music source
+  is alive (48 sources made, one left; 11 made, one left), it is the wanted track, and the drone is silent. Up to 9
+  fade-outs overlapped during the first storm, as the existing 1.5 s crossfade always let them.
+- The drone fallback: a recording that 404s and one that will not decode both give the existing warning and the drone,
+  and the next track brings it down; a replacement file shorter than the table's `end` repeats whole, without error.
+- A context suspended 2 s and resumed (same source, sound flows); ducking (0.4) and dimming (0.65) levels as before; a
+  one-shot stand-in for `shiva` (no loop points, and `then('title')` handed over when it ended); the game's own pause
+  leaves the music alone.
+- No console errors from any of it (the two fallback warnings are the existing ones). `npx tsc --noEmit` and
+  `npm run build` pass.
+
+**Left for the user, with ears.** Listen to each seam once: the title's (the outro drone morphing into the opening
+drone, 1.5 s, at 53.8 s), the short loops (`village` 14.6 s and `island` 17.1 s repeat quickly), `summit` and `dwarka`.
+To hear a seam without waiting a minute, in a dev build (`npm run dev`), click once, then in the console:
+
+    const m = __yudhveer.soundFX.music; m.play('village');   // wait until it starts, then:
+    const p = m.playing, c = __yudhveer.soundFX.ctx, old = p.src, s = c.createBufferSource();
+    s.buffer = old.buffer; s.loop = true; s.loopStart = old.loopStart; s.loopEnd = old.loopEnd; s.connect(p.gain);
+    old.stop(); s.start(0, old.loopEnd - 5); p.src = s;   // five seconds before the join
+
+I did not take longer loops whose seams cross two kinds of music (a morph, not a continuation): `summit` 28.8 to 58.8 s
+(30 s, spectrum 6.5 dB apart), `village` 25.0 to 58.4 s (33 s, groove to melody), the `island` pad or coda to its
+groove (9 to 12 dB apart). If a seam is heard, change that track's `start`, `end` or `fade` in `LOOPS` (seconds) or
+delete its line.
+
+**To undo:** empty `LOOPS`. Every track then repeats whole, exactly as before (`loopOf` finds nothing, `blendSeam`
+never runs).
