@@ -19,6 +19,8 @@
  *
  *   node scripts/pack-glb.mjs public/assets/characters/yodha.glb [more.glb ...]
  *       --out <dir>    write into this folder instead of over the file
+ *       --v0           write the attribute streams in meshopt codec version 0 (the default is version 1, ~8 % smaller; three reads both)
+ *       --keep-codec   leave every stream that is not joined as it is
  *       --backup <dir> copy each file there before it is overwritten (public/assets is in git: not needed there)
  *       --dry          report what would change, write nothing
  *       --check        compare every result with its source (always done: this only prints the details)
@@ -104,20 +106,25 @@ function readAccessor(doc, bin, index) {
 
 const same = (a, b) => a.length === b.length && Buffer.compare(Buffer.from(a.buffer, a.byteOffset, a.byteLength), Buffer.from(b.buffer, b.byteOffset, b.byteLength)) === 0;
 
-/** Repacks `doc`/`bin`. Returns { doc, bin, report }. */
-export async function repack(doc0, bin0) {
+/**
+ * Repacks `doc`/`bin`. Returns { doc, bin, report }.
+ * `options.version`: the meshopt vertex codec version every attribute stream is written in (1 is about 8 % smaller than 0 and
+ * three's bundled decoder reads both; null keeps each stream as it is).
+ */
+export async function repack(doc0, bin0, options = {}) {
+  const targetVersion = options.version === undefined ? 1 : options.version;
   await MeshoptDecoder.ready;
   await MeshoptEncoder.ready;
   const doc = structuredClone(doc0);
-  const report = { views: doc.bufferViews.length, accessors: doc.accessors.length, channels: 0, samplers: 0, note: [] };
-  if (!doc.animations?.length || !doc.extensionsUsed?.includes('EXT_meshopt_compression')) {
-    report.note.push('nothing to repack');
+  const report = { views: doc.bufferViews.length, accessors: doc.accessors.length, channels: 0, samplers: 0, streamsBefore: 0, streamsAfter: 0, note: [] };
+  if (!doc.extensionsUsed?.includes('EXT_meshopt_compression')) {
+    report.note.push('nothing to repack (no meshopt streams)');
     return { doc: doc0, bin: bin0, report, changed: false };
   }
 
   // 1. The accessors the animations use, and what they are made of.
   const animAcc = new Set();
-  for (const a of doc.animations) for (const s of a.samplers) { animAcc.add(s.input); animAcc.add(s.output); }
+  for (const a of doc.animations ?? []) for (const s of a.samplers) { animAcc.add(s.input); animAcc.add(s.output); }
   const otherAcc = new Set();
   doc.meshes?.forEach((m) => m.primitives.forEach((p) => {
     Object.values(p.attributes).forEach((i) => otherAcc.add(i));
@@ -188,7 +195,7 @@ export async function repack(doc0, bin0) {
     const all = new Uint8Array(g.elements * g.stride);
     let at = 0;
     for (const c of g.chunks) { all.set(c, at); at += c.length; }
-    const encoded = MeshoptEncoder.encodeVertexBufferLevel(all, g.elements, g.stride, 3, version);
+    const encoded = MeshoptEncoder.encodeVertexBufferLevel(all, g.elements, g.stride, 3, targetVersion ?? version);
     groupViews.set(g.key, views.length);
     views.push({
       group: g,
@@ -209,7 +216,15 @@ export async function repack(doc0, bin0) {
       const start = (e ? e.byteOffset ?? 0 : v.json.byteOffset ?? 0);
       const length = e ? e.byteLength : v.json.byteLength;
       bytes = bin0.subarray(start, start + length);
+      if (e) report.streamsBefore += length;
+      // An attribute stream written again in the wanted codec version (kept as it was if that is not smaller).
+      if (e?.mode === 'ATTRIBUTES' && targetVersion !== null && (bytes[0] & 0x0f) !== targetVersion) {
+        const again = MeshoptEncoder.encodeVertexBufferLevel(viewBytes(doc0, bin0, v.old, false), e.count, e.byteStride, 3, targetVersion);
+        if (again.length < bytes.length) bytes = again;
+      }
     }
+    if (v.encoded) report.streamsAfter += v.encoded.length;
+    else if (ext(v.json)) report.streamsAfter += bytes.length;
     binAt = align(binAt, 16);
     parts.push([binAt, bytes]);
     const e = ext(v.json);
@@ -250,7 +265,7 @@ export async function repack(doc0, bin0) {
   for (const img of doc.images ?? []) if (img.bufferView !== undefined) img.bufferView = viewMap.get(img.bufferView);
 
   // 6. Samplers: the same pair once, and the default interpolation left unsaid.
-  for (const a of doc.animations) {
+  for (const a of doc.animations ?? []) {
     report.channels += a.channels.length;
     const seen = new Map();
     const samplers = [];
@@ -285,6 +300,7 @@ function describe(doc, bin) {
   doc.meshes?.forEach((m, mi) => m.primitives.forEach((p, pi) => {
     for (const [k, i] of Object.entries(p.attributes)) out.attributes.set(`${mi}.${pi}.${k}`, readAccessor(doc, bin, i));
     if (p.indices !== undefined) out.attributes.set(`${mi}.${pi}.indices`, readAccessor(doc, bin, p.indices));
+    p.targets?.forEach((t, ti) => { for (const [k, i] of Object.entries(t)) out.attributes.set(`${mi}.${pi}.target${ti}.${k}`, readAccessor(doc, bin, i)); });
   }));
   doc.skins?.forEach((s, si) => { if (s.inverseBindMatrices !== undefined) out.attributes.set(`skin${si}.ibm`, readAccessor(doc, bin, s.inverseBindMatrices)); });
   (doc.images ?? []).forEach((img, i) => { if (img.bufferView !== undefined) out.attributes.set(`image${i}`, new Uint8Array(viewBytes(doc, bin, img.bufferView))); });
@@ -336,12 +352,14 @@ async function main() {
   const backupDir = opt('--backup');
   const dry = flag('--dry');
   const verbose = flag('--check');
+  const keepCodec = flag('--keep-codec');
+  const version = keepCodec ? null : flag('--v0') ? 0 : 1;
   if (!args.length) { console.error('usage: node scripts/pack-glb.mjs file.glb [more.glb ...] [--out dir] [--backup dir] [--dry] [--check]'); process.exit(2); }
   let before = 0;
   let after = 0;
   for (const file of args) {
     const { data, doc, bin, jsonLength } = readGLB(file);
-    const { doc: doc2, bin: bin2, report, changed } = await repack(doc, bin);
+    const { doc: doc2, bin: bin2, report, changed } = await repack(doc, bin, { version });
     if (!changed) { console.log(`${basename(file)}: ${report.note.join(', ')}`); before += data.length; after += data.length; continue; }
     const out = writeGLB(doc2, bin2);
     const written = parseGLB(out);
@@ -352,7 +370,7 @@ async function main() {
       continue;
     }
     const jsonAfter = written.jsonLength;
-    console.log(`${basename(file)}: ${(data.length / 1e6).toFixed(2)} MB -> ${(out.length / 1e6).toFixed(2)} MB  (json ${(jsonLength / 1024).toFixed(0)} KB -> ${(jsonAfter / 1024).toFixed(0)} KB; buffer views ${report.views} -> ${report.viewsAfter}, accessors ${report.accessors} -> ${report.accessorsAfter}, samplers ${report.samplers}; ${verdict.tracks} tracks and ${verdict.attrs} arrays identical)`);
+    console.log(`${basename(file)}: ${(data.length / 1e6).toFixed(2)} MB -> ${(out.length / 1e6).toFixed(2)} MB  (json ${(jsonLength / 1024).toFixed(0)} KB -> ${(jsonAfter / 1024).toFixed(0)} KB; meshopt streams ${(report.streamsBefore / 1024).toFixed(0)} KB -> ${(report.streamsAfter / 1024).toFixed(0)} KB; buffer views ${report.views} -> ${report.viewsAfter}, accessors ${report.accessors} -> ${report.accessorsAfter}; ${verdict.tracks} tracks and ${verdict.attrs} arrays identical)`);
     before += data.length; after += out.length;
     if (verbose) console.log(`   channels ${report.channels}`);
     if (dry || out.length >= data.length) { if (!dry) console.log('   (not smaller: left as it was)'); continue; }
