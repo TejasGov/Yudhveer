@@ -46,11 +46,14 @@ export const FLINCH_DEG: Record<BlowKind, Record<BlowTier, number>> = {
 /** Pushback along the blow (cm) by weapon; a heavier tier pushes `PUSH_TIER` times as far. */
 export const PUSH_CM: Record<BlowKind, number> = { wood: 3, blade: 3.5, crush: 7 };
 const PUSH_TIER: Record<BlowTier, number> = { light: 1, heavy: 1.3, slam: 1.6 };
-/** The hit flash: how bright it starts (1 is a full wash) and how long it lasts (s), by weapon. */
+/**
+ * The hit flash: how bright its glint starts (1 is a full-strength rim) and how long it lasts (s), by weapon. A glint on the
+ * silhouette with only a faint wash over the body, so the victim stays readable at contact (see `installHitFlash`).
+ */
 export const FLASH: Record<BlowKind, { gain: number; life: number }> = {
-  wood: { gain: 0.8, life: 0.08 },
-  blade: { gain: 0.85, life: 0.075 },
-  crush: { gain: 1, life: 0.1 },
+  wood: { gain: 0.5, life: 0.08 },
+  blade: { gain: 0.55, life: 0.075 },
+  crush: { gain: 0.7, life: 0.1 },
 };
 /** A boss feels a little less of each (a flinch, a push, a flash). */
 const BOSS = { flinch: 0.85, push: 0.5, flash: 0.85 };
@@ -459,9 +462,10 @@ function angle(a: THREE.Quaternion, b: THREE.Quaternion): number {
 const FLASH_COLOR = new THREE.Color(1, 0.84, 0.58);
 
 /**
- * Gives a toon material a hit flash: a warm-white wash added to its lit colour, stronger toward the silhouette, driven by
- * `uHitFlash` (0 is off: the material is then exactly as it was). Call it when the material is made (every character's
- * cel materials, CharacterRig), so the shader is compiled once with the rest instead of the first time somebody is hit.
+ * Gives a toon material a hit flash: a warm glint added to its lit colour, weighted to the silhouette (a faint 0.05 over the
+ * body, up to 1.0 at the edge), driven by `uHitFlash` (0 is off: the material is then exactly as it was). Call it when the
+ * material is made (every character's cel materials, CharacterRig), so the shader is compiled once with the rest instead of
+ * the first time somebody is hit.
  */
 export function installHitFlash(mat: THREE.MeshToonMaterial): void {
   if (mat.userData.hitFlash) return;
@@ -473,7 +477,7 @@ export function installHitFlash(mat: THREE.MeshToonMaterial): void {
       .replace('#include <common>', '#include <common>\nuniform float uHitFlash;\nuniform vec3 uHitFlashColor;')
       .replace('#include <opaque_fragment>', `if (uHitFlash > 0.0) {
   float hitEdge = 1.0 - saturate(abs(dot(normalize(vNormal), normalize(vViewPosition))));
-  outgoingLight += uHitFlashColor * uHitFlash * (0.16 + 1.0 * smoothstep(0.3, 0.9, hitEdge));
+  outgoingLight += uHitFlashColor * uHitFlash * (0.05 + 1.0 * smoothstep(0.45, 0.95, hitEdge));
 }
 #include <opaque_fragment>`);
   });

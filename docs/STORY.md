@@ -1596,9 +1596,9 @@ and after contact sheets (the original build against this one, frame by frame, 6
   resolved with the rest of its movement by its motor, so never through a wall. The animation writes its own pose every step,
   so nothing is left behind; a bone nobody rewrites is put back from its saved pose.
 - **A hit flash.** Every character's cel materials carry one more uniform (`installHitFlash`, called where `CharacterRig`
-  makes them, so the shader is compiled with the rest and not at the first blow): a warm-white wash, strongest at the
-  silhouette, ~75 ms of real time (it plays out inside the hit-stop it comes with, so it is a flash and not a held
-  white-out). At 0 the material is exactly what it was.
+  makes them, so the shader is compiled with the rest and not at the first blow): a warm glint on the silhouette with
+  only a faint wash over the body, so the victim stays readable at contact, ~75 ms of real time (it plays out inside the
+  hit-stop it comes with, so it is a flash and not a held white-out). At 0 the material is exactly what it was.
 - **Weight per weapon** (`combat/HitFeel.ts`). The hit-stop is longer for all (light 40 to 65 ms, heavy 75 to 95, slam 110
   to 130), the camera shake slider still scales the shake and not the freeze. *The staff cracks:* a recording of bamboo
   snapping laid over its blow (`lathi_crack`), a crisp, short kick. *The blade slices:* the camera nudged along the swing
@@ -1611,7 +1611,8 @@ and after contact sheets (the original build against this one, frame by frame, 6
   not as a round puff: white-hot heads, orange tails twice as long as the other sparks', falling, skittering up to twice
   where they meet the floor, living a third of a second. They start on the near side of the body struck (and toward the
   camera), where they can be seen. One PointLight, made at start with the scene's other lights and left at zero, flashes at
-  each clash for ~70 ms (nothing is created per blow; no material recompiles). Where: a blow turned aside by Andhaka's
+  each clash for ~70 ms, a short-range (2.5 m) glint on the weapons, hands and floor and not a flood over the bodies
+  (nothing is created per blow; no material recompiles). Where: a blow turned aside by Andhaka's
   hide (`glancing`) and a committed boss's armour (a light blow chipping a boss mid-swing), for steel and iron (a staff
   throws none), with a clang (`blade_clang`); an enemy's blade parried, deflected or blocked (the old round starburst
   and red puff are replaced; the parry's and the shield's own sounds stay); a weapon brought down on the floor, where its

@@ -32,13 +32,19 @@ interface Look {
 }
 
 const LOOK: Record<Strike, Look> = {
-  steel: { count: 28, cone: 0.42, pop: 0.28, speed: [5, 12], life: [0.2, 0.42], size: [0.02, 0.04], streak: 2, lift: 1.2, light: 8, lightLife: 0.07 },
-  iron: { count: 36, cone: 0.55, pop: 0.35, speed: [4, 10], life: [0.22, 0.46], size: [0.026, 0.05], streak: 1.7, lift: 1.5, light: 10, lightLife: 0.085 },
-  stone: { count: 32, cone: 1.1, pop: 0.2, speed: [3, 9], life: [0.22, 0.5], size: [0.022, 0.045], streak: 1.6, lift: 2.8, light: 9, lightLife: 0.08 },
+  steel: { count: 28, cone: 0.42, pop: 0.28, speed: [5, 12], life: [0.2, 0.42], size: [0.02, 0.04], streak: 2, lift: 1.2, light: 2.5, lightLife: 0.07 },
+  iron: { count: 36, cone: 0.55, pop: 0.35, speed: [4, 10], life: [0.22, 0.46], size: [0.026, 0.05], streak: 1.7, lift: 1.5, light: 3, lightLife: 0.085 },
+  stone: { count: 32, cone: 1.1, pop: 0.2, speed: [3, 9], life: [0.22, 0.5], size: [0.022, 0.045], streak: 1.6, lift: 2.8, light: 2.7, lightLife: 0.08 },
 };
 const LIGHT_COLOR = new THREE.Color(1, 0.68, 0.34);
 /** The flash sits this far toward the camera from the clash, so what faces us is what it lights. */
 const LIGHT_LIFT = 0.25;
+/**
+ * How far its light reaches (m), with the inverse-square fall-off inside it: a glint on the weapons, hands and floor at the
+ * clash. A toon material lights every face turned any way to a light (its ramp never goes to black), so a flash bright enough
+ * to be seen at the blades also floods the bodies a metre off unless it is kept this small.
+ */
+const LIGHT_RANGE = 2.5;
 /**
  * The sparks start this far toward the camera from the clash: from behind the hero the contact is usually hidden by his own
  * body or by the one he struck, and sparks born inside either would only show once they had flown clear (a few frames late).
@@ -67,7 +73,7 @@ export class ClashFX {
   /** The pooled light (once, with the scene's other lights, before any level compiles its materials). */
   public init(scene: THREE.Scene): void {
     if (this.light) return;
-    const light = new THREE.PointLight(LIGHT_COLOR, 0, 6.5, 2);
+    const light = new THREE.PointLight(LIGHT_COLOR, 0, LIGHT_RANGE, 2);
     light.name = 'ClashLight';
     light.castShadow = false;
     scene.add(light);

@@ -793,9 +793,10 @@ else paid for or downloaded, no sign-ins.
   staff 3 cm, blade 3.5, mace 7, times 1, 1.3, 1.6 by tier, a boss 0.5 of it, none while the victim is committed to a
   swing, decaying at 14/s (90 % in ~160 ms). The lean follows the blow's direction plus, for a slash, the cut's (blade
   0.56, staff 0.2 of it): from behind the hero a recoil straight away from him is mostly foreshortened.
-- *The flash:* a warm-white wash (1, 0.84, 0.58) times 0.16 plus up to 1.0 toward the silhouette; starts at 0.8 (staff), 0.85
-  (blade), 1.0 (mace), times 0.8 for a light blow, 0.85 on a boss; lasts 80, 75, 100 ms (slam 1.25 times), fading as the
-  square, on real time (a hit-stop does not hold it).
+- *The flash:* a warm glint (1, 0.84, 0.58) on the silhouette with a faint wash over the body: added to the lit colour as
+  0.05 plus up to 1.0 by `smoothstep(0.45, 0.95, edge)` (how edge-on the surface is to the camera); starts at 0.5 (staff),
+  0.55 (blade), 0.7 (mace), times 0.8 for a light blow, 0.85 on a boss; lasts 80, 75, 100 ms (slam 1.25 times), fading as
+  the square, on real time (a hit-stop does not hold it).
 - *The camera and hit-stop* (`HitFeel.ts`, `ImpactCamera.ts`): freeze in ms, trauma, kick in degrees, dip, by weapon and
   tier (light, heavy, slam). Staff 65/.09/.42/0, 90/.26/.8/.15, 115/.42/.6/.6; blade 60/.08/.38/0, 90/.24/.75/.12,
   120/.4/.55/.7; mace 85/.18/.35/.3, 120/.45/.6/.55, 150/.65/.5/1.2. The table's own were 40, 75 and 110 ms and are 65, 95
@@ -807,9 +808,10 @@ else paid for or downloaded, no sign-ins.
   32, a 1.1 rad fan, 20 %, 3 to 9 m/s. They fall at 18 m/s squared and skitter up to twice (0.34 of their fall, 0.62 of their
   run kept). They start 0.32 m toward the camera and 0.1 to 0.2 m to the near side of the body. Strength: a glance 1.0 (times
   1.15 a tier), a light blow chipping a committed boss 0.5, a parry 1.5, a block 0.65, a floor strike 0.6 to 1.4 by how fast
-  the head was falling (0.75 for a blade, 0.6 on Dwarka's wet stone). The light: one PointLight (6.5 m, decay 2), 8, 10 and 9
-  candela at the clash for steel, iron and stone, gone in 70, 85 and 80 ms, 0 the rest of the time; the scene's lights go
-  from three to four, once, at start.
+  the head was falling (0.75 for a blade, 0.6 on Dwarka's wet stone). The light: one PointLight (2.5 m, decay 2), 2.5, 3 and 2.7
+  candela at the clash for steel, iron and stone (times 0.55 + 0.6 of the strength, 1.3 at most: a parry's steel is 3.3), 0.25
+  m toward the camera from it, gone in 70, 85 and 80 ms, 0 the rest of the time; the scene's lights go from three to four,
+  once, at start.
 - *Trails* (`SlashRibbon.ts`): life 0.13 s (blade), 0.16 (staff), 0.17 (mace); breadth the last 20, 26, 28 % of the weapon;
   the white-hot line 3.0, 2.4, 2.8 times in HDR, the tinted body 0.85, 0.7, 0.9; the hero's tints gold (`0xffb347`), pale
   bamboo (`0xf0b866`), orange (`0xff8a3a`), an enemy's red (`0xff5a38`, `0xe8804a`, `0xff4a28`). From 60 ms before an attack's
@@ -832,6 +834,14 @@ else paid for or downloaded, no sign-ins.
   (`armored && isBoss`, steel and iron, not the staff), the one that already says "your blow did not interrupt this": a
   minion's blow draws its blood (or the old puff with Gore off) as before. Andhaka's hide (the only `armorDamage` below 1)
   is the glance. The staff throws no sparks anywhere (on a hide, a puff of dust; on the dhal, a little dust shaken loose).
+- **The flash and the clash light were turned down after the first contact sheets** (the victim whited out at contact, the hero
+  at a parry or a block). The flash was a wash of 0.16 plus a wide rim, 0.8 to 1.0 to start; it is now the glint above. The
+  light was 8, 10 and 9 candela over 6.5 m: a toon material lights every face turned any way to a light (its ramp never goes
+  to black), so a flash bright enough to show on the blades lit the whole body a metre off. Measured on the side view of the
+  parry (the hero's mean brightness inside his own box, contact frame, the light on against the same frame with it off):
+  +64 % then, +30 % now (the torso +29 %, now +17 %); a block +44 %, now +17 %. Only the flash and the light changed (the
+  sparks, sounds, camera and flinch are as they were), and the sheets (`sheet_flinch_*`, `sheet_sparks_*`, `sheet_slam*`) are
+  re-shot with the final numbers.
 - **The old parry starburst and the red block puff are gone**, replaced by the same chingaari (the parry at 1.5). The parry's
   and the shield's sounds are as they were.
 - **The mace's floor strike is where the downswing bottoms out within 0.55 m of the stone,** still falling at 4.5 m/s or more:
