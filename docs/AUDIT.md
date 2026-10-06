@@ -481,6 +481,22 @@ and a look at the before and after captures in `E:/hindan/game asset/audit/fixes
 | C-07 | Fixed | f20fbfb, fc8012d | The vanara carries the dhal and holds it out; it passes to the boy as their hands meet across it (32 cm apart, not 10: logged). |
 | C-05, V1-01 | Fixed | f20fbfb | A code-built scabbard (`Scabbard.ts`) at 47 degrees down the left thigh; the sheathe and draw blend; it lifts when he kneels. |
 | C-09 | Fixed | f20fbfb | A two-handed lathi on the Great Sword Pack clips: nothing passes through the body; fights keep their timing and damage. |
+| S-02 | Fixed | f649634 | The outcome is checked before the beats; a victory clears the dialogue. |
+| S-03 | Fixed | f649634 | A chapter that first grants a move shows its hint (Dwarka teaches the leap), once a session, with hints on. |
+| S-12 | Fixed | f649634 | Beat hints follow the "Combat hints" setting (the Akhada drill included). |
+| S-11, V3-01 | Fixed | f649634 | The prologue's cleared line is a caption over the night shot; the summit's opens the credits; defeat lines sit under "<boss> still stands."; the Raiders card shows. |
+| S-04 | Fixed (reversible) | f649634 | Charge is back in the Akhada, Island and Dwarka kits. |
+| V3-02 | Fixed | f649634 | Line beats take a style; a dry `aloud` style is ready for boss lines. |
+| S-01 | Fixed | f649634 | The prologue's shadow is captioned "A voice" (the recording unchanged). |
+| S-10 | Fixed | f649634 | The Guardian is "Keeper of the stepwell". |
+| S-05 | Partly | f649634 | The free part: "Breathe. Feet first." returns in Andhaka's fight below 35 % health. Boss tell lines need recording (DIALOGUE.md). |
+| S-06 | Proposal | f649634 | The kavach's promise: three options in APPROVALS.md for the user. |
+| W-08 | Fixed | f649634 | Props and rigs fully disposed; memory flat over 10 round trips (35/51 and 88/67). |
+| W-12 | Fixed | f649634 | Dwarka re-exported with WebP and meshopt: 26.3 MB to 11.5 MB, identical nodes. The summit decimation was skipped (not isolated). |
+| W-15 | Fixed | f649634 | Summit facets smoothed (50 degree crease) and the cliff's colour broken up in world space. |
+| S-07 | Fixed | f649634 | Two Baoli opening shots trimmed to 4.4 s each (2 s shorter). |
+| S-13, S-14, V3-05 | Fixed | f649634 | Docs, credits (a Dwarka section; the CC0 Ganesha under its own heading) and the crowning-line table. |
+| S-16 | Kept | | Intended (`?debug` overlay). |
 
 ---
 
