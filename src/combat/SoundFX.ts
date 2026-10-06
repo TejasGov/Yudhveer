@@ -1718,10 +1718,10 @@ interface LoopSeam {
 }
 /**
  * The recordings were made as 60 s clips, not loops: most open on a fade-in or a long intro and close on a fade-out, so
- * repeating a whole file left a gap of seconds at every seam. Each track named here repeats between these points instead.
- * They were found by measuring (docs/APPROVALS.md, "Music loop seams"): the same level, spectrum and chord before both
- * ends, and `end` a whole number of bars after `start` so the beat carries on. A track not named repeats whole; empty
- * this table to put every track back.
+ * repeating a whole file left a gap of seconds at every seam. Each track named here repeats between these points
+ * instead. They were found by measuring (docs/APPROVALS.md, "Music loop seams"): the same level, spectrum and chord
+ * before both ends, and `end` a whole number of bars after `start` so the beat carries on. A track not named repeats
+ * whole; empty this table to put every track back.
  */
 const LOOPS: Partial<Record<Track, LoopSeam>> = {
   title: { start: 3.429, end: 53.764, fade: 1.5 },
@@ -1759,18 +1759,21 @@ function loopOf(track: Track, buffer: AudioBuffer): LoopFrames | null {
 
 /**
  * Makes the seam in the decoded buffer itself: the `fade` frames before `end` are mixed (equal power) with the ones
- * before `start`, so playing on from `end` to `start` carries on from the last frame as if the music had. The native loop
- * then needs no timers, so it holds when the tab is hidden or the context is suspended.
+ * before `start`, so playing on from `end` to `start` carries on from the last frame as if the music had. The native
+ * loop then needs no timers, so it holds when the tab is hidden or the context is suspended.
  */
 function blendSeam(buffer: AudioBuffer, loop: LoopFrames): void {
+  const tail = loop.end - loop.fade;
+  const lead = loop.start - loop.fade;
   for (let c = 0; c < buffer.numberOfChannels; c++) {
     const data = buffer.getChannelData(c);
     for (let i = 0; i < loop.fade; i++) {
       const a = ((i + 0.5) / loop.fade) * (Math.PI / 2);
-      data[loop.end - loop.fade + i] = data[loop.end - loop.fade + i] * Math.cos(a) + data[loop.start - loop.fade + i] * Math.sin(a);
+      data[tail + i] = data[tail + i] * Math.cos(a) + data[lead + i] * Math.sin(a);
     }
   }
 }
+
 /** The drone a track falls back to if its recording is missing or will not decode. */
 const FALLBACK: Record<Track, MusicMood> = {
   title: MOODS.title,
