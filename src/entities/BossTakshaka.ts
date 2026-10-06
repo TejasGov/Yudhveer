@@ -42,9 +42,9 @@ export class BossTakshaka extends Boss {
     this.blood = 'ichor';
     this.epithet = 'King of the nagas';
     // Milestone 12: health 460 -> 1000, blows at 119 %. "Bosses fight back": his guard and a posture that starts over after a break
-    // make the fight longer and harder: health 1000 -> 660 (a steady player still wins four in five).
-    this.maxHealth = 660;
-    this.currentHealth = 660;
+    // make the fight longer and harder: health 1000 -> 640 (a steady player still wins four in five).
+    this.maxHealth = 640;
+    this.currentHealth = 640;
     this.damageScale = 1.19;
     this.maxMarma = 170;
     // No weapon: his forearms and claws come up across his face.

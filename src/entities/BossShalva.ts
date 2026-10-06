@@ -98,9 +98,9 @@ export class BossShalva extends Boss {
     this.epithet = 'Raider of Dwarka';
     // Milestone 12: health 380 -> 800 (the mace ended him in thirteen seconds), blows at 114 %. "Bosses fight back": his guard turns
     // blows aside and a posture that breaks now starts over (it never did: he was broken again by the next blow), so each blow that
-    // lands is worth less and he is up more: health 800 -> 540 gives the same fight (a steady player wins four in five).
-    this.maxHealth = 540;
-    this.currentHealth = 540;
+    // lands is worth less and he is up more: health 800 -> 520 gives the same fight (a steady player wins four in five).
+    this.maxHealth = 520;
+    this.currentHealth = 520;
     this.damageScale = 1.14;
     this.maxMarma = 150;
     // The gada held across him; iron on steel rings low.

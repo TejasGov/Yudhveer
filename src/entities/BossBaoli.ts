@@ -21,11 +21,12 @@ export class BossBaoli extends Boss {
     this.epithet = 'Keeper of the stepwell';
     // Milestone 12 (docs/STORY.md): health 450 -> 1000 and blows at 60 % (18 and 24 -> 10.8 and 14.4): the fight lasts longer
     // and costs far less (a steady player lost 74 health of 100 in it before, 39 now). "Bosses fight back": a posture that breaks
-    // now starts over (it never did, so he was broken again by the next blow and stood there), which made him a third harder, so
-    // health 1000 -> 750 and blows 60 -> 50 % (the same 40 health a steady player pays, the same 24 s).
-    this.maxHealth = 750;
-    this.currentHealth = 750;
-    this.damageScale = 0.5;
+    // now starts over (it never did, so he was broken again by the next blow and stood there) and he guards, so he swings twice as
+    // often and is struck for longer: health 1000 -> 650 and blows 60 -> 40 % (8.4 and 11.3) keep what a steady player pays at 36
+    // health of 100 in a fight of 28 s.
+    this.maxHealth = 650;
+    this.currentHealth = 650;
+    this.damageScale = 0.4;
     this.maxMarma = 140;
     // He guards with the talwar held high across his face, a little less eagerly than the rest, and answers only after three
     // blocked blows (docs/STORY.md, "Bosses fight back"): the first boss teaches that a blow can be turned aside.
