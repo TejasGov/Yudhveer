@@ -647,9 +647,10 @@ arm is held at rest, so his hands cannot take a pose). Nothing was tried: Mixamo
 
 Made while the user was away. **Nothing was listened to, so every claim here is a measurement** (the scripts, the
 tables, the spectrograms and the envelopes are in `game asset/music/loops/`, outside git). No credits, no downloads, no
-sign-ins; the mp3 files are untouched. It fixes what milestone 10 measured (above): `village`, `title`, `island` and `boss` dipped for
-1.5 to 8 s at every repeat, `akhada` fell silent at both ends, `summit` dropped from its loud ending to its quiet
-opening, and `baoli`, `andhaka_final` and `dwarka` repeated from the middle of a phrase, a bar or a section.
+sign-ins; the mp3 files are untouched. It fixes what milestone 10 measured (above): `village`, `title`, `island` and
+`boss` dipped for 1.5 to 8 s at every repeat, `akhada` fell silent at both ends, `summit` dropped from its loud ending
+to its quiet opening, and `baoli`, `andhaka_final` and `dwarka` repeated from the middle of a phrase, a bar or a
+section.
 
 **What it does** (`src/combat/SoundFX.ts`: the `LOOPS` table, `loopOf` and `blendSeam`, about 70 lines, and two small
 edits in `Music`):
@@ -720,14 +721,14 @@ and the 5th percentile). Step: the largest change between two neighbouring sampl
 | `andhaka_final` | -2.8 | -0.9 | -2.2 (-3.3) | 0.64 -> 0.02 | 0.08 |
 
 Five are inside 1.5 dB, `dwarka` and `summit` at 1.5 and 1.6, `island` at -2.0 (its own median is -1.5, and its lowest
-window is the groove's own pulse 1 s after the join, not the blend). `akhada` cannot be judged by a window rule (its hits
-decay 40 dB); its seam is at the floor (-44 dB) before a hit, and the hit spacing across the join is 3.434 s against the
-recording's own 3.428 +- 0.004. The step at the join is 0.03 to 0.43 of the 99.9th-percentile step within 50 ms of
-it: no click (before, `village`, `dwarka`, `summit` and `andhaka_final` jumped by 0.64 to 0.69 of full scale, `island` by
-6 times its neighbours). Inside the blend, the short-time level (0.2 s windows) stays within 1.8 dB of what two unrelated signals
-would give (`title` +-1.8, `village` +-1.3, `baoli` +-1.1, the rest 0.9 or less). Where two near-full-scale sides add, a
-sample peak can rise a little: `village` 0.90 -> 0.94 and `dwarka` 1.02 -> 1.05 (decoded, before `TRACK_GAIN`; the file
-itself decodes above 1), nothing else by more than 0.01; the master compressor takes it.
+window is the groove's own pulse 1 s after the join, not the blend). `akhada` cannot be judged by a window rule (its
+hits decay 40 dB); its seam is at the floor (-44 dB) before a hit, and the hit spacing across the join is 3.434 s
+against the recording's own 3.428 +- 0.004. The step at the join is 0.03 to 0.43 of the 99.9th-percentile step within
+50 ms of it: no click (before, `village`, `dwarka`, `summit` and `andhaka_final` jumped by 0.64 to 0.69 of full scale,
+`island` by 6 times its neighbours). Inside the blend, the short-time level (0.2 s windows) stays within 1.8 dB of what
+two unrelated signals would give (`title` +-1.8, `village` +-1.3, `baoli` +-1.1, the rest 0.9 or less). Where two
+near-full-scale sides add, a sample peak can rise a little: `village` 0.90 -> 0.94 and `dwarka` 1.02 -> 1.05 (decoded,
+before `TRACK_GAIN`; the file itself decodes above 1), nothing else by more than 0.01; the master compressor takes it.
 
 **Tested:**
 
