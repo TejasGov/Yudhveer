@@ -77,6 +77,6 @@ end.writeUInt32LE(0x06054b50, 0); end.writeUInt16LE(files.length, 8); end.writeU
 end.writeUInt32LE(centralBytes.length, 12); end.writeUInt32LE(offset, 16);
 mkdirSync(dirname(zipFile), { recursive: true });
 writeFileSync(zipFile, Buffer.concat([...chunks, centralBytes, end]));
-const mb = (n) => (n / 1048576).toFixed(1);
+const mb = (n) => (n / 1e6).toFixed(1);
 console.log(`yudhveer-itch.zip: ${files.length} files, ${mb(statSync(zipFile).size)} MB (${mb(files.reduce((s, f) => s + statSync(f).size, 0))} MB unpacked)`);
 console.log('Upload it as an HTML project on itch.io ("This file will be played in the browser"); a 1280 x 720 viewport and the fullscreen button suit it.');

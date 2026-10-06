@@ -87,20 +87,33 @@ function viewBytes(doc, bin, index, applyFilter) {
 }
 
 /** An accessor's numbers as typed array (filters applied), the way a loader would read them. */
+const GETTER = { 5120: 'getInt8', 5121: 'getUint8', 5122: 'getInt16', 5123: 'getUint16', 5125: 'getUint32', 5126: 'getFloat32' };
 function readAccessor(doc, bin, index) {
   const acc = doc.accessors[index];
-  const view = doc.bufferViews[acc.bufferView];
-  const bytes = viewBytes(doc, bin, acc.bufferView, true);
-  const n = acc.count * TYPE_COUNT[acc.type];
-  const stride = ext(view)?.byteStride ?? view.byteStride ?? elementBytes(acc);
-  const base = acc.byteOffset ?? 0; // (viewBytes starts at the view's own first byte, compressed or not)
-  const T = TYPED[acc.componentType];
-  const out = new T(n);
-  const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   const comps = TYPE_COUNT[acc.type];
+  const T = TYPED[acc.componentType];
+  const out = new T(acc.count * comps); // (zeros where there is no view, and under a sparse accessor's changes)
   const size = COMPONENT_BYTES[acc.componentType];
-  const get = { 5120: 'getInt8', 5121: 'getUint8', 5122: 'getInt16', 5123: 'getUint16', 5125: 'getUint32', 5126: 'getFloat32' }[acc.componentType];
-  for (let i = 0; i < acc.count; i++) for (let c = 0; c < comps; c++) out[i * comps + c] = dv[get](base + i * stride + c * size, true);
+  if (acc.bufferView !== undefined) {
+    const view = doc.bufferViews[acc.bufferView];
+    const bytes = viewBytes(doc, bin, acc.bufferView, true);
+    const stride = ext(view)?.byteStride ?? view.byteStride ?? elementBytes(acc);
+    const base = acc.byteOffset ?? 0; // (viewBytes starts at the view's own first byte, compressed or not)
+    const dv = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+    for (let i = 0; i < acc.count; i++) for (let c = 0; c < comps; c++) out[i * comps + c] = dv[GETTER[acc.componentType]](base + i * stride + c * size, true);
+  }
+  if (acc.sparse) {
+    const sp = acc.sparse;
+    const ib = viewBytes(doc, bin, sp.indices.bufferView, true);
+    const vb = viewBytes(doc, bin, sp.values.bufferView, true);
+    const idv = new DataView(ib.buffer, ib.byteOffset, ib.byteLength);
+    const vdv = new DataView(vb.buffer, vb.byteOffset, vb.byteLength);
+    const isize = COMPONENT_BYTES[sp.indices.componentType];
+    for (let k = 0; k < sp.count; k++) {
+      const at = idv[GETTER[sp.indices.componentType]]((sp.indices.byteOffset ?? 0) + k * isize, true);
+      for (let c = 0; c < comps; c++) out[at * comps + c] = vdv[GETTER[acc.componentType]]((sp.values.byteOffset ?? 0) + (k * comps + c) * size, true);
+    }
+  }
   return out;
 }
 
@@ -136,7 +149,11 @@ export async function repack(doc0, bin0, options = {}) {
 
   // A view is joinable if it is a meshopt ATTRIBUTES view that holds exactly one accessor's elements and nothing else uses it.
   const viewUsers = new Map();
-  doc.accessors.forEach((a, i) => { if (a.bufferView !== undefined) (viewUsers.get(a.bufferView) ?? viewUsers.set(a.bufferView, new Set()).get(a.bufferView)).add(i); });
+  doc.accessors.forEach((a, i) => {
+    for (const v of [a.bufferView, a.sparse?.indices.bufferView, a.sparse?.values.bufferView]) {
+      if (v !== undefined) (viewUsers.get(v) ?? viewUsers.set(v, new Set()).get(v)).add(i);
+    }
+  });
   const joinable = (i) => {
     const a = doc.accessors[i];
     const v = doc.bufferViews[a.bufferView];
@@ -250,7 +267,11 @@ export async function repack(doc0, bin0, options = {}) {
   doc.accessors.forEach((a, i) => {
     if (animAcc.has(i) && accessorMap.get(i)?.index !== undefined) return;
     accessorOut.set(i, accessors.length);
-    accessors.push({ ...a, ...(a.bufferView !== undefined ? { bufferView: viewMap.get(a.bufferView) } : {}) });
+    const moved = { ...a, ...(a.bufferView !== undefined ? { bufferView: viewMap.get(a.bufferView) } : {}) };
+    if (a.sparse) {
+      moved.sparse = { ...a.sparse, indices: { ...a.sparse.indices, bufferView: viewMap.get(a.sparse.indices.bufferView) }, values: { ...a.sparse.values, bufferView: viewMap.get(a.sparse.values.bufferView) } };
+    }
+    accessors.push(moved);
   });
   const joinedBase = accessors.length;
   for (const a of newAccessors) accessors.push({ ...a, bufferView: groupViews.get(a.bufferView) });

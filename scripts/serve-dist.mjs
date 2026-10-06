@@ -9,9 +9,11 @@
  * for a sub-path shows up as the 404 it would be. Every request is kept, and `GET <mount>__requests` returns them as
  * JSON (`?reset=1` empties the list), so a test can check that nothing was missed and that nothing asked for the wrong
  * place. `--gzip` compresses the text types as hosts do (GitHub Pages, Netlify and Cloudflare do not compress .glb).
+ * `--timer-raf` puts a few lines at the top of index.html that run requestAnimationFrame on a timer, so the game's own loop
+ * keeps running in a browser tab nobody can see (a hidden pane never fires it): for smoke tests only.
  * No dependencies. docs/DEPLOY.md.
  */
-import { createReadStream, existsSync, statSync } from 'node:fs';
+import { createReadStream, existsSync, readFileSync, statSync } from 'node:fs';
 import { createServer } from 'node:http';
 import { extname, join, normalize, resolve, sep } from 'node:path';
 import { createGzip } from 'node:zlib';
@@ -24,6 +26,8 @@ if (!mount.startsWith('/')) mount = `/${mount}`;
 if (!mount.endsWith('/')) mount += '/';
 const port = Number(opt('--port', '5253'));
 const gzip = args.includes('--gzip');
+const timerRaf = args.includes('--timer-raf');
+const TIMER_RAF = '<script>window.requestAnimationFrame=function(f){return setTimeout(function(){f(performance.now())},16)};window.cancelAnimationFrame=clearTimeout;</script>';
 
 const TYPES = {
   '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8',
@@ -52,6 +56,12 @@ createServer((req, res) => {
   if (!existsSync(file) || !statSync(file).isFile()) return send(404, 'Not found', { 'content-type': 'text/plain' });
 
   const ext = extname(file).toLowerCase();
+  if (timerRaf && rel === 'index.html' && req.method !== 'HEAD') {
+    const html = readFileSync(file, 'utf8').replace('<head>', `<head>${TIMER_RAF}`);
+    res.writeHead(200, { 'content-type': TYPES['.html'], 'cache-control': 'no-store', 'access-control-allow-origin': '*' });
+    res.end(html);
+    return record(200, Buffer.byteLength(html));
+  }
   const headers = { 'content-type': TYPES[ext] ?? 'application/octet-stream', 'cache-control': 'no-store', 'access-control-allow-origin': '*' };
   const size = statSync(file).size;
   if (req.method === 'HEAD') { res.writeHead(200, { ...headers, 'content-length': size }); res.end(); return record(200, 0); }
