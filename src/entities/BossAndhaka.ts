@@ -4,13 +4,42 @@ import { Guard } from '../combat/Guard';
 import type { CharacterRig, CharacterDefinition } from './animation/CharacterRig';
 import { SceneManager } from '../core/SceneManager';
 import { Voices } from '../combat/Voices';
+import { Enemy, type FightTarget } from './Enemy';
+import type { CharacterState } from './CharacterStateMachine';
+import { burnAway, charged, grade } from '../cinematics/Entrance';
 import { LevelManager } from '../levels/LevelManager';
+import { ANDHAKA_THRONE } from '../levels/Level4_Summit';
 
 /** His laugh (public/assets/voice): as his smile spreads in the entrance, and as his second phase begins. */
 const LAUGH = 'andhaka_laugh';
 
 /** Below this share of health he enters his second phase. */
 const PHASE_2_AT = 0.5;
+/**
+ * His second phase (the user, 2026-10-07): he does not fight it himself at first. He brings out variants of himself and
+ * walks back up Shiva's stair to his throne, and sits, laughing, out of reach (no blow touches him there) while they
+ * fight for him; there he recovers (`THRONE_WAY.recoverTo`). Up to `most` stand at once, `total` in all: the first
+ * `most` together as he turns away (`apart` seconds between them), then one more `replaceAfter` seconds after each
+ * falls, until all are spent. They come up in a ring round the hero (`ring` metres off: flanking him, then at his
+ * back). When the last is down he stands up off the throne and fights again. They go with him if he falls.
+ */
+const VARIANTS = { most: 3, total: 6, apart: 0.55, replaceAfter: 2.0, ring: 4.6 };
+/**
+ * His way back up to the throne: the foot of the stair, its top on the dais (Level4_Summit: the stair runs straight up the
+ * middle, x 0, from z 1 to z -8.5), then the seat (`ANDHAKA_THRONE`). If anything holds him on the way he is put on the
+ * throne after `giveUp` seconds. Seated, he laughs for `laughFor` seconds, and recovers `recoverRate` of his whole
+ * health a second, up to `recoverTo` (he went up at half).
+ */
+const THRONE_WAY = {
+  path: [new THREE.Vector3(0, 0, 1.6), new THREE.Vector3(0, 4.0, -8.6)],
+  speed: 3.4,
+  giveUp: 9,
+  laughFor: 3.0,
+  recoverTo: 0.75,
+  recoverRate: 0.035,
+};
+/** Andhaka's ember: his variants are made of it, and burn back into it. */
+const EMBER = 0xff5a1a;
 /** His entrance clip (characters/Andhaka.ts): seated laughing, the smile, the crown, rising with the sword. */
 const ENTRANCE = 'coronation';
 /** The bone that carries the crown from the throne to his head (the auto-rigged model's name, then Mixamo's). */
@@ -32,6 +61,18 @@ const smoothstep = (a: number, b: number, t: number) => THREE.MathUtils.smoothst
  */
 export class BossAndhaka extends Boss {
   public phase = 1;
+  /** The variants of himself he has brought out (living or not), and the time until he may bring another. */
+  private readonly variants: AndhakaVariant[] = [];
+  private variantCount = 0;
+  /**
+   * Withdrawn to his throne while his variants fight (his second phase): walking up to it, seated on it, or rising
+   * off it to fight again; null when he is fighting. `back`: he has risen, and will not withdraw again.
+   */
+  private withdrawn: { phase: 'walking' | 'seated' | 'rising'; t: number; leg: number } | null = null;
+  private back = false;
+  /** Variants about to come out: fight seconds until each. */
+  private readonly variantsDue: number[] = [];
+  private foe: FightTarget | null = null;
   private entrance: {
     marks: Record<string, number>;
     duration: number;
@@ -82,11 +123,14 @@ export class BossAndhaka extends Boss {
     Voices.preload([LAUGH]);
   }
 
-  /** He laughs, `delay` seconds from now (a little later if the recording is still loading). */
+  /**
+   * He laughs, `delay` seconds from now (a little later if the recording is still loading), and the laugh comes back
+   * off the mountains around the summit, again and again, dying away.
+   */
   private laugh(delay = 0): void {
     const ready = Voices.get(LAUGH);
-    if (ready) this.soundFX.playVoice(ready, 0, 0.3, delay);
-    else void Voices.load(LAUGH).then((buffer) => buffer && this.soundFX.playVoice(buffer, 0, 0.3, delay));
+    if (ready) this.soundFX.playVoiceEcho(ready, 0.3, delay);
+    else void Voices.load(LAUGH).then((buffer) => buffer && this.soundFX.playVoiceEcho(buffer, 0.3, delay));
   }
 
   public override async attachRig(definition: CharacterDefinition): Promise<CharacterRig> {
@@ -158,8 +202,9 @@ export class BossAndhaka extends Boss {
   public override settleIntro(): void {
     super.settleIntro();
     this.finishEntrance();
-    // However his entrance went (skipped, cut short, or none), he fights crowned, under a burning beacon.
+    // However his entrance went (skipped, cut short, or none), he fights crowned, under a burning beacon, in colour.
     LevelManager.getInstance().activeLevel?.cue?.('crowned-settled');
+    grade(0, 0);
   }
 
   /** Crown on his head, sword in his hand, on guard (the entrance is over, or was cut short). */
@@ -240,7 +285,8 @@ export class BossAndhaka extends Boss {
    * Committed from his wind-up until his last blow has fallen; after it he is open (trading blows with him loses,
    * punishing his recovery pays).
    */
-  public override isArmored(): boolean {
+  /** In the fight: committed from his wind-up until his last blow has fallen (see the note above). */
+  private isArmoredInFight(): boolean {
     const state = this.stateMachine.currentState;
     if (!state.startsWith('ATTACK')) return super.isArmored();
     const last = this.hitWindows(state).at(-1);
@@ -248,11 +294,13 @@ export class BossAndhaka extends Boss {
   }
 
   public override takeDamage(amount: number): void {
+    // Withdrawn to his throne: out of reach of blows.
+    if (this.withdrawn) return;
     super.takeDamage(amount);
     if (this.phase === 1 && this.currentHealth > 0 && this.currentHealth <= this.maxHealth * PHASE_2_AT) this.enterPhase2();
   }
 
-  /** He roars (CHARGE), the stone shakes, and he swings sooner and turns faster. */
+  /** He roars (CHARGE), the stone shakes, and he swings sooner and turns faster; then his variants come. */
   private enterPhase2(): void {
     this.phase = 2;
     this.tuning = { ...this.tuning, attackInterval: 0.8 };
@@ -267,6 +315,198 @@ export class BossAndhaka extends Boss {
   protected override onRoar(): void {
     this.soundFX.playRoar(0.7);
     this.particleFX.spawnDustPuff(this.getPosition(), 28);
+  }
+
+  public override updateAI(dt: number, target: FightTarget): void {
+    this.foe = target;
+    const state = this.stateMachine.currentState;
+    // Into his second phase (once his roar is over): he brings out his variants and goes back up to his throne.
+    if (this.phase === 2 && !this.withdrawn && !this.back && state !== 'DEAD' && state !== 'CHARGE' && state !== 'POSTURE_BROKEN') this.withdraw();
+    if (this.withdrawn && state !== 'DEAD') {
+      this.updateWithdrawal(dt);
+      this.updateVariants(dt);
+      return;
+    }
+    super.updateAI(dt, target);
+  }
+
+  /** He turns from the boy as his variants come up out of ember round him, laughing, and makes for the stair. */
+  private withdraw(): void {
+    this.withdrawn = { phase: 'walking', t: 0, leg: 0 };
+    for (let i = 0; i < VARIANTS.most; i++) this.variantsDue.push(0.2 + i * VARIANTS.apart);
+    this.laugh(0.3);
+  }
+
+  /** Keeps up to `most` of them standing, `total` in all, one more a moment after each falls. */
+  private updateVariants(dt: number): void {
+    const standing = this.variants.filter((v) => v.stateMachine.currentState !== 'DEAD').length;
+    if (standing + this.variantsDue.length < VARIANTS.most && this.variantCount + this.variantsDue.length < VARIANTS.total) {
+      this.variantsDue.push(VARIANTS.replaceAfter);
+    }
+    for (let i = this.variantsDue.length - 1; i >= 0; i--) {
+      this.variantsDue[i] -= dt;
+      if (this.variantsDue[i] > 0) continue;
+      this.variantsDue.splice(i, 1);
+      this.bringOutVariant();
+    }
+  }
+
+  /** Up the stair to the throne, sitting on it, or rising off it. */
+  private updateWithdrawal(dt: number): void {
+    const w = this.withdrawn!;
+    w.t += dt;
+    if (w.phase === 'walking') {
+      const to = THRONE_WAY.path[Math.min(w.leg, THRONE_WAY.path.length - 1)];
+      const dir = to.clone().sub(this.getPosition()).setY(0);
+      if (dir.length() < 0.7) w.leg++;
+      if (w.leg >= THRONE_WAY.path.length || w.t >= THRONE_WAY.giveUp) {
+        this.sitOnThrone();
+        return;
+      }
+      this.steer(dir.normalize(), THRONE_WAY.speed, dt);
+      this.settle('MOVE');
+      this.updateProceduralAnimations(dt, 1);
+      return;
+    }
+    // On the throne (seated, or rising off it): held on his seat, nothing carrying him off it (his walk's way, a shove).
+    this.velocity.set(0, 0, 0);
+    this.group.position.set(ANDHAKA_THRONE.x, this.group.position.y, ANDHAKA_THRONE.z);
+    if (w.phase === 'seated') {
+      // Laughing as he sits, then at ease on the throne, recovering, his ember stirring on him now and then.
+      if (this.rig?.clip === 'sitting_laughing' && w.t >= THRONE_WAY.laughFor) this.playClip('sitting_idle', { fade: 0.5 });
+      const top = this.maxHealth * THRONE_WAY.recoverTo;
+      if (this.currentHealth < top) this.currentHealth = Math.min(top, this.currentHealth + this.maxHealth * THRONE_WAY.recoverRate * dt);
+      this.currentMarma = Math.max(0, this.currentMarma - this.maxMarma * dt);
+      if (Math.random() < dt * 0.6) charged(this, 0.5, { color: new THREE.Color(3.2, 1.0, 0.3), arcs: 2, width: 0.035, rate: 10 });
+      const spent = this.variantCount >= VARIANTS.total && this.variantsDue.length === 0;
+      if (spent && this.variants.every((v) => v.stateMachine.currentState === 'DEAD')) this.riseFromThrone();
+      return;
+    }
+    // Rising off the throne with the cleaver; then the fight again.
+    if (w.t >= 2.1) {
+      this.withdrawn = null;
+      this.back = true;
+      this.settle('IDLE');
+      this.soundFX.playRoar(0.7);
+      SceneManager.getInstance().quake(this.getPosition());
+    }
+  }
+
+  /** On the throne, facing down the stair, laughing. */
+  private sitOnThrone(): void {
+    this.withdrawn = { phase: 'seated', t: 0, leg: 0 };
+    this.setPosition(ANDHAKA_THRONE.x, ANDHAKA_THRONE.y, ANDHAKA_THRONE.z);
+    this.faceYaw(0);
+    this.settle('IDLE');
+    this.playClip('sitting_laughing', { fade: 0.35 });
+    this.laugh(0.2);
+  }
+
+  /** The last of them is down: recovered, he stands up off the throne to fight again. */
+  private riseFromThrone(): void {
+    this.withdrawn = { phase: 'rising', t: 0, leg: 0 };
+    this.playClip('sit_to_stand', { fade: 0.3 });
+    this.particleFX.spawnFlames(this.getPosition(), 50, 1.2);
+    charged(this, 1.8, { color: new THREE.Color(3.2, 1.0, 0.3), arcs: 6, width: 0.05, rate: 20 });
+    this.laugh(0.6);
+  }
+
+  /** Withdrawn to his throne, no blow touches him (the variants are the fight then). */
+  public override isArmored(): boolean {
+    return !!this.withdrawn || this.isArmoredInFight();
+  }
+
+  public override addMarmaDamage(amount: number): boolean {
+    if (this.withdrawn) return false;
+    return super.addMarmaDamage(amount);
+  }
+
+  /** One variant of himself, out of ember in the ring round the hero: flanking him, then at his back. */
+  private bringOutVariant(): void {
+    const foe = this.foe;
+    if (!this.onSummon || !foe || this.stateMachine.currentState === 'DEAD' || foe.isDown()) return;
+    const k = this.variantCount++;
+    const hero = foe.getPosition();
+    const toMe = this.getPosition().sub(hero).setY(0);
+    if (toMe.lengthSq() < 1e-4) toMe.set(0, 0, -1);
+    toMe.normalize();
+    const angle = [70, -70, 180][k % 3] * (Math.PI / 180) + (k >= 3 ? (Math.random() - 0.5) * 0.8 : 0);
+    const at = hero.clone().addScaledVector(toMe.applyAxisAngle(new THREE.Vector3(0, 1, 0), angle), VARIANTS.ring);
+    this.onSummon({
+      make: () => {
+        const v = new AndhakaVariant(`${this.id}_variant_${k}`);
+        this.variants.push(v);
+        return v;
+      },
+      at,
+      onReady: (v) => (v as AndhakaVariant).emerge(),
+    });
+  }
+
+  protected override onStateChange(state: CharacterState, previous: CharacterState): void {
+    super.onStateChange(state, previous);
+    // He falls, and what he made of himself goes with him.
+    if (state === 'DEAD') for (const v of this.variants) v.unmade();
+  }
+}
+
+/**
+ * A variant of Andhaka (his second phase): his own body over again, darkened and smouldering, made of his ember. Weaker
+ * than he is (a few blows put it down, its own blows land lighter, it swings less often) and no boss: it has his
+ * plainer blows only. Killed, or unmade when he falls, it burns back into ember and is gone.
+ */
+export class AndhakaVariant extends Enemy {
+  constructor(id: string) {
+    super(id, 0x1a0a08);
+    this.displayName = 'Andhaka';
+    this.maxHealth = 70;
+    this.currentHealth = 70;
+    this.maxMarma = 50;
+    this.damageScale = 0.73; // half of his: 16 x 0.73 = 11.7, against his 18 x 1.3 = 23.4
+    this.moveSpeed = 3.6;
+    this.attackCooldown = 2.0;
+    this.telegraphDuration = 0.55;
+    this.engageRange = 3.3;
+    this.turnRate = 4.5;
+    this.attackStates = ['ATTACK_1', 'ATTACK_2'];
+  }
+
+  public override async attachRig(definition: CharacterDefinition): Promise<CharacterRig> {
+    const rig = await super.attachRig(definition);
+    // His own materials are shared by every copy of his model: this one's are its own, darkened to smoulder.
+    rig.root.traverse((o) => {
+      const mesh = o as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      const mats = ([] as THREE.Material[]).concat(mesh.material).map((m) => {
+        const c = m.clone() as THREE.MeshStandardMaterial;
+        c.color?.multiplyScalar(0.3);
+        // His own ember (the cracks in his hide) kept, dimmed: the emissive colour lights its whole map.
+        if (c.emissive) c.emissive.multiplyScalar(0.7);
+        return c;
+      });
+      mesh.material = Array.isArray(mesh.material) ? mats : mats[0];
+    });
+    return rig;
+  }
+
+  /** It comes up out of ember: fire round its feet, a shock off the stone, ember crawling on it. */
+  public emerge(): void {
+    this.particleFX.spawnFlames(this.getPosition(), 40, 0.9);
+    this.particleFX.spawnDeflectionShockwave(this.getPosition(), undefined, true);
+    this.soundFX.playFlameBurst();
+    charged(this, 1.4, { color: new THREE.Color(3.2, 1.0, 0.3), arcs: 4, width: 0.05, rate: 16 });
+  }
+
+  /** Andhaka has fallen: it goes with him. */
+  public unmade(): void {
+    if (this.stateMachine.currentState === 'DEAD') return;
+    this.currentHealth = 0;
+    this.stateMachine.changeState('DEAD');
+  }
+
+  protected override onStateChange(state: CharacterState, previous: CharacterState): void {
+    super.onStateChange(state, previous);
+    if (state === 'DEAD') burnAway(this, EMBER, 1.3);
   }
 }
 

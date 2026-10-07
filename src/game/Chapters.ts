@@ -116,6 +116,8 @@ export const CHAPTERS: Chapter[] = [
     clearedLine: 'The tide comes in over a quiet city.',
     defeatLine: 'Dwarka sinks a little further.',
     story: DWARKA_STORY,
+    // Shalva comes up out of the sea in the opening (the storm entrance): the intro shows the place alone.
+    introPlaceOnly: true,
   },
   {
     id: 5,

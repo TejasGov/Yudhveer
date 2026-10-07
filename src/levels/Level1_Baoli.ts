@@ -83,6 +83,8 @@ export class Level1_Baoli extends GLBLevel {
   /** Every near flame in the stepwell (see FireField), and the deepastambhas' torch lights by group. */
   private fires: FireField | null = null;
   private readonly torchLights: THREE.Light[] = [];
+  /** The near lamps' glow halos' brightness (1 as they are), with the stambhas' flames (`setFlames`). */
+  private readonly glowScale = { value: 1 };
 
   constructor() {
     super(LEVEL_URL);
@@ -179,7 +181,8 @@ export class Level1_Baoli extends GLBLevel {
     if (!spots.length) return;
     this.fires = new FireField(spots);
     for (const group of meshes.keys()) this.fires.set(group, 1);
-    this.torchLights.forEach((light, i) => this.flickerWith(light, () => this.fires?.flicker(`stambha_${i}`) ?? 1));
+    // Each torch light breathes with its lamp's flames, and dims or flares with them (a scene's `setFlames`).
+    this.torchLights.forEach((light, i) => this.flickerWith(light, () => (this.fires?.flicker(`stambha_${i}`) ?? 1) * (this.fires?.get(`stambha_${i}`) ?? 1)));
     this.group.add(this.fires.mesh);
   }
 
@@ -243,8 +246,12 @@ export class Level1_Baoli extends GLBLevel {
       if (name === 'FX_Glow' && !mat.userData.nearFade) {
         mat.userData.nearFade = true;
         patchShader(mat, 'nearfade', (shader) => {
-          shader.fragmentShader = shader.fragmentShader.replace('#include <dithering_fragment>', `#include <dithering_fragment>
-gl_FragColor.rgb *= smoothstep(${NEAR_GLOW_FADE.from.toFixed(2)}, ${NEAR_GLOW_FADE.to.toFixed(2)}, length(vViewPosition));`);
+          // (uGlowScale: the halos dim and flare with the stambhas' flames, `setFlames`.)
+          shader.uniforms.uGlowScale = this.glowScale;
+          shader.fragmentShader = shader.fragmentShader
+            .replace('#include <common>', '#include <common>\nuniform float uGlowScale;')
+            .replace('#include <dithering_fragment>', `#include <dithering_fragment>
+gl_FragColor.rgb *= smoothstep(${NEAR_GLOW_FADE.from.toFixed(2)}, ${NEAR_GLOW_FADE.to.toFixed(2)}, length(vViewPosition)) * uGlowScale;`);
         });
       }
     } else if (SOFT_TRANSPARENT.has(name)) {
@@ -279,6 +286,25 @@ gl_FragColor.rgb *= smoothstep(${NEAR_GLOW_FADE.from.toFixed(2)}, ${NEAR_GLOW_FA
     } else if (name === 'Stone_Steps_Wet') {
       mat.roughness = 0.35;
     }
+  }
+
+  /** The deepastambhas: each one's flame group (`stambha_0`...) and where its crown burns, for a scene to flare or gutter. */
+  public lampStands(): { group: string; at: THREE.Vector3 }[] {
+    return this.torchLights
+      .map((light, i) => ({ group: `stambha_${i}`, at: light.getWorldPosition(new THREE.Vector3()) }))
+      .filter((stand) => this.fires?.has(stand.group));
+  }
+
+  /** How fiercely a group of the stepwell's flames burns: 1 as it does, 0 out, up to 1.6 flaring (its light with it). */
+  public setFlames(group: string, amount: number): void {
+    this.fires?.set(group, amount);
+    // The lamps' glow halos are one material: they follow the stambhas together.
+    const stands = this.lampStands();
+    if (stands.length) this.glowScale.value = stands.reduce((sum, s) => sum + (this.fires?.get(s.group) ?? 1), 0) / stands.length;
+  }
+
+  public getFlames(group: string): number {
+    return this.fires?.get(group) ?? 0;
   }
 
   public override update(time: number, dt: number, camera: THREE.Camera): void {

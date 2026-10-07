@@ -11,10 +11,12 @@ import {
 } from 'postprocessing';
 import { InkOutlineEffect } from './InkOutlineEffect';
 import { ConcussionEffect } from './ConcussionEffect';
+import { StormGradeEffect } from './StormGradeEffect';
 import type { LevelAtmosphere } from '../../levels/LevelTypes';
 
 /**
- * HDR post chain: scene -> [ink outline] -> selective bloom -> vignette -> ACES tone mapping -> [concussion].
+ * HDR post chain: scene -> [ink outline] -> selective bloom -> vignette -> ACES tone mapping -> storm grade (usually
+ * off) -> [concussion].
  * The renderer itself runs without tone mapping; everything is graded here in half-float. The concussion (a dazed
  * hero's swimming eyes, `concussion`) is a pass of its own on the finished picture, run only while it shows.
  * Only objects added with `addBloom` glow, and only where they exceed the level's luminance threshold,
@@ -26,6 +28,8 @@ export class PostFX {
   private readonly ink = new InkOutlineEffect();
   private readonly vignette = new VignetteEffect({ offset: 0.3, darkness: 0.55 });
   private readonly toneMapping = new ToneMappingEffect({ mode: ToneMappingMode.ACES_FILMIC });
+  /** The silver storm grade a scene can fade in over the finished picture (cinematics/Entrance.ts `grade`). */
+  public readonly grade = new StormGradeEffect();
   private effectPass: EffectPass | null = null;
   private inkEnabled: boolean | null = null;
   /** A dazed hero's eyes (cinematics/Concussion.ts drives it); its pass is skipped while it shows nothing. */
@@ -63,7 +67,7 @@ export class PostFX {
       this.effectPass.dispose();
     }
     const effects: Effect[] = withInk ? [this.ink] : [];
-    effects.push(this.bloom, this.vignette, this.toneMapping);
+    effects.push(this.bloom, this.vignette, this.toneMapping, this.grade);
     this.effectPass = new EffectPass(this.camera, ...effects);
     // Straight after the scene render, before the concussion's pass.
     this.composer.addPass(this.effectPass, 1);

@@ -37,7 +37,8 @@ import { RAKSHASA } from '../entities/characters/Rakshasa';
 import { YATUDHANA } from '../entities/characters/Yatudhana';
 import { SHALVA } from '../entities/characters/Shalva';
 import { ANDHAKA } from '../entities/characters/Andhaka';
-import { ANDHAKA_THRONE } from '../levels/Level4_Summit';
+import { ANDHAKA_THRONE, SUMMIT_HERBS } from '../levels/Level4_Summit';
+import { SANJEEVANI, sprout, type Herb } from '../levels/environment/Sanjeevani';
 import { RAIDER } from '../entities/characters/Village';
 import { MENTOR } from '../entities/characters/Akhada';
 import { ATTIRE_MODELS } from '../entities/characters/Yodha';
@@ -110,8 +111,9 @@ const SPAWNS: Record<number, Spawn[]> = {
     { make: () => new Vetala('vetala'), at: AKHADA_MARKS.vetalaWaits, capsule: TALL_CAPSULE, rig: VETALA, hidden: true },
     { make: () => new Mayavi('mayavi'), at: AKHADA_MARKS.mayaviWaits, capsule: TALL_CAPSULE, rig: MAYAVI, hidden: true },
   ],
-  // Dwarka's east fighter mark, facing the hero across the rosette (Takshaka comes after him: see FINALES).
-  3: [{ make: () => new BossShalva('shalva'), at: DWARKA_STARTS.opponent, capsule: SHALVA_CAPSULE, rig: SHALVA }],
+  // Dwarka's east fighter mark, facing the hero across the rosette; out of sight until the opening's storm entrance
+  // lands his stand-in there (game/stories/Dwarka.ts). Takshaka comes after him: see FINALES.
+  3: [{ make: () => new BossShalva('shalva'), at: DWARKA_STARTS.opponent, capsule: SHALVA_CAPSULE, rig: SHALVA, hidden: true }],
   // Chapter IV opens with no one in the arena: see HORDES and FINALES.
   4: [],
 };
@@ -144,11 +146,14 @@ interface Horde {
  * due). `at` can depend on where the hero stands.
  */
 interface Finale extends Omit<Spawn, 'at'> {
-  at: THREE.Vector3 | ((hero: THREE.Vector3) => THREE.Vector3);
+  /** Where he comes: a mark, or worked out from where the hero stands and where the fallen lie (`clear` of them). */
+  at: THREE.Vector3 | ((hero: THREE.Vector3, fallen: THREE.Vector3[]) => THREE.Vector3);
   /** His fight's music (the boss theme if not given). */
   music?: Track;
   /** A point he faces as he arrives (the hero if not given): an entrance staged on a fixed set piece. */
   face?: THREE.Vector3;
+  /** Healing herbs that come up in his fight once the hero is below half health (`Sanjeevani`), each taken once. */
+  herbs?: THREE.Vector3[];
 }
 
 const v3 = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
@@ -196,13 +201,28 @@ const HORDES: Record<number, Horde> = {
 };
 
 const FINALES: Record<number, Finale> = {
-  // Dwarka: the naga king comes up onto the arena's far side from the hero, 7 m out from its centre.
+  // Dwarka: the naga king comes up onto the arena's far side from the hero, 7 m out from its centre, and clear of
+  // where Shalva lies (his body over the water's rim hid the rise, and his gada filled the close shots).
   3: {
     make: () => new BossTakshaka('takshaka'),
-    at: (hero) => {
+    at: (hero, fallen) => {
       const away = new THREE.Vector3(-hero.x, 0, -hero.z);
       if (away.lengthSq() < 1) away.copy(DWARKA_STARTS.opponent).setY(0);
-      return away.normalize().multiplyScalar(7).setY(DWARKA_STARTS.opponent.y);
+      const ideal = Math.atan2(away.x, away.z);
+      // On the 7 m ring: as far round from the hero's side as can be, at least 4.5 m from the hero and every body.
+      let best = away.normalize().multiplyScalar(7);
+      let bestScore = -Infinity;
+      for (let i = 0; i < 24; i++) {
+        const a = ideal + ((i % 2 ? 1 : -1) * Math.ceil(i / 2) * Math.PI) / 12;
+        const p = new THREE.Vector3(Math.sin(a), 0, Math.cos(a)).multiplyScalar(7);
+        const clear = Math.min(p.distanceTo(hero.clone().setY(0)), ...fallen.map((f) => p.distanceTo(f.clone().setY(0))));
+        const score = Math.min(clear, 4.5) * 10 - Math.abs(a - ideal);
+        if (score > bestScore) {
+          bestScore = score;
+          best = p;
+        }
+      }
+      return best.setY(DWARKA_STARTS.opponent.y);
     },
     capsule: NAGA_CAPSULE,
     rig: TAKSHAKA,
@@ -211,7 +231,7 @@ const FINALES: Record<number, Finale> = {
   // is found seated on the rock throne behind that spot (Level4_Summit's ANDHAKA_THRONE) and rises from it.
   4: {
     make: () => new BossAndhaka('andhaka'), at: ANDHAKA_THRONE.clone(), face: ANDHAKA_THRONE.clone().setZ(10),
-    capsule: ANDHAKA_CAPSULE, rig: ANDHAKA, music: 'andhaka_final',
+    capsule: ANDHAKA_CAPSULE, rig: ANDHAKA, music: 'andhaka_final', herbs: SUMMIT_HERBS,
   },
 };
 
@@ -356,6 +376,8 @@ export class Engine {
   private horde: { def: Horde; minions: Enemy[]; timer: number } | null = null;
   /** The chapter's final boss, while he is still to come (`boss` null) and once he is here. */
   private finale: { def: Finale; boss: Enemy | null } | null = null;
+  /** The final fight's healing herbs, once they have come up (`Finale.herbs`). */
+  private herbs: Herb[] | null = null;
   /** An explorable chapter's encounters and goal (the island), while one is under way. */
   private expedition: ExpeditionRun | null = null;
   private readonly handoff = { pos: new THREE.Vector3(), quat: new THREE.Quaternion(), fov: 45, t: 0 };
@@ -1036,6 +1058,33 @@ export class Engine {
     if (this.finale && !this.finale.boss && this.fieldCleared() && !this.beatDue()) void this.finaleArrives();
   }
 
+  /**
+   * The final fight's healing herbs (`Finale.herbs`): they come up out of the ground once the hero is below half
+   * health, and he takes one by walking over it (only when he is hurt).
+   */
+  private updateHerbs(): void {
+    const f = this.finale;
+    const p = this.player;
+    if (!f?.def.herbs || !f.boss?.group.visible || !p || p.isDown()) return;
+    if (!this.herbs) {
+      if (f.boss.stateMachine.currentState === 'DEAD' || p.currentHealth >= p.maxHealth * SANJEEVANI.below) return;
+      this.herbs = f.def.herbs.map((at) => {
+        const ground = this.physicsWorld.raycastGround(at.clone().setY(at.y + 3), 8);
+        return sprout(this.sceneManager.scene, at.clone().setY(ground ?? at.y));
+      });
+      this.soundFX.playHerb('sprout');
+      this.hud.hint('Sanjeevani has come up out of the stone: by the stair, and by Nandi.', 5);
+      return;
+    }
+    if (p.currentHealth >= p.maxHealth) return;
+    const at = p.getPosition();
+    for (const herb of this.herbs) {
+      if (!herb.ripe || Math.hypot(at.x - herb.at.x, at.z - herb.at.z) > SANJEEVANI.reach || Math.abs(at.y - herb.at.y) > 1.6) continue;
+      herb.take(p);
+      this.soundFX.playHerb('take');
+    }
+  }
+
   /** A story beat whose moment has come but has not played yet. */
   private beatDue(): boolean {
     if (!this.beats.length || !this.player) return false;
@@ -1050,11 +1099,14 @@ export class Engine {
     const enemy = f.def.make();
     f.boss = enemy;
     this.soundFX.music.play(f.def.music ?? 'boss');
-    const at = typeof f.def.at === 'function' ? f.def.at(this.player!.getPosition()) : f.def.at;
+    const fallen = this.enemies.filter((e) => e.stateMachine.currentState === 'DEAD').map((e) => e.getPosition());
+    const at = typeof f.def.at === 'function' ? f.def.at(this.player!.getPosition(), fallen) : f.def.at;
     this.addFighter(enemy, at, f.def.capsule);
     enemy.faceTowards(f.def.face ?? this.player!.getPosition());
     enemy.group.visible = false;
     this.enemies.push(enemy);
+    // What he brings into the fight is made of him: his model and his collider.
+    enemy.onSummon = (spec) => void this.summon(spec, f.def.rig, f.def.capsule);
     this.hud.add(enemy);
     this.hud.clearHint();
     try {
@@ -1065,7 +1117,7 @@ export class Engine {
     enemy.group.visible = true;
     if (token !== this.loadToken || this.player!.isDown() || (this.mode !== 'play' && this.mode !== 'handoff')) return;
     // The hero turns to face what is coming, and gets his breath back while it comes: the final fight starts whole
-    // (there is no healing, and the boss is tuned for a fresh hero).
+    // (the boss is tuned for a fresh hero; the summit's herbs are the only healing in it).
     const p = this.player!;
     p.currentHealth = p.maxHealth;
     p.currentMarma = 0;
@@ -1079,6 +1131,29 @@ export class Engine {
     this.cinema.setActive(true);
     this.soundFX.music.dim(true);
     this.director.play(buildArrival(this.introContext(this.chapter!), enemy), () => this.endIntro());
+  }
+
+  /**
+   * A fighter a boss brings into the fight (`Enemy.onSummon`): on its mark facing the hero, its model loaded (out of
+   * sight until then), in the fight from then on; it counts toward the field being cleared like any other.
+   */
+  private async summon(spec: { make: () => Enemy; at: THREE.Vector3; onReady?: (e: Enemy) => void }, rig: CharacterDefinition, capsule: { halfHeight: number; radius: number }): Promise<void> {
+    const token = this.loadToken;
+    const enemy = spec.make();
+    this.addFighter(enemy, spec.at, capsule);
+    if (this.player) enemy.faceTowards(this.player.getPosition());
+    enemy.group.visible = false;
+    this.enemies.push(enemy);
+    this.hud.add(enemy);
+    try {
+      await enemy.attachRig(rig);
+    } catch (err) {
+      console.error(`[Engine] ${enemy.id} rig failed to load; keeping the greybox`, err);
+    }
+    if (token !== this.loadToken) return;
+    enemy.group.visible = true;
+    enemy.markTeleported();
+    spec.onReady?.(enemy);
   }
 
   /** A retry of an explorable chapter starts the hero at the last checkpoint he reached. */
@@ -1297,7 +1372,7 @@ export class Engine {
           this.cinema.chapterCard(chapter);
           this.soundFX.playCardHit();
         },
-        boss: (enemy) => this.cinema.nameCard(enemy.displayName, enemy.epithet, 3.6),
+        boss: (enemy) => this.cinema.nameCard(enemy.displayName, enemy.epithet, 3.6, false, enemy.nativeName),
         name: (enemy) => this.cinema.nameCard(enemy.displayName, enemy.epithet, 1.9, true),
         title: (name, epithet) => this.cinema.nameCard(name, epithet, 2.6, true),
         horde: () => {
@@ -1552,6 +1627,7 @@ export class Engine {
     this.cast = [];
     this.horde = null;
     this.finale = null;
+    this.herbs = null;
     this.expedition = null;
     this.staging.clear();
     SceneFX.clear();
@@ -1629,6 +1705,7 @@ export class Engine {
       this.fightTime += dt;
       this.updateHorde(dt);
       this.updateFinale();
+      this.updateHerbs();
       this.updateExpedition();
     }
   }
@@ -1755,17 +1832,26 @@ export class Engine {
     this.paused = false;
     const steps = Math.round(seconds / FIXED_DT);
     const start = Math.max(this.levelTime, performance.now() * 0.001 + this.levelClockOffset);
+    // A shot in slow motion (`Shot.timeScale`) runs the world slower than the steps, as the frame loop does.
+    let world = 0;
+    let owed = 0;
     for (let i = 0; i < steps; i++) {
-      if (this.simulating()) this.fixedUpdate(FIXED_DT);
+      const scale = this.mode === 'intro' ? this.director.timeScale : 1;
+      owed += FIXED_DT * scale;
+      while (owed >= FIXED_DT - 1e-9) {
+        if (this.simulating()) this.fixedUpdate(FIXED_DT);
+        owed -= FIXED_DT;
+      }
       this.modeTime += FIXED_DT;
       this.updateCamera(FIXED_DT);
       this.updateFlow(FIXED_DT);
       this.dialogue.update(FIXED_DT);
-      this.particleFX.update(FIXED_DT);
-      this.updateLevel(start + (i + 1) * FIXED_DT, FIXED_DT);
+      this.particleFX.update(FIXED_DT * scale);
+      world += FIXED_DT * scale;
+      this.updateLevel(start + world, FIXED_DT * scale);
     }
     // Real time picks up where the steps left the levels' clock.
-    this.levelClockOffset = start + steps * FIXED_DT - performance.now() * 0.001;
+    this.levelClockOffset = start + world - performance.now() * 0.001;
     this.paused = true;
   }
 
@@ -1813,7 +1899,9 @@ export class Engine {
     this.inputManager.poll(time / 1000);
 
     const simulate = this.simulating();
-    const effectiveDt = simulate ? this.combatSystem.simulatedTime(rawDt, time) : 0;
+    // A cutscene shot in slow motion slows the world (the fighters, the effects, the weather) under a real-time camera.
+    const sceneScale = this.mode === 'intro' ? this.director.timeScale : 1;
+    const effectiveDt = simulate ? this.combatSystem.simulatedTime(rawDt, time) * sceneScale : 0;
 
     if (simulate) {
       this.accumulator += effectiveDt;
@@ -1838,7 +1926,9 @@ export class Engine {
 
     this.particleFX.update(effectiveDt);
     if (this.player) this.combatDebug.update([this.player, ...this.enemies], rawDt);
-    this.updateLevel(time * 0.001 + this.levelClockOffset, this.paused ? 0 : rawDt);
+    // The level's clock runs at the shot's rate too (the rain and the sea hang with the leap).
+    if (!this.paused && sceneScale !== 1) this.levelClockOffset -= rawDt * (1 - sceneScale);
+    this.updateLevel(time * 0.001 + this.levelClockOffset, this.paused ? 0 : rawDt * sceneScale);
     if (this.player && (this.mode === 'play' || this.mode === 'handoff' || this.mode === 'outro' || this.mode === 'over')) {
       this.hud.update(this.player, this.enemies, this.sceneManager.camera, rawDt);
     }

@@ -14,6 +14,7 @@ export class Vetala extends Enemy {
   constructor(id: string) {
     super(id, 0x2a2430);
     this.displayName = 'Vetala';
+    this.nativeName = 'वेताल';
     this.blood = 'ash'; // a ghost in a corpse: no blood, a puff of grave-ash
     this.epithet = 'Fast, and strikes in strings';
     // Milestone 12: health 160 -> 200, blows at 92 %.

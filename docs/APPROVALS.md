@@ -4,6 +4,52 @@ Things that need the user's say-so before they go further: credit spends, downlo
 between options. Each entry says what it is, what it costs, and what happens on a yes. Nothing here has been spent or
 downloaded yet.
 
+## Entrances (2026-10-06): waiting
+
+The entrance overhaul (`docs/proposals/ENTRANCES.md`). Shalva's storm entrance, Takshaka's rise, the Baoli Guardian's
+waking and the Vetala's and Mayavi's night entrances are in the game and cost nothing. These want a yes:
+
+### E-1. Shalva's one line, shorter (re-record)
+
+The storm entrance keeps one of his four opening lines, `dwarka_open_shalva_2` (14 w, **13.6 s**, the longest
+single line before any fight): "Far beyond your reach, and further every day. Beat me, and I will tell you why he was
+taken. Fail, and the sea can have you." It is now the only talk left in a 38 s opening and it is the last fat in it.
+Options, in his voice (Mani):
+
+| | Line | Characters | To record (2 takes) |
+|---|---|---|---|
+| **A (recommended)** | Beat me, and I will tell you why he was taken. | 47 | about 113 credits |
+| B | Beat me, boy, and you can have your answer. The sea can have the rest. | 69 | about 166 credits |
+| C (free) | Cut the recording to its middle sentence with ffmpeg, if the pauses allow a clean cut | 0 | 0 |
+
+Why A: the entrance has already said everything else (he came for the boy, he is not afraid, the sea is his); the
+line only needs to set the stake of the fight. On a yes: record as `dwarka_open_shalva_3`, loudnorm to -18 LUFS, swap
+the `voice` and `text` in the opening's shot 7. Option C first if wanted: it is free and reversible.
+
+### ~~E-2. Takshaka's first line~~ (cut whole, 2026-10-07: the user said to take the calls on dialogue)
+
+The ending's "A hundred years I kept the sea for him. I have watched kings kneel to Andhaka, and gods look away."
+(voiced, about 10 s) delays the prophecy, which is the line that matters. Option A (free): cut the recording after
+"for him." if there is a pause. Option B: re-record "A hundred years I kept the sea for him." (41 characters, about
+98 credits for 2 takes). The prophecy and "Take my sword" stay as recorded.
+
+### E-3. Stings (optional, ElevenLabs sound effects)
+
+**Synthesized and in (2026-10-07)**, free: `SoundFX.playSting` (a drum double stroke under a dark brass chord, pitched
+per character) on every new card, and `playImpactBoom` (a sub drop) on every landing. Recorded ones would still be
+richer: a brass-and-drum hit (about 2 s) and a sub drop (about 1.5 s), two takes each, **about 280 credits**. Only if
+the synthesized ones sound thin at full speed.
+
+### ~~E-5. Mixamo clips~~ (done 2026-10-07)
+
+Downloaded through Claude in Chrome on the user's account: Hanging Idle, Freehang Drop, Falling Idle, Hard Landing,
+Sitting Idle (`Entrance-` prefix), built into the Vetala, Shalva and the vanara and repacked.
+
+### E-4. The Devanagari names on the cards (free, a spelling check)
+
+Shown small over the Latin name on each boss card: शाल्व (Shalva), तक्षक (Takshaka), बावड़ी रक्षक (Baoli Guardian),
+वेताल (Vetala), मायावी (Mayavi). Say if any should read differently (for instance वेताल vs बेताल, the Hindi Betaal).
+
 ## Andhaka's crowning line (2026-10-05): APPROVED, DONE
 
 **Decision:** "go with A - let the gods see their new ruler". The line is now "Burn, Agni. Let the gods see their new

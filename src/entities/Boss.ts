@@ -1,6 +1,8 @@
 import * as THREE from 'three';
 import { Enemy, type FightTarget } from './Enemy';
 import type { CharacterState } from './CharacterStateMachine';
+import type { Shot } from '../cinematics/CinematicDirector';
+import type { IntroContext } from '../cinematics/Intros';
 
 /** How a boss fights: its spacing, how often it swings and when it leaps in. */
 export interface BossTuning {
@@ -58,6 +60,14 @@ export class Boss extends Enemy {
    * cutscene can be cut to it; null for the usual roar.
    */
   public scriptedEntrance(): { duration: number; marks: Record<string, number> } | null {
+    return null;
+  }
+
+  /**
+   * A boss arriving mid-fight with an entrance staged in code (Takshaka rising through the stone): its shots, framed
+   * from where it and the hero stand now, in place of the usual reveal. Null for the roar.
+   */
+  public arrival(_ctx: IntroContext): Shot[] | null {
     return null;
   }
 

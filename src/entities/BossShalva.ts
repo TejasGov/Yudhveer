@@ -19,6 +19,12 @@ const BOIL = 0.55;
 const RISE = 0.32;
 /** How far below the floor his model sinks (he is 2.6 m tall). */
 const DEPTH = 3.1;
+/**
+ * Beaten, he will not go down (docs/STORY.md, "How the dead speak"): his death clip (Mixamo "Mutant Dying") is held on
+ * its stagger, hunched over the wound and still on his feet, and he says his last words so. Then the sea he threatened
+ * the boy with takes him: his own dark water opens under him and he sinks into the stone (`seaTakesHim`).
+ */
+const BEATEN_AT = 1.15;
 /** Seconds between dives (randomised in this range), and before the first one once the fight is on. */
 const COOLDOWN: [number, number] = [10, 14];
 const FIRST_DIVE = 7;
@@ -84,6 +90,8 @@ export class BossShalva extends Boss {
   private target: FightTarget | null = null;
   /** The dark water where he goes under, runs beneath the stone, and boils up. */
   private readonly pool = new DivePool();
+  /** Beaten and taken by the sea: seconds into his going under, and how long it takes (null until then). */
+  private taken: { t: number; seconds: number } | null = null;
 
   constructor(id = 'shalva') {
     super(id, 0x4a3530, {
@@ -95,6 +103,7 @@ export class BossShalva extends Boss {
       roarRange: 18,
     });
     this.displayName = 'Shalva';
+    this.nativeName = 'शाल्व';
     this.epithet = 'Raider of Dwarka';
     // Milestone 12: health 380 -> 800 (the mace ended him in thirteen seconds), blows at 114 %. "Bosses fight back": his guard turns
     // blows aside and a posture that breaks now starts over (it never did: he was broken again by the next blow), so each blow that
@@ -151,7 +160,7 @@ export class BossShalva extends Boss {
     this.clock += dt;
     const state = this.stateMachine.currentState;
     if (state === 'DEAD') {
-      this.surface();
+      if (!this.taken) this.surface();
       return;
     }
     if (this.dive) {
@@ -339,8 +348,36 @@ export class BossShalva extends Boss {
     // Out of the fight (a cutscene, the chapter won or lost) nobody is left under the water.
     if (this.atEase && (this.dive || this.submerged)) this.surface();
     super.update(dt);
+    const rig = this.rig;
+    // Beaten: held on his feet, hunched over the wound, until the sea takes him.
+    if (this.stateMachine.currentState === 'DEAD' && rig?.clip === 'mutant_dying' && rig.time >= BEATEN_AT) rig.hold(BEATEN_AT);
+    if (this.taken) {
+      const g = this.taken;
+      g.t += dt;
+      const k = Math.min(1, g.t / g.seconds);
+      this.depth = k * k;
+      this.pool.set('pool', ease.out(Math.min(1, g.t / 0.4)), 1.7, 0.95, dt);
+      if (k >= 1) this.goneToSea();
+    }
     this.modelGroup.position.y = -DEPTH * this.depth;
-    this.updatePool(dt);
+    if (!this.taken) this.updatePool(dt);
+  }
+
+  /** The sea takes him: his dark water opens under him and he sinks into it over `seconds`, and is gone. */
+  public seaTakesHim(seconds = 2.2): void {
+    if (this.taken || !this.group.visible) return;
+    this.taken = { t: 0, seconds };
+    this.soundFX.playPlunge();
+    this.particleFX.spawnDustPuff(this.getPosition(), 24);
+  }
+
+  /** Gone under the stone, at once (the scene skipped): out of sight, the water closed. */
+  public goneToSea(): void {
+    this.taken = null;
+    this.depth = 0;
+    this.modelGroup.position.y = 0;
+    this.group.visible = false;
+    this.pool.hide();
   }
 
   /**
@@ -368,9 +405,10 @@ export class BossShalva extends Boss {
 
 /**
  * Dark churning water on the stone at Shalva's feet (one small draw, only while he dives): a pool with a foam rim and a
- * slow swirl, or, while he runs under the floor, a soft dark shape stretched along his way.
+ * slow swirl, or, while he runs under the floor, a soft dark shape stretched along his way. Takshaka rises through one
+ * at his arrival (BossTakshaka.arrival).
  */
-class DivePool {
+export class DivePool {
   public readonly mesh: THREE.Mesh;
   private readonly uniforms = { uOpen: { value: 0 }, uAlpha: { value: 0 }, uShadow: { value: 0 }, uTime: { value: 0 } };
   private open = 0;

@@ -27,6 +27,7 @@ export class Mayavi extends Enemy {
   constructor(id: string) {
     super(id, 0x2b3f6b);
     this.displayName = 'Mayavi';
+    this.nativeName = 'मायावी';
     this.epithet = 'Deflect his spells back at him';
     // Milestone 12: health 90 -> 110, blows and bolts at 80 % (his bolts did 18).
     this.maxHealth = 110;

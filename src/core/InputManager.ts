@@ -28,7 +28,9 @@ export type PressAction = 'attack' | 'parry' | 'jump' | 'dodge' | 'stow' | 'char
 export type MenuAction = 'up' | 'down' | 'left' | 'right' | 'confirm' | 'back' | 'pause';
 export type InputDevice = 'keyboard' | 'gamepad';
 
-const PRESS_KEYS: Record<string, PressAction> = { Space: 'jump', KeyF: 'dodge', KeyX: 'stow', KeyQ: 'charge' };
+// E is the dhal as well as the right mouse button (press to parry, hold to guard): timing a right click on a trackpad
+// is near impossible.
+const PRESS_KEYS: Record<string, PressAction> = { Space: 'jump', KeyF: 'dodge', KeyX: 'stow', KeyQ: 'charge', KeyE: 'parry' };
 /** How long an early press stays usable, in gameplay seconds (hit-stop slows it with everything else). */
 const BUFFER_WINDOW = 0.25;
 
@@ -339,7 +341,7 @@ export class InputManager {
       sprint: !!(k.ShiftLeft || k.ShiftRight) || (usePad && this.padSprint),
       walk: this.walkToggled || (usePad && padLen < WALK_DEFLECTION),
       attack: this.pressed('attack'),
-      parry: !!k.Mouse2 || padHeld(PAD.LB) || padHeld(PAD.LT),
+      parry: !!k.Mouse2 || !!k.KeyE || padHeld(PAD.LB) || padHeld(PAD.LT),
       parryPressed: this.pressed('parry'),
       jump: this.pressed('jump'),
       dodge: this.pressed('dodge'),

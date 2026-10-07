@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import type { CameraKey, Shot } from './CinematicDirector';
+import type { CameraKey, Shot, TimeRamp } from './CinematicDirector';
 import { frame, offset, type IntroContext } from './Intros';
 import type { Character } from '../entities/Character';
 import type { CharacterDefinition } from '../entities/animation/CharacterRig';
@@ -75,6 +75,12 @@ export interface SceneShot {
    */
   carryLines?: boolean;
   cues?: SceneCue[];
+  /**
+   * Slow motion: the world runs at this rate under the shot (0.3 for a leap hanging in the air) while the camera and
+   * the shot's `duration` keep real time. Cue times are real seconds; `SceneFX` tweens and clips run in world seconds.
+   * Or a ramp, `[[seconds, speed], ...]` (CinematicDirector `TimeRamp`).
+   */
+  timeScale?: number | TimeRamp;
 }
 
 export interface StoryScene {
@@ -439,6 +445,7 @@ export class SceneRun {
       sway: shot.sway,
       fadeIn: shot.fadeIn,
       fadeOut: shot.fadeOut,
+      timeScale: shot.timeScale,
       cues,
       holdWhile: () => !group.done,
       // The player read past the shot's last line: cut to the next shot.

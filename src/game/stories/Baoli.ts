@@ -10,7 +10,10 @@ import { buildLathi } from '../../entities/characters/YodhaWeapons';
 import { createToonRamp, toonifyModel } from '../../levels/environment/ToonRelight';
 import { disposeObject } from '../../levels/GLBLevel';
 import { SoundFX } from '../../combat/SoundFX';
-import { shade, shadeOf, shadeRises, shadeShots, twoShot } from '../Story';
+import { ParticleFX } from '../../combat/ParticleFX';
+import { charged, glowingEyes, glowingWater, impact, turnToStone } from '../../cinematics/Entrance';
+import { groundShock } from '../../cinematics/Shockwave';
+import { shade, shadeShots, twoShot } from '../Story';
 
 /*
  * Chapter I, the moonlit baoli (STORY.md, "Chapter I" and "Milestone 5"). The raiders took the guru down through the
@@ -176,12 +179,173 @@ const shadeOn = (s: Stage) => shadeShots(s, shade(GUARDIAN), twoShot(s, 'hero', 
 /** Whether the Guardian is in one of these states now. */
 const bossIn = (s: Stage, ...states: string[]) => states.includes(s.actor('boss')?.stateMachine.currentState ?? '');
 
+// ------------------------------------------------------------------------------------------- the Guardian wakes
+
+/*
+ * The Guardian's entrance (docs/proposals/ENTRANCES.md, "Baoli Guardian"). The boy walks into a stepwell gone dark: its
+ * lamps low, and at the island's middle a great stone shape crouched with one fist on the step, still as the carvings,
+ * Andhaka's binding crawling over it in threads of ember. The lamps flare up one after another, from the far stambhas
+ * in to it; close and slowed, its eyes kindle and it lifts its head; and it rises and brings its weapon down on the
+ * stone, the step cracking out in ember and every lamp in the well guttering at the blow, its name over it. Then the
+ * guru's one line.
+ *
+ * Its crouch is the three-point landing at the end of Mixamo's "Mutant Jump Attack" (held on its lowest frame, then
+ * played on through its rise); the blow is its "Standing Melee Attack Downward".
+ */
+
+/** Crouched with a fist on the stone (clip seconds), and where the rise out of it starts. */
+const STATUE = { clip: 'mutant_jump_attack', crouch: 2.05, wake: 2.2 };
+/** The blow down onto the step, and when it lands (clip seconds). */
+const BLOW = { clip: 'standing_melee_attack_downward', lands: 0.95 };
+/** Andhaka's binding: ember, as his light in the gate was in the prologue. */
+const EMBER = 0xff7a33;
+const EMBER_HOT = new THREE.Color(3.4, 1.3, 0.4);
+
+/** The Guardian's eyes (bound: ember; they go out as it is freed). */
+let guardianEyes: ReturnType<typeof glowingEyes> | null = null;
+
+/** The stepwell's lamps, as the level gives them to a scene. */
+interface WellLamps {
+  lampStands(): { group: string; at: THREE.Vector3 }[];
+  setFlames(group: string, amount: number): void;
+  getFlames(group: string): number;
+}
+const wellLamps = (s: Stage): WellLamps | null => {
+  const level = s.level as Partial<WellLamps>;
+  return level.lampStands && level.setFlames && level.getFlames ? (level as WellLamps) : null;
+};
+
+/**
+ * Every lamp in the well to `amount` over `seconds` (game time) after `delay`, one after another from the farthest from
+ * the Guardian in to it when `stagger` (seconds between them) is given; each flare that rises past 1 roars as it
+ * catches. Put back as they burn when the chapter is left.
+ */
+function lamps(s: Stage, amount: number, seconds: number, stagger = 0, delay = 0): void {
+  const well = wellLamps(s);
+  if (!well) return;
+  const guardian = s.pos('boss');
+  // The stambhas from the farthest in to it, then the diyas down the steps and the hanging lamps all at once.
+  const stands = well.lampStands().sort((a, b) => b.at.distanceTo(guardian) - a.at.distanceTo(guardian))
+    .concat(['diya', 'hanging'].map((group) => ({ group, at: guardian })));
+  stands.forEach((stand, i) => {
+    let from = -1;
+    SceneFX.tween(seconds, (k) => {
+      if (from < 0) {
+        from = well.getFlames(stand.group);
+        // A stambha flaring up throws fire off its crown as it catches.
+        if (amount > 1.2) {
+          SoundFX.getInstance().playFlameBurst();
+          if (stand.at !== guardian) ParticleFX.getInstance().spawnFlames(stand.at.clone().add(v(0, 0.4, 0)), 40, 0.5);
+        }
+      }
+      well.setFlames(stand.group, THREE.MathUtils.lerp(from, amount, k));
+    }, { delay: delay + i * stagger });
+  });
+  SceneFX.onClear(() => {
+    for (const stand of well.lampStands()) well.setFlames(stand.group, 1);
+    well.setFlames('diya', 1);
+    well.setFlames('hanging', 1);
+  });
+}
+
+/** Holds the Guardian crouched like the carvings, its eyes dark, Andhaka's binding crawling over it. */
+function petrify(s: Stage): void {
+  const boss = s.actor('boss');
+  if (!boss) return;
+  if (boss.playClip(STATUE.clip, { startAt: STATUE.crouch, fade: 0 })) boss.rig?.hold(STATUE.crouch);
+  guardianEyes = glowingEyes(boss, { color: EMBER, height: s.height('boss'), size: 0.14 });
+  charged(boss, 11, { color: EMBER_HOT.clone().multiplyScalar(0.55), arcs: 2, width: 0.03, rate: 7, reach: 0.8 });
+}
+
+/** It wakes (`waken`): the eyes kindle, the binding flares over it, and it lifts its head and rises out of the crouch. */
+function waken(s: Stage): void {
+  const boss = s.actor('boss');
+  if (!boss) return;
+  guardianEyes?.kindle(0.5);
+  charged(boss, 2.4, { color: EMBER_HOT, arcs: 5, width: 0.045, rate: 18 });
+  boss.playClip(STATUE.clip, { startAt: STATUE.wake, timeScale: 0.75, fade: 0.1 });
+  SoundFX.getInstance().playRiser(3.4, 0.8);
+}
+
+/**
+ * The blow: it brings its weapon down on the step before it, and where it lands the stone cracks out in ember, every
+ * lamp in the well gutters, and its name lands.
+ */
+function blow(s: Stage): void {
+  const boss = s.actor('boss');
+  if (!(boss instanceof Enemy)) return;
+  // Its roar, as the bosses' cutscenes have it (it counts as the roar the fight would otherwise open with).
+  boss.playIntro();
+  boss.playClip(BLOW.clip, { fade: 0.15 });
+  SceneFX.every(() => {
+    if (boss.rig?.clip !== BLOW.clip) return false;
+    if (boss.rig.time < BLOW.lands) return true;
+    const yaw = boss.group.rotation.y;
+    const at = boss.getPosition().add(v(Math.sin(yaw), 0, Math.cos(yaw)).multiplyScalar(s.height('boss') * 0.55));
+    impact(at, { color: EMBER, radius: 8, jolt: 0.2, strength: 1 });
+    charged(boss, 0.9, { color: EMBER_HOT, arcs: 6, width: 0.05, rate: 24 });
+    lamps(s, 0.15, 0.08);
+    lamps(s, 1, 2.4, 0, 0.35);
+    return false;
+  });
+}
+
+// ------------------------------------------------------------------------------------------------- the way on
+
+/*
+ * The bridge to Chapter II (the user, 2026-10-07): freed, the Guardian turns back to stone, and the water at the
+ * island's east edge begins to glow; the boy runs off the edge and dives into the light (Mixamo "Run To Dive"), and the
+ * picture goes. The way down the raiders took is under the well; the way on for him is the water.
+ */
+const DIVE = {
+  /** Where he starts his run, the island's edge (between the east stambha and the steps), and where he goes in. */
+  runFrom: v(9.77, 0, 3.56),
+  edge: v(12.4, 0, 4.51),
+  water: v(15.2, -0.24, 5.54),
+};
+/** The glowing water (set as it lights). */
+let pond: ReturnType<typeof glowingWater> | null = null;
+
+/** He runs off the island's edge and dives into the glowing water, and is gone into its light. */
+function dive(s: Stage): void {
+  const p = s.player;
+  p.faceYaw(Math.atan2(DIVE.water.x - DIVE.runFrom.x, DIVE.water.z - DIVE.runFrom.z));
+  p.playClip('run_to_dive', { fade: 0.1 });
+  const from = p.group.position.clone();
+  const seconds = 1.15;
+  p.carried = true;
+  let t = 0;
+  SceneFX.every((dt) => {
+    t += dt;
+    const k = Math.min(1, t / seconds);
+    // The run to the edge, then out over the water in an arc and down into it, as the clip leaves the ground.
+    let pos: THREE.Vector3;
+    if (k < 0.45) pos = from.clone().lerp(DIVE.edge, k / 0.45);
+    else {
+      const u = (k - 0.45) / 0.55;
+      pos = DIVE.edge.clone().lerp(DIVE.water, u);
+      pos.y = THREE.MathUtils.lerp(DIVE.edge.y, DIVE.water.y - 0.5, u) + 1.3 * 4 * u * (1 - u);
+    }
+    p.group.position.copy(pos);
+    p.markTeleported();
+    if (k < 1) return true;
+    p.group.visible = false;
+    pond?.burst();
+    groundShock(DIVE.water.clone(), { radius: 4, color: 0xffd890, seconds: 2.5, dust: false });
+    ParticleFX.getInstance().spawnDustPuff(DIVE.water.clone().add(v(0, 0.1, 0)), 40);
+    SoundFX.getInstance().playSplash(5);
+    return false;
+  });
+  SceneFX.onClear(() => {
+    p.group.visible = true;
+    p.carried = false;
+  });
+}
+
 export const BAOLI_STORY: ChapterStory = {
   cast: [
     // The guru as the boy remembers him: pale, see-through, there for one line and gone.
     { id: 'guru', rig: GURU, at: BAOLI_STAND, hidden: true, ghost: { color: 0x9cbcf0 } },
-    // The Guardian freed: its shade, risen over its body for its last words (Story.ts, "The dead speak").
-    shadeOf(GUARDIAN, BAOLI_GUARDIAN),
   ],
 
   // At the Devi's shrine above the well he kneels in his training clothes and rises in the divya kavach; then on the
@@ -191,13 +355,14 @@ export const BAOLI_STORY: ChapterStory = {
     id: 'baoli-opening',
     shots: [
       // The Devi's shrine on the terrace above the stepwell (docs/STORY.md, "The divya kavach"). From black: low
-      // behind the boy, in his training clothes, as he climbs between the stone lions to the Devi on her lion. It cuts
-      // as he nears the mark he kneels on (the next shot puts him there): this shot and the next are 2 s shorter than
-      // they were, for the long run of cutscenes from the prologue's loss to this fight (audit S-07).
+      // behind the boy, in his training clothes, as he climbs between the stone lions to the Devi on her lion, asking
+      // her for the way. It cuts as he nears the mark he kneels on (the next shot puts him there).
       {
         duration: 4.4,
         fadeIn: 1.0,
         ease: ease.drift,
+        linesAt: 1.4,
+        lines: [{ speaker: 'Yudhveer', text: 'It has been a long road, Maa. Guide me.' }],
         cues: [
           { at: 0, actor: 'hero', place: DEVI_APPROACH, face: DEVI_FACE },
           { at: 0.2, actor: 'hero', moveTo: DEVI_KNEEL, face: DEVI_FACE },
@@ -247,31 +412,18 @@ export const BAOLI_STORY: ChapterStory = {
           { pos: v(-1.2, 4.65, 50.6), look: v(0, 10.3, 67), fov: 48 },
         ],
       },
-      // Up at her face, past the lion's mane, slowly closer: she speaks.
+      // Up at her face, past the lion's mane, slowly closer: she answers. (Her first line, the "stick of bamboo", and the
+      // boy's reply to it are cut: the answer comes straight.)
       {
         fadeIn: 0.15,
         ease: ease.drift,
         sway: 0.006,
         linesAt: 0.6,
-        lines: [DEVI_LINES[0]],
+        lines: [DEVI_LINES[1]],
         camera: [
           { pos: v(-3.6, 13.6, 60.6), look: DEVI_FACE.clone().add(v(0, -0.3, 0)), fov: 33 },
           { pos: v(-3.3, 13.8, 61.3), look: DEVI_FACE.clone().add(v(0, -0.25, 0)), fov: 30 },
         ],
-      },
-      // His face, looking up into her light, as she tells him what they cannot keep; he answers.
-      {
-        fadeIn: 0.12,
-        ease: ease.drift,
-        sway: 0.008,
-        lines: [DEVI_LINES[1], { speaker: 'Yudhveer', text: 'With a stick of bamboo?' }],
-        camera: (s): CameraKey[] => {
-          const head = s.head('hero');
-          return [
-            { pos: head.clone().add(v(0.75, -0.12, 1.45)), look: head.clone().add(v(0, 0.05, 0)), fov: 34 },
-            { pos: head.clone().add(v(0.65, -0.1, 1.25)), look: head.clone().add(v(0, 0.05, 0)), fov: 32 },
-          ];
-        },
       },
       // Her face again, square on to her now: the gift.
       {
@@ -338,60 +490,81 @@ export const BAOLI_STORY: ChapterStory = {
           ];
         },
       },
-      // Down in the stepwell:
-      // Low behind him as he walks in across the island toward the dark shape hunched at its middle.
+      // Down in the stepwell (the Guardian wakes, above). Low behind him as he walks in across the island: the well's
+      // lamps burn low, and at its middle a great stone shape crouches with a fist on the step, ember crawling over it.
       {
-        duration: 6,
+        duration: 4.4,
         fadeIn: 0.8,
         ease: ease.drift,
-        linesAt: 1.6,
         cues: [
           { at: 0, actor: 'hero', place: BAOLI_ENTRY, face: 'boss' },
           { at: 0, actor: 'boss', face: BAOLI_ENTRY },
+          { at: 0, run: (s) => { lamps(s, 0.12, 0.01); petrify(s); } },
           { at: 0.3, actor: 'hero', moveTo: BAOLI_STAND, face: 'boss' },
         ],
-        lines: [{ speaker: 'Yudhveer', text: 'Their tracks end at the water. There is a way down, under the well.' }],
         camera: [
           { pos: v(3.6, 1.5, 19), look: v(0.2, 1.6, 0), fov: 42 },
           { pos: v(2.8, 1.7, 13), look: v(0, 1.8, -2), fov: 40 },
         ],
       },
-      // Low on the Guardian, heaving where it stands.
+      // High on the steps behind him, the well below: the lamps flare up one after another, from the far stambhas in to
+      // the stone shape, their fire doubled in the water.
       {
-        fadeIn: 0.15,
+        duration: 3.4,
+        fadeIn: 0.12,
         ease: ease.drift,
-        sway: 0.015,
-        lines: [{ speaker: 'Yudhveer', text: 'Stand aside. They carried my guru through here.' }],
+        sway: 0.01,
+        cues: [{ at: 0.2, run: (s) => lamps(s, 1.6, 0.3, 0.42) }],
+        // Low in front of it, off its weapon side: the far stambha burns up behind its dark shape last.
         camera: (s): CameraKey[] => {
           const h = s.height('boss');
           return [
-            { pos: s.at('boss', h * 1.5, -h * 0.7, h * 0.15), look: s.at('boss', 0, 0, h * 0.5), fov: 40 },
-            { pos: s.at('boss', h * 1.3, -h * 0.6, h * 0.2), look: s.at('boss', 0, 0, h * 0.55), fov: 37 },
+            { pos: s.at('boss', h * 1.7, -h * 0.4, h * 0.14), look: s.at('boss', -h * 1.5, 0, h * 0.8), fov: 52 },
+            { pos: s.at('boss', h * 1.5, -h * 0.34, h * 0.13), look: s.at('boss', -h * 1.5, 0, h * 0.84), fov: 49 },
           ];
         },
       },
-      // It rises and roars: whatever kept the well now holds it.
+      // Close and low on the stone face, the world slowing: its eyes kindle, the binding flares over it, and it lifts
+      // its head and rises.
       {
-        duration: 5.6,
-        fadeIn: 0.12,
+        duration: 3.6,
+        timeScale: [[0, 1], [0.4, 0.4], [3.0, 0.4], [3.6, 1]],
+        fadeIn: 0.1,
+        ease: ease.out,
+        sway: 0.01,
+        cues: [{ at: 0.25, run: (s) => waken(s) }],
+        camera: (s): CameraKey[] => {
+          const h = s.height('boss');
+          const head = s.head('boss');
+          return [
+            { pos: s.at('boss', h * 0.7, -h * 0.16, 0).setY(head.y - 0.1), look: head, fov: 34 },
+            { pos: s.at('boss', h * 0.85, -h * 0.2, 0).setY(head.y - 0.25), look: head.clone().add(v(0, h * 0.3, 0)), fov: 40 },
+          ];
+        },
+      },
+      // Low and wide from the boy's side: it brings its weapon down on the step, the stone cracks out in ember, the
+      // lamps gutter at the blow, and its name lands, a sting under it.
+      {
+        duration: 3.6,
+        fadeIn: 0.08,
         ease: ease.out,
         sway: 0.02,
         cues: [
-          { at: 0.3, actor: 'boss', play: 'intro' },
+          { at: 0.1, run: (s) => blow(s) },
           {
-            at: 1.5,
+            at: 1.55,
             run: (s) => {
               const boss = s.actor('boss');
               if (boss instanceof Enemy) s.cards.boss(boss);
+              SoundFX.getInstance().playSting(0.9);
             },
           },
         ],
-        // From its weapon side, low, tilting up to its face as it roars.
         camera: (s): CameraKey[] => {
           const h = s.height('boss');
           return [
-            { pos: s.at('boss', h * 1.35, -h * 0.68, h * 0.24), look: s.at('boss', 0, -h * 0.05, h * 0.62), fov: 38 },
-            { pos: s.at('boss', h * 1.5, -h * 0.55, h * 0.45), look: s.at('boss', 0, -h * 0.05, h * 0.74), fov: 34 },
+            { pos: s.at('boss', h * 2.2, -h * 1.0, h * 0.12), look: s.at('boss', h * 0.3, 0, h * 0.55), fov: 46 },
+            { pos: s.at('boss', h * 2.0, -h * 0.9, h * 0.16), look: s.at('boss', h * 0.2, 0, h * 0.62), fov: 42 },
           ];
         },
       },
@@ -402,6 +575,8 @@ export const BAOLI_STORY: ChapterStory = {
         sway: 0.01,
         linesAt: 0.8,
         cues: [
+          // However the waking went (skipped, or settled on a retry): the lamps as they burn, the Guardian on its feet.
+          { at: 0, run: (s) => lamps(s, 1, 0.3), essential: true },
           { at: 0, actor: 'guru', place: (s) => s.at('hero', -1.1, 0.95, 0), face: 'boss' },
           { at: 0, actor: 'guru', show: true },
         ],
@@ -417,11 +592,10 @@ export const BAOLI_STORY: ChapterStory = {
       },
       // Gone. Over his shoulder to the Guardian, where the fight picks up.
       {
+        duration: 2.2,
         fadeIn: 0.15,
         ease: ease.inOut,
-        linesAt: 0.5,
         cues: [{ at: 0, actor: 'guru', show: false }],
-        lines: [{ speaker: 'Yudhveer', text: 'Feet first, Guruji.' }],
         camera: (s): CameraKey[] => {
           const look = s.pos('boss').add(v(0, 1.5, 0));
           return [
@@ -463,24 +637,28 @@ export const BAOLI_STORY: ChapterStory = {
     { on: { bossBelow: 0.25 }, lines: [{ speaker: 'Guru', text: 'It was not always this. Something dark binds it. Set it free.', voice: 'baoli_fight_guru_7' }] },
   ],
 
-  // Beaten, the Guardian is itself again: Andhaka bound it; a lathi will not take the boy further; the vanaras of
-  // the Hanuman akhada must teach him first. It speaks as its shade, freed of the body, and fades as he answers.
+  // Beaten, the Guardian is down on its knees and itself again: Andhaka's ember drains out of it, it tells the boy where
+  // to go, and turns back to stone, a carving at peace. The water at the island's edge begins to glow: the way on. He
+  // runs, and dives into the light. (The cut lines: the binding explained, the lathi, and the boy's two answers.)
   ending: {
     id: 'baoli-ending',
     shots: [
-      // From black: wide on the two of them, the boy walking up to where it lies; its shade rises out of it.
+      // From black: wide on the two of them, the boy walking up to where it kneels; the ember drains out of it.
       {
         duration: 3.8,
         fadeIn: 0.9,
         ease: ease.drift,
         cues: [
           { at: 0, actor: 'hero', place: (s) => s.toward('boss', 'hero', Math.min(5.5, s.pos('boss').distanceTo(s.pos('hero')))), face: 'boss' },
-          ...shadeRises(GUARDIAN, 1.4),
-          { at: 0.5, actor: 'hero', moveTo: (s) => s.toward('boss', 'hero', 2.8), face: shade(GUARDIAN) },
+          { at: 0, actor: 'boss', clip: 'kneeling_idle' },
+          { at: 0.3, actor: 'boss', face: 'hero' },
+          // Freed: the ember goes out of its eyes, and the last of the binding crawls off it.
+          { at: 0, run: () => guardianEyes?.out(1.4) },
+          { at: 0.2, run: (s) => { const b = s.actor('boss'); if (b) charged(b, 2.2, { color: EMBER_HOT.clone().multiplyScalar(0.7), arcs: 3, width: 0.035, rate: 12 }); } },
+          { at: 0.5, actor: 'hero', moveTo: (s) => s.toward('boss', 'hero', 2.8), face: 'boss' },
         ],
-        // (On the boy and the shade's mark, so all of it rises in the frame.)
         camera: (s): CameraKey[] => {
-          const { side, mid, dir } = twoShot(s, 'hero', shade(GUARDIAN), BAOLI_CENTRE);
+          const { side, mid, dir } = twoShot(s, 'hero', 'boss', BAOLI_CENTRE);
           const look = mid.clone().addScaledVector(dir, 0.6).add(v(0, 1.1, 0));
           return [
             { pos: mid.clone().addScaledVector(side, 8).add(v(0, 2.6, 0)).addScaledVector(dir, -0.4), look, fov: 40 },
@@ -488,62 +666,62 @@ export const BAOLI_STORY: ChapterStory = {
           ];
         },
       },
-      // Close on its shade, level with its face: the darkness gone out of it.
+      // Close on its face as it kneels, the darkness gone out of it.
       {
         fadeIn: 0.15,
         ease: ease.drift,
         sway: 0.012,
-        cues: [{ at: 0, actor: shade(GUARDIAN), face: 'hero' }],
-        lines: [
-          { speaker: 'Baoli Guardian', text: 'The dark... it has let go of me.', voice: 'baoli_end_guardian_1' },
-          { speaker: 'Baoli Guardian', text: 'Andhaka bound me to this well, to turn back any who followed his men below.', voice: 'baoli_end_guardian_2' },
-        ],
+        lines: [{ speaker: 'Baoli Guardian', text: 'The dark... it has let go of me.', voice: 'baoli_end_guardian_1' }],
         camera: (s) => shadeOn(s).close(),
       },
-      // Over its shade's shoulder, down at the boy.
-      {
-        fadeIn: 0.12,
-        ease: ease.out,
-        sway: 0.015,
-        lines: [{ speaker: 'Yudhveer', text: 'They took my guru that way. I am going after him.' }],
-        camera: (s) => shadeOn(s).overShade(),
-      },
-      // Over his shoulder, up at its shade, for the last of it.
+      // Over his shoulder, down at it: where he must go.
       {
         fadeIn: 0.12,
         ease: ease.drift,
         sway: 0.012,
-        lines: [
-          { speaker: 'Baoli Guardian', text: 'Not with a lathi. It has carried you this far. It will not carry you further.', voice: 'baoli_end_guardian_3' },
-          { speaker: 'Baoli Guardian', text: 'Go to the Hanuman akhada. Let the vanaras teach you to truly fight. Then follow.', voice: 'baoli_end_guardian_4' },
-        ],
+        lines: [{ speaker: 'Baoli Guardian', text: 'Go to the Hanuman akhada. Let the vanaras teach you to truly fight. Then follow.', voice: 'baoli_end_guardian_4' }],
         camera: (s) => shadeOn(s).overHero(),
       },
-      // His answer, side on to the two of them: its word given, the shade sinks back into the stone and is gone.
+      // Side on to the two of them: its word given, it bows its head and turns back to stone, gold lifting off it; and
+      // beyond the island's edge the water begins to glow.
       {
+        duration: 4.0,
         fadeIn: 0.12,
         ease: ease.drift,
         sway: 0.01,
-        cues: [{ at: 1.0, actor: shade(GUARDIAN), appear: false, over: 2.2 }],
-        lines: [{ speaker: 'Yudhveer', text: 'Then I will learn. And then I will follow.' }],
+        cues: [
+          { at: 0.3, run: (s) => { const b = s.actor('boss'); if (b) turnToStone(b, 2.6); } },
+          { at: 1.6, run: () => { pond = glowingWater(DIVE.water, { radius: 2.8, seconds: 2.2 }); } },
+          { at: 2.4, actor: 'hero', face: DIVE.water },
+        ],
         camera: (s) => shadeOn(s).side(),
       },
-      // He turns back the way he came and walks; the camera stays and rises, and the picture fades.
+      // Low at the island's edge, looking out over the glowing water: he walks up to the edge.
       {
-        duration: 4.6,
-        fadeIn: 0.2,
-        fadeOut: 1.5,
+        duration: 3.0,
+        fadeIn: 0.12,
         ease: ease.drift,
-        cues: [{ at: 0.4, actor: 'hero', moveTo: (s) => s.pos('hero').add(BAOLI_ENTRY.clone().sub(s.pos('hero')).setY(0).normalize().multiplyScalar(5)) }],
-        camera: (s): CameraKey[] => {
-          const h = s.pos('hero');
-          const away = BAOLI_ENTRY.clone().sub(h).setY(0).normalize();
-          const look = h.clone().addScaledVector(away, 2.5).add(v(0, 0.9, 0));
-          return [
-            { pos: h.clone().addScaledVector(away, -3).add(v(0.8, 2, 0)), look, fov: 44 },
-            { pos: h.clone().addScaledVector(away, -5.5).add(v(1.2, 4.6, 0)), look, fov: 46 },
-          ];
-        },
+        sway: 0.01,
+        cues: [{ at: 0.1, actor: 'hero', moveTo: DIVE.runFrom, face: DIVE.water }],
+        camera: (): CameraKey[] => [
+          { pos: DIVE.edge.clone().add(v(1.4, 0.5, -3.2)), look: DIVE.water.clone().add(v(0, 0.4, 0)), fov: 44 },
+          { pos: DIVE.edge.clone().add(v(1.2, 0.45, -2.8)), look: DIVE.runFrom.clone().add(v(0, 1.2, 0)), fov: 46 },
+        ],
+      },
+      // Wide from the water, side on: he runs off the edge and dives into the light, slowed at the top of the dive; the
+      // water flares as he goes in, and the picture goes.
+      {
+        duration: 3.4,
+        timeScale: [[0, 1], [0.7, 1], [0.95, 0.35], [1.6, 0.35], [1.9, 1]],
+        fadeIn: 0.1,
+        fadeOut: 1.0,
+        ease: ease.drift,
+        sway: 0.012,
+        cues: [{ at: 0.2, run: (s) => dive(s) }],
+        camera: (): CameraKey[] => [
+          { pos: DIVE.water.clone().add(v(-1.2, 0.9, -6.4)), look: DIVE.edge.clone().lerp(DIVE.water, 0.5).add(v(0, 1.0, 0)), fov: 46 },
+          { pos: DIVE.water.clone().add(v(-1.0, 0.8, -5.8)), look: DIVE.water.clone().add(v(0, 0.3, 0)), fov: 42 },
+        ],
       },
     ],
   },

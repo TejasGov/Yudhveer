@@ -74,6 +74,8 @@ export class StormSky {
   public readonly mesh: THREE.Mesh;
   private readonly uniforms: Record<string, THREE.IUniform>;
   private clock = 0;
+  /** The next flash has been aimed (`strikeAt`), so it is not put somewhere at random. */
+  private aimed = false;
 
   constructor(cloud: THREE.ColorRepresentation, horizon: THREE.ColorRepresentation, fog: THREE.ColorRepresentation, sun: THREE.Vector3) {
     this.uniforms = {
@@ -107,9 +109,18 @@ export class StormSky {
   public update(dt: number, camera: THREE.Camera, flash: number): void {
     this.clock += dt;
     this.uniforms.uTime.value = this.clock;
-    // A new flash strikes somewhere new.
-    if (flash > 0 && this.uniforms.uFlash.value === 0) (this.uniforms.uFlashAt.value as THREE.Vector2).set(Math.random() * 6 - 3, Math.random() * 6 - 3);
+    // A new flash strikes somewhere new, unless a scene has aimed it.
+    if (flash > 0 && this.uniforms.uFlash.value === 0 && !this.aimed) (this.uniforms.uFlashAt.value as THREE.Vector2).set(Math.random() * 6 - 3, Math.random() * 6 - 3);
+    if (flash <= 0) this.aimed = false;
     this.uniforms.uFlash.value = flash;
     this.mesh.position.copy(camera.position);
+  }
+
+  /** The next flash lights the deck brightest in the direction `dir` from the camera (a bolt a scene lands on someone). */
+  public strikeAt(dir: THREE.Vector3): void {
+    const d = dir.clone().normalize();
+    const k = Math.max(d.y + 0.2, 0.2);
+    (this.uniforms.uFlashAt.value as THREE.Vector2).set(d.x / k, d.z / k);
+    this.aimed = true;
   }
 }

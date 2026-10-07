@@ -36,10 +36,13 @@ export type TimedStateKey =
   | 'CHARGE_DURATION' | 'BLOCK_HIT_DURATION' | 'SHEATHE_DURATION' | 'DRAW_DURATION' | 'STAGGER_DURATION'
   | 'CAST_DURATION' | 'DODGE_DURATION' | 'SHOVE_DURATION';
 
+/** How long a parry press deflects for: 140 ms. */
+export const PARRY_WINDOW = 0.14;
+
 export class CharacterStateMachine {
   public currentState: CharacterState = 'IDLE';
   public stateTime = 0; // Duration in current state in seconds
-  public isParryActive = false; // True during the 140ms deflection window
+  public isParryActive = false; // True during the deflection window (`parryWindow`)
   public isAttacking = false;
   public comboQueued = false;
   public comboWindowOpen = false;
@@ -47,7 +50,8 @@ export class CharacterStateMachine {
   public guardHeld = false;
 
   // Timings for states (in seconds)
-  public readonly PARRY_WINDOW_DURATION = 0.14; // 140ms deflection frame
+  /** Seconds a parry press deflects for (`PARRY_WINDOW`; the akhada's lesson widens it while it teaches). */
+  public parryWindow = PARRY_WINDOW;
   public readonly PARRY_TOTAL_DURATION = 0.42;
 
   // Attack timings are per instance: an animated character sets them from its clip lengths.
@@ -134,8 +138,8 @@ export class CharacterStateMachine {
 
     switch (this.currentState) {
       case 'PARRY':
-        // 140ms active deflection window
-        if (this.stateTime > this.PARRY_WINDOW_DURATION) {
+        // The active deflection window (140 ms)
+        if (this.stateTime > this.parryWindow) {
           this.isParryActive = false;
         }
         if (this.stateTime >= this.PARRY_TOTAL_DURATION) {

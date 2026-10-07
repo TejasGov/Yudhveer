@@ -29,46 +29,22 @@ export function twoShot(s: Stage, a: string, b: string, centre: THREE.Vector3) {
 // ---------------------------------------------------------------------------------------------- The dead speak
 
 /*
- * A fallen character's last words come from its shade (docs/STORY.md, "How the dead speak"): a pale blue spirit that
- * rises out of the body and stands over it, turned to the hero. The cameras frame the shade's face and the hero, never
- * the body speaking: it lies below the frame (or is only a dark shape in the wide shots before the shade rises).
+ * A fallen character's last words (docs/STORY.md, "How the dead speak"). They used to come from a shade, a pale blue
+ * spirit rising out of the body, the same for everyone; the user found it weird and samey (2026-10-07). Now each one
+ * speaks from its own body, in its own way, and goes in its own way (the Baoli Guardian kneels and turns back to stone,
+ * Shalva will not go down and the sea takes him, Takshaka burns away in naga fire): the stories stage that. The
+ * framings below were made for the shades and still serve: they frame whoever is named, where its head is now.
  */
 
-/** The cold blue of a shade. */
-export const SHADE_BLUE = 0x5c96ff;
-
-/** The id of a fallen fighter's shade in the story's cast. */
-export const shade = (fallen: string) => `${fallen}_shade`;
-
-/** A fallen fighter's shade, for a story's cast: its model without weapons, out of sight until it rises. */
-export function shadeOf(fallen: string, rig: CharacterDefinition): CastMember {
-  return { id: shade(fallen), rig: { ...rig, weapon: undefined, offhand: undefined }, at: v(0, 0, 0), hidden: true, shade: { color: SHADE_BLUE } };
-}
+/** Who speaks a fallen fighter's last words: the fighter itself (the name kept from when a shade did). */
+export const shade = (fallen: string) => fallen;
 
 /**
- * Where a fallen one's shade stands: over the body, between where its feet and its head lie, but never nearer the
- * hero than half a metre beyond the body's feet, so whatever way it fell the shade stands clear of him.
+ * The fallen one turns its head to the hero as the scene begins (it no longer rises as a shade): a cue list, kept
+ * so the scenes read as they did. `at` and `over` are unused.
  */
-export function shadeMark(s: Stage, fallen: string): THREE.Vector3 {
-  const feet = s.pos(fallen);
-  const mid = s.head(fallen).setY(feet.y).sub(feet).multiplyScalar(0.5);
-  const away = feet.clone().sub(s.pos('hero')).setY(0);
-  if (away.lengthSq() < 1e-6) away.set(0, 0, 1);
-  away.normalize();
-  const along = mid.dot(away);
-  const across = mid.clone().addScaledVector(away, -along).clampLength(0, 0.8);
-  return feet.addScaledVector(away, Math.max(along, 0.5)).add(across);
-}
-
-/**
- * The shade comes up out of the body, turned to the hero: put on its mark at once (unseen), then rising at `at`
- * seconds into the shot over `over`. List it after any cue that places the hero.
- */
-export function shadeRises(fallen: string, at: number, over = 1.6): SceneCue[] {
-  return [
-    { at: 0, actor: shade(fallen), place: (s) => shadeMark(s, fallen), face: 'hero' },
-    { at, actor: shade(fallen), appear: true, over },
-  ];
+export function shadeRises(fallen: string, _at = 0, _over = 0): SceneCue[] {
+  return [{ at: 0.2, actor: fallen, face: 'hero' }];
 }
 
 /**

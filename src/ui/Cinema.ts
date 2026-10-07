@@ -55,10 +55,16 @@ export class Cinema {
     this.flash(this.chapterCardEl, holdSeconds);
   }
 
-  /** The big lower-left name card (bosses), or a smaller one (`small`) for ordinary enemies. */
-  public nameCard(name: string, epithet: string, holdSeconds: number, small = false): void {
+  /**
+   * The big lower-left name card (bosses), or a smaller one (`small`) for ordinary enemies. `native`: the name in
+   * Devanagari, set small over the title (as the chapter card's).
+   */
+  public nameCard(name: string, epithet: string, holdSeconds: number, small = false, native = ''): void {
     $('name-title').textContent = name;
     $('name-epithet').textContent = epithet;
+    const nativeEl = $('name-native');
+    nativeEl.textContent = native;
+    nativeEl.hidden = !native;
     this.nameCardEl.classList.toggle('small', small);
     this.nameCardEl.classList.remove('show');
     // Restart the transition when names follow each other.
