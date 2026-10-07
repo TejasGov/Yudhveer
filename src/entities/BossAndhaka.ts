@@ -411,6 +411,14 @@ export class BossAndhaka extends Boss {
     this.laugh(0.6);
   }
 
+  /**
+   * Seated on his throne, his laugh done: the story has him chant to Shiva there while his variants fight (Summit's
+   * beats: the Shiva Tandava Stotram's first verse).
+   */
+  public get enthroned(): boolean {
+    return this.withdrawn?.phase === 'seated' && this.withdrawn.t >= THRONE_WAY.laughFor;
+  }
+
   /** Withdrawn to his throne, no blow touches him (the variants are the fight then). */
   public override isArmored(): boolean {
     return !!this.withdrawn || this.isArmoredInFight();

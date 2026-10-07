@@ -11,7 +11,43 @@ export interface Line {
   voice?: string;
   /** Seconds on screen, instead of the recording's length or the reading time. */
   hold?: number;
+  /**
+   * Its recording echoes (`SoundFX.playVoiceEcho`): a remembered voice, a verse ringing out. `gap` between repeats,
+   * `feedback` how long they ring on, `wet` its reverb.
+   */
+  echo?: { gap?: number; feedback?: number; wet?: number };
+  /**
+   * How it is shown in a cutscene: `memory`, a voice remembered (italic, a little faded); `verse`, words that ring
+   * out over the picture (large and bold in the middle of the frame, no speaker: the prologue's shloka).
+   */
+  look?: 'memory' | 'verse';
 }
+
+/** Letters of the Sanskrit transliteration a verse's face lacks: drawn as the plain letter with its dot (`.iast-dot`). */
+const IAST_DOTS: Record<string, [string, 'above' | 'below']> = { 'ṁ': ['m', 'above'], 'ṃ': ['m', 'below'], 'ṛ': ['r', 'below'], 'ṅ': ['n', 'above'], 'ṇ': ['n', 'below'], 'ṭ': ['t', 'below'], 'ḍ': ['d', 'below'], 'ṣ': ['s', 'below'], 'ḥ': ['h', 'below'] };
+
+/** Sets `text` into `el`, its dotted letters as a plain letter with a drawn dot (no markup from the text itself). */
+function setVerse(el: HTMLElement, text: string): void {
+  el.textContent = '';
+  let run = '';
+  for (const ch of text) {
+    const dotted = IAST_DOTS[ch];
+    if (!dotted) {
+      run += ch;
+      continue;
+    }
+    if (run) el.append(run);
+    run = '';
+    const span = document.createElement('span');
+    span.className = `iast-dot ${dotted[1]}`;
+    span.textContent = dotted[0];
+    el.append(span);
+  }
+  if (run) el.append(run);
+}
+
+/** Devanagari in a line: it is set in the Devanagari face. */
+const DEVANAGARI = /[ऀ-ॿ]/;
 
 /**
  * `scene`: a cutscene's lines, low in the frame over the letterbox; the player can read ahead. `voice`: a voice in
@@ -140,9 +176,13 @@ export class Dialogue {
     this.time = 0;
     this.duration = line.hold ?? readingTime(line.text);
     this.speakerEl.textContent = line.speaker ?? '';
-    this.textEl.textContent = line.text;
+    if (line.look === 'verse') setVerse(this.textEl, line.text);
+    else this.textEl.textContent = line.text;
     this.root.classList.toggle('voice', entry.style === 'voice');
     this.root.classList.toggle('aloud', entry.style === 'aloud');
+    this.root.classList.toggle('memory', line.look === 'memory');
+    this.root.classList.toggle('verse', line.look === 'verse');
+    this.textEl.classList.toggle('deva', DEVANAGARI.test(line.text));
     this.root.classList.remove('show');
     void this.root.offsetWidth; // restart the fade between lines
     this.root.classList.add('show');
@@ -170,6 +210,11 @@ export class Dialogue {
   private speak(buffer: AudioBuffer, offset: number): void {
     this.silence();
     // Only the voice in his head carries the place's reverb; a line said aloud (a cutscene's, a foe's taunt) is dry.
+    const echo = this.entry?.line.echo;
+    if (echo && offset === 0) {
+      this.stopVoice = SoundFX.getInstance().playVoiceEcho(buffer, echo.wet ?? 0.3, 0, echo);
+      return;
+    }
     this.stopVoice = SoundFX.getInstance().playVoice(buffer, offset, this.entry?.style === 'voice' ? VOICE_WET : 0);
   }
 

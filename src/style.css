@@ -1074,6 +1074,140 @@ kbd {
   opacity: 0.92;
 }
 
+/* A remembered voice in a cutscene (Line.look 'memory'): italic and a little faded, as the voice in his head. */
+#subtitle.memory #subtitle-line {
+  font-style: italic;
+  opacity: 0.85;
+}
+
+/* Devanagari lines are set in the Devanagari face. */
+#subtitle-line.deva {
+  font-family: var(--deva);
+  font-weight: 400;
+}
+
+/* Words that ring out over the picture (Line.look 'verse': the prologue's shloka): large in the middle of the frame,
+   no speaker, in Rozha One (the heavy, high-contrast face of Indian film titles) cast in gold: a gradient from pale
+   gold through saffron, a dark edge, a fire glow round it. It comes in out of a blur with its letters wide apart and
+   draws together, then a shine runs across it; gold rules above and below. Rozha One has no ṁ or ṛ, so their dots
+   are drawn (.iast-dot, see Dialogue). */
+#subtitle.verse {
+  bottom: 36vh;
+  /* One phrase to a line: the gold is clipped to the box, so a word must not run out of it. */
+  width: max-content;
+  max-width: 94vw;
+  transform: translate(-50%, 0) scale(1.08);
+  transition: opacity 600ms ease-out, transform 3200ms cubic-bezier(0.16, 0.7, 0.2, 1);
+  filter: drop-shadow(0 0 12px rgba(255, 150, 20, 0.55)) drop-shadow(0 0 38px rgba(255, 110, 0, 0.35)) drop-shadow(0 3px 3px rgba(0, 0, 0, 0.9));
+}
+
+#subtitle.verse.show {
+  transform: translate(-50%, 0) scale(1);
+}
+
+#subtitle.verse #subtitle-speaker {
+  display: none;
+}
+
+#subtitle.verse::before,
+#subtitle.verse::after {
+  content: '';
+  display: block;
+  width: 52%;
+  height: 2px;
+  margin: 0 auto;
+  background: linear-gradient(90deg, transparent, #f6c64a 30%, #fff1b0 50%, #f6c64a 70%, transparent);
+  opacity: 0;
+  transform: scaleX(0.2);
+  transition: opacity 900ms ease-out 300ms, transform 1600ms cubic-bezier(0.2, 0.7, 0.2, 1) 300ms;
+}
+
+#subtitle.verse::before {
+  margin-bottom: 0.5em;
+}
+
+#subtitle.verse::after {
+  margin-top: 0.45em;
+}
+
+#subtitle.verse.show::before,
+#subtitle.verse.show::after {
+  opacity: 0.9;
+  transform: scaleX(1);
+}
+
+#subtitle.verse #subtitle-line {
+  font-family: 'Rozha One', var(--serif);
+  font-weight: 400;
+  font-size: clamp(40px, 5.4vw, 84px);
+  line-height: 1.18;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+  padding: 0 0.15em;
+  color: transparent;
+  /* A shine band (runs across once, see verse-shine) over the gold. */
+  background:
+    linear-gradient(105deg, transparent 42%, rgba(255, 255, 240, 0.9) 50%, transparent 58%) 160% 0 / 250% 100% no-repeat,
+    linear-gradient(180deg, #fffbd6 0%, #ffe45c 30%, #ffc21a 55%, #fff09a 80%, #d98f00 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-stroke: 0.6px rgba(80, 36, 0, 0.6);
+  text-shadow: none;
+}
+
+#subtitle.verse.show #subtitle-line {
+  animation: verse-in 1500ms cubic-bezier(0.2, 0.7, 0.2, 1) both, verse-shine 1700ms ease-in-out 700ms both;
+}
+
+@keyframes verse-in {
+  from {
+    opacity: 0;
+    letter-spacing: 0.3em;
+    filter: blur(10px);
+  }
+  to {
+    opacity: 1;
+    letter-spacing: 0.03em;
+    filter: blur(0);
+  }
+}
+
+@keyframes verse-shine {
+  from {
+    background-position: 160% 0, 0 0;
+  }
+  to {
+    background-position: -60% 0, 0 0;
+  }
+}
+
+/* The dot of ṁ (above) and ṛ (below), drawn for Rozha One: round, in the gold, sized as its own tittle. The span's box
+   top is the font's ascent line, one em above the baseline; its x-height is 0.47 em. */
+.iast-dot {
+  position: relative;
+}
+
+.iast-dot::after {
+  content: '';
+  position: absolute;
+  width: 0.15em;
+  height: 0.15em;
+  border-radius: 50%;
+  background: #ffd23a;
+  box-shadow: 0 0 0 0.6px rgba(80, 36, 0, 0.6);
+  transform: translateX(-50%);
+}
+
+.iast-dot.above::after {
+  left: 50%;
+  top: calc(1em - 0.5em - 0.15em);
+}
+
+.iast-dot.below::after {
+  left: 38%;
+  top: calc(1em + 0.06em);
+}
+
 /* ---------------------------------------------------------------- Small screens */
 
 @media (max-width: 720px) {

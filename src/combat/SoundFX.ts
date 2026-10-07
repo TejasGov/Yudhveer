@@ -827,6 +827,63 @@ export class SoundFX {
     this.templeBell(0, brightness, pan);
   }
 
+  // --- The shloka's score (the prologue's end) ------------------------------------------------------------------
+
+  /**
+   * A tanpura's drone for `seconds` from `delay`: its four strings (Pa, Sa, Sa, the low Sa) plucked round and round,
+   * each a buzzing saw (the jawari) ringing out over a soft sine, swelling in and dying away at the ends. `root` is
+   * the low Sa (D3).
+   */
+  public playTanpura(seconds: number, delay = 0, root = 146.8): void {
+    const cycle = 1.7;
+    const strings = [1.5, 2, 2, 1];
+    for (let t = 0; t < seconds; t += cycle) {
+      strings.forEach((r, i) => {
+        const at = t + (i * cycle) / 4;
+        if (at >= seconds) return;
+        const k = Math.min(1, (at + 0.3) / 1.6) * Math.min(1, (seconds - at) / 2.5);
+        const f = root * r * vary(1, 0.002);
+        const p = { delay: delay + at, wet: 0.55, pan: (i - 1.5) * 0.25 };
+        this.tone({ type: 'sawtooth', freq: f, gain: 0.022 * k, attack: 0.012, duration: 3.0, filter: { type: 'bandpass', freq: f * 7, q: 1.1 }, ...p });
+        this.tone({ type: 'sine', freq: f, gain: 0.05 * k, attack: 0.012, duration: 3.2, ...p });
+      });
+    }
+  }
+
+  /**
+   * A stroke on the dhol: `dha` (both sides: the bass boom with the slap), `ge` (the bass alone, its pitch pushed up
+   * by the palm), `na` (the treble side's crack). `k` how hard.
+   */
+  public playDhol(stroke: 'dha' | 'ge' | 'na', delay = 0, k = 1): void {
+    const p = { delay, wet: 0.45, pan: stroke === 'na' ? 0.2 : -0.1 };
+    if (stroke !== 'na') {
+      this.thump(stroke === 'dha' ? 74 : 62, 0.8, 0.5 * k, p);
+      this.tone({ type: 'sine', freq: stroke === 'ge' ? 58 : 70, to: stroke === 'ge' ? 92 : 64, gain: 0.32 * k, attack: 0.004, duration: 0.7, ...p });
+    }
+    if (stroke !== 'ge') {
+      this.noise({ color: 'white', filter: 'bandpass', from: 2600, to: 1400, q: 1.2, duration: 0.08, gain: 0.16 * k, attack: 0.001, ...p });
+      this.tone({ type: 'triangle', freq: 440, to: 400, gain: 0.07 * k, attack: 0.002, duration: 0.16, ...p });
+    }
+  }
+
+  /**
+   * A shehnai's phrase: `notes` as [semitones from Sa, seconds], a reedy saw through the instrument's bore (a band
+   * round 1.3 kHz), each note sliding in from the last (the meend). `root` is Sa (D4).
+   */
+  public playShehnai(notes: [number, number][], delay = 0, root = 293.7, gain = 1): void {
+    let t = delay;
+    let prev = root * 2 ** (notes[0][0] / 12);
+    for (const [st, d] of notes) {
+      const f = root * 2 ** (st / 12);
+      const p = { delay: t, wet: 0.6, pan: 0.15 };
+      const bore = { type: 'bandpass' as BiquadFilterType, freq: 1300, q: 1.4 };
+      this.tone({ type: 'sawtooth', freq: prev, to: f, gain: 0.045 * gain, attack: 0.05, duration: 0.09, filter: bore, ...p });
+      this.tone({ type: 'sawtooth', freq: f, to: f * 0.997, gain: 0.05 * gain, attack: 0.06, duration: d + 0.12, filter: bore, ...p, delay: t + 0.07 });
+      prev = f;
+      t += d;
+    }
+  }
+
   /**
    * The healing herb (Sanjeevani): `sprout`, a soft shimmer climbing as it comes up out of the stone; `take`, a clear
    * chime over a warm swell as it gives the hero his health back.
@@ -1702,11 +1759,11 @@ export class SoundFX {
    * that feeds back into itself, each repeat darker, quieter and swinging wider left and right, dying away over a few
    * seconds. `delay`: seconds from now.
    */
-  public playVoiceEcho(buffer: AudioBuffer, wet = 0.3, delay = 0, echo: { gap?: number; feedback?: number } = {}): void {
+  public playVoiceEcho(buffer: AudioBuffer, wet = 0.3, delay = 0, echo: { gap?: number; feedback?: number } = {}): (() => void) | null {
     const ctx = this.ready();
-    if (!ctx || !this.sfxBus) return;
+    if (!ctx || !this.sfxBus) return null;
     const { gap = 0.42, feedback = 0.55 } = echo;
-    this.playVoice(buffer, 0, wet, delay);
+    const stop = this.playVoice(buffer, 0, wet, delay);
     const t = ctx.currentTime + delay;
     const src = ctx.createBufferSource();
     src.buffer = buffer;
@@ -1750,6 +1807,16 @@ export class SoundFX {
     window.setTimeout(() => {
       for (const n of [src, send, left, right, darkL, darkR, backL, backR, panL, panR, out]) n.disconnect();
     }, (delay + tail) * 1000);
+    // Stopped (a line read past, the game paused): the voice and what feeds the echo stop; repeats already in the
+    // delay lines ring out.
+    return () => {
+      stop?.();
+      try {
+        src.stop();
+      } catch {
+        // Already ended.
+      }
+    };
   }
 }
 

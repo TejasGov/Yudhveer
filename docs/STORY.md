@@ -965,6 +965,43 @@ to 140 ms), and a lesson that will not end is a rage quit. Now:
   0.4 s after each flash turned three of three and the lesson ended at about 12 s; one pressing at 0.48 s or never was
   let through by the visitors after eight blows (about 32 s).
 
+## Yudhveer's voice, the shloka, and new words (2026-10-07)
+
+Yudhveer is voiced now, by the user's own recordings (game asset/voice/VOICES.md): 20 of his 23 lines, and three new.
+
+- **The prologue's end** (`Prologue.ts`), after he stands up out of the dust:
+  - **The memory:** the picture drains to black and white (the storm grade), and the guru stands before him in the
+    training circle again, where he taught him. His voice comes back, echoing, as a memory (italic):
+    "Promise me, Yudhveer... when the time comes, you'll search for the truth. You'll go to the Baoli."
+  - **Close on the boy,** the colour coming back.
+  - **His answer,** low in front of him, the haystack burning behind: "रघुकुल रीत सदा चली आई, प्राण जाइ बरु बचनु न जाई"
+    (his recording).
+  - **His vow,** now voiced.
+  - **The shloka** (`SHLOKA`): the Gita's 4.7 in his voice, one phrase to a shot:
+    1. his eyes, close;
+    2. the burning roof, low, embers torn off it, the picture shaking;
+    3. over his shoulder to the gate;
+    4. low on him, rising to his face.
+
+    Each phrase echoes and rings out large in the middle of the picture as it is spoken (`Line.look: 'verse'`): Rozha One (the heavy face of Indian film titles) cast in golden yellow, a fire glow round it, gold rules above and below, coming in out of a blur with its letters drawing together and a shine running across it (Rozha One lacks ṁ and ṛ: their dots are drawn, `.iast-dot`).
+    In the pauses an Indian score carries it, synthesized (`SoundFX.playTanpura`, `playDhol`, `playShehnai` in Bhairav):
+    the tanpura's drone, the dhol, and a shehnai's cry. The fires flare with it. On "aham" the drums, the conch and a
+    boom come down together, and embers burst round him. The music under the ending is hushed through it and comes
+    back on the threshold, whose essential cues also restore the music, the grade and the fires on a skip.
+- **Before the night fight** (`Akhada.ts`): the vanara, at the verandah's edge, recites the Hanuman Chalisa's
+  "संकट कटै मिटै सब पीरा, जो सुमिरै हनुमत बलबीरा" (generated in Hindi), and the boy answers "Jai Hanuman!" (his recording,
+  his battle cry).
+- **On the throne** (`Summit.ts` beats, `BossAndhaka.enthroned`): once his laugh is done, Andhaka chants the first verse
+  of the Shiva Tandava Stotram, aloud, while his variants fight. The voice is his own (Roderich) in Devanagari, sped up,
+  echoed, with a robotic disturbance under it.
+- **The last word** is Shiva's: "Evil may wear a crown, but it cannot last forever. Truth may walk barefoot, but it
+  always reaches the throne. Whenever life tests you, choose Dharma, for Dharma always wins." It replaces "Go home, and
+  teach what you have learned"; the last shot is 21 s so it is spoken before the fade.
+- **New in the dialogue:**
+  - `Line.echo` (a recording through `playVoiceEcho`);
+  - `Line.look`: `memory` (italic) or `verse` (large, bold, mid-frame);
+  - Devanagari lines are set in the Devanagari face.
+
 ## The bridges between chapters (2026-10-07)
 
 The user: "scenes will need connections". What each chapter now hands to the next:

@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 import { ease, joltCamera, type CameraKey } from '../../cinematics/CinematicDirector';
 import { Concussion } from '../../cinematics/Concussion';
-import type { ActorRef, ChapterStory, SceneCue, Stage } from '../../cinematics/Scene';
+import type { ActorRef, ChapterStory, SceneCue, SceneShot, Stage } from '../../cinematics/Scene';
+import type { Line } from '../../ui/Dialogue';
 import { SceneFX } from '../../cinematics/SceneFX';
 import { ParticleFX } from '../../combat/ParticleFX';
 import { SoundFX } from '../../combat/SoundFX';
@@ -9,7 +10,8 @@ import { Voices } from '../../combat/Voices';
 import { SceneManager } from '../../core/SceneManager';
 import type { Character } from '../../entities/Character';
 import { ANDHAKA_SHADOW, GURU, RAIDER, VILLAGER_ELDER, VILLAGER_MAN, VILLAGER_WOMAN, VILLAGER_WOMAN_B } from '../../entities/characters/Village';
-import { VILLAGE_GATE as GATE, VILLAGE_MANDIR as MANDIR, type Level0_Village } from '../../levels/Level0_Village';
+import { VILLAGE_GATE as GATE, VILLAGE_HAY_FIRE, VILLAGE_MANDIR as MANDIR, VILLAGE_ROOF_FIRE, type Level0_Village } from '../../levels/Level0_Village';
+import { grade } from '../../cinematics/Entrance';
 
 /*
  * The prologue, "The Last Lesson" (docs/STORY.md, "Prologue", "Milestone 4" and "The prologue's ending"): the lesson at
@@ -252,6 +254,170 @@ let stopLaugh: (() => void) | null = null;
 const fade = (seconds: number, apply: (k: number) => void, delay = 0) => SceneFX.tween(seconds, apply, { delay });
 
 /** The boy's eyes when he is down: on his knees, head bowed; and lying in the dust, his head on its side. */
+// ------------------------------------------------------------------------------------------------- the shloka
+
+/*
+ * The prologue's last word (the user, 2026-10-07): after his vow, the boy speaks the Gita's shloka (4.7), his own
+ * recording, one phrase to a shot: his eyes; the burning roof; over his shoulder to the gate; low on him, rising.
+ * Each phrase echoes, and rings out large over the picture as it is spoken; in the pauses an Indian score (a
+ * tanpura's drone, the dhol, a shehnai's phrase in Bhairav) carries it, and the fires flare with it, until on
+ * "aham" the drums and the conch come down together. The music under the ending is hushed through it and comes back
+ * on the threshold (whose cues also undo it on a skip).
+ */
+
+const sfx = () => SoundFX.getInstance();
+/** The shloka's echo: close repeats, ringing a while. */
+const VERSE_ECHO = { gap: 0.34, feedback: 0.48, wet: 0.45 };
+const verse = (n: number, text: string): Line[] => [{ text, voice: `prologue_shloka_${n}`, echo: VERSE_ECHO, look: 'verse' }];
+
+/** The roof and the haystack flare up to `to` and settle back to how they burn at night, over `seconds`. */
+function flare(s: Stage, to: number, seconds: number): void {
+  const place = village(s);
+  const set = (k: number) => {
+    place.setRaidFire(0.7 + (to - 0.7) * k);
+    place.setHayFire(0.6 + (to - 0.6) * k * 0.8);
+  };
+  SceneFX.tween(seconds * 0.25, set);
+  SceneFX.tween(seconds * 0.75, (k) => set(1 - k), { delay: seconds * 0.25 });
+}
+
+/** Embers torn up off `at` into the dark: `rate` bursts a second for `seconds`. */
+function embers(at: THREE.Vector3, seconds: number, rate: number, spread = 1.2): void {
+  let t = 0;
+  let owed = 0;
+  SceneFX.every((dt) => {
+    t += dt;
+    for (owed += rate * dt; owed >= 1; owed--) {
+      ParticleFX.getInstance().spawnEmbers(at.clone().add(v((Math.random() - 0.5) * spread, Math.random() * 0.6, (Math.random() - 0.5) * spread)), 3, 0.6, 2.4);
+    }
+    return t < seconds;
+  });
+}
+
+/** Where his eyes are, above his feet, and how far in front of his head bone. */
+const eyes = (s: Stage) => s.head('hero').y - s.pos('hero').y + 0.09;
+
+const SHLOKA: SceneShot[] = [
+  // 1. Close on his eyes, the fire in them: the drone comes up, the first stroke of the dhol, and the first words.
+  {
+    duration: 3.9,
+    fadeIn: 0.12,
+    ease: ease.drift,
+    sway: 0.005,
+    linesAt: 1.1,
+    cues: [
+      {
+        at: 0,
+        run: () => {
+          sfx().hush(0.12, 0.5);
+          sfx().playTanpura(5);
+          sfx().playImpactBoom(0.45);
+          sfx().playDhol('dha', 0, 1.2);
+          sfx().playDhol('ge', 0.55, 0.8);
+        },
+      },
+    ],
+    lines: verse(1, 'Yadā yadā hi dharmasya'),
+    camera: (s): CameraKey[] => [
+      { pos: s.at('hero', 0.55, 0.02, eyes(s)), look: s.at('hero', 0.09, 0.02, eyes(s)), fov: 15 },
+      { pos: s.at('hero', 0.47, 0.02, eyes(s)), look: s.at('hero', 0.09, 0.02, eyes(s)), fov: 12 },
+    ],
+  },
+  // 2. Fire and chaos: low under the burning roof, the flames roaring up and embers torn off into the dark, the
+  // picture shaking; the dhol runs, the shehnai cries over it.
+  {
+    duration: 3.9,
+    fadeIn: 0.06,
+    ease: ease.inOut,
+    sway: 0.03,
+    linesAt: 1.25,
+    cues: [
+      {
+        at: 0,
+        run: (s) => {
+          sfx().playTanpura(5);
+          ([['dha', 0], ['na', 0.18], ['ge', 0.36], ['dha', 0.54], ['na', 0.72], ['dha', 0.9]] as const).forEach(([k, d]) => sfx().playDhol(k, d));
+          sfx().playShehnai([[7, 0.22], [8, 0.2], [7, 0.2], [5, 0.22], [4, 0.55]], 0.1);
+          flare(s, 1.45, 3.9);
+          embers(VILLAGE_ROOF_FIRE, 3.7, 26, 2.2);
+          joltCamera(0.12);
+        },
+      },
+      { at: 1.25, run: () => joltCamera(0.07) },
+    ],
+    lines: verse(2, 'glānir bhavati Bhārata'),
+    camera: [
+      { pos: VILLAGE_ROOF_FIRE.clone().add(v(-3.4, -2.5, 3.8)), look: VILLAGE_ROOF_FIRE.clone().add(v(0, 0.5, 0)), fov: 42 },
+      { pos: VILLAGE_ROOF_FIRE.clone().add(v(-2.7, -2.55, 3.1)), look: VILLAGE_ROOF_FIRE.clone().add(v(0, 1.2, 0)), fov: 46 },
+    ],
+  },
+  // 3. Over his shoulder to the gate he will go out by, the far roofs burning past it: the dhol twice, a swell.
+  {
+    duration: 4.0,
+    fadeIn: 0.08,
+    ease: ease.drift,
+    sway: 0.012,
+    linesAt: 1.2,
+    cues: [
+      {
+        at: 0,
+        run: (s) => {
+          sfx().playTanpura(5);
+          sfx().playDhol('dha', 0, 1.1);
+          sfx().playDhol('dha', 0.32, 1.1);
+          sfx().playRiser(1.2, 0.5);
+          flare(s, 1.2, 3.8);
+          embers(VILLAGE_HAY_FIRE, 3.5, 16, 1.6);
+        },
+      },
+      { at: 3.3, run: () => sfx().playShehnai([[5, 0.2], [7, 0.6]], 0, 293.7, 0.8) },
+    ],
+    lines: verse(3, 'Abhyutthānam adharmasya'),
+    camera: (s): CameraKey[] => [
+      { pos: s.at('hero', -1.0, -0.5, 1.75), look: GATE.clone().setY(1.6), fov: 40 },
+      { pos: s.at('hero', -0.75, -0.42, 1.72), look: GATE.clone().setY(1.7), fov: 36 },
+    ],
+  },
+  // 4. Low in front of him, rising slowly to his face: the dhol quickens into a roll, and on "aham" the drums and the
+  // conch come down together, the fires roar up and embers burst round him; the shehnai climbs to the high Sa.
+  {
+    duration: 6.2,
+    fadeIn: 0.06,
+    ease: ease.drift,
+    sway: 0.01,
+    linesAt: 1.5,
+    cues: [
+      {
+        at: 0,
+        run: () => {
+          sfx().playTanpura(7);
+          [0, 0.32, 0.58, 0.8, 0.97, 1.1, 1.2, 1.28].forEach((d, i) => sfx().playDhol('na', d, 0.6 + i * 0.06));
+          sfx().playDhol('dha', 1.38, 1.2);
+          sfx().playRiser(1.4, 0.45);
+        },
+      },
+      {
+        at: 3.45,
+        run: (s) => {
+          sfx().playImpactBoom(0.9);
+          sfx().playDhol('dha', 0, 1.4);
+          sfx().playDhol('ge', 0.22, 1.2);
+          sfx().playShankh();
+          sfx().playShehnai([[11, 0.25], [12, 1.9]], 0.15, 293.7, 1.1);
+          flare(s, 1.5, 2.7);
+          embers(s.pos('hero').add(v(0, 0.2, 0)), 1.2, 30, 2.6);
+          joltCamera(0.16);
+        },
+      },
+    ],
+    lines: verse(4, 'tadātmānaṁ sṛjāmy aham'),
+    camera: (s): CameraKey[] => [
+      { pos: s.at('hero', 2.4, 0.3, 0.35), look: s.head('hero'), fov: 34 },
+      { pos: s.at('hero', 1.6, 0.22, 1.1), look: s.head('hero'), fov: 30 },
+    ],
+  },
+];
+
 const KNEEL_EYES = v(0.03, 1.0, 0.72);
 const DUST_EYES = v(-0.05, 0.19, 0.34);
 
@@ -314,7 +480,7 @@ export const PROLOGUE_STORY: ChapterStory = {
         ease: ease.drift,
         sway: 0.015,
         cues: [{ at: 0, actor: 'hero', play: 'IDLE' }],
-        lines: [{ speaker: 'Yudhveer', text: 'Like this, Guruji?' }],
+        lines: [{ speaker: 'Yudhveer', text: 'Like this, Guruji?', voice: 'prologue_open_hero_1' }],
         camera: (s): CameraKey[] => [
           { pos: s.at('guru', -1.0, -0.55, 1.75), look: s.head('hero'), fov: 36 },
           { pos: s.at('guru', -0.85, -0.5, 1.72), look: s.head('hero'), fov: 33 },
@@ -361,7 +527,7 @@ export const PROLOGUE_STORY: ChapterStory = {
         cues: [{ at: 0.4, actor: 'guru', moveTo: GURU_ASIDE, face: GATE }],
         lines: [
           { speaker: 'Guru', text: 'Keep your feet, Yudhveer. Whatever comes through that gate, keep your feet.', voice: 'prologue_open_guru_3' },
-          { speaker: 'Yudhveer', text: 'Let them come.' },
+          { speaker: 'Yudhveer', text: 'Let them come.', voice: 'prologue_open_hero_2' },
         ],
         camera: (s): CameraKey[] => [
           { pos: s.at('hero', -1.8, -0.9, 1.6), look: GATE.clone().setY(1.4), fov: 42 },
@@ -613,7 +779,7 @@ export const PROLOGUE_STORY: ChapterStory = {
         fadeIn: 60,
         linesAt: 0.25,
         cues: [{ at: 0.7, run: (s) => SoundFX.getInstance().playBodyFall(0.5) }],
-        lines: [{ speaker: 'Yudhveer', text: 'Guruji!' }],
+        lines: [{ speaker: 'Yudhveer', text: 'Guruji!', voice: 'prologue_end_hero_1' }],
         camera: [{ pos: DUST_EYES, look: v(0.25, 0.9, -8), fov: 46, roll: 0.45 }],
       },
       // 12. Eyes half open, the world on its side and swimming: in the bright gate, shapes going; a raider drags the
@@ -717,6 +883,71 @@ export const PROLOGUE_STORY: ChapterStory = {
           { pos: v(2.0, 1.2, 1.5), look: v(0, 1.35, 1.0), fov: 32 },
         ],
       },
+      // 15b. The memory (the user, 2026-10-07): the picture drains to black and white and the guru stands before him
+      // in the training circle again, where he taught him; his voice comes back, echoing: the promise. Over the
+      // boy's shoulder at him, then close on the boy as it fades.
+      {
+        duration: 4.4,
+        fadeIn: 0.6,
+        ease: ease.drift,
+        sway: 0.008,
+        carryLines: true,
+        linesAt: 0.7,
+        cues: [
+          { at: 0, run: () => grade(1, 0.5) },
+          { at: 0, actor: 'guru', place: LESSON_GURU, face: 'hero' },
+          { at: 0, run: (s) => s.actor('guru')?.playClip('breathing_idle', { fade: 0 }) },
+          { at: 0, actor: 'guru', show: true },
+          { at: 0, actor: 'hero', face: LESSON_GURU },
+          { at: 0.1, run: () => SoundFX.getInstance().playTempleBell(1.6, 0) },
+        ],
+        lines: [{
+          speaker: 'Guru',
+          text: "Promise me, Yudhveer... when the time comes, you'll search for the truth. You'll go to the Baoli.",
+          voice: 'prologue_end_guru_2',
+          echo: { gap: 0.38, feedback: 0.5, wet: 0.5 },
+          look: 'memory',
+        }],
+        camera: (s): CameraKey[] => [
+          { pos: s.at('hero', -0.9, -0.45, 1.7), look: s.head('guru'), fov: 36 },
+          { pos: s.at('hero', -0.6, -0.4, 1.68), look: s.head('guru'), fov: 32 },
+        ],
+      },
+      // Close on the boy, eyes down, as the voice goes on and the memory fades: the guru is gone again.
+      {
+        duration: 5.0,
+        fadeIn: 0.5,
+        ease: ease.drift,
+        sway: 0.008,
+        cues: [
+          { at: 0, actor: 'guru', show: false },
+          { at: 0, actor: 'hero', face: GATE },
+          { at: 3.6, run: () => grade(0, 1.2) },
+        ],
+        camera: (s): CameraKey[] => [
+          { pos: s.at('hero', 1.1, 0.35, s.head('hero').y - 0.05), look: s.head('hero'), fov: 30 },
+          { pos: s.at('hero', 0.9, 0.3, s.head('hero').y - 0.08), look: s.head('hero'), fov: 27 },
+        ],
+      },
+      // 15c. His answer, low in front of him, the burning roof lighting his face and the haystack burning behind him:
+      // the word of Raghu's line is kept, though life goes.
+      {
+        fadeIn: 0.25,
+        ease: ease.drift,
+        sway: 0.01,
+        linesAt: 0.5,
+        cues: [{ at: 0, run: () => grade(0, 0) }],
+        lines: [{ speaker: 'Yudhveer', text: 'रघुकुल रीत सदा चली आई, प्राण जाइ बरु बचनु न जाई', voice: 'prologue_end_hero_3' }],
+        camera: (s): CameraKey[] => {
+          const h = s.pos('hero');
+          const away = VILLAGE_ROOF_FIRE.clone().sub(h).setY(0).normalize(); // toward the roof: in front of him
+          const look = s.head('hero').add(v(0, 0.02, 0));
+          return [
+            { pos: h.clone().addScaledVector(away, 2.3).setY(1.05), look, fov: 34 },
+            { pos: h.clone().addScaledVector(away, 1.9).setY(1.15), look, fov: 31 },
+          ];
+        },
+      },
       // 16. His vow, close, the fire on his face and ash falling past it.
       {
         fadeIn: 0.25,
@@ -724,7 +955,7 @@ export const PROLOGUE_STORY: ChapterStory = {
         sway: 0.01,
         linesAt: 1.2,
         cues: [{ at: 0.1, actor: 'hero', play: 'IDLE' }, { at: 0.3, actor: 'hero', face: GATE }],
-        lines: [{ speaker: 'Yudhveer', text: 'Guruji... I will find you. Even if I have to climb to the top of the world.' }],
+        lines: [{ speaker: 'Yudhveer', text: 'Guruji... I will find you. Even if I have to climb to the top of the world.', voice: 'prologue_end_hero_2' }],
         // In front of him, a little to his side, so the guru's mandir stands behind him: its lamps, the bell in its
         // porch and the saffron flag over his shoulder; his face lit by the burning roof.
         camera: (s): CameraKey[] => {
@@ -738,6 +969,8 @@ export const PROLOGUE_STORY: ChapterStory = {
           ];
         },
       },
+      // The shloka (SHLOKA, above).
+      ...SHLOKA,
       // 17. The threshold. From the path outside the gate, looking back in: he walks out of the burning village toward
       // us, a dark figure in the gateway where Andhaka stood, his own shadow now running out ahead of him into the
       // desert; he stops on the path and the camera rises away over the dunes.
@@ -747,6 +980,10 @@ export const PROLOGUE_STORY: ChapterStory = {
         fadeOut: 2.6,
         ease: ease.drift,
         cues: [
+          // Out of the shloka (or a skip through it): the music back, the picture in colour, the fires as they were.
+          { at: 0, run: () => SoundFX.getInstance().hush(1, 3.5), essential: true },
+          { at: 0, run: () => grade(0, 0), essential: true },
+          { at: 0, run: (s) => { village(s).setRaidFire(0.7); village(s).setHayFire(0.6); }, essential: true },
           { at: 0, actor: 'hero', place: AT_GATE, face: OUTSIDE },
           {
             at: 0,

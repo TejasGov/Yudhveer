@@ -978,6 +978,43 @@ export const AKHADA_STORY: ChapterStory = {
               ];
             },
           },
+          // At the verandah's edge, the old vanara calls on Hanuman for him (the user, 2026-10-07: the Chalisa's couplet,
+          // in Hindi): low in front of him, the moonlit court behind.
+          {
+            fadeIn: 0.12,
+            ease: ease.drift,
+            sway: 0.01,
+            linesAt: 0.4,
+            cues: [{ at: 0, actor: 'mentor', place: M.aside, face: 'hero' }],
+            lines: [{ speaker: 'Vanara', text: 'संकट कटै मिटै सब पीरा, जो सुमिरै हनुमत बलबीरा', voice: 'akhada_arrive_mentor_4' }],
+            // Framed on his mark (he is put there as the shot starts, after its camera is worked out).
+            camera: (s): CameraKey[] => {
+              const dir = s.pos('hero').sub(M.aside).setY(0).normalize();
+              const side = v(-dir.z, 0, dir.x);
+              const look = M.aside.clone().add(v(0, 1.45, 0));
+              return [
+                { pos: M.aside.clone().addScaledVector(dir, 2.0).addScaledVector(side, 0.55).setY(1.05), look, fov: 34 },
+                { pos: M.aside.clone().addScaledVector(dir, 1.7).addScaledVector(side, 0.45).setY(1.15), look, fov: 31 },
+              ];
+            },
+          },
+          // And the boy answers it, sword up: low in front of him, the two beyond.
+          {
+            fadeIn: 0.1,
+            ease: ease.drift,
+            sway: 0.012,
+            linesAt: 0.35,
+            cues: [
+              { at: 0, actor: 'hero', face: AKHADA_CENTRE },
+              { at: 0.2, actor: 'hero', clip: 'yelling_out', timeScale: 1.1 },
+              { at: 2.2, actor: 'hero', play: 'IDLE' },
+            ],
+            lines: [{ speaker: 'Yudhveer', text: 'Jai Hanuman!', voice: 'akhada_arrive_hero_1' }],
+            camera: (s): CameraKey[] => [
+              { pos: s.at('hero', 2.2, 0.4, 0.7), look: s.head('hero'), fov: 36 },
+              { pos: s.at('hero', 1.8, 0.35, 0.9), look: s.head('hero'), fov: 33 },
+            ],
+          },
         ],
       },
     },
@@ -1018,7 +1055,7 @@ export const AKHADA_STORY: ChapterStory = {
         ease: ease.out,
         sway: 0.015,
         cues: [{ at: 0, actor: 'mentor', play: 'IDLE' }],
-        lines: [{ speaker: 'Yudhveer', text: 'Where did they take my guru?' }],
+        lines: [{ speaker: 'Yudhveer', text: 'Where did they take my guru?', voice: 'akhada_end_hero_1' }],
         camera: (s): CameraKey[] => [
           { pos: s.at('mentor', -1.3, -1.0, 1.3), look: s.head('hero'), fov: 38 },
           { pos: s.at('mentor', -1.15, -0.95, 1.32), look: s.head('hero'), fov: 36 },
