@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { CharacterStateMachine } from '../entities/CharacterStateMachine';
 import { closestPointsSegments } from './HitboxManager';
+import { PRO, proMode } from './Tactics';
 
 /*
  * How a boss fights back against the one who will not stop hitting it (docs/STORY.md, "Bosses fight back"). The user
@@ -383,7 +384,8 @@ export class Guard {
 
   /** The chance it meets a swing of his with the guard now. */
   private chance(): number {
-    return THREE.MathUtils.clamp(this.spec.base + this.spec.perBlow * this.pressure, 0, this.spec.max);
+    const bonus = proMode() ? PRO.guardBonus : 1;
+    return THREE.MathUtils.clamp((this.spec.base + this.spec.perBlow * this.pressure) * bonus, 0, Math.min(1, this.spec.max * bonus));
   }
 
   /** Whether it is in a position to guard: not just after a blow of its own, not about to make one, facing him. */

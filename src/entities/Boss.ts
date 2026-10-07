@@ -3,6 +3,7 @@ import { Enemy, type FightTarget } from './Enemy';
 import type { CharacterState } from './CharacterStateMachine';
 import type { Shot } from '../cinematics/CinematicDirector';
 import type { IntroContext } from '../cinematics/Intros';
+import { PRO, holdForSlide, kickTheGuard, pickAttack, type HeroRead } from '../combat/Tactics';
 
 /** How a boss fights: its spacing, how often it swings and when it leaps in. */
 export interface BossTuning {
@@ -88,9 +89,18 @@ export class Boss extends Enemy {
     this.soundFX.playRoar(this.bodyHeight > 3 ? 0.8 : 1);
   }
 
-  /** Its next attack in rotation (the states its rig has); an answer to a run of blocked blows is its quickest, not its string. */
-  protected chooseAttack(): CharacterState {
+  /**
+   * Its next attack: in rotation (the states its rig has), an answer to a run of blocked blows being its quickest, not
+   * its string; or, reading him (pro mode), the blow for the moment (combat/Tactics.ts).
+   */
+  protected chooseAttack(read: HeroRead | null = null, distance = 0): CharacterState {
     let options = (['ATTACK_1', 'ATTACK_2', 'ATTACK_3'] as CharacterState[]).filter((s) => this.hasClip(s) || !this.rig);
+    if (read) {
+      const attack = pickAttack(options, { read, distance, reach: this.tuning.strikeRange, counter: this.counterNext, flanked: !!this.guard?.flanked, last: this.lastAttack });
+      this.counterNext = false;
+      this.lastAttack = attack;
+      return attack;
+    }
     if (this.counterNext) {
       const quick = options.filter((s) => s !== 'ATTACK_3');
       if (quick.length) options = quick;
@@ -99,6 +109,7 @@ export class Boss extends Enemy {
       if (this.guard?.flanked && options.includes('ATTACK_2')) return 'ATTACK_2';
     }
     this.attackChoice = (this.attackChoice + 1) % options.length;
+    this.lastAttack = options[this.attackChoice];
     return options[this.attackChoice];
   }
 
@@ -174,11 +185,18 @@ export class Boss extends Enemy {
         return;
       }
     }
-    const ready = this.attackTimer >= attackInterval && !this.guard?.settling;
+    const read = this.readHero(target);
+    let ready = this.attackTimer >= attackInterval && !this.guard?.settling;
+    // He slides out of everything and is untouchable right now: a ready blow waits for him to come up (pro mode), a while.
+    if (ready && read && holdForSlide(read) && this.heldFor < PRO.slideWait) {
+      this.heldFor += dt;
+      ready = false;
+    }
     const mode = this.chooseMoveMode(distance, strikeRange, tooClose, dt);
     const leapClip = this.rig?.definition.states.ATTACK_JUMP;
     if (ready && distance > leapRange && distance <= leapMax && leapClip) {
       this.attackTimer = 0;
+      this.heldFor = 0;
       this.particleFX.spawnDustPuff(this.getPosition(), 18);
       // Stretch the leap so it comes down just short of the target.
       const travel = this.rig!.clipInfo(leapClip.clip)?.rootMotion?.samples.at(-1);
@@ -188,8 +206,14 @@ export class Boss extends Enemy {
       this.stateMachine.changeState('ATTACK_JUMP');
     } else if (ready && distance <= strikeRange) {
       this.attackTimer = 0;
-      this.stateMachine.changeState(this.chooseAttack());
-      this.planLunge(distance);
+      this.heldFor = 0;
+      // Hiding behind the dhal, in reach of the kick: sometimes the kick instead of a blow (pro mode).
+      if (read && this.guard?.canShove && kickTheGuard(read)) {
+        this.beginShove();
+      } else {
+        this.stateMachine.changeState(this.chooseAttack(read, distance));
+        this.planLunge(distance);
+      }
       this.updateProceduralAnimations(dt, 0);
     } else if (mode === 'approach') {
       this.steer(toTarget.normalize(), this.moveSpeed, dt);

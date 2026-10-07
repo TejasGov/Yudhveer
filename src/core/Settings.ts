@@ -14,6 +14,8 @@ export interface GameSettings {
   vibration: number;
   hints: boolean;
   gore: GoreLevel;
+  /** Pro mode: enemies read the hero and pick their blows to beat him; he carries more health (combat/Tactics.ts). */
+  proMode: boolean;
 }
 
 const KEY = 'yudhveer.settings.v1';
@@ -37,6 +39,7 @@ const DEFAULTS: GameSettings = {
   vibration: 1,
   hints: true,
   gore: 'low',
+  proMode: false,
 };
 
 let current: GameSettings = load();
@@ -53,6 +56,7 @@ function load(): GameSettings {
       if (typeof shake === 'boolean') saved.cameraShake = shake ? DEFAULTS.cameraShake : 0;
       else if (typeof shake !== 'number' || !Number.isFinite(shake)) saved.cameraShake = DEFAULTS.cameraShake;
       if (typeof saved.vibration !== 'number' || !Number.isFinite(saved.vibration)) saved.vibration = DEFAULTS.vibration;
+      if (typeof saved.proMode !== 'boolean') saved.proMode = DEFAULTS.proMode;
       return saved;
     }
   } catch {

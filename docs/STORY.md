@@ -1003,6 +1003,54 @@ Yudhveer is voiced now, by the user's own recordings (game asset/voice/VOICES.md
   - `Line.look`: `memory` (italic) or `verse` (large, bold, mid-frame);
   - Devanagari lines are set in the Devanagari face.
 
+## Pro mode: enemies that read him (2026-10-07)
+
+The user asked how the opponents could be made more intelligent, then: do the first three answers (read the hero,
+choose the blow for the moment, punish his habits) behind a setting, "so people don't get rage baited and quit", and
+give the hero more health to meet it. So: **Settings > Pro mode** (off by default; `Settings.proMode`), and
+`src/combat/Tactics.ts`.
+
+- **Reading him** (`Player.read`, `FightTarget.read`, `Enemy.readHero`): each step an enemy sees whether his dhal is up,
+  whether he is in the slide (and in its untouchable moment), charging, swinging, how much health he has, and his
+  habits: how many slides, blocks, swings and parries in the last six seconds (`Habits`, `HABIT_WINDOW`). Outside pro
+  mode, and for the vanara who teaches (`Enemy.cunning = false`), an enemy reads nothing and fights as before.
+- **The blow for the moment** (`pickAttack`): in place of the next blow in the string, a weighted choice among the blows
+  the enemy has anyway (ATTACK_1 the quick one, ATTACK_2 the wide cut, ATTACK_3 the heavy): the quick blow into his
+  swing or his charge; the heavy one against a raised dhal, a block-spammer, or a man under 30 % health; the wide cut
+  across a slide; the long blow from far off and the short one in close; not the same blow twice running, as a rule.
+  With a kick to hand and the dhal up in its reach, the kick half the time (`kickTheGuard`). Minions choose at the end
+  of their wind-up (`Enemy.updateTelegraph`), bosses as their blow is due (`Boss.chooseAttack`).
+- **His habits punished** (`holdForSlide`, `PRO.guardBonus`): a slide-spammer (two or more slides in the window) who is
+  untouchable the moment a blow is due finds it held until he comes up, for at most 0.6 s; a block-spammer meets the
+  heavy blows and kicks above; a swing-spammer finds the bosses' guards 1.3x readier (combat/Guard.ts, `chance`).
+- **His health** (`PRO.heroHealth`, `Engine.heroHealth`): 130 in pro mode, 100 otherwise, set as he is placed for a
+  chapter; turned on or off mid-chapter, his health keeps its share (60 of 100 becomes 78 of 130). It was 150 first:
+  the steady bot then found pro mode easier than the plain game (below).
+- Nothing reacts instantly: the slide wait is capped, the weights leave room for chance, and the choice is only ever
+  among the blows the enemy already has. The telegraphs are unchanged.
+
+Tested in the akhada against the Vetala (the only early boss the hero can guard against), the hero held still by a
+script, 40 s each:
+
+| | Pro mode off | Pro mode on |
+|---|---|---|
+| Hero turtling behind the dhal: the Vetala's blows | 6 quick, 6 wide, 3 heavy, no kicks | 6 kicks, 4 heavy, 2 wide, no quick |
+| Hero sliding every 0.9 s: blows thrown into his untouchable moment | 9 of 15 | 0 of 12 |
+
+The steady bot (`__debug.playtest([4, 5], 5, { skill: 'steady', seed: 11 })`), five runs a chapter, the same seeds in each
+column; "damage" is the mean taken over the won runs:
+
+| | Off, 100 health | On, 150 health | On, 130 health (kept) |
+|---|---|---|---|
+| Dwarka (Shalva, Takshaka) | won 20 %, 61 s, damage 93 | won 60 %, 69 s, damage 154 | won 20 %, 50 s, damage 51 |
+| Summit (the waves, Andhaka) | won 80 %, 95 s, damage 73 | won 80 %, 88 s, damage 64 | won 80 %, 96 s, damage 53 |
+
+At 150 the enemies' better blows (Dwarka: 65 % more damage landed) were more than paid for and pro mode came out
+easier than the plain game; at 130 the bot wins exactly as often as it does in the plain game, with the enemies reading
+it. Five runs is a small sample. The bot has no habits to speak of (a slide or two a fight in the akhada, fifteen in
+Dwarka); a player who hides behind the dhal or slides at every glint will feel pro mode more than it did. Not yet
+played by hand.
+
 ## The bridges between chapters (2026-10-07)
 
 The user: "scenes will need connections". What each chapter now hands to the next:

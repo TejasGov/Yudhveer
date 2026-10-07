@@ -39,6 +39,7 @@ import { SHALVA } from '../entities/characters/Shalva';
 import { ANDHAKA } from '../entities/characters/Andhaka';
 import { ANDHAKA_THRONE, SUMMIT_HERBS } from '../levels/Level4_Summit';
 import { SANJEEVANI, sprout, type Herb } from '../levels/environment/Sanjeevani';
+import { PRO } from '../combat/Tactics';
 import { RAIDER } from '../entities/characters/Village';
 import { MENTOR } from '../entities/characters/Akhada';
 import { ATTIRE_MODELS } from '../entities/characters/Yodha';
@@ -155,6 +156,9 @@ interface Finale extends Omit<Spawn, 'at'> {
   /** Healing herbs that come up in his fight once the hero is below half health (`Sanjeevani`), each taken once. */
   herbs?: THREE.Vector3[];
 }
+
+/** The hero's health outside pro mode. */
+const HERO_HEALTH = 100;
 
 /** The project's source, linked from the About the author screen. */
 const PROJECT_URL = 'https://github.com/TejasGov/Yudhveer';
@@ -636,7 +640,21 @@ export class Engine {
     };
     this.credits.onDone = () => this.enterTitle();
     this.renderSettings();
-    Settings.onChange(() => this.renderSettings());
+    Settings.onChange(() => {
+      this.renderSettings();
+      // Pro mode turned on or off mid-chapter: his health scales with it, keeping its share.
+      const p = this.player;
+      if (p && p.maxHealth !== this.heroHealth()) {
+        const share = p.maxHealth > 0 ? p.currentHealth / p.maxHealth : 1;
+        p.maxHealth = this.heroHealth();
+        p.currentHealth = Math.round(share * p.maxHealth);
+      }
+    });
+  }
+
+  /** The hero's health: half again as much in pro mode, where the enemies read him (combat/Tactics.ts). */
+  private heroHealth(): number {
+    return Settings.get().proMode ? PRO.heroHealth : HERO_HEALTH;
   }
 
   /** After a failed chapter load the old arena is gone: reload the first chapter's arena behind the title. */
@@ -1237,6 +1255,7 @@ export class Engine {
   private placeHero(): void {
     const player = this.player!;
     const spawn = this.levelManager.activeLevel!.playerSpawn;
+    player.maxHealth = this.heroHealth();
     player.revive();
     if (player.swordSheathed) player.stowSword(false);
     player.setPosition(spawn.x, spawn.y, spawn.z);
