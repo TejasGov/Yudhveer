@@ -6,6 +6,7 @@ import { SoundFX, type SwingKind, type ImpactKind } from '../combat/SoundFX';
 import { ParticleFX } from '../combat/ParticleFX';
 import type { BloodKind } from '../combat/BloodFX';
 import { Guard, type GuardAction, type GuardView, type HeroSwing } from '../combat/Guard';
+import { PRO, holdForSlide, kickTheGuard, pickAttack, proMode, type HeroRead } from '../combat/Tactics';
 
 /** What an enemy's AI needs to know about the one it is fighting. */
 export interface FightTarget {
@@ -14,6 +15,8 @@ export interface FightTarget {
   isDown(): boolean;
   /** The blow he is making, if he is swinging (a boss with a guard watches for it); the hero reports it. */
   swing?(): HeroSwing | null;
+  /** What he is doing and has been doing (pro mode: enemies read it, combat/Tactics.ts). */
+  read?(): HeroRead;
 }
 
 const UP = new THREE.Vector3(0, 1, 0);
@@ -115,6 +118,14 @@ export class Enemy extends Character {
   public onSummon: ((spec: { make: () => Enemy; at: THREE.Vector3; onReady?: (e: Enemy) => void }) => void) | null = null;
   /** Its next blow is an answer to a run of blocked ones: its quickest, not its string. */
   protected counterNext = false;
+  /**
+   * Reads the hero in pro mode (combat/Tactics.ts): what he is doing decides its blow and its timing. Off for the one
+   * who teaches him (the vanara), whose blows are the lesson.
+   */
+  protected cunning = true;
+  /** The blow it made last (so its choice varies), and how long it has held a ready blow for his slide to end. */
+  protected lastAttack: CharacterState | null = null;
+  protected heldFor = 0;
   private lastState: CharacterState = 'IDLE';
 
   // AI timing
@@ -241,7 +252,7 @@ export class Enemy extends Character {
     if (distance > 0.1 && this.mayTrack()) this.faceTarget(this.bearingTo(toTarget, distance), dt);
 
     if (this.isTelegraphing) {
-      this.updateTelegraph(dt, distance);
+      this.updateTelegraph(dt, distance, this.readHero(target));
       return;
     }
 
@@ -266,6 +277,7 @@ export class Enemy extends Character {
 
     this.aiTimer += dt;
     const dir = toTarget.clone().normalize();
+    const read = this.readHero(target);
     // Guarding, or answering a run of blows: before anything else it might do (combat/Guard.ts).
     if (this.guard) {
       const action = this.guard.step(dt, this.guardView(target, toTarget, distance, Math.max(0, this.attackCooldown - this.aiTimer), distance <= this.engageRange));
@@ -284,7 +296,9 @@ export class Enemy extends Character {
     // pressure would let attack spam keep it from ever swinging).
     if (distance <= this.engageRange && this.aiTimer >= this.attackCooldown && !this.guard?.settling) {
       this.aiTimer = 0;
-      this.beginTelegraph();
+      // Hiding behind the dhal, in reach of the kick: sometimes the kick instead of a blow (pro mode).
+      if (read && this.hasClip('SHOVE') && distance <= this.shoveReach() + 0.3 && kickTheGuard(read)) this.beginShove();
+      else this.beginTelegraph();
     } else if (mode === 'approach') {
       this.steer(this.approachDir(target.getPosition(), dir), this.moveSpeed, dt);
       this.settle('MOVE');
@@ -543,7 +557,19 @@ export class Enemy extends Character {
     if (this.rig) this.particleFX.spawnSparks(this.getWeaponPoints().tip, 10, true);
   }
 
-  private updateTelegraph(dt: number, distance: number): void {
+  /** What it reads of the hero this step: nothing outside pro mode, or for a teacher. */
+  protected readHero(target: FightTarget): HeroRead | null {
+    return this.cunning && proMode() ? target.read?.() ?? null : null;
+  }
+
+  /** The blows its rig has, in the order of its string, each once. */
+  protected attackOptions(): CharacterState[] {
+    const seen = new Set<CharacterState>();
+    for (const a of this.attackStates) if (this.hasClip(a) || !this.rig) seen.add(a);
+    return seen.size ? [...seen] : ['ATTACK_1'];
+  }
+
+  private updateTelegraph(dt: number, distance: number, read: HeroRead | null): void {
     this.telegraphTimer += dt;
     const windUp = this.rig ? Math.min(this.telegraphDuration, 0.3) : this.telegraphDuration;
     if (!this.rig) {
@@ -553,16 +579,25 @@ export class Enemy extends Character {
       this.torsoMesh.rotation.y = 0.5;
     }
     if (this.telegraphTimer < windUp) return;
+    // He slides out of everything and is untouchable right now: the blow waits for him to come up (pro mode), a while.
+    if (read && holdForSlide(read) && this.telegraphTimer < windUp + PRO.slideWait) return;
     this.cancelTelegraph();
-    let attack = this.attackStates[this.attackIndex % this.attackStates.length];
-    // An answer to a run of blocked blows is its quickest, not the string; to a blow from behind, its wide cut.
-    if (this.counterNext && attack === 'ATTACK_3' && this.attackStates.length > 1) {
-      this.attackIndex++;
+    let attack: CharacterState;
+    if (read) {
+      // Pro mode: the blow for the moment (combat/Tactics.ts).
+      attack = pickAttack(this.attackOptions(), { read, distance, reach: this.engageRange, counter: this.counterNext, flanked: !!this.guard?.flanked, last: this.lastAttack });
+    } else {
       attack = this.attackStates[this.attackIndex % this.attackStates.length];
+      // An answer to a run of blocked blows is its quickest, not the string; to a blow from behind, its wide cut.
+      if (this.counterNext && attack === 'ATTACK_3' && this.attackStates.length > 1) {
+        this.attackIndex++;
+        attack = this.attackStates[this.attackIndex % this.attackStates.length];
+      }
+      if (this.counterNext && this.guard?.flanked && this.attackStates.includes('ATTACK_2')) attack = 'ATTACK_2';
     }
-    if (this.counterNext && this.guard?.flanked && this.attackStates.includes('ATTACK_2')) attack = 'ATTACK_2';
     this.counterNext = false;
     this.attackIndex++;
+    this.lastAttack = attack;
     this.stateMachine.changeState(this.hasClip(attack) || !this.rig ? attack : 'ATTACK_1');
     this.onAttackStart(this.stateMachine.currentState);
     this.planLunge(distance);

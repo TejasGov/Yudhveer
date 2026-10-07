@@ -28,6 +28,8 @@ export class VanaraMentor extends Enemy {
     this.attackStates = ['ATTACK_1', 'ATTACK_2'];
     this.lungeSpec = { a: 0, b: 0.35, maxDist: 1.0, stopDist: 1.2 };
     this.shieldMesh.visible = false;
+    // A teacher's blows are the lesson: he reads nothing of the boy (pro mode changes nothing here).
+    this.cunning = false;
     // A staff, not a blade: the whoosh and knock of wood.
     this.swingSound = 'lathi';
     this.impactSound = 'wood';

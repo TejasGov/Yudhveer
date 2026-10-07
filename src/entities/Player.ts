@@ -7,6 +7,7 @@ import { ParticleFX } from '../combat/ParticleFX';
 import { KITS, Skills, type Ability, type Attire, type HeroKit } from '../game/Progression';
 import { WEAPON_SETS, dressed, type WeaponSet } from './characters/YodhaWeapons';
 import type { HeroSwing } from '../combat/Guard';
+import { HABIT_WINDOW, type Habits, type HeroRead } from '../combat/Tactics';
 
 /** A completed charge (hold Q) empowers this many blows, each dealing this much more damage and posture. */
 const CHARGED_HITS = 3;
@@ -100,6 +101,9 @@ export class Player extends Character {
   /** A swing at nothing turns him to where he aimed it (yaw), over its wind-up; null when it has a target or no aim. */
   private aimYaw: number | null = null;
   private step = { allow: 0, until: 0 };
+  /** His fight clock (s), and when he last did each thing, for the habits an enemy reads (pro mode, combat/Tactics.ts). */
+  private clock = 0;
+  private readonly doings: Record<keyof Habits, number[]> = { slides: [], blocks: [], attacks: [], parries: [] };
 
   constructor() {
     super('player_hero', 0xd4af37); // Royal Gold
@@ -115,7 +119,11 @@ export class Player extends Character {
     this.stateMachine.DEFLECTED_DURATION = RECOIL;
     this.stateMachine.onStateChanged = (newState) => {
       this.rootMotionScale = 1;
+      if (newState === 'DODGE') this.did('slides');
+      else if (newState === 'BLOCK') this.did('blocks');
+      else if (newState === 'PARRY') this.did('parries');
       if (newState.startsWith('ATTACK')) {
+        this.did('attacks');
         this.swingSerial++;
         const swing = this.weapon.sound.swing;
         this.soundFX.playSwordSwing(newState === 'ATTACK_1' ? swing[0] : newState === 'ATTACK_2' ? swing[1] : swing[2], this.weapon.sound.whoosh);
@@ -189,7 +197,34 @@ export class Player extends Character {
     return false;
   }
 
+  private did(what: keyof Habits): void {
+    const times = this.doings[what];
+    times.push(this.clock);
+    while (times.length && times[0] < this.clock - HABIT_WINDOW) times.shift();
+  }
+
+  /** How often he has done each thing lately. */
+  private habits(): Habits {
+    const count = (times: number[]) => times.filter((t) => t >= this.clock - HABIT_WINDOW).length;
+    return { slides: count(this.doings.slides), blocks: count(this.doings.blocks), attacks: count(this.doings.attacks), parries: count(this.doings.parries) };
+  }
+
+  /** What an enemy sees of him this step (pro mode, combat/Tactics.ts). */
+  public read(): HeroRead {
+    const state = this.stateMachine.currentState;
+    return {
+      guarding: this.isGuarding(),
+      evading: this.isEvading(),
+      sliding: state === 'DODGE',
+      charging: state === 'CHARGE',
+      swinging: state.startsWith('ATTACK'),
+      health: this.maxHealth > 0 ? this.currentHealth / this.maxHealth : 0,
+      habits: this.habits(),
+    };
+  }
+
   public handleInput(dt: number, viewYaw: number, foes: readonly Character[] = []): void {
+    this.clock += dt;
     this.viewYaw = viewYaw;
     this.foes = foes;
     const input = this.inputManager.getState();
