@@ -156,6 +156,9 @@ interface Finale extends Omit<Spawn, 'at'> {
   herbs?: THREE.Vector3[];
 }
 
+/** The project's source, linked from the About the author screen. */
+const PROJECT_URL = 'https://github.com/TejasGov/Yudhveer';
+
 const v3 = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
 /**
  * The summit's two outpost islands and their bridges to the central crag, past Nandi to the head of the main bridge,
@@ -570,12 +573,14 @@ export class Engine {
       else if (action === 'chapters') this.openChapters();
       else if (action === 'settings') this.openSettings();
       else if (action === 'controls') this.screens.push('controls');
+      else if (action === 'about') this.screens.push('about');
     });
     click('pause', (action) => {
       if (action === 'resume') void this.resume();
       else if (action === 'restart') void this.restartChapter();
       else if (action === 'settings') this.openSettings();
       else if (action === 'controls') this.screens.push('controls');
+      else if (action === 'about') this.screens.push('about');
       else if (action === 'quit') this.enterTitle();
     });
     click('chapters', (action, button) => {
@@ -583,6 +588,11 @@ export class Engine {
       else if (action === 'chapter') void this.beginCampaign(parseInt(button.dataset.chapter!, 10));
     });
     click('controls', (action) => { if (action === 'back') this.screens.pop(); });
+    // About the author: a few lines about who made it, and the project's page (opened in a new tab).
+    click('about', (action) => {
+      if (action === 'back') this.screens.pop();
+      else if (action === 'github') window.open(PROJECT_URL, '_blank', 'noopener,noreferrer');
+    });
     $('loading-recover').addEventListener('click', () => {
       if (this.recoverable) void this.recoverToTitle();
       else location.reload();
