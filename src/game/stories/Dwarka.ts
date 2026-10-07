@@ -786,7 +786,7 @@ export const DWARKA_STORY: ChapterStory = {
         sway: 0.015,
         linesAt: 1.1,
         cues: [{ at: 0, run: (s) => callOut(s) }],
-        lines: [{ speaker: 'Yudhveer', text: 'SHALVA!' }],
+        lines: [{ speaker: 'Yudhveer', text: 'SHALVA!', voice: 'dwarka_open_hero_1' }],
         camera: (): CameraKey[] => {
           const toSea = SEA_MARK.clone().sub(CLIMB.stand).setY(0).normalize();
           const side = v(toSea.z, 0, -toSea.x);
@@ -977,7 +977,7 @@ export const DWARKA_STORY: ChapterStory = {
         fadeIn: 0.12,
         ease: ease.drift,
         sway: 0.012,
-        lines: [{ speaker: 'Yudhveer', text: 'Where is my guru?' }],
+        lines: [{ speaker: 'Yudhveer', text: 'Where is my guru?', voice: 'dwarka_open_hero_2' }],
         camera: (s): CameraKey[] => {
           const { pb, dir, side } = pair(s, 'hero', 'shalva');
           const look = s.head('hero');
@@ -1073,7 +1073,7 @@ export const DWARKA_STORY: ChapterStory = {
             fadeIn: 0.12,
             ease: ease.out,
             sway: 0.01,
-            lines: [{ speaker: 'Yudhveer', text: 'And my guru?' }],
+            lines: [{ speaker: 'Yudhveer', text: 'And my guru?', voice: 'dwarka_fall_hero_1' }],
             camera: (s) => shadeTalk(s, 'shalva').heroSingle(),
           },
           // Low behind the boy, the two of them: where the guru is kept.
@@ -1217,7 +1217,7 @@ export const DWARKA_STORY: ChapterStory = {
         sway: 0.01,
         linesAt: 0.5,
         cues: [{ at: 0, actor: 'hero', face: 'takshaka' }, { at: 0.6, run: lowerSword }],
-        lines: [{ speaker: 'Yudhveer', text: 'Rest, serpent king. I will carry it to the summit.' }],
+        lines: [{ speaker: 'Yudhveer', text: 'Rest, serpent king. I will carry it to the summit.', voice: 'dwarka_end_hero_1' }],
         camera: (s): CameraKey[] => {
           const { pa, dir, side } = pair(s, 'hero', 'takshaka');
           const look = s.head('hero');

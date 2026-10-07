@@ -86,7 +86,7 @@ export const ISLAND_STORY: ChapterStory = {
         linesAt: 0.8,
         cues: [{ at: 0.3, actor: 'hero', face: ISLAND.tunnel }],
         lines: [
-          { speaker: 'Yudhveer', text: 'Then wait for me until the tide turns.' },
+          { speaker: 'Yudhveer', text: 'Then wait for me until the tide turns.', voice: 'island_open_hero_2' },
           { speaker: 'Boatman', text: 'I will wait. Mind the lamps. No one lights them, and they never go out.', voice: 'island_open_boatman_3' },
         ],
         camera: (s): CameraKey[] => {
@@ -113,8 +113,8 @@ export const ISLAND_STORY: ChapterStory = {
 
   // His thoughts on the way down, and the voice in the shrine. Spoken over the walk (and the fights).
   beats: [
-    { on: { when: (s) => s.pos('hero').z < -6.5 }, lines: [{ speaker: 'Yudhveer', text: 'Still burning. Who keeps these lamps?' }] },
-    { on: { when: (s) => allDown(s, ISLAND_FOES.hall) }, lines: [{ speaker: 'Yudhveer', text: 'Small, and many. So this is where the others ended.' }] },
+    { on: { when: (s) => s.pos('hero').z < -6.5 }, lines: [{ speaker: 'Yudhveer', text: 'Still burning. Who keeps these lamps?', voice: 'island_walk_hero_1' }] },
+    { on: { when: (s) => allDown(s, ISLAND_FOES.hall) }, lines: [{ speaker: 'Yudhveer', text: 'Small, and many. So this is where the others ended.', voice: 'island_walk_hero_2' }] },
     {
       on: { when: (s) => near(s, ISLAND.water, 8.5) },
       run: () => SoundFX.getInstance().playRoar(0.45, 'naga'),
@@ -122,7 +122,7 @@ export const ISLAND_STORY: ChapterStory = {
     },
     {
       on: { when: (s) => s.pos('hero').z < -56 && allDown(s, ISLAND_FOES.pool) },
-      lines: [{ speaker: 'Yudhveer', text: 'Warm air, and ghee burning. The shrine is close.' }],
+      lines: [{ speaker: 'Yudhveer', text: 'Warm air, and ghee burning. The shrine is close.', voice: 'island_walk_hero_4' }],
     },
     {
       on: { when: (s) => s.pos('hero').z < -63 },
@@ -161,7 +161,7 @@ export const ISLAND_STORY: ChapterStory = {
         fadeIn: 0.12,
         ease: ease.drift,
         sway: 0.01,
-        lines: [{ speaker: 'Yudhveer', text: 'Not for myself. For my guru, and against the ones who took him.' }],
+        lines: [{ speaker: 'Yudhveer', text: 'Not for myself. For my guru, and against the ones who took him.', voice: 'island_end_hero_1' }],
         camera: (s): CameraKey[] => {
           const m = (s.level as unknown as { maceRest?: THREE.Vector3 }).maceRest ?? ISLAND.mace;
           return [
@@ -233,7 +233,7 @@ export const ISLAND_STORY: ChapterStory = {
         sway: 0.01,
         linesAt: 0.8,
         cues: [{ at: 0, actor: 'hero', play: 'IDLE' }],
-        lines: [{ speaker: 'Yudhveer', text: 'He will meet it now.' }],
+        lines: [{ speaker: 'Yudhveer', text: 'He will meet it now.', voice: 'island_end_hero_2' }],
         camera: (s): CameraKey[] => [
           { pos: s.at('hero', 1.7, 0.7, 1.55), look: s.head('hero'), fov: 36 },
           { pos: s.at('hero', 1.5, 0.6, 1.55), look: s.head('hero'), fov: 33 },

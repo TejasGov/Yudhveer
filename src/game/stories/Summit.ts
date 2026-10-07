@@ -6,6 +6,7 @@ import { SceneFX } from '../../cinematics/SceneFX';
 import { ParticleFX } from '../../combat/ParticleFX';
 import { SoundFX } from '../../combat/SoundFX';
 import { GURU } from '../../entities/characters/Village';
+import type { BossAndhaka } from '../../entities/BossAndhaka';
 
 /*
  * Chapter V, the Kailasha summit (STORY.md, "Chapter V" and "Milestone 9"). The fight is as it was: rakshasas (and
@@ -113,6 +114,19 @@ export const SUMMIT_STORY: ChapterStory = {
       on: { when: (s) => s.actor('andhaka') !== null && s.player.currentHealth / s.player.maxHealth < LOW_HEALTH },
       lines: [{ speaker: 'Guru', text: 'Breathe. Feet first.', voice: 'prologue_fight_guru_2' }],
     },
+    // On his throne, recovering while his variants fight, the demon king chants to Shiva (the user, 2026-10-07): the
+    // first verse of the Shiva Tandava Stotram, Ravana's hymn, in Sanskrit.
+    {
+      on: { when: (s) => (s.actor('andhaka') as BossAndhaka | null)?.enthroned ?? false },
+      style: 'aloud',
+      lines: [{
+        speaker: 'Andhaka',
+        text: 'जटाटवीगलज्जलप्रवाहपावितस्थले गलेऽवलम्ब्य लम्बितां भुजङ्गतुङ्गमालिकाम्। डमड्डमड्डमड्डमन्निनादवड्डमर्वयं चकार चण्डताण्डवं तनोतु नः शिवः शिवम्॥',
+        // Roderich (his voice), take A, sped up 12 %, with its echo off the mountain and a robotic disturbance under it
+        // baked into the file (game asset/voice/VOICES.md).
+        voice: 'summit_throne_andhaka_1',
+      }],
+    },
   ],
 
   ending: {
@@ -156,7 +170,7 @@ export const SUMMIT_STORY: ChapterStory = {
         sway: 0.015,
         linesAt: 1.1,
         cues: [{ at: 0.2, actor: 'hero', face: GURU_MARK }],
-        lines: [{ speaker: 'Yudhveer', text: 'Guruji?' }],
+        lines: [{ speaker: 'Yudhveer', text: 'Guruji?', voice: 'summit_end_hero_1' }],
         camera: (s): CameraKey[] => {
           const h = s.pos('hero');
           const up = GURU_MARK.clone().sub(h).setY(0).normalize();
@@ -194,7 +208,7 @@ export const SUMMIT_STORY: ChapterStory = {
           { at: 0.5, run: heroKneels },
         ],
         lines: [
-          { speaker: 'Yudhveer', text: 'Guruji... you live.' },
+          { speaker: 'Yudhveer', text: 'Guruji... you live.', voice: 'summit_end_hero_2' },
           { speaker: 'Guru', text: 'I live. He meant my soul for his god, and carried me all the way up the mountain to give it.', voice: 'summit_end_guru_2' },
         ],
         // Side on to the two of them, from over the head of the stair (inside its west coping).
@@ -217,7 +231,7 @@ export const SUMMIT_STORY: ChapterStory = {
         ],
         lines: [
           { speaker: 'Guru', text: 'You kept your feet, Yudhveer.', voice: 'summit_end_guru_3' },
-          { speaker: 'Yudhveer', text: 'I said I would find you. Even at the top of the world.' },
+          { speaker: 'Yudhveer', text: 'I said I would find you. Even at the top of the world.', voice: 'summit_end_hero_3' },
         ],
         camera: (s): CameraKey[] => {
           const g = s.pos('guru');
@@ -329,7 +343,7 @@ export const SUMMIT_STORY: ChapterStory = {
           // Down on his knees, he joins his palms before Shiva.
           { at: 2.4, run: heroPrays },
         ],
-        lines: [{ speaker: 'Yudhveer', text: 'Mahadeva...' }],
+        lines: [{ speaker: 'Yudhveer', text: 'Mahadeva...', voice: 'summit_reveal_hero_1' }],
         camera: (s): CameraKey[] => {
           const h = s.pos('hero');
           // Low behind him, to his west: the boy small, going down before the lit feet of the god; then round in front
@@ -342,19 +356,19 @@ export const SUMMIT_STORY: ChapterStory = {
         },
       },
       // The eclipse passes. From behind and below him, the camera draws back and up off the dais: the boy small at the
-      // god's feet in the new light. Fade to black, and the credits.
+      // god's feet in the new light, as Shiva leaves him his last word. Fade to black, and the credits.
       {
-        duration: 11,
+        duration: 21, // the line (17.5 s) is spoken before the fade begins
         fadeIn: 0.25,
         fadeOut: 3,
         ease: ease.drift,
         linesAt: 1.2,
         cues: [
           { at: 0, run: heroPrays },
-          { at: 0, run: () => dawn(9, 1.9) },
+          { at: 0, run: () => dawn(15, 1.9) },
           { at: 0.1, run: () => SoundFX.getInstance().music.dim(false) },
         ],
-        lines: [{ speaker: 'Shiva', text: 'The dark is lifted from the mountain. Go home, Yudhveer, and teach what you have learned.', voice: 'summit_reveal_shiva_2' }],
+        lines: [{ speaker: 'Shiva', text: 'Evil may wear a crown, but it cannot last forever. Truth may walk barefoot, but it always reaches the throne. Whenever life tests you, choose Dharma, for Dharma always wins.', voice: 'summit_reveal_shiva_3' }],
         camera: [
           { pos: v(1.4, DAIS_Y + 1.6, -5.4), look: v(0, 8.5, -14), fov: 46 },
           { pos: v(2.6, 6.8, 4.5), look: v(0, 8.0, -14), fov: 48 },

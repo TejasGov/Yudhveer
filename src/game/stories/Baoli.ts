@@ -362,7 +362,7 @@ export const BAOLI_STORY: ChapterStory = {
         fadeIn: 1.0,
         ease: ease.drift,
         linesAt: 1.4,
-        lines: [{ speaker: 'Yudhveer', text: 'It has been a long road, Maa. Guide me.' }],
+        lines: [{ speaker: 'Yudhveer', text: 'It has been a long road, Maa. Guide me.', voice: 'baoli_open_hero_1' }],
         cues: [
           { at: 0, actor: 'hero', place: DEVI_APPROACH, face: DEVI_FACE },
           { at: 0.2, actor: 'hero', moveTo: DEVI_KNEEL, face: DEVI_FACE },
