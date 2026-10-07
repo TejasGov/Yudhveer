@@ -3,6 +3,10 @@
 Third-party assets in the game, with their licences. The originals and their licence files are kept outside the repo in
 `game asset/` (see its README). This list grows as assets are added.
 
+The README's "Credits and licenses" section is the public summary of this file, in TASL form (Title, Author, Source,
+License, and what was changed) and grouped by type. This file is the full record. Where an author or a link was never
+recorded it says so, and "Still to confirm" at the end gathers every gap in one place, so nothing is guessed.
+
 ## Chapter III, the island's caves (`public/assets/levels/island_caves.glb`)
 
 Built by `game asset/levels/03_island/build_island.py` from props prepared by `prepare_cave_props.py`. Sources and
@@ -249,3 +253,96 @@ arming sword that read as European), the model with Meshy 7.1 image to 3D (textu
 one 2k colour map; `game asset/weapons/hero_sword_meshy7.glb`). Prepared as a weapon with `prepare_weapon.py` (grip at
 the origin, 0.98 m, blade broadened by half and pommel scaled to 0.8 so it reads from the game's camera, texture 1k) as
 `public/assets/weapons/hero_sword.glb`. Made for the game; no third-party licence. The Vetala keeps his own swords.
+
+## The Poly Haven textures of the baoli and the akhada
+
+Both levels were built in Blender sessions that kept the textures' Poly Haven file names but not their authors or links.
+CC0, so no credit is owed; named here with thanks, and linked only to the site because the exact page was not recorded.
+
+- **Chapter I, the baoli:** Dry Riverbed Rock, Monastery Stone Floor, Rock Face 03, Fort Sandstone, Forrest Ground 01,
+  Stone Path, Sandstone Blocks 08, Jacquard, Bark Brown 02 (this one is credited to Rob Tuytel above), and one of three
+  Poly Haven night skies (which is not recorded). Originals: `game asset/levels/01_baoli/textures/`.
+- **Chapter II, the akhada:** Red Dirt Mud 01, Sandstone Cracks (credited above), and a Poly Haven tree baked to the
+  forest's cards (which tree is not recorded; `game asset/levels/02_akhada/THREEJS_NOTES.md`).
+
+Source: [Poly Haven](https://polyhaven.com/), license [CC0 1.0](https://creativecommons.org/publicdomain/zero/1.0/).
+
+## Characters and animation (Mixamo)
+
+The villagers (Peasant Man, Abe, Peasant Girl: see "Prologue, the village") and every animation clip in
+`game asset/characters/animations/` come from Adobe's [Mixamo](https://www.mixamo.com/) (clips downloaded without skin at
+30 fps, retargeted to the game's rigs by `build_character.py`; the Great Sword Pack's 51 clips are the two-handed moves).
+Royalty-free for use in games under Mixamo's terms; credited as a courtesy. The clip groups and what each is used for
+are in `game asset/README.md`, "Characters".
+
+## Fonts (Google Fonts, SIL Open Font License 1.1)
+
+Loaded at run time from Google Fonts by the stylesheet link in `index.html`; nothing is bundled. The designers are named
+on each family's page.
+
+| Family | Source | License |
+|---|---|---|
+| Alegreya Sans | [Google Fonts](https://fonts.google.com/specimen/Alegreya+Sans) | [SIL OFL 1.1](https://openfontlicense.org/) |
+| Cormorant Garamond | [Google Fonts](https://fonts.google.com/specimen/Cormorant+Garamond) | [SIL OFL 1.1](https://openfontlicense.org/) |
+| Tiro Devanagari Hindi | [Google Fonts](https://fonts.google.com/specimen/Tiro+Devanagari+Hindi) | [SIL OFL 1.1](https://openfontlicense.org/) |
+
+## Software libraries
+
+Versions and licenses as recorded in `package-lock.json`.
+
+| Library | Version | License |
+|---|---|---|
+| [three](https://github.com/mrdoob/three.js) | 0.186.1 | MIT |
+| [@dimforge/rapier3d-compat](https://github.com/dimforge/rapier.js) | 0.21.0 | Apache-2.0 |
+| [postprocessing](https://github.com/pmndrs/postprocessing) | 6.39.5 | Zlib |
+| [gsap](https://gsap.com/) | 3.15.0 | GSAP Standard "no charge" license (https://gsap.com/standard-license) |
+| [three-mesh-bvh](https://github.com/gkjohnson/three-mesh-bvh) | 0.9.15 | MIT (declared in `package.json`; nothing in `src` imports it at the time of writing) |
+| [vite](https://vite.dev/) | 8.3.1 | MIT (build tool) |
+| [typescript](https://www.typescriptlang.org/) | 7.0.2 | Apache-2.0 (build tool) |
+| @types/three | 0.186.0 | MIT (build tool) |
+
+## AI-generated assets: the tools used
+
+Made for the game with generative tools; no third-party license, and named here as the tools that made them. Their reuse
+follows the terms of those services and of the plan they were used on (see "Still to confirm").
+
+- **Meshy** ([meshy.ai](https://www.meshy.ai/)): the 3D models of the guru, the hero's training look, the raiders, the
+  yatudhanas, the cave runts and hurlers, the village's mandir, the island's boat, Dwarka's arena, golden temple,
+  statue of Krishna and stone gateway, and the hero's talwar (each is described in the sections above); the reference
+  images for most of them (nano-banana text to image and image to image). The in-game credits also name Meshy for the
+  other characters.
+- **ElevenLabs** ([elevenlabs.io](https://elevenlabs.io/)): every voice line (eleven_v3, voices from ElevenLabs' voice
+  library, listed in `game asset/voice/VOICES.md`; the hero is subtitles only), every sound effect (Sound Effects v2),
+  the music (ElevenLabs Music; the in-game credits name ElevenLabs for the whole soundtrack), and the guru's concept
+  image (an ElevenLabs image model, gpt-image-2: `game asset/concepts/README.md`).
+- **An image generator** (tool not recorded): the distant green hills' panorama at Dwarka (see "Chapter IV, Dwarka"; the
+  sea's normal map there is procedural, not generated).
+
+## The README's portraits and screenshots
+
+The portraits in `docs/media/characters/` are the game's 2D concept images (`game asset/concepts/`: the hero's
+`yodha_front_ref.png`, `guru_crop.png`, `raider_A.png`, `cave_runt_A.png`, `cave_hurler_A.png`, `yatudhana_A.png`;
+cropped, never scaled up), and in-engine captures for the characters that have no concept image (from the trailer's
+1080p frames, `game asset/trailer/frames/`; Takshaka's from the boss-guard audit capture
+`game asset/audit/fixes/boss-guard/takshaka_counter_fp30.jpg`, as the trailer does not show him). The screenshots, the
+banner, the loop and the social preview are frames of the trailer, captured in the engine; they show the third-party assets
+credited above.
+
+## Still to confirm
+
+Nothing below is known to be wrong; each is a place where the records stop, so a credit could not be written in full.
+
+1. **Poly Haven authors** not recorded: Sandstone Cracks, Old Sandstone 02, Large Sandstone Blocks 01, Tree Small 02,
+   Industrial Sunset 02 Pure Sky, Red Dirt Mud 01, the akhada's baked tree, and all the baoli's textures and its night sky.
+   (They are on each asset's Poly Haven page.)
+2. **Dwarka's coastal fort and moored trading boat** (`coast fort.glb`, `boat.glb`): supplied by the author; origin not
+   recorded. If either came from a site with a license that asks for credit, it needs one.
+3. **The hero's main model and the characters built from supplied FBX files** (`game asset/characters/sources/`: the
+   hero, the Baoli Guardian, Shalva, Takshaka, the rakshasas, the Vetala, Mayavi, the vanara and the final boss): the
+   in-game credits say "Meshy, Mixamo", but which tool made which model is not written down per model.
+4. **`concepts/yodha_front_ref.png`** (the hero's portrait): not listed in `game asset/concepts/README.md`, so the tool
+   that made it is not recorded.
+5. **The terms of the plans used.** Meshy's and ElevenLabs' licenses for what they generate depend on the plan (some
+   plans require attribution, some limit commercial use). Both are credited in the game and the README; check that the
+   plan used matches how the game is released.
+6. **Fonts' designers** and **Mixamo's license page** are named by service only (their pages list them).
