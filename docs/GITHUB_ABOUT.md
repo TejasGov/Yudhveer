@@ -13,10 +13,10 @@ An Indian mythological action game that runs in your browser. Cel-shaded sword-a
 ## Website
 
 ```text
-to be added when the game is hosted
+https://yudhveer.pages.dev/
 ```
 
-(Leave the field empty until then; paste the game's address here once a host is chosen: docs/DEPLOY.md.)
+(The live build on Cloudflare Pages; it redeploys from `main`.)
 
 ## Topics (14 of 15)
 

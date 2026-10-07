@@ -11,6 +11,10 @@
 </p>
 
 <p align="center">
+  <a href="https://yudhveer.pages.dev/"><img alt="Play in your browser" src="https://img.shields.io/badge/%E2%96%B6%20Play%20in%20your%20browser-yudhveer.pages.dev-f38020?style=for-the-badge"></a>
+</p>
+
+<p align="center">
   <a href="https://threejs.org/"><img alt="Three.js" src="https://img.shields.io/badge/Three.js-000000?style=flat-square&logo=threedotjs&logoColor=white"></a>
   <a href="https://www.typescriptlang.org/"><img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-3178C6?style=flat-square&logo=typescript&logoColor=white"></a>
   <a href="https://vite.dev/"><img alt="Vite" src="https://img.shields.io/badge/Vite-646CFF?style=flat-square&logo=vite&logoColor=white"></a>
@@ -41,7 +45,7 @@
 
 It is a game for the open web. There is no download, no install and no launcher: the campaign is a set of static files that the browser streams as each chapter loads, with [Three.js](https://threejs.org/) doing the drawing and [Rapier](https://rapier.rs/) the physics. The look is cel-shaded with ink lines, and the work went into how a fight *feels*: hit-stop on every blow, bodies that flinch, sparks where blades meet, and bosses that raise their weapons and turn your strikes aside.
 
-> **Status.** The campaign is complete and playable. A hosted build is on its way; until then you can [run it locally](#run-it-locally) in two commands. The story is deliberately not told here. Go and find it.
+> **Play it now at [yudhveer.pages.dev](https://yudhveer.pages.dev/)**: the whole campaign, free, in a desktop browser with WebGL 2. The first load streams about 29 MB. You can also [run it locally](#run-it-locally) in two commands. The story is deliberately not told here. Go and find it.
 
 ## Screenshots
 
@@ -285,7 +289,7 @@ Hosting, base paths, download sizes and the test server are in [docs/DEPLOY.md](
 | Language and build | TypeScript 7, [Vite](https://vite.dev/) 8 |
 | Animation | glTF models with Mixamo-style rigs, retargeted and packed by Blender scripts; meshopt-compressed geometry and WebP textures |
 | Audio | Recorded voices, effects and music, plus a small synthesizer for the rest, through the Web Audio API |
-| Hosting | Static files only: GitHub Pages, Netlify, Cloudflare Pages, itch.io or any web server |
+| Hosting | Static files only. The live build is on [Cloudflare Pages](https://yudhveer.pages.dev/) and redeploys from `main`; GitHub Pages, Netlify, Cloudflare Pages, itch.io or any web server also work |
 
 ## Project structure
 
