@@ -121,6 +121,11 @@ export class Character extends Entity {
 
   /** Collision, gravity and stepping; null until `attachPhysics` (then gameplay moves are resolved by it). */
   public motor: CharacterMotor | null = null;
+  /**
+   * A scene is carrying it through the air or up a wall (the hero's climb at Dwarka, his dive at the Baoli): it is
+   * where the scene puts it, and the motor neither drops it nor pushes it out of the rock, only follows.
+   */
+  public carried = false;
   /** Skinned, animated model that replaces the greybox once `attachRig` resolves. */
   public rig: CharacterRig | null = null;
   private rigState: CharacterState | null = null;
@@ -1032,7 +1037,8 @@ export class Character extends Entity {
       this.knockVel.multiplyScalar(Math.exp(-KNOCK_RATE * dt));
     } else this.knockVel.set(0, 0, 0);
     // Last: everything this step moved the character freely; collide, step and fall in one place.
-    this.motor?.resolve(this.group.position, dt);
+    if (this.carried) this.motor?.teleport(this.group.position);
+    else this.motor?.resolve(this.group.position, dt);
     const pos = this.group.position;
     if (dt > 0) {
       // Its own pace, not a neighbour's shove (fix 5): the stride keeps time with where it is really going.

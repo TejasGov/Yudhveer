@@ -921,6 +921,20 @@ kbd {
   margin-bottom: 14px;
 }
 
+/* The name in Devanagari over the Latin one (bosses): the chapter card's saffron, a little quieter. */
+.name-native {
+  font-family: var(--deva);
+  font-size: clamp(20px, 2.2vw, 30px);
+  color: var(--saffron);
+  opacity: 0.85;
+  margin-bottom: 4px;
+  text-shadow: 0 1px 12px rgba(0, 0, 0, 0.8);
+}
+
+#name-card.small .name-native {
+  font-size: 18px;
+}
+
 .name-title {
   font-family: var(--serif);
   font-weight: 600;

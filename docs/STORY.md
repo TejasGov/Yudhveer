@@ -688,12 +688,16 @@ hold in `src/entities/animation/CharacterRig.ts` (`SocketAttachment.twoHanded`).
   butt; see "The hands".)*
 - **Testing:** `__debug.chapter(4, false)` then `__debug.win()` plays Shalva's fall; `__debug.win()` again, once
   Takshaka is up, plays the ending.
-- **Flow:** the intro, then the **opening**: Shalva on the rosette knows the island's mace and the boy; "Where is my
-  guru?"; Shalva promises the answer if he is beaten, and roars. The fight. **Shalva falls**: a beat scene
+- **Flow:** the intro (one shot since 2026-10-06: the overview camera and the chapter card), then the **opening**,
+  the storm entrance (see "Entrances as bridges"): far out on the sea a figure stands waist-deep with his gada up and
+  lightning finds it; close and slowed he comes up out of the water; he runs the swells in and leaps onto the east mark,
+  the stone shuddering, the roar, his card. "Where is my guru?"; his one line (beat me and I will tell you why). The
+  fight. *(Before: Shalva stood on the rosette from the spawn, roared twice, and the opening ran four lines.)* **Shalva falls**: a beat scene
   (`{ fallen: 'shalva' }`) before anything else, in which the dying Shalva tells him the truth: Andhaka burns wise
   souls before his god to grow great enough to stand against Shiva and take his seat on Kailasha; the guru, "the
   wisest of them all", is kept for the last fire, on the summit. The guru's being Shiva stays hidden. The sea stirs,
-  the hero turns to it, and Takshaka's own arrival (as before) brings the serpent king up. The **ending**: Takshaka
+  the hero turns to it, and Takshaka's arrival brings the serpent king up through the dark water that opens on the
+  stone (`BossTakshaka.arrival`, since 2026-10-06; before, he stood up on the floor and roared). The **ending**: Takshaka
   dying; his hundred years serving Andhaka; the recorded prophecy; naga fire, and the khanda stands deep in the stone
   in front of him, leaning, its hilt toward him; the mace laid on the stone at his side, he steps up, goes down on one
   knee, takes it by the grip and draws it as he rises, and stands with it up in the sword-and-dhal idle; "Rest, serpent
@@ -727,6 +731,11 @@ hold in `src/entities/animation/CharacterRig.ts` (`SocketAttachment.twoHanded`).
 ### Chapter IV lines
 
 Takshaka's voice is Kundan, Shalva's is Mani (`game asset/voice/VOICES.md`). Yudhveer is subtitles only.
+
+Since the storm entrance (2026-10-06) the opening speaks two of its four lines: "Where is my guru?" and Shalva's
+"Far beyond your reach..." (`dwarka_open_shalva_2`). "So the island gave up its mace..." (`dwarka_open_shalva_1`)
+and "Then lift your gada." are no longer played; the recording stays on disk. A shorter take of his one line waits in
+docs/APPROVALS.md ("Entrances").
 
 | Id | Speaker | Text | Trigger | Recorded |
 |---|---|---|---|---|
@@ -897,6 +906,151 @@ For cutscenes he also carries a calm standing idle (Mixamo's Standing Idle With 
   waiting boss too) until the mode is `intro`, then `__debug.advance(s)` and `__yudhveer.sceneManager.render()` to step
   through the shots.
 
+## Boss powers (2026-10-07)
+
+The user: "we need to give special powers to certain bosses".
+
+- **Takshaka's ambush** (`BossTakshaka`, `AMBUSH`): every 11 to 15 s of the fight (the first after 9), from the open
+  floor, he sinks into his green-lit dark water (0.45 s) and is gone; the water opens behind the hero, on the far side
+  of him from where the serpent king went under (between the hero and the follow camera), naga fire in it and a hiss
+  (0.85 s: the warning); he erupts there and his claws sweep at once. The blow (`Enemy.ambush`, resolved by
+  `CombatSystem.landAmbush`) cannot be blocked or parried: slid under (the slide's untouchable span) or jumped over
+  (off the ground) it misses ("Evaded"); otherwise it lands heavy (26 x his 1.19 = 31) and staggers. Rocked as he sinks,
+  he stays up. Tested: standing, it hits for 31; sliding into the warning, it is evaded.
+- **Andhaka's variants, and his throne** (`BossAndhaka`, `VARIANTS`, `THRONE_WAY`; `AndhakaVariant`; revised the
+  same day): below half health, once his roar is over, he does not fight on himself. Three variants of himself come up
+  out of ember in a ring round the hero (flanking him, then at his back) as he turns away laughing and walks back up
+  Shiva's stair to his throne (the stair's foot, the dais; put on the seat if anything holds him for 9 s); he sits,
+  laughing (Mixamo "Sitting Laughing", then "Sitting Idle"), held on the seat, and no blow or posture damage touches
+  him there. While he sits he recovers, 3.5 % of his health a second, up to 75 % (he went up at half): his bar fills.
+  At most three variants stand at once, six in all: each one that falls is replaced two seconds later until the six are
+  spent. When the last is down he stands up off the throne ("Sit To Stand"), ember crawling on him, laughing, and comes
+  back down to fight (his leap, usually). A variant is his own model darkened to smoulder, crowned: 70 health, half his
+  damage (16 x 0.73 = 11.7 a blow, his are 18 x 1.3 = 23.4), slower, his plainer blows only; it burns back into ember
+  when it falls. If he falls, every variant goes with him. The Engine brings them in (`Enemy.onSummon`, `Engine.summon`:
+  his model and collider, a health bar, counted toward the field being cleared). Tested: up the stair and seated, a
+  200-point blow while seated did nothing, six came three at a time, he recovered to 540 of 720, and rose after the sixth.
+- **Andhaka's laugh echoes** off the mountains (`SoundFX.playVoiceEcho`: two crossed delay lines bouncing the laugh
+  left and right, each repeat darker and quieter), in his entrance and as his second phase begins.
+- **Andhaka's entrance, with more aura** (`Intros.ts`, `enthronedEntrance`; the sequence kept, no slow motion): it opens
+  in black and white (the storm grade), thunder strikes behind him and each strike throbs colour through the picture
+  (`Entrance.throb`) like a heartbeat; his smile is half graded so his dark face reads; the crowning is no longer shown
+  from the front (it was not well rigged): one shot from behind his right shoulder, his bulk filling half the frame and
+  the stair falling away to the arena, thunder as the crown goes on; then the Agni beacon, and with its fire the colour
+  comes into the world for good. Skipped, it is in colour at once (`BossAndhaka.settleIntro`; a later `grade` now also stops
+  any grade tween still running, so a skip mid-shot can no longer leave the fight in black and white).
+- **Sanjeevani, the healing herbs of the last fight** (`Sanjeevani.ts`, `SANJEEVANI`; Level4_Summit's `SUMMIT_HERBS`;
+  `Finale.herbs`; the user, 2026-10-07): once Yudhveer is below half health in Andhaka's fight, two herbs come up out of
+  the stone with a rising shimmer and a hint ("by the stair, and by Nandi"): one beside the foot of Shiva's stair under
+  the dais, one on the crag by Nandi at the far end of the bridge (worth the run). A tuft of stems with glowing buds
+  over a pool of light, motes drifting up. Walking over one while hurt takes it: 15 % of his health back over 0.8 s (his
+  bar fills), a chime, its light spiralling up round him, and it withers. Each is there once; at full health he walks
+  through without taking it. Tested: none at 55 %, both at 49 %, not taken at full health, 40 to 55 and 30 to 45.
+
+## The akhada's lesson without a mouse (2026-10-07)
+
+The user: the parry lesson is near impossible for players without a mouse (a trackpad's right click cannot be timed
+to 140 ms), and a lesson that will not end is a rage quit. Now:
+
+- **E is the dhal** as well as the right mouse button: press to parry, hold to guard (`InputManager`; the hints and the
+  controls screen show "E or Right click").
+- **While the parry is taught** (`Akhada.ts`, `LESSON`, `teachParry`), the parry turns a blow for 0.35 s after the press
+  (not 140 ms), and the vanara's staff flashes with a small bell half a second before each blow lands (`NOW`, measured:
+  0.62 s and 0.92 s into his two swings). The hint says so: "When his staff flashes, press E or Right click". Any
+  reaction from about 0.12 s to 0.4 s after the flash turns the blow; later is too late. Once the lesson is over the
+  parry is the usual 140 ms, with no flash.
+- **No gate:** three turned blows end the lesson as before; if they don't come, the visitors cut it short after eight
+  more of his blows (taken, held or turned), about half a minute.
+- Tested (keyboard events, stepped): E held blocked the three blows of stage one; a player pressing 0.12, 0.18, 0.25 or
+  0.4 s after each flash turned three of three and the lesson ended at about 12 s; one pressing at 0.48 s or never was
+  let through by the visitors after eight blows (about 32 s).
+
+## The bridges between chapters (2026-10-07)
+
+The user: "scenes will need connections". What each chapter now hands to the next:
+
+- **Prologue to Chapter I:** the Baoli's establishing shows the Guardian already there, crouched on the island like a
+  carving with ember threads on it, with a push in on it; then the boy climbs to the Devi asking her, "It has been a
+  long road, Maa. Guide me." (subtitle). Her answer is two of her three lines (the "stick of bamboo" and his reply are cut).
+- **Chapter I to II:** the Guardian, freed and turned to stone, tells him to go to the akhada; the water at the island's
+  east edge begins to glow (`Entrance.glowingWater`), and he runs off the edge and dives into the light (Mixamo "Run To
+  Dive"; `Character.carried` lets a scene carry him without the motor dropping him). The akhada opens on the old
+  vanara waiting by the shrine.
+- **Chapter III to IV:** after the overview, he climbs Dwarka's west face out of the rain (Mixamo "Climbing Up Wall"),
+  hauls himself over the lip ("Braced Hang To Crouch") and calls out "SHALVA!" ("Yelling Out"); then the storm entrance.
+- **Chapter IV to V:** as Takshaka burns away the camera rises and tilts up into the storm; the summit's intro opens
+  looking straight up into its own sky, the eclipse, and tilts down to the mountain. Its cinematics go on as they were.
+
+Lines cut (all free; Yudhveer's lines are subtitles, everyone else's are recordings, cut whole): the Devi's first line
+and the boy's reply; the Guardian's second and third lines and the boy's two answers; the akhada ending's "Not a
+farmer", "Then what will?" and Shalva's mace "has broken better blades"; Shalva's first and third lines and "To what
+end?"; Takshaka's first line. New subtitles: "It has been a long road, Maa. Guide me." and "SHALVA!".
+
+## Entrances as bridges (2026-10-06)
+
+"The entrances of the bosses and characters [except the final boss] ... too PS3 Tekken like ... Imagine aura scenes,
+suited to each character, there's too much dialogue in the game." The audit, the grammar every new entrance follows,
+what is built and the storyboards for the rest are in `docs/proposals/ENTRANCES.md`; the yeses it needs are in
+`docs/APPROVALS.md` ("Entrances"). Andhaka's entrance is untouched.
+
+**What the audit found.** All four boss reveals were one camera template (`bossReveal`: low, weapon side, tilt up)
+and one roar clip; a shot lasted as long as its line, and the roar came after the talk; the world never answered (no
+stings, lightning on a random timer only, bosses popped onto their marks). Shalva had about 61 s of intro and talk
+before control and roared twice; Takshaka was spawned standing on the floor though the code said he came out of the sea.
+
+**New in the engine:**
+
+- `SceneShot.timeScale` (and `Shot.timeScale`): slow motion inside a shot. The camera, the lines and the shot's clock
+  run in real time; the people, the scene's effects, the particles and the level's clock (rain, sea, sky) run at the
+  shot's rate (`Engine.gameLoop`, `debugAdvance`; `CinematicDirector.timeScale`).
+- `SoundFX.strike(strength, lag)`: lightning on cue, the flash now and the thunder after; `Entrance.strike()` for
+  scenes. `Entrance.arc()` throws one of the cast along a parabola to a mark; `Entrance.landing()` is the ground's
+  answer (a burst, a quake, a camera jolt, a splash or a thud).
+- `Lightning.bolt(to)`: the bolt itself, a jagged bloom-bright ribbon from the clouds down to a point, with a
+  flicker and a re-strike; `StormSky.strikeAt` aims the deck's glow over the same point (`Level3_Dwarka.aimLightning`).
+- `PostFX.grade` (`StormGradeEffect`): the picture drained to silver monochrome with crushed blacks, film grain and
+  closed-in edges, faded in by a scene (`Entrance.grade`) and off between scenes.
+- `seaBurst(centre)`: the sea torn open in a ring of foam, streaks and spray (`levels/environment/SeaBurst.ts`).
+- `Enemy.nativeName`: the boss card shows the name in Devanagari over the Latin one (Shalva, Takshaka, the Baoli
+  Guardian, the Vetala and the Mayavi have theirs; Andhaka's card is as it was).
+- `Boss.arrival(ctx)`: a boss arriving mid-fight stages its own shots in place of the generic reveal
+  (`buildArrival`). `DivePool` is exported from BossShalva for it.
+
+**Shalva's storm entrance** (`src/game/stories/Dwarka.ts`, `dwarka-storm-entrance`; Chapter IV is `introPlaceOnly`):
+the figure on the sea is a stand-in, `shalva_far`, one of the story's cast (the same model, no body, so it rides the
+swells by `seaHeight` and can be thrown), and the boss spawns hidden on his mark and is shown as the stand-in lands.
+He is drawn as a black shape with a cold rim (the prologue's Andhaka), and the whole entrance plays in the storm
+grade, silver and grained, until he lands gada first on the east mark and the colour comes back with the blow: the
+first time his face is seen. The far shots sit on the water itself, 40 m out past the reefs (the rim's ruins and the
+shelf's pillars block the sea from anywhere higher), measured in the running level. About 21 s of entrance and two
+lines where there were four. (The shot list as it is now: the third pass, below.)
+
+**Takshaka's rise** (`BossTakshaka.arrival`): over the hero's shoulder the dark water opens on the far side of the
+floor; low at its rim and slowed, the hood breaks the surface and he comes up 3.4 m out of it; the roar and his card.
+
+**The third pass (2026-10-07):** "no funny running that Shalva is seemingly doing on the water ... i want these
+scenes to have AURA." Shalva no longer runs: summoned by a bolt into the empty sea, he comes up out of it where it
+struck, lifts his gada to the sky for the next bolt, goes up out of the sea in one bound (the water thrown up after him
+in a column) and comes down out of the storm over the boy's head onto the east mark, the stone cracking out in
+lightning and the colour and the sound coming back with the blow; one Mixamo clip ("Mutant Jump Attack") cut across
+four shots by held frames. The Baoli Guardian wakes from a crouched carving as the stepwell's lamps flare in to it,
+its eyes kindling ember, and its first blow cracks the step and gutters every lamp; the Vetala drops fifteen metres
+from the akhada's roof rim, where it hung by its hands, without a sound (Mixamo's Hanging Idle, Freehang Drop, Falling
+Idle and Hard Landing, downloaded for it; its glowing eyes were cut as abrupt); the Mayavi is three of him, then one;
+the old vanara is first seen sitting by the Hanuman monolith at sunset, and rises. Takshaka's rise gained the hush, the
+riser, a veil of water, naga-green cracks and a sting, and rises clear of Shalva's body. Opening talk cut: the
+Guardian's walk-in from 4 lines to 1, the akhada's arrival from 3 to 1. New in the engine: speed ramps
+(`timeScale: [[t, speed], ...]`), `LivingSea.surge` (a storm on the sea), `waterColumn`, `Shockwave.groundShock`,
+`Lightning.crawl` / `Entrance.charged`, `Entrance.glowingEyes`, `Entrance.impact` and `hush`, synthesized
+`SoundFX.playRiser`, `playImpactBoom` and `playSting`, the stepwell's `setFlames`, and a reworked storm grade
+(display-gamma S-curve, neutral silver). All of it: `docs/proposals/ENTRANCES.md`, section 3.
+
+- **Testing:** `__debug.chapter(4, true)` plays the intro and the storm entrance (the Browser pane does not run the
+  frame loop while hidden: step with `__debug.advance(s)` and `__yudhveer.sceneManager.render(0)`; to look at the
+  frames, copy the canvas to a 2D canvas after the render). For Takshaka: `__debug.chapter(4, false)`,
+  `__debug.win()`, hold to skip Shalva's last words. The Guardian: `__debug.chapter(1, true)` (after the Devi
+  scene). The night visitors: `__debug.chapter(2, true)` and pass the parry lesson.
+
 ## Standing at ease (2026-10-05)
 
 The user: no character, in any chapter, should do "that stupid static jogging thing" in a cutscene, at the start of a
@@ -989,7 +1143,19 @@ attire), then he fights the baoli guardian"; the Durga statue "is already in bao
   simple model, so the close shots of her face are kept medium; the kneel clips are the ones main's yodha.glb gained on
   2026-10-05 (until a branch has them, the scene falls back to `crouch` / `crouch_idle` and `calm_idle`).
 
-## How the dead speak (2026-10-05)
+## How the dead speak (2026-10-05; each in its own way since 2026-10-07)
+
+**2026-10-07, superseded:** the user found every fallen one rising as the same blue shade "weird", and asked that
+each go differently. Now there are no shades: each speaks from its own body, and goes in its own way.
+
+| Who | How he speaks | How he goes |
+|---|---|---|
+| The Baoli Guardian | beaten to its knees (its death state is the hero's Mixamo Kneeling Down; it kneels on in Kneeling Idle), turned to the boy, Andhaka's last ember crawling off it | it turns back to stone, a carving at peace (`Entrance.turnToStone`: its colours drain to weathered grey, gold motes lift off it), and stays kneeling where it fell |
+| Shalva | he will not go down: his death clip is held on its stagger (`BossShalva`, `BEATEN_AT`), hunched over the wound with his gada, still on his feet | the sea he threatened the boy with takes him: his own dark water opens under him and he sinks into the stone (`BossShalva.seaTakesHim`, essential: gone even if skipped, clear of the serpent king's way) |
+| Takshaka | lying where he fell, framed over the boy's shoulder down at his head and his reaching claw | he burns away in naga-green fire as the camera rises into the storm (`Entrance.burnAway`) |
+
+`Story.ts`'s shade framings stay and serve: `shade(id)` is now the fighter itself, so they frame the body where its head
+is. The table below is the history.
 
 The user: when a dead character speaks, show "a blue shadow of them" or frame away from the body, so a corpse is not
 seen talking. Every moment a fallen character speaks, and what it does now:

@@ -91,6 +91,10 @@ const sea = {
   uSeaTime: { value: 0 },
   uSeaTide: { value: TIDE_MEAN - TIDE_RANGE },
   uSeaSwell: { value: 1 },
+  /** The swells' height alone, over their size (a storm's heave: their reach is untouched, so the crests never loop). */
+  uSeaHeave: { value: 1 },
+  /** A storm on the open water, 0..1: whitecaps torn off the crests and streaks of spume down the wind. */
+  uSeaStorm: { value: 0 },
   uSeaCentre: { value: new THREE.Vector2() },
   uSeaHalf: { value: SEA_HALF },
   uSeaGrid: { value: new THREE.Vector2(GRIDS.full.spacing, 0) },
@@ -103,6 +107,8 @@ const SEA_COMMON = /* glsl */ `
 uniform float uSeaTime;
 uniform float uSeaTide;
 uniform float uSeaSwell;
+uniform float uSeaHeave;
+uniform float uSeaStorm;
 uniform vec2 uSeaCentre;
 uniform float uSeaHalf;
 uniform vec2 uSeaGrid;
@@ -117,6 +123,11 @@ float seaEdge(vec2 p) { return 1.0 - smoothstep(uSeaHalf * 0.55, uSeaHalf * 0.97
 // ---------------------------------------------------------------------------------------------------------------
 
 const scratch = { x: 0, y: 0, z: 0 };
+
+/** The still water's height now (world y): the tide, without the swells (a camera on the water rides above it). */
+export function seaLevel(): number {
+  return sea.uSeaTide.value;
+}
 
 /** The surface's displacement from rest at grid point (x, z), exactly as the sea's vertex shader moves it. */
 function displacement(x: number, z: number, out = scratch): typeof scratch {
@@ -139,7 +150,7 @@ function displacement(x: number, z: number, out = scratch): typeof scratch {
     const th = a.z * (a.x * x + a.y * z) - a.w * t + b.z;
     const c = Math.cos(th);
     out.x += w * a.x * b.y * c;
-    out.y += w * b.x * Math.sin(th);
+    out.y += w * b.x * sea.uSeaHeave.value * Math.sin(th);
     out.z += w * a.y * b.y * c;
   }
   return out;
@@ -328,8 +339,9 @@ for (int i = 0; i < 4; i++) {
   float th = a.z * dot(a.xy, seaP) - a.w * uSeaTime + b.z;
   float s = sin(th);
   float c = cos(th);
-  seaD += w * vec3(a.x * b.y * c, b.x * s, a.y * b.y * c);
-  objectNormal += w * vec3(-a.x * a.z * b.x * c, -a.z * b.y * s, -a.y * a.z * b.x * c);
+  float h = b.x * uSeaHeave;
+  seaD += w * vec3(a.x * b.y * c, h * s, a.y * b.y * c);
+  objectNormal += w * vec3(-a.x * a.z * h * c, -a.z * b.y * s, -a.y * a.z * h * c);
 }
 objectNormal = normalize(objectNormal);
 vSeaP = seaP;
@@ -401,6 +413,22 @@ float seaFoam(vec2 p, float dist) {
 #endif
   return smoothstep(0.32, 0.42, f) * 0.42 + smoothstep(0.72, 0.82, f) * 0.3;
 }
+
+// A storm on the open water (uSeaStorm): white torn off the crests where the swell stands highest, and long streaks of
+// spume down the wind between them; thinning into the distance, where it would shimmer.
+float seaCaps(vec2 p, float dist) {
+  if (uSeaStorm <= 0.001) return 0.0;
+  float n = seaNoise(p * 0.11 + vec2(uSeaTime * 0.021, -uSeaTime * 0.034)).g;
+  float torn = seaNoise(p * 1.1 - vec2(uSeaTime * 0.09, uSeaTime * 0.07)).b;
+  float lace = 1.0 - abs(seaNoise(p * 0.55 + vec2(uSeaTime * 0.05, -uSeaTime * 0.04)).g * 2.0 - 1.0);
+  // Only the highest of the crests break, and the white on them is torn lace, not a sheet.
+  float crest = smoothstep(0.55, 0.95, vSeaH / max(0.42 * uSeaSwell * uSeaHeave, 0.05) + (n - 0.5) * 0.7);
+  float caps = crest * smoothstep(0.5, 0.75, torn) * smoothstep(0.55, 0.9, lace);
+  float streak = smoothstep(0.88, 0.97, lace) * smoothstep(0.45, 0.7, torn) * smoothstep(0.3, 0.7, n);
+  // (Thin close to the lens, where the lace's scale would read as flat patches.)
+  float f = max(caps, streak * 0.6) * (1.0 - smoothstep(120.0, 280.0, dist)) * smoothstep(4.0, 16.0, dist);
+  return uSeaStorm * (smoothstep(0.25, 0.45, f) * 0.4 + smoothstep(0.6, 0.8, f) * 0.3);
+}
 `;
 
 /** Patches the exported water material into the living sea (its scrolling normal map and sky reflections kept). */
@@ -431,7 +459,8 @@ function seaMaterial(material: THREE.MeshStandardMaterial, shore: THREE.Texture,
       .replace('#include <common>', `#include <common>\n${SEA_FRAGMENT}`)
       .replace('#include <color_fragment>', `#include <color_fragment>
 float seaViewDist = length(vViewPosition);
-float seaFoamAmount = seaFoam(vSeaP, seaViewDist);
+// (In a storm the shore's flat cel bands give way to the torn caps: they read as puddles of white on a heaving sea.)
+float seaFoamAmount = max(seaFoam(vSeaP, seaViewDist) * (1.0 - uSeaStorm), seaCaps(vSeaP, seaViewDist));
 diffuseColor.rgb = mix(diffuseColor.rgb, uFoamColor, seaFoamAmount);`)
       .replace('#include <roughnessmap_fragment>', `#include <roughnessmap_fragment>
 roughnessFactor = mix(roughnessFactor, 0.85, seaFoamAmount);`)
@@ -606,6 +635,21 @@ export class LivingSea {
       changed = true;
     }
     if (changed) this.material.needsUpdate = true;
+  }
+
+  /**
+   * The storm rising on the open sea, for a scene (an entrance): the swells' height `heave` times over (1 as authored)
+   * and `storm` 0..1 of whitecaps and spume, eased there over `seconds` of game time by the caller's own clock, or at
+   * once. `surge(1, 0)` puts it back.
+   */
+  public surge(heave: number, storm: number): void {
+    sea.uSeaHeave.value = Math.max(0, heave);
+    sea.uSeaStorm.value = THREE.MathUtils.clamp(storm, 0, 1);
+  }
+
+  /** The storm's current heave and whitecaps (see `surge`). */
+  public get surging(): { heave: number; storm: number } {
+    return { heave: sea.uSeaHeave.value, storm: sea.uSeaStorm.value };
   }
 
   private applySwell(): void {

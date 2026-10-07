@@ -22,6 +22,11 @@ const SKY_URL = asset('sky/charnel_eclipse_4096.jpg');
  * body), so the rock always fits the model.
  */
 export const ANDHAKA_THRONE = new THREE.Vector3(0, 4.05, -9.6);
+/**
+ * Where the healing herbs come up in the last fight (Engine's FINALES, `Sanjeevani`): beside the foot of Shiva's stair,
+ * under the dais, and on the crag by Nandi at the far end of the bridge (worth the run). Put on the ground under them.
+ */
+export const SUMMIT_HERBS = [new THREE.Vector3(-5.6, 0, 1.6), new THREE.Vector3(3.6, -2.2, 25.4)];
 const ANDHAKA_MANIFEST = asset('characters/andhaka.manifest.json');
 // From game asset/levels/04_summit/web_sky/sky_manifest.json (three axes, from the sky bake origin).
 const ECLIPSE_DIR = new THREE.Vector3(0.0, 0.35112, -0.93633);

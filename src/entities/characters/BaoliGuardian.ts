@@ -41,7 +41,8 @@ export const BAOLI_GUARDIAN: CharacterDefinition = {
     BLOCK: { clip: 'great_sword_blocking', timeScale: 1.5, fade: 0.1, from: { BLOCK_HIT: 0.46 } },
     BLOCK_HIT: { clip: 'great_sword_impact', timeScale: 1.5, timesState: true, fade: 0.04 },
     SHOVE: { clip: 'great_sword_kick_2', timeScale: 1.15, timesState: true, rootMotion: true, fade: 0.15, contact: 0.78 },
-    DEAD: { clip: 'mutant_dying', fade: 0.15 },
+    // Beaten to its knees, not felled (its last words are said kneeling, and it turns back to stone so: Baoli.ts).
+    DEAD: { clip: 'kneeling_down', timeScale: 1.2, fade: 0.2 },
   },
   locomotion: { walkSpeed: 1.8, moveSpeed: 1.9, sprintSpeed: 3.5 },
   // The talwar, in the fist the build curled (socket +Y along the grip toward the thumb: a prepared weapon fits as is).

@@ -303,6 +303,11 @@ export class Level3_Dwarka extends GLBLevel {
     });
   }
 
+  /** A scene's lightning lands at `point`: the storm deck's next flash glows brightest over it (the bolt itself is drawn by the scene). */
+  public aimLightning(point: THREE.Vector3): void {
+    this.sky?.strikeAt(point.clone().sub(SceneManager.getInstance().camera.position));
+  }
+
   /** The sea: 'full', 'low' (a quarter of the triangles, simpler foam, no raindrops on it) or 'flat' (no swells either). */
   public setSeaQuality(quality: SeaQuality): void {
     Level3_Dwarka.seaQuality = quality;

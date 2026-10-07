@@ -17,6 +17,7 @@ export class BossBaoli extends Boss {
       roarRange: 16,
     });
     this.displayName = 'Baoli Guardian';
+    this.nativeName = 'बावड़ी रक्षक';
     // The well's own protector, bound by Andhaka (docs/STORY.md, Chapter I), not a demon of it.
     this.epithet = 'Keeper of the stepwell';
     // Milestone 12 (docs/STORY.md): health 450 -> 1000 and blows at 60 % (18 and 24 -> 10.8 and 14.4): the fight lasts longer

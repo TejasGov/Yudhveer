@@ -188,6 +188,7 @@ export class CombatSystem {
       if (enemy.stateMachine.currentState === 'SHOVE' && !enemy.shoveLanded && enemy.stateMachine.stateTime >= enemy.shoveContact()) {
         this.landShove(enemy, player);
       }
+      if (enemy.ambush) this.landAmbush(enemy, player);
       const w = this.activeStrike(player);
       if (w !== null && !enemy.submerged) {
         const { hit, hitPoint } = this.hitboxManager.checkWeaponIntersection(player, enemy);
@@ -444,6 +445,38 @@ export class CombatSystem {
   }
 
   /** A blow that would have landed passes over the sliding player: a beat of slow motion marks the near miss. */
+  /**
+   * A blow from behind that lands the moment it comes (`Enemy.ambush`): no block or parry turns it. Slid under (the
+   * slide's untouchable span) or jumped over (off the ground), it misses; otherwise it lands as a heavy blow.
+   */
+  private landAmbush(enemy: Enemy, player: Player): void {
+    const blow = enemy.ambush!;
+    enemy.ambush = null;
+    if (player.isDown()) return;
+    const airborne = player.stateMachine.currentState === 'JUMP' && !(player.motor?.grounded ?? true);
+    if (player.isEvading() || airborne) {
+      this.resolveEvasion(enemy, player);
+      return;
+    }
+    const point = player.getPosition().clone().add(new THREE.Vector3(0, 1.1, 0));
+    this.record({ attacker: enemy.id, defender: player.id, attack: 'AMBUSH', at: enemy.stateMachine.stateTime, point: point.toArray(), result: 'player-hit' });
+    this.stats.hitsTaken++;
+    player.takeDamage(blow.damage);
+    const broken = player.addMarmaDamage(blow.posture);
+    this.onPlayerHurt?.(blow.damage);
+    this.soundFX.playHitImpact(enemy.impactSound);
+    const blood = BloodFX.getInstance();
+    if (!blood.bleeds('red')) this.particleFX.spawnSparks(point, 30, false);
+    else blood.spill(point, player.getPosition().clone().sub(enemy.getPosition()), blow.damage, 'red', player.group.position.y, player.currentHealth <= 0);
+    const away = player.getPosition().clone().sub(enemy.getPosition()).setY(0);
+    this.impact(broken ? 'guardBroken' : 'hurtHeavy', away, 1.3);
+    if (broken) this.callout({ text: 'Posture broken', tone: 'red' });
+    else if (player.stateMachine.currentState !== 'DEAD' && this.clock >= this.playerStaggerImmuneUntil) {
+      player.stateMachine.changeState('STAGGER');
+      this.playerStaggerImmuneUntil = this.clock + player.stateMachine.STAGGER_DURATION + STAGGER_GRACE;
+    }
+  }
+
   private resolveEvasion(enemy: Enemy, player: Player): void {
     this.record({ attacker: enemy.id, defender: player.id, attack: enemy.stateMachine.currentState,
       at: enemy.stateMachine.stateTime, result: 'evaded', point: player.getPosition().toArray() });

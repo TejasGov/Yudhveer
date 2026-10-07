@@ -46,6 +46,33 @@ export interface Shot {
   holdWhile?: () => boolean;
   /** Ends the shot early once true (the player has read ahead). */
   endWhen?: () => boolean;
+  /**
+   * The world's speed while this shot plays (default 1): 0.3 is slow motion. The camera, the lines and the shot's own
+   * clock run in real time; the people, the weather and the scene's effects run this much slower (Engine applies it).
+   * A ramp instead: `[seconds into the shot, speed]` points, eased between (a Snyder ramp: full speed into the leap,
+   * down to 0.2 as he leaves the water, back up as he clears the frame).
+   */
+  timeScale?: number | TimeRamp;
+}
+
+/** Points of a speed ramp: `[seconds into the shot, the world's speed there]`, in order; eased between, held past the ends. */
+export type TimeRamp = [number, number][];
+
+/** The world's speed `t` seconds into a shot whose `timeScale` is `scale`. */
+export function rampAt(scale: number | TimeRamp | undefined, t: number): number {
+  if (scale === undefined) return 1;
+  if (typeof scale === 'number') return scale;
+  if (scale.length === 0) return 1;
+  if (t <= scale[0][0]) return scale[0][1];
+  for (let i = 1; i < scale.length; i++) {
+    const [t1, s1] = scale[i];
+    if (t <= t1) {
+      const [t0, s0] = scale[i - 1];
+      const k = t1 > t0 ? (t - t0) / (t1 - t0) : 1;
+      return s0 + (s1 - s0) * k * k * (3 - 2 * k);
+    }
+  }
+  return scale[scale.length - 1][1];
 }
 
 export const ease = {
@@ -152,6 +179,11 @@ export class CinematicDirector {
       }
     });
     this.apply();
+  }
+
+  /** How fast the world runs under the current shot (`Shot.timeScale`); 1 between cutscenes. */
+  public get timeScale(): number {
+    return this.active && this.current ? rampAt(this.current.shot.timeScale, this.time) : 1;
   }
 
   /** Where the current shot is looking (the shadow light follows it). */

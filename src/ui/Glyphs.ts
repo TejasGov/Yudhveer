@@ -2,9 +2,9 @@ import type { InputDevice } from '../core/InputManager';
 
 export type GlyphAction = 'attack' | 'guard' | 'jump' | 'dodge' | 'sprint' | 'charge' | 'stow' | 'pause' | 'skip' | 'confirm';
 
-const KEYBOARD: Record<GlyphAction, string> = {
+const KEYBOARD: Record<GlyphAction, string | string[]> = {
   attack: 'Left click',
-  guard: 'Right click',
+  guard: ['E', 'Right click'],
   jump: 'Space',
   dodge: 'F',
   sprint: 'Shift',
@@ -15,7 +15,7 @@ const KEYBOARD: Record<GlyphAction, string> = {
   confirm: 'Enter',
 };
 
-const GAMEPAD: Record<GlyphAction, string> = {
+const GAMEPAD: Record<GlyphAction, string | string[]> = {
   attack: 'X',
   guard: 'LB',
   jump: 'A',
@@ -28,9 +28,10 @@ const GAMEPAD: Record<GlyphAction, string> = {
   confirm: 'A',
 };
 
-/** The key or button for `action` on `device`, as a <kbd>. */
+/** The key or button for `action` on `device`, as a <kbd> (or two, "or" between them). */
 export function glyph(action: GlyphAction, device: InputDevice): string {
-  return `<kbd>${(device === 'gamepad' ? GAMEPAD : KEYBOARD)[action]}</kbd>`;
+  const keys = (device === 'gamepad' ? GAMEPAD : KEYBOARD)[action];
+  return (Array.isArray(keys) ? keys : [keys]).map((k) => `<kbd>${k}</kbd>`).join(' or ');
 }
 
 /** Fills every `[data-glyph]` element under `root` for `device`. */

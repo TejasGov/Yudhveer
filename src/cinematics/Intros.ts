@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { charged, grade, strike, throb } from './Entrance';
 import { ease, type Shot } from './CinematicDirector';
 import type { Chapter } from '../game/Chapters';
 import type { Player } from '../entities/Player';
@@ -149,6 +150,14 @@ function driftInto(pose: CameraPose, back: number, lift: number, side: number, f
 
 const pose = (pos: THREE.Vector3, look: THREE.Vector3, fov: number): CameraPose => ({ pos, look, fov });
 
+/** The Baoli Guardian held crouched like a carving, ember threads on it (the establishing glimpses it before the story). */
+function crouchedGuardian(ctx: IntroContext): void {
+  const boss = ctx.enemies.find((e) => e.isBoss);
+  if (!boss?.playClip('mutant_jump_attack', { startAt: 2.05, fade: 0 })) return;
+  boss.rig?.hold(2.05);
+  charged(boss, 13, { color: new THREE.Color(3.4, 1.3, 0.4).multiplyScalar(0.55), arcs: 2, width: 0.03, rate: 7, reach: 0.8 });
+}
+
 const ESTABLISHING: Record<number, (ctx: IntroContext) => Shot[]> = {
   // The village at dusk: down over the south wall toward the north gate and the sun going down behind it, then low
   // across the courtyard to the training circle, where the guru and the boy are at their lesson.
@@ -195,6 +204,20 @@ const ESTABLISHING: Record<number, (ctx: IntroContext) => Shot[]> = {
         { pos: v(36, 14, -2), look: v(0, 0.5, 0), fov: 44 },
         { pos: v(30, 11, 20), look: v(0, 1, 0), fov: 44 },
       ],
+      // The Guardian is already there, before the story brings the boy down to it: crouched on the island like one of
+      // the well's carvings, Andhaka's binding crawling on it in ember (Baoli.ts, "the Guardian wakes").
+      cues: [{ at: 0, run: () => crouchedGuardian(ctx) }],
+    },
+    // Down on the island, a slow push in on the crouched stone shape; a breath of wind, nothing else.
+    {
+      duration: 3.2,
+      fadeIn: 0.3,
+      ease: ease.drift,
+      sway: 0.006,
+      keys: [
+        { pos: v(5.2, 0.9, 6.5), look: v(0, 1.3, -4.2), fov: 34 },
+        { pos: v(4.4, 0.85, 5.2), look: v(0, 1.25, -4.2), fov: 30 },
+      ],
     },
   ],
   // The akhada: through the south gateway toward the monolith, then up Hanuman's face.
@@ -219,8 +242,9 @@ const ESTABLISHING: Record<number, (ctx: IntroContext) => Shot[]> = {
       ],
     },
   ],
-  // Dwarka at sunset, through the export's own cameras: the islands from high over the sea, across the arena to
-  // the setting sun, then down the approach to the arena.
+  // Dwarka in the storm, through the export's own overview camera: the islands from high over the sea, with the
+  // chapter card. The approach and the sea are the opening's (the storm entrance, game/stories/Dwarka.ts), so the
+  // other two authored cameras of the old intro are not used here.
   3: (ctx) => [
     {
       duration: 7,
@@ -229,24 +253,24 @@ const ESTABLISHING: Record<number, (ctx: IntroContext) => Shot[]> = {
       keys: driftInto(authored(ctx, 'CAM_Dwarka_Cinematic_Overview', pose(v(110, 75, 156), v(-10, 13, -32), 28.4)), 28, 10, 6, 30),
       cues: [{ at: 1.2, run: () => ctx.cards.chapter() }],
     },
-    {
-      duration: 6,
-      fadeIn: 0.3,
-      ease: ease.drift,
-      keys: driftInto(authored(ctx, 'CAM_Ocean_Sunset', pose(v(11, 20, -40), v(-15, 8, 100), 32)), 6, 2, -5),
-    },
-    {
-      duration: 5.5,
-      fadeIn: 0.3,
-      ease: ease.drift,
-      keys: driftInto(authored(ctx, 'CAM_Dwarka_Establishing', pose(v(-1, 23, 60), v(-7, 18, -22), 38.5)), 10, 3, 0),
-    },
   ],
   // The summit: in along the bridge from Nandi toward Shiva and the eclipse, then around the plateau.
   4: (ctx) => [
+    // From Dwarka's storm (its ending tilts up into the clouds), the summit's own sky: straight up into the eclipse,
+    // tilting down to the mountain as the light comes up.
+    {
+      duration: 4.2,
+      fadeIn: 0.9,
+      ease: ease.inOut,
+      keys: [
+        { pos: v(0, 3, 44), look: v(0, 90, 10), fov: 58 },
+        { pos: v(0, 2.2, 42), look: v(0, 30, -20), fov: 52 },
+        { pos: v(0, 1.6, 40), look: v(0, 12, -40), fov: 46 },
+      ],
+    },
     {
       duration: 6.5,
-      fadeIn: 1.4,
+      fadeIn: 0,
       ease: ease.drift,
       keys: [
         { pos: v(0, 1.6, 40), look: v(0, 12, -40), fov: 46 },
@@ -291,6 +315,8 @@ export function buildIntro(ctx: IntroContext): Shot[] {
 export function buildArrival(ctx: IntroContext, boss: Enemy): Shot[] {
   const entrance = boss instanceof Boss ? boss.scriptedEntrance() : null;
   if (entrance) return [...entranceShots(ctx, boss as Boss, entrance), heroShot(ctx, boss.getPosition())];
+  const staged = boss instanceof Boss ? boss.arrival(ctx) : null;
+  if (staged) return [...staged, heroShot(ctx, boss.getPosition())];
   const reveal = bossReveal(ctx, boss);
   return [{ ...reveal, fadeIn: 0.4 }, heroShot(ctx, boss.getPosition())];
 }
@@ -377,7 +403,6 @@ function enthronedEntrance(ctx: IntroContext, boss: BossAndhaka, entrance: { dur
   const laughing = at('Head', 1.2, seatedHead);
   const smiling = at('Head', (m.settle + m.lift) / 2 + 0.4, seatedHead);
   const crowned = at('Head', m.crowned, seatedHead);
-  const crownRest = at('LeftHand', m.lift, offset(b, f, -0.5, 0.85, h * 0.36));
   const hilt = at('RightHand', m.grip, offset(b, f, -0.4, -0.95, h * 0.4));
   const up = (p: THREE.Vector3, y: number) => p.clone().addScaledVector(UP, y);
   // The Agni beacon on the far cliff (Level4_Summit), if this place has one.
@@ -386,7 +411,6 @@ function enthronedEntrance(ctx: IntroContext, boss: BossAndhaka, entrance: { dur
   const t1 = 2.6;
   const t2 = m.settle + 1.2;
   const t3 = m.lift - 0.35;
-  const t4 = m.crowned - 0.9;
   const t4b = beacon ? m.crowned + 0.35 : m.grip - 0.25;
   const t5 = beacon ? m.grip + 0.55 : t4b;
   const t6 = m.roar;
@@ -401,65 +425,70 @@ function enthronedEntrance(ctx: IntroContext, boss: BossAndhaka, entrance: { dur
         { pos: offset(b, f, 7.6, -1.3, 1.3), look: up(laughing, -0.75), fov: 34 },
         { pos: offset(b, f, 6.4, -1.0, 1.45), look: up(laughing, -0.6), fov: 31 },
       ],
-      // His line's recording is fetched now, so it is ready nine seconds on.
-      cues: [{ at: 0, run: () => boss.playIntro() }, { at: 0, run: () => Voices.preload([CROWNING_LINE.voice]) }],
+      // His line's recording is fetched now, so it is ready nine seconds on. The picture is drained to black and white
+      // (the storm grade): his power and the fear of him; thunder throbs colour through it, and the beacon's fire brings
+      // the colour back for good.
+      cues: [
+        { at: 0, run: () => boss.playIntro() },
+        { at: 0, run: () => Voices.preload([CROWNING_LINE.voice]) },
+        { at: 0, run: () => grade(1, 0.01) },
+        { at: 1.1, run: () => { strike(1.4, 0.35, { at: offset(b, f, -9, 6, 0) }); throb(0.7, 0.75); } },
+      ],
     },
-    // Closer, from his sword side, as the laugh takes him and he settles.
+    // Closer, from his sword side, as the laugh takes him and he settles; the thunder answers it.
     {
       duration: t2 - t1,
       fadeIn: 0.15,
       ease: ease.drift,
       sway: 0.012,
+      cues: [{ at: Math.min(0.8, (t2 - t1) * 0.4), run: () => { strike(1.1, 0.6); throb(0.55, 0.9); } }],
       keys: [
         { pos: laughing.clone().addScaledVector(f.fwd, 4.3).addScaledVector(f.side, -1.9).addScaledVector(UP, -0.55), look: up(laughing, -0.55), fov: 34 },
         { pos: laughing.clone().addScaledVector(f.fwd, 3.9).addScaledVector(f.side, -1.6).addScaledVector(UP, -0.45), look: up(laughing, -0.45), fov: 32 },
       ],
     },
-    // His smiling face, close, looking down the stair at the boy: from his eye line on a long lens.
+    // His smiling face, close, looking down the stair at the boy: from his eye line on a long lens. (Half graded: in
+    // full black and white his dark face crushes to nothing, and the smile is the shot.)
     {
       duration: t3 - t2,
       fadeIn: 0.15,
       ease: ease.out,
       sway: 0.004,
+      cues: [{ at: 0, run: () => grade(0.5, 0.15) }],
       keys: [
         { pos: smiling.clone().addScaledVector(f.fwd, 2.7).addScaledVector(f.side, 0.3).addScaledVector(UP, 0.04), look: up(smiling, 0.03), fov: 16.8 },
         { pos: smiling.clone().addScaledVector(f.fwd, 2.35).addScaledVector(f.side, 0.21).addScaledVector(UP, 0.04), look: up(smiling, 0.03), fov: 15.3 },
       ],
     },
-    // The crown: his hand takes it off the throne's arm and raises it; the camera rises with it from his left. As he
-    // lifts it to his head he commands the fire.
+    // From behind his right shoulder as he crowns himself and commands the fire (the crowning itself is not shown from
+    // the front: the user, 2026-10-07): his bulk filling half the frame, the stair falling away below him to the boy, a
+    // small figure at its foot. Thunder as the crown goes on.
     {
-      duration: t4 - t3,
-      cues: [{ at: Math.max(0, m.crowned - CROWNING_LEAD - t3), run: () => ctx.say([CROWNING_LINE]) }],
-      fadeIn: 0.15,
-      ease: ease.inOut,
-      sway: 0.01,
-      keys: [
-        { pos: crownRest.clone().addScaledVector(f.fwd, 2.4).addScaledVector(f.side, 1.3).addScaledVector(UP, 0.35), look: up(crownRest, 0.15), fov: 34 },
-        { pos: crowned.clone().addScaledVector(f.fwd, 2.6).addScaledVector(f.side, 1.4).addScaledVector(UP, -0.2), look: up(crowned, 0.3), fov: 34 },
+      duration: t4b - t3,
+      cues: [
+        { at: 0, run: () => grade(1, 0.2) },
+        { at: Math.max(0, m.crowned - CROWNING_LEAD - t3), run: () => ctx.say([CROWNING_LINE]) },
+        { at: Math.max(0.2, m.crowned - t3), run: () => { strike(1.6, 0.15, { at: offset(b, f, -6, -4, 0) }); throb(0.85, 0.8); } },
       ],
-    },
-    // Close on his face as the crown comes down onto his head (level with it, on a long lens, from his right, so the
-    // left arm raising the crown stays clear of his face). As it settles the beacon takes fire at his word.
-    {
-      duration: t4b - t4,
-      fadeIn: 0.12,
-      ease: ease.out,
-      sway: 0.005,
+      fadeIn: 0.15,
+      ease: ease.drift,
+      sway: 0.008,
       keys: [
-        { pos: crowned.clone().addScaledVector(f.fwd, 3.5).addScaledVector(f.side, -1.25).addScaledVector(UP, 0.02), look: up(crowned, 0.1), fov: 22 },
-        { pos: crowned.clone().addScaledVector(f.fwd, 3.1).addScaledVector(f.side, -1.1).addScaledVector(UP, 0.02), look: up(crowned, 0.08), fov: 20.4 },
+        { pos: crowned.clone().addScaledVector(f.fwd, -1.7).addScaledVector(f.side, -0.85).addScaledVector(UP, -0.1), look: crowned.clone().addScaledVector(f.fwd, 14).addScaledVector(UP, -4.2), fov: 44 },
+        { pos: crowned.clone().addScaledVector(f.fwd, -1.45).addScaledVector(f.side, -0.75).addScaledVector(UP, 0.05), look: crowned.clone().addScaledVector(f.fwd, 14).addScaledVector(UP, -3.8), fov: 40 },
       ],
     },
     // The beacon answers: low before him on his left, the crowned king dark against it, the fire racing up off the far
-    // cliff into the sky behind him; his fist goes to the hilt.
-    ...(beacon ? [beaconShot(crowned, beacon, t5 - t4b)] : []),
+    // cliff into the sky behind him; his fist goes to the hilt. With the fire the colour comes into the world for good.
+    ...(beacon ? [{ ...beaconShot(crowned, beacon, t5 - t4b), cues: [{ at: 0.15, run: () => grade(0, 0.7) }] }] : []),
     // Low on his sword side: his fist closes on the hilt and he rises, the blade coming up out of the stone.
     {
       duration: t6 - t5,
       fadeIn: 0.12,
       ease: ease.drift,
       sway: 0.015,
+      // (In colour by now; and without a beacon the colour comes back here.)
+      cues: [{ at: 0, run: () => grade(0, 0.4) }],
       keys: [
         { pos: offset(b, f, 2.6, -3.3, 0.55), look: up(hilt, 0.1), fov: 40 },
         { pos: offset(b, f, 3.2, -3.6, 0.8), look: offset(b, f, 0, -0.3, h * 0.62), fov: 42 },

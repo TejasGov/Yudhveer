@@ -68,6 +68,8 @@ export class Enemy extends Character {
   /** Shown on its health bar and on cutscene cards. */
   public displayName = 'Warrior';
   public epithet = '';
+  /** Its name in Devanagari, over the name on a boss's card (empty: none shown). */
+  public nativeName = '';
   /** Bosses get the large bar at the foot of the screen and a cutscene of their own. */
   public isBoss = false;
   /** How its weapon sounds: the whoosh of a swing, and the blow when it lands on the hero. */
@@ -99,6 +101,18 @@ export class Enemy extends Character {
   public guard: Guard | null = null;
   /** The kick (SHOVE) has connected, or missed, in this one (CombatSystem resolves it at `shoveContact`). */
   public shoveLanded = false;
+  /**
+   * A blow that lands the moment it is set, with no blade to sweep (Takshaka coming up behind the hero): CombatSystem
+   * resolves it on its next step and clears it. It cannot be blocked or parried; a slide under it or a jump over it
+   * escapes it.
+   */
+  public ambush: { damage: number; posture: number } | null = null;
+  /**
+   * Brings another fighter into the fight (Andhaka's variants of himself), set by the Engine for a boss: `make` builds
+   * it, `at` is where its feet go; it is given the summoner's own model and collider, and `onReady` is called once
+   * its model is on.
+   */
+  public onSummon: ((spec: { make: () => Enemy; at: THREE.Vector3; onReady?: (e: Enemy) => void }) => void) | null = null;
   /** Its next blow is an answer to a run of blocked ones: its quickest, not its string. */
   protected counterNext = false;
   private lastState: CharacterState = 'IDLE';

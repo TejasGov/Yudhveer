@@ -822,7 +822,27 @@ export class SoundFX {
     }
   }
 
-  /** A temple bell; `brightness` above 1 is a smaller bell. */
+  /** One stroke of the temple bell, for a scene (the akhada's evening; `brightness` above 1 for a smaller bell). */
+  public playTempleBell(brightness = 1, pan = 0): void {
+    this.templeBell(0, brightness, pan);
+  }
+
+  /**
+   * The healing herb (Sanjeevani): `sprout`, a soft shimmer climbing as it comes up out of the stone; `take`, a clear
+   * chime over a warm swell as it gives the hero his health back.
+   */
+  public playHerb(kind: 'sprout' | 'take', pan = 0): void {
+    if (kind === 'sprout') {
+      [1, 1.25, 1.5, 2, 2.5].forEach((r, i) => {
+        this.tone({ type: 'sine', freq: vary(660 * r, 0.004), gain: 0.03, attack: 0.03, duration: 1.1, delay: i * 0.1, pan, wet: 0.75 });
+      });
+      return;
+    }
+    this.ring(1180, [1, 2.01, 2.76, 3.9], [1.4, 1.0, 0.7, 0.5], 0.06, { pan, wet: 0.6 });
+    this.tone({ type: 'sine', freq: 392, to: 523, gain: 0.05, attack: 0.15, duration: 0.9, pan, wet: 0.5 });
+    this.tone({ type: 'sine', freq: 588, to: 784, gain: 0.03, attack: 0.2, duration: 0.9, delay: 0.05, pan, wet: 0.5 });
+  }
+
   private templeBell(at: number, brightness: number, pan: number): void {
     const base = 310 * brightness;
     this.ring(base, [0.5, 1, 1.19, 1.5, 2, 2.52, 3.01], [6, 5, 4, 3.5, 2.5, 1.8, 1.2], 0.05, { delay: at, pan, wet: 0.8, amb: true });
@@ -974,6 +994,26 @@ export class SoundFX {
     const len = rand(3, 5.5);
     this.noise({ color: 'white', filter: 'bandpass', from: 1800, peak: rand(3200, 4500), to: 2000, q: 0.8, duration: len, gain: rand(0.05, 0.09), attack: len * 0.4, delay: at, pan: rand(-0.5, 0.5), amb: true });
     this.noise({ color: 'pink', filter: 'bandpass', from: 380, peak: rand(800, 1100), to: 420, q: 2, duration: len, gain: rand(0.05, 0.08), attack: len * 0.45, delay: at, pan: rand(-0.6, 0.6), amb: true });
+  }
+
+  /**
+   * A cutscene's lightning, on cue: the flash now (`onLightning`: the sky light flares and the storm's rain lights up,
+   * by `strength`, 1 for a near strike and up to about 1.6 for one that lands on the boss) and the thunder `lag`
+   * seconds after it, sharp and close for a short lag. Plays whether or not anyone is speaking (the weather's own
+   * strikes hold off then). `flash`: how hard the light flares, if not as hard as it sounds (a graded scene, where a
+   * full flare would wash the picture out).
+   */
+  public strike(strength = 1, lag = 0.3, flash = strength): void {
+    const near = Math.min(1.6, Math.max(0.3, strength));
+    const pan = rand(-0.3, 0.3);
+    this.onLightning?.(flash);
+    const t = Math.max(0.05, lag);
+    this.noise({ color: 'white', filter: 'highpass', from: 2200, to: 900, duration: 0.3, gain: 0.3 * Math.min(1, near), attack: 0.002, delay: t, pan, wet: 0.45, amb: true });
+    this.noise({ color: 'brown', filter: 'lowpass', from: 1100, to: 90, duration: 4.5, gain: 0.55 * near, attack: 0.03, delay: t, pan, wet: 0.6, amb: true });
+    for (let i = 1; i <= 3; i++) {
+      this.noise({ color: 'brown', filter: 'lowpass', from: 420, to: 80, duration: 2.5, gain: 0.3 * near / i, attack: 0.15, delay: t + i * rand(0.5, 0.9), pan: pan * -0.5, wet: 0.6, amb: true });
+    }
+    this.thump(50, 2.4, 0.45 * near, { delay: t, amb: true });
   }
 
   /** Lightning now, thunder after (sooner and sharper the closer it is); `far` keeps it in the distance (0..1). */
@@ -1378,6 +1418,68 @@ export class SoundFX {
     this.ring(220, [1, 1.5, 2, 2.67, 4], [3.5, 3.1, 2.7, 2.3, 1.9], 0.12, { wet: 0.5 });
   }
 
+  // --- Entrances (docs/proposals/ENTRANCES.md) ------------------------------------------------------------------
+
+  /**
+   * The world holds its breath: the place's ambience (rain, sea, wind) and the soundtrack down to `level` (0..1)
+   * over about `seconds`, for the vacuum before a blow lands in slow motion; 1 brings them back. Effects (the riser,
+   * the boom, voices) are not hushed.
+   */
+  public hush(level: number, seconds = 0.4): void {
+    const ctx = this.ctx;
+    const k = Math.max(0, Math.min(1, level));
+    this.music.hush(k, seconds);
+    if (!ctx || !this.ambBus || this.rendering) return;
+    const g = this.ambBus.gain;
+    g.cancelScheduledValues(ctx.currentTime);
+    g.setValueAtTime(g.value, ctx.currentTime);
+    g.setTargetAtTime(0.7 * k, ctx.currentTime, Math.max(0.02, seconds / 3));
+  }
+
+  /**
+   * A swell into a blow `seconds` from now: air rushing up through a rising filter, a low tone climbing under it and a
+   * shimmer on top, cut dead at the end (where the blow lands).
+   */
+  public playRiser(seconds = 1.6, gain = 1): void {
+    const s = Math.max(0.3, seconds);
+    this.noise({ color: 'pink', filter: 'bandpass', from: 180, to: 5200, q: 1.4, duration: s, gain: 0.22 * gain, attack: s * 0.96, wet: 0.35 });
+    this.noise({ color: 'white', filter: 'highpass', from: 3000, to: 9000, duration: s, gain: 0.05 * gain, attack: s * 0.96 });
+    this.tone({ type: 'sawtooth', freq: 55, to: 165, gain: 0.08 * gain, attack: s * 0.95, duration: s, filter: { type: 'lowpass', freq: 700, q: 2 } });
+    this.tone({ type: 'sine', freq: 41, to: 82, gain: 0.25 * gain, attack: s * 0.95, duration: s });
+  }
+
+  /**
+   * Something enormous lands: a sub drop felt more than heard, the crack of stone, the debris rolling off, the place's
+   * echo of it. `strength` 1 for a boss arriving.
+   */
+  public playImpactBoom(strength = 1): void {
+    const k = Math.max(0.2, Math.min(1.5, strength));
+    this.tone({ type: 'sine', freq: 62, to: 24, gain: 0.68 * k, attack: 0.003, duration: 3.2, wet: 0.3 });
+    this.thump(95, 0.9, 0.48 * k, { wet: 0.4 });
+    this.noise({ color: 'white', filter: 'highpass', from: 2400, to: 700, duration: 0.18, gain: 0.32 * k, attack: 0.001 });
+    this.noise({ color: 'brown', filter: 'lowpass', from: 1800, to: 60, duration: 3.6, gain: 0.5 * k, attack: 0.005, wet: 0.6 });
+    for (let i = 0; i < 8; i++) {
+      this.noise({ color: 'pink', filter: 'bandpass', from: rand(700, 1600), to: 300, q: 2, duration: 0.09, gain: 0.04 * k, attack: 0.002, delay: 0.25 + rand(0, 1.1), pan: rand(-0.8, 0.8), wet: 0.4 });
+    }
+  }
+
+  /**
+   * A name card's sting: a double stroke on the big drum, and under it a dark brass chord (a fifth, the octave and the
+   * flat second, Bhairav's colour) swelling and dying. `pitch` re-tunes it per boss.
+   */
+  public playSting(pitch = 1): void {
+    const root = 73.4 * pitch;
+    this.thump(58 * pitch, 1.8, 0.52, { wet: 0.4 });
+    this.thump(52 * pitch, 2.2, 0.45, { delay: 0.16, wet: 0.5 });
+    this.noise({ duration: 0.12, gain: 0.14, attack: 0.002, filter: 'lowpass', from: 1400, to: 200 });
+    for (const [ratio, level] of [[1, 1], [1.5, 0.7], [2, 0.55], [2.12, 0.35], [3, 0.25]] as const) {
+      for (const detune of [-1, 1]) {
+        this.tone({ type: 'sawtooth', freq: root * ratio * (1 + detune * 0.003), gain: 0.05 * level, attack: 0.09, duration: 3.4, delay: 0.16, wet: 0.55, filter: { type: 'lowpass', freq: 520 + 300 * level, q: 0.8 } });
+      }
+    }
+    this.ring(root * 4, [1, 2.76, 5.4], [3.2, 2.2, 1.4], 0.05, { delay: 0.16, wet: 0.6 });
+  }
+
   /** A small brass bell tapped as the menu focus moves. */
   public playUiMove(): void {
     if (this.sample('ui_move')) return;
@@ -1593,6 +1695,61 @@ export class SoundFX {
       }
       release();
     };
+  }
+
+  /**
+   * A voice that echoes off the mountains (Andhaka's laugh): played as `playVoice` does, and fed into a delay line
+   * that feeds back into itself, each repeat darker, quieter and swinging wider left and right, dying away over a few
+   * seconds. `delay`: seconds from now.
+   */
+  public playVoiceEcho(buffer: AudioBuffer, wet = 0.3, delay = 0, echo: { gap?: number; feedback?: number } = {}): void {
+    const ctx = this.ready();
+    if (!ctx || !this.sfxBus) return;
+    const { gap = 0.42, feedback = 0.55 } = echo;
+    this.playVoice(buffer, 0, wet, delay);
+    const t = ctx.currentTime + delay;
+    const src = ctx.createBufferSource();
+    src.buffer = buffer;
+    const send = ctx.createGain();
+    send.gain.value = 0.55;
+    // Two delay lines a little apart, crossed into each other: the repeats bounce between left and right.
+    const left = ctx.createDelay(2);
+    const right = ctx.createDelay(2);
+    left.delayTime.value = gap;
+    right.delayTime.value = gap * 1.37;
+    const darkL = ctx.createBiquadFilter();
+    const darkR = ctx.createBiquadFilter();
+    darkL.type = darkR.type = 'lowpass';
+    darkL.frequency.value = 2600;
+    darkR.frequency.value = 2100;
+    const backL = ctx.createGain();
+    const backR = ctx.createGain();
+    backL.gain.value = backR.gain.value = feedback;
+    const panL = ctx.createStereoPanner();
+    const panR = ctx.createStereoPanner();
+    panL.pan.value = -0.6;
+    panR.pan.value = 0.6;
+    const out = ctx.createGain();
+    out.gain.value = 0.85;
+    src.connect(send);
+    send.connect(left);
+    left.connect(darkL);
+    darkL.connect(panL);
+    darkL.connect(backL);
+    backL.connect(right);
+    right.connect(darkR);
+    darkR.connect(panR);
+    darkR.connect(backR);
+    backR.connect(left);
+    panL.connect(out);
+    panR.connect(out);
+    this.place(out, { wet: 0.7 });
+    src.start(t);
+    // Cut the loop once the repeats have died away (they fall by `feedback` each bounce).
+    const tail = buffer.duration + gap * 14;
+    window.setTimeout(() => {
+      for (const n of [src, send, left, right, darkL, darkR, backL, backR, panL, panR, out]) n.disconnect();
+    }, (delay + tail) * 1000);
   }
 }
 
@@ -1930,6 +2087,8 @@ class Music {
   private readonly failed = new Set<Track>();
   private ducks = 0;
   private dimmed = false;
+  /** A scene holding its breath (SoundFX.hush): the soundtrack down to this, 1 when it is not. */
+  private hushLevel = 1;
   /** What a one-shot piece hands over to when it ends (`then`), and how soon the next `play` may come in (`fadeIn`). */
   private after: Track | null = null;
   private nextFadeIn = CROSSFADE;
@@ -2006,6 +2165,12 @@ class Music {
     };
   }
 
+  /** Down to `level` (0..1) over about `seconds` while a scene holds its breath; 1 brings it back. */
+  public hush(level: number, seconds: number): void {
+    this.hushLevel = Math.max(0, Math.min(1, level));
+    this.applyLevel(0, Math.max(0.02, seconds / 3));
+  }
+
   /** Lower in cutscenes. */
   public dim(on: boolean): void {
     if (this.dimmed === on) return;
@@ -2019,7 +2184,7 @@ class Music {
     const g = this.out.gain;
     g.cancelScheduledValues(now);
     g.setValueAtTime(g.value, now);
-    g.setTargetAtTime((this.ducks > 0 ? DUCKED : 1) * (this.dimmed ? DIMMED : 1), now + delay, smoothing);
+    g.setTargetAtTime((this.ducks > 0 ? DUCKED : 1) * (this.dimmed ? DIMMED : 1) * this.hushLevel, now + delay, smoothing);
   }
 
   private start(track: Track, buffer: AudioBuffer): void {
