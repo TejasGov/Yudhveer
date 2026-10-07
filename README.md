@@ -30,6 +30,7 @@
   <a href="#features">Features</a> &middot;
   <a href="#characters">Characters</a> &middot;
   <a href="#controls">Controls</a> &middot;
+  <a href="#settings-and-voices">Settings and voices</a> &middot;
   <a href="#run-it-locally">Run it locally</a> &middot;
   <a href="#tech-stack">Tech stack</a> &middot;
   <a href="#project-structure">Project structure</a> &middot;
@@ -236,7 +237,7 @@ Keyboard and mouse, or any standard gamepad. The on-screen prompts follow whiche
 | Attack (press again to chain three) | Left click | <kbd>X</kbd> or <kbd>RB</kbd> |
 | Leaping strike | Attack while sprinting | Attack while sprinting |
 | Slide (passes under blows and bolts) | <kbd>F</kbd> | <kbd>B</kbd> |
-| Guard, and deflect with good timing | Right click | <kbd>LB</kbd> or <kbd>LT</kbd> |
+| Guard, and deflect with good timing | <kbd>E</kbd> or right click | <kbd>LB</kbd> or <kbd>LT</kbd> |
 | Charge the next three blows | Hold <kbd>Q</kbd> | Hold <kbd>Y</kbd> or <kbd>RT</kbd> |
 | Sheathe or draw | <kbd>X</kbd> | D-pad down |
 | Skip a cutscene | Hold <kbd>Space</kbd> or <kbd>Enter</kbd> | Hold <kbd>A</kbd> |
@@ -244,6 +245,15 @@ Keyboard and mouse, or any standard gamepad. The on-screen prompts follow whiche
 | Pause | <kbd>Esc</kbd> | Start |
 
 It needs a current desktop browser with WebGL 2. It is not built for phones or tablets.
+
+## Settings and voices
+
+The Settings screen (from the title or the pause menu) has volume, music, look sensitivity and inversion, camera shake, controller rumble, combat hints, gore, and:
+
+- **Pro mode**, off by default. On, every enemy reads you each step: your guard, your slide and its untouchable moment, your charge, your swing, your health, and your habits over the last six seconds. They choose their blows to beat what you are doing (the quick blow into your swing, the heavy one against a raised dhal, the wide cut across a slide, a kick when you turtle in its reach) and punish what you repeat: a slide at every glint finds the blow held until you come up; a wall of blocks meets heavy blows and kicks. Yudhveer carries 130 health instead of 100 to meet them. Off, nothing changes. The reading and its knobs are in `src/combat/Tactics.ts`.
+- **About the author**, in both menus, with a link to this repository.
+
+Every speaking character is voiced. The cast's voices are generated with ElevenLabs; Yudhveer's own lines are recorded by the author.
 
 ## Run it locally
 
