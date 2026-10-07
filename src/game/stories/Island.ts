@@ -5,12 +5,18 @@ import { SoundFX } from '../../combat/SoundFX';
 import { KITS } from '../Progression';
 import { ISLAND } from '../../levels/Level5_Island';
 import { ISLAND_FOES } from '../IslandExpedition';
+import { grade } from '../../cinematics/Entrance';
+import { GURU } from '../../entities/characters/Village';
 
 /*
  * Chapter III: the island (docs/STORY.md, "Chapter III" and "Milestone 7"). He comes ashore in a sea cave with the
  * akhada's sword and dhal, goes down through the lamp-lit caves to the shrine, and takes up the blessed mace from its
- * altar: the chapter is won when he lifts it. Yudhveer is not voiced (subtitles only); the boatman and the voice in
- * the shrine are.
+ * altar: the chapter is won when he lifts it. The boatman and the voice in the shrine are generated voices; Yudhveer
+ * is the user's own recordings.
+ *
+ * The mace in his hands, before he goes on to Dwarka (the user, 2026-10-07: moved here from the prologue's end), the
+ * guru's promise comes back to him as a memory: the picture drains to black and white and the guru stands before him
+ * on the dais, his voice echoing; then the boy's answer, Raghu's word, kept though life goes.
  */
 
 const v = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
@@ -30,6 +36,9 @@ const WAY_OUT = v(0.6, -2.5, -63);
 const POWER_UP_SECONDS = 3.03;
 
 export const ISLAND_STORY: ChapterStory = {
+  // The guru, only as a memory at the end (out of sight until then).
+  cast: [{ id: 'guru', rig: GURU, at: v(0, -2.1, -70), hidden: true }],
+
   // Ashore at the landing: the boatman stays under his canopy in the dark of the boat and will go no further.
   opening: {
     id: 'island-opening',
@@ -239,13 +248,78 @@ export const ISLAND_STORY: ChapterStory = {
           { pos: s.at('hero', 1.5, 0.6, 1.55), look: s.head('hero'), fov: 33 },
         ],
       },
+      // The memory: the picture drains to black and white and the guru stands before him on the dais, where the lamps
+      // are; his voice comes back, echoing: the promise. Over the boy's shoulder at him.
+      {
+        duration: 4.4,
+        fadeIn: 0.6,
+        ease: ease.drift,
+        sway: 0.008,
+        carryLines: true,
+        linesAt: 0.7,
+        cues: [
+          { at: 0, run: () => grade(1, 0.5) },
+          { at: 0, actor: 'guru', place: (s: Stage) => s.at('hero', 1.9, 0, 0), face: 'hero' },
+          { at: 0, run: (s) => s.actor('guru')?.playClip('breathing_idle', { fade: 0 }) },
+          { at: 0, actor: 'guru', show: true },
+          { at: 0.1, run: () => SoundFX.getInstance().playTempleBell(1.6, 0) },
+        ],
+        lines: [{
+          speaker: 'Guru',
+          text: "Promise me, Yudhveer... when the time comes, you'll search for the truth. You'll go to the Baoli.",
+          voice: 'prologue_end_guru_2',
+          echo: { gap: 0.38, feedback: 0.5, wet: 0.5 },
+          look: 'memory',
+        }],
+        camera: (s): CameraKey[] => {
+          const guru = s.at('hero', 1.9, 0, 0);
+          const look = guru.clone().add(v(0, 1.6, 0));
+          return [
+            { pos: s.at('hero', -0.9, -0.45, 1.7), look, fov: 36 },
+            { pos: s.at('hero', -0.6, -0.4, 1.68), look, fov: 32 },
+          ];
+        },
+      },
+      // Close on the boy as the voice goes on and the memory fades: the guru is gone again.
+      {
+        duration: 5.0,
+        fadeIn: 0.5,
+        ease: ease.drift,
+        sway: 0.008,
+        cues: [
+          { at: 0, actor: 'guru', show: false },
+          { at: 3.6, run: () => grade(0, 1.2) },
+        ],
+        camera: (s): CameraKey[] => [
+          { pos: s.at('hero', 1.1, 0.35, s.head('hero').y - s.pos('hero').y - 0.05), look: s.head('hero'), fov: 30 },
+          { pos: s.at('hero', 0.9, 0.3, s.head('hero').y - s.pos('hero').y - 0.08), look: s.head('hero'), fov: 27 },
+        ],
+      },
+      // His answer, low in front of him, the shrine's lamps behind: the word of Raghu's line is kept, though life goes.
+      {
+        fadeIn: 0.25,
+        ease: ease.drift,
+        sway: 0.01,
+        linesAt: 0.5,
+        cues: [{ at: 0, run: () => grade(0, 0) }],
+        lines: [{ speaker: 'Yudhveer', text: 'रघुकुल रीत सदा चली आई, प्राण जाइ बरु बचनु न जाई', voice: 'prologue_end_hero_3' }],
+        camera: (s): CameraKey[] => [
+          { pos: s.at('hero', 2.1, 0.45, 1.0), look: s.head('hero').add(v(0, 0.02, 0)), fov: 34 },
+          { pos: s.at('hero', 1.75, 0.38, 1.12), look: s.head('hero').add(v(0, 0.02, 0)), fov: 31 },
+        ],
+      },
       // Down off the dais toward the tunnel; the camera stays by the altar and rises, and the lamps close behind him.
       {
         duration: 6,
         fadeIn: 0.2,
         fadeOut: 1.8,
         ease: ease.drift,
-        cues: [{ at: 0.3, actor: 'hero', moveTo: WAY_OUT }],
+        cues: [
+          // Out of the memory, however it went (a skip): in colour, the guru gone.
+          { at: 0, run: () => grade(0, 0), essential: true },
+          { at: 0, actor: 'guru', show: false, essential: true },
+          { at: 0.3, actor: 'hero', moveTo: WAY_OUT },
+        ],
         camera: [
           { pos: v(-1.2, -0.6, -77.55), look: v(0, -1.0, -68), fov: 46 },
           { pos: v(-1.5, 1.2, -77.6), look: v(0.3, -1.5, -66), fov: 50 },

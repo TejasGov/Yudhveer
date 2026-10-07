@@ -969,13 +969,14 @@ to 140 ms), and a lesson that will not end is a rage quit. Now:
 
 Yudhveer is voiced now, by the user's own recordings (game asset/voice/VOICES.md): 20 of his 23 lines, and three new.
 
-- **The prologue's end** (`Prologue.ts`), after he stands up out of the dust:
-  - **The memory:** the picture drains to black and white (the storm grade), and the guru stands before him in the
-    training circle again, where he taught him. His voice comes back, echoing, as a memory (italic):
-    "Promise me, Yudhveer... when the time comes, you'll search for the truth. You'll go to the Baoli."
+- **The island's end, before Dwarka** (`Island.ts`; moved here from the prologue the same day, at the user's word), the mace in his hands:
+  - **The memory:** the picture drains to black and white (the storm grade), and the guru stands before him on the shrine's
+    dais. His voice comes back, echoing, as a memory (italic): "Promise me, Yudhveer... when the time comes, you'll search
+    for the truth. You'll go to the Baoli." (The words are the prologue's; here they are remembered, the Baoli behind him.)
   - **Close on the boy,** the colour coming back.
-  - **His answer,** low in front of him, the haystack burning behind: "रघुकुल रीत सदा चली आई, प्राण जाइ बरु बचनु न जाई"
-    (his recording).
+  - **His answer,** low in front of him, the shrine's torana and lamps behind: "रघुकुल रीत सदा चली आई, प्राण जाइ बरु बचनु न
+    जाई" (his recording). Then he walks out with the mace.
+- **The prologue's end** (`Prologue.ts`), after he stands up out of the dust:
   - **His vow,** now voiced.
   - **The shloka** (`SHLOKA`): the Gita's 4.7 in his voice, one phrase to a shot:
     1. his eyes, close;
