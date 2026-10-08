@@ -1,5 +1,7 @@
 ## Audit fixes — 8 October 2026
 
+6. Room reuse: recreating an empty closed room resets its lobby, scores and epochs. Old detached sockets cannot affect its replacement. The Node wrapper checks map identity before deleting a room, preventing a delayed old close event from deleting a new room with the same code. Added retained-room lifecycle regression; all 29 tests, TypeScript and build pass. Cloudflare execution remains unverified.
+
 5. Duel HeroBot now passes only perceived threats to offence, approach and camera decisions. Its 300 ms steady reaction delay applies consistently; campaign bots retain the original threat selection. A production-method regression checks the pre/post-reaction boundary and the campaign branch. All 28 tests, TypeScript and build pass. Difficulty remains steady; no damage/parry-window tuning was changed.
 
 4. Backpressure: movement snapshots yield at 4 KiB queued; a connection closes at 32 KiB or two seconds of unacknowledged delivery. Cumulative delivery receipts bound the shared room independently of bufferedAmount (including the Worker adapter). Critical motion/results are retained or the connection ends explicitly. Added client backlog/loss and room receipt/backlog regressions; all 27 tests, TypeScript and Vite build pass.

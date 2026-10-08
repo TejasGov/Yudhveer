@@ -56,6 +56,10 @@ export class DuelRoom {
   }
   join(socket, create) {
     if (this.seats.size === 0 && !create) { this.send(socket, { type: 'error', message: 'Room not found' }); socket.close(1008); return false; }
+    // A Durable Object outlives its sockets. Recreating an empty code starts a fresh room, not a closed lobby.
+    if (this.seats.size === 0 && this.phase === 'closed' && create) {
+      this.round = 0; this.roundNumber = 0; this.nextRound = 1; this.score = [0, 0]; this.phase = 'lobby';
+    }
     if (this.seats.size >= 2) { this.send(socket, { type: 'error', message: 'Room is full' }); socket.close(1008); return false; }
     const seat = [...this.seats.values()].some(s => s.seat === 0) ? 1 : 0;
     this.seats.set(socket, { seat, name: 'Yodha', ready: false, rematch: false, seq: -1, health: 100,

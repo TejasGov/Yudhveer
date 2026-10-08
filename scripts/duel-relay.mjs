@@ -19,7 +19,7 @@ server.on('connection', (socket, request) => {
   socket.alive = true;
   socket.on('pong', () => { socket.alive = true; });
   socket.on('message', (data, binary) => { if (!binary) room.message(socket, data.toString()); });
-  const leave = () => { room.leave(socket); if (!room.seats.size) rooms.delete(code); };
+  const leave = () => { room.leave(socket); if (!room.seats.size && rooms.get(code) === room) rooms.delete(code); };
   socket.on('close', leave); socket.on('error', leave);
 });
 const heartbeat = setInterval(() => {

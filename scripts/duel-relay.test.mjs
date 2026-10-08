@@ -205,3 +205,15 @@ test('future acknowledgements cannot erase backlog and missing receipts end an a
   }
   assert.equal(p.room.phase, 'closed');
 });
+
+test('an empty retained room can be recreated after disconnect with fresh epochs and score', () => {
+  const p = pair(); defend(p.room, p.b, hit(1, 0)); p.room.leave(p.a);
+  const missing = socket(); assert.equal(p.room.join(missing, false), false);
+  const c = socket(), d = socket(); c.room = d.room = p.room;
+  assert.equal(p.room.join(c, true), true); assert.equal(p.room.join(d, false), true);
+  ready(p.room, c, d); p.time.advance(2);
+  assert.equal(p.room.active, true); assert.equal(p.room.round, 1); assert.equal(p.room.roundNumber, 1);
+  assert.deepEqual(p.room.score, [0, 0]); assert.equal(p.room.seats.size, 2);
+  // Events from detached old sockets cannot touch the replacement session.
+  p.room.leave(p.b); send(p.room, p.a, hit(1, 0)); assert.equal(p.room.active, true);
+});
