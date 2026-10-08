@@ -275,6 +275,15 @@ The villagers (Peasant Man, Abe, Peasant Girl: see "Prologue, the village") and 
 Royalty-free for use in games under Mixamo's terms; credited as a courtesy. The clip groups and what each is used for
 are in `game asset/README.md`, "Characters".
 
+The duel's unarmed training rig (`yodha_duel_boxing.glb`, 2026-10-08) adds nine Adobe Mixamo animations:
+Boxing Idle, Boxing Advancing Forward, Unarmed Run Forward, Boxing Leading Hand Jab (mirrored), Boxing Back Hand
+Cross, Boxing Back Hand Hook, Stomach Hit, Head Hit and Knocked Out Falling To Back. Downloaded on X Bot without
+skin, Binary FBX, 30 fps, then retargeted onto the existing training hero; locomotion made in place and punch
+lead-ins/recovery cropped in the game's state table. Both empty hands use the rig's existing fist pose.
+Source hashes/settings are in `docs/PVP_BOXING_SOURCES.json`; raw FBXs are kept outside the repo in
+`E:\hindan\pvp-boxing-sources`, without changes to `game asset/`. Adobe permits royalty-free use in games in its
+[Mixamo FAQ](https://helpx.adobe.com/creative-cloud/faq/mixamo-faq.html). Credited as a courtesy.
+
 ## Fonts (Google Fonts, SIL Open Font License 1.1)
 
 Loaded at run time from Google Fonts by the stylesheet link in `index.html`; nothing is bundled. The designers are named
