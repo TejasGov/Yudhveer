@@ -10,6 +10,8 @@ import { asset } from '../../core/Assets';
 /** What one blow of a weapon does to whoever it lands on. `heavy` blows break through a committed attack. */
 export interface Blow {
   damage: number;
+  /** Metres of useful centre-to-centre reach for a short hand blow (absent keeps campaign aim). */
+  reach?: number;
   posture: number;
   heavy?: boolean;
 }
@@ -39,6 +41,8 @@ export interface WeaponSet {
   /** Can go in the scabbard (X). A staff or a mace is carried, not sheathed. */
   stowable: boolean;
   sound: WeaponSound;
+  /** Centre-to-centre engagement distance; absent keeps campaign bot behaviour. */
+  reach?: number;
 }
 
 /** A weapon set's rig on the model of what he wears (the same clips and sockets either way). */
@@ -219,6 +223,15 @@ const LATHI_STATES: Partial<Record<CharacterState, StateAnimation>> = {
 };
 
 /**
+ * Temporary unarmed motion, in one state-to-clip table. These are the lathi clips with the staff entirely absent;
+ * replace an entry's clip and timing here when real boxing clips arrive. The hand socket carries an empty group,
+ * like Yatudhana's hand attack, so measured windows and swept hit detection follow the fist rather than a blade.
+ */
+export const FISTS_STATES: Partial<Record<CharacterState, StateAnimation>> = {
+  ...LATHI_STATES, ATTACK_JUMP: undefined, CHARGE: undefined,
+};
+
+/**
  * The basic sword's grip on its model: none to speak of. `hero_sword.glb` is the hero's own talwar (Meshy 7.1, made for
  * the game and prepared with `prepare_weapon.py`), so its grip is at the origin and its blade runs up +Y like the
  * khanda's, and the fist closes on it with no offset. (It used to be the Vetala's notched blade, whose model was
@@ -264,6 +277,22 @@ const MACE_STATES: Partial<Record<CharacterState, StateAnimation>> = {
  * and the khanda hang in code-built scabbards (Scabbard.ts) when sheathed.
  */
 export const WEAPON_SETS: Record<WeaponId, WeaponSet> = {
+  fists: {
+    id: 'fists', name: 'Fists', reach: 1.05,
+    definition: heroWith({
+      offhand: false, states: FISTS_STATES,
+      weapon: { socket: 'Socket_Hand_R', socketFrame: true, restWorldRotation: [0, 0, 0], grip: [0, 0, 0],
+        build: () => new THREE.Group(), blade: [0, 0.12] },
+    }),
+    // Starting guesses; bot measurements and human play determine the final numbers.
+    blows: {
+      ATTACK_1: { damage: 4, posture: 7, reach: 1.05 },
+      ATTACK_2: { damage: 5, posture: 9, reach: 1.05 },
+      ATTACK_3: { damage: 4, posture: 8, reach: 1.05 },
+    },
+    shield: false, stowable: false,
+    sound: { swing: [1.25, 1.4, 1.1], whoosh: 'lathi', impact: 'crush' },
+  },
   lathi: {
     id: 'lathi',
     name: 'Lathi',

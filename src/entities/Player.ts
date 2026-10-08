@@ -75,6 +75,8 @@ export class Player extends Character {
   public attire: Attire = KITS.baoli.attire;
   /** His rig in another attire, loaded ahead so the story's change of clothes is instant (`ready`, `wear`). */
   private wardrobe: { attire: Attire; weapon: WeaponSet; rig: Promise<PreparedRig>; ready: PreparedRig | null } | null = null;
+  /** Prepared duel wardrobes: round changes do not fetch, rebuild or measure a rig during a match. */
+  private readonly duelRigs = new Map<string, PreparedRig>();
   /** Called when the fight teaches him a move (the engine shows the banner). */
   public onLearned: ((ability: Ability) => void) | null = null;
 
@@ -171,6 +173,32 @@ export class Player extends Character {
       this.attire = kit.attire;
     }
     await later.catch((err) => console.error(`[Player] his ${kit.becomes} rig failed to load`, err));
+  }
+
+  /** Loads every distinct duel kit before either peer reports ready; campaign equip never uses this cache. */
+  public async prepareDuelKits(kits: readonly HeroKit[]): Promise<void> {
+    for (const kit of kits) {
+      const key = kit.attire + ':' + kit.weapon;
+      if (!this.duelRigs.has(key)) this.duelRigs.set(key, await this.prepareRig(dressed(WEAPON_SETS[kit.weapon], kit.attire)));
+    }
+  }
+
+  /** Switches to a fully readied round rig synchronously, preserving the other round's rig and its props. */
+  public equipDuelKit(kit: HeroKit): void {
+    const prepared = this.duelRigs.get(kit.attire + ':' + kit.weapon);
+    if (!prepared) throw new Error('Duel kit was not preloaded');
+    const cached = [...this.duelRigs.values()].some(p => p.rig === this.rig);
+    this.skills.setKit(kit);
+    this.swordSheathed = false;
+    if (this.rig !== prepared.rig) this.mountRig(prepared, false, cached);
+    this.weapon = WEAPON_SETS[kit.weapon];
+    this.attire = kit.attire;
+  }
+
+  /** The worn rig belongs to Character until the next equip; only detached cached rigs are freed here. */
+  public clearDuelKits(): void {
+    for (const p of this.duelRigs.values()) if (p.rig !== this.rig) p.rig.dispose();
+    this.duelRigs.clear();
   }
 
   /** Loads his rig in `attire` (with `weapon`, by default the one in hand) for a later `wear`. */
@@ -473,7 +501,7 @@ export class Player extends Character {
       if (aiming) this.aimYaw = aim;
       return;
     }
-    const gap = Math.hypot(best.group.position.x - pos.x, best.group.position.z - pos.z) - ASSIST.reach - (best.motor?.radius ?? 0.4);
+    const gap = Math.hypot(best.group.position.x - pos.x, best.group.position.z - pos.z) - (this.weapon.reach === undefined ? ASSIST.reach : this.weapon.reach - (best.motor?.radius ?? 0.4)) - (best.motor?.radius ?? 0.4);
     const travel = this.rootTravel(state, strike?.t0 ?? 0);
     if (travel > 0.2) {
       // A clip that carries him (the leaping strike) is stretched or shortened to land on the target.

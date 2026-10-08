@@ -6,7 +6,7 @@ import { RemoteHero } from '../entities/RemoteHero';
 import { DuelTransport, type DuelMessage } from './Transport';
 import { separateFighters } from '../physics/CharacterMotor';
 import { HeroBot, SKILLS } from '../debug/HeroBot';
-import { DUEL_LOADOUT, DUEL_ROUNDS_TO_WIN, DUEL_SPAWNS, DUEL_STARTING_HEALTH } from './Rules';
+import { DUEL_LOADOUT, DUEL_ROUND_KITS, DUEL_ROUNDS_TO_WIN, DUEL_SPAWNS, DUEL_STARTING_HEALTH } from './Rules';
 
 /**
  * The first duel spike: a second real hero driven through HeroBot's buffered controls, on the existing Akhada.
@@ -78,7 +78,9 @@ export class DuelSession {
   }
 
   public async prepare(): Promise<void> {
-    await Promise.all([this.engine.player!.equip(this.loadout), this.opponent.equip(this.loadout)]);
+    await Promise.all([this.engine.player!.prepareDuelKits(DUEL_ROUND_KITS.map(r => r.loadout)),
+      this.opponent.prepareDuelKits(DUEL_ROUND_KITS.map(r => r.loadout))]);
+    this.engine.player!.equipDuelKit(this.loadout); this.opponent.equipDuelKit(this.loadout);
   }
 
   public reset(): void {
@@ -158,6 +160,7 @@ export class DuelSession {
     if (this.probeTimer) clearInterval(this.probeTimer);
     this.bot?.release();
     this.transport?.close();
+    this.engine.player!.clearDuelKits(); this.opponent.clearDuelKits();
     this.opponent.retire();
   }
 }

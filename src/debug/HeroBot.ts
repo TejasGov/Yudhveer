@@ -73,7 +73,7 @@ interface EnemyPrivates {
 type BotFoe = Character & Partial<Pick<Enemy, 'displayName' | 'isBoss' | 'guard' | 'shoveReach'>>;
 const priv = (e: BotFoe): EnemyPrivates => e instanceof Player ? {
   isTelegraphing: false, telegraphTimer: 0, telegraphDuration: 0,
-  engageRange: 2.6, attackStates: ['ATTACK_1', 'ATTACK_2', 'ATTACK_3'], attackIndex: 0,
+  engageRange: e.weapon.reach ?? 2.6, attackStates: ['ATTACK_1', 'ATTACK_2', 'ATTACK_3'], attackIndex: 0,
   lungeSpec: { maxDist: 2.2 }, route: [],
 } : e as unknown as EnemyPrivates;
 
@@ -608,7 +608,7 @@ export class HeroBot {
     const skill = this.skill;
     const tdist = target.dist;
     const big = target.e.isBoss;
-    const swingRange = big ? 3.4 : 2.6;
+    const swingRange = this.duel ? (player.weapon.reach ?? 2.6) : big ? 3.4 : 2.6;
     // The soonest blow he has noticed and not answered: a swing now must be over (cancellable) before it lands.
     const soonest = threats.filter((t) => t.tContact > -0.1).reduce((m, t) => Math.min(m, t.tContact), Infinity);
     const swingCost = state.startsWith('ATTACK') ? 0.3 : 0.5;

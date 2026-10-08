@@ -479,8 +479,9 @@ export class Character extends Entity {
   /**
    * Wears a prepared rig (once: it is the character's from then on), disposing the one it had. `keepPose`: a clip a
    * cue was playing carries on in the new rig from the same moment (a change of clothes under a flash of light).
+   * Duel-only retainPrevious detaches the whole old rig with its props intact for another round; its cache owns it.
    */
-  public mountRig(p: PreparedRig, keepPose = false): CharacterRig {
+  public mountRig(p: PreparedRig, keepPose = false, retainPrevious = false): CharacterRig {
     const { definition, rig } = p;
     const was = keepPose && this.rig && this.scripted ? { clip: this.rig.clip, time: this.rig.time } : null;
     // Modelled weapons replace the greybox ones everywhere (sockets, sheathing, hit detection). The ones they replace
@@ -488,21 +489,20 @@ export class Character extends Entity {
     // the old rig's dispose below never reaches a prop, and every change of chapter left one on the GPU (audit W-08).
     if (p.prop) {
       const old = this.swordMesh;
-      old.removeFromParent();
-      if (old !== p.prop) disposeObject(old);
+      if (!retainPrevious) { old.removeFromParent(); if (old !== p.prop) disposeObject(old); }
       this.swordMesh = p.prop;
     }
     if (p.shield) {
       const old = this.shieldMesh;
-      old.removeFromParent();
-      if (old !== p.shield) disposeObject(old);
+      if (!retainPrevious) { old.removeFromParent(); if (old !== p.shield) disposeObject(old); }
       this.shieldMesh = p.shield;
     }
     if (definition.weapon?.blade) this.bladeSpan = definition.weapon.blade;
     if (!p.strikes) this.fitProps(p);
     this.primitiveRoot.visible = false;
     this.modelGroup.add(rig.root);
-    this.rig?.dispose();
+    if (retainPrevious) this.rig?.root.removeFromParent();
+    else this.rig?.dispose();
     this.walkSpeed = definition.locomotion.walkSpeed;
     this.moveSpeed = definition.locomotion.moveSpeed;
     this.sprintSpeed = definition.locomotion.sprintSpeed;
