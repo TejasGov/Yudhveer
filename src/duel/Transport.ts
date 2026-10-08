@@ -34,7 +34,8 @@ export class DuelTransport {
   public seat: 0 | 1 = 0;
   public round = 0;
   public latency: LatencySettings = { delayMs: 0, jitterMs: 0, loss: 0 };
-  public readonly metrics = { sent: 0, received: 0, dropped: 0, peerRtt: 0, probes: 0, verdictAgeMs: 0, parryAgeMs: 0, predictedContacts: 0, verdictFeedbackMs: 0 };
+  public readonly metrics = { sent: 0, received: 0, dropped: 0, peerRtt: 0, probes: 0, verdictAgeMs: 0, parryAgeMs: 0, predictedContacts: 0, verdictFeedbackMs: 0, peerRttMin: 0, peerRttMax: 0, peerRttMean: 0,
+    feedbacks: 0, feedbackMinMs: 0, feedbackMaxMs: 0, feedbackMeanMs: 0 };
   public onMessage: ((message: DuelMessage) => void) | null = null;
   public onDisconnect: (() => void) | null = null;
   private socket: WebSocket | null = null;
@@ -66,7 +67,12 @@ export class DuelTransport {
         if (m.type === 'start' || m.type === 'card') this.round = m.round;
         if (m.type === 'probe') { this.send({ type: 'echo', round: m.round, at: m.at }); return; }
         if (m.type === 'echo') {
-          this.metrics.peerRtt = performance.now() - m.at; this.metrics.probes++; return;
+          const metrics = this.metrics;
+          metrics.peerRtt = performance.now() - m.at;
+          metrics.peerRttMin = metrics.probes ? Math.min(metrics.peerRttMin, metrics.peerRtt) : metrics.peerRtt;
+          metrics.peerRttMax = Math.max(metrics.peerRttMax, metrics.peerRtt);
+          metrics.peerRttMean += (metrics.peerRtt - metrics.peerRttMean) / ++metrics.probes;
+          return;
         }
         this.onMessage?.(m);
       };

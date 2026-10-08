@@ -1524,7 +1524,7 @@ export class Engine {
     }
     this.screens.clear();
     this.paused = false;
-    if (this.duel) this.duel.suspended = false;
+    if (this.duel) { this.duel.suspended = false; this.duel.updatePresentation(); }
     this.dialogue.setPaused(false);
     this.inputManager.releaseAll();
     this.inputManager.discardLook();
@@ -1743,7 +1743,7 @@ export class Engine {
     duel.onNames = () => this.hud.bindDuel(duel.opponent, duel.opponentName);
     duel.onStart = () => {
       const paused = this.paused && !!transport;
-      if (!paused) { this.paused = false; this.screens.clear(); }
+      if (!paused) { this.paused = false; this.dialogue.setPaused(false); this.screens.clear(); }
       duel.suspended = paused;
       this.hud.bindDuel(duel.opponent, duel.opponentName);
       this.hud.showBoss(true);
@@ -1752,7 +1752,7 @@ export class Engine {
       this.inputManager.releaseAll();
     };
     duel.onFinish = (won) => this.finishNetworkDuel(won ? duel.localName + ' won against ' + duel.opponentName : duel.opponentName + ' won');
-    duel.onDisconnect = () => this.finishNetworkDuel('Opponent disconnected', true);
+    duel.onDisconnect = (reason) => this.finishNetworkDuel(reason ?? 'Opponent disconnected', true);
     this.duel = duel;
     try {
       await this.levelManager.loadLevel(2, (f) => { if (token === this.loadToken) this.showLoading('Duel', 'Akhada', f * 0.7); });
@@ -1766,7 +1766,7 @@ export class Engine {
       BloodFX.getInstance().clear();
       this.interpolated.clear();
       this.poses.clear();
-      this.hud.bindDuel(duel.opponent);
+      this.hud.bindDuel(duel.opponent, duel.opponentName);
       this.hud.show(true);
       this.hud.showBoss(true);
       this.hideLoading();
@@ -1789,6 +1789,8 @@ export class Engine {
   }
 
   private finishNetworkDuel(text: string, disconnected = false): void {
+    this.paused = false; this.dialogue.setPaused(false);
+    if (this.duel) { this.duel.suspended = false; this.duel.updatePresentation(); }
     this.setMode('over');
     this.inputManager.exitPointerLock();
     $('duel-outcome').textContent = text;

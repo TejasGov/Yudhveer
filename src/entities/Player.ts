@@ -87,6 +87,8 @@ export class Player extends Character {
   public mortal = true;
   /** Blows still empowered by a completed charge. */
   public chargedHits = 0;
+  /** Duel-only damage pacing, set from the round table; campaign resolvers never read it. */
+  public duelBlowScale = 1;
   /** Called when a charge completes (the engine shows the banner). */
   public onCharged: (() => void) | null = null;
   /** Current ground speed along his facing (m/s): built up and bled off, never set outright. */
@@ -503,7 +505,9 @@ export class Player extends Character {
       if (aiming) this.aimYaw = aim;
       return;
     }
-    const gap = Math.hypot(best.group.position.x - pos.x, best.group.position.z - pos.z) - (this.weapon.reach === undefined ? ASSIST.reach : this.weapon.reach - (best.motor?.radius ?? 0.4)) - (best.motor?.radius ?? 0.4);
+    const reach = this.weapon.blows[state]?.reach ?? this.weapon.reach;
+    const radius = best.motor?.radius ?? 0.4;
+    const gap = Math.hypot(best.group.position.x - pos.x, best.group.position.z - pos.z) - (reach === undefined ? ASSIST.reach : reach - radius) - radius;
     const travel = this.rootTravel(state, strike?.t0 ?? 0);
     if (travel > 0.2) {
       // A clip that carries him (the leaping strike) is stretched or shortened to land on the target.

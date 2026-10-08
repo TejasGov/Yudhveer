@@ -1,3 +1,195 @@
+# PvP duel — Stage 2
+
+Stage 2 adds best-of-three matches to practice and room play. Campaign still uses
+its existing fixed-update block, defence numbers, weapons, scenes and enemy AI.
+No deployment, PR, merge, public matchmaking, Wrangler configuration or cloud
+resource creation is included.
+
+## Design and match rules
+
+Each browser immediately simulates its own hero at 60 Hz. Snapshots (position,
+yaw, velocity, state, state time, swing identity, health, posture and loadout)
+leave at about 30 Hz. RemoteHero has no physics motor and renders about 100 ms
+behind receipt time. There is no rollback, lockstep or shared deterministic simulation.
+
+The defender resolves incoming contacts through the existing parry, guard,
+slide and posture functions. The attacker predicts only a small neutral spark
+and wooden thud: no health, posture, charge consumption or blood. A received
+verdict adds the confirmed clash or blood. Prediction and defender feedback are
+measured separately; an absent prediction does not invalidate a defender verdict.
+
+The shared Node/Cloudflare room core owns scores and round epochs. First to two
+wins ends the match: 2-0 stops after round two; 1-1 opens the final. A fresh epoch
+is used even when a timed tie replays the same round, and epochs never reset on
+rematch. Old state, hit and ready messages are rejected. Rematch is accepted only
+at match end, and both players must request it.
+
+The single table is src/duel/Rules.ts; the room imports it too. Development relay
+and tests now require Node 22.18+ (verified on 24.11.0). The Worker will need to
+bundle this TypeScript import; the cloud runtime is still untested.
+
+| Round | Attire | Weapon | Earned abilities | Health | Duel damage multiplier |
+| --- | --- | --- | --- | --- | --- |
+| 1 | Bamboo training clothes | Fists | Dodge, combo | 100 | 1 |
+| 2 | Kavach | Khanda, dhal | Full summit kit | 100 | 0.07 |
+| 3 | Kavach | Khanda, dhal | Full summit kit | 130 | 0.07 |
+
+Both heroes preload the distinct training/fists and kavach/khanda rigs and props
+before the initial ready message. Round switches reuse these prepared rigs;
+readiness identifies the next loadout. Round cards and snapshots also identify
+it. A mismatch ends the session with a reload message rather than silently
+letting different kits fight. The room's two-second card starts only after both
+ready messages; the next fight starts automatically. There is no between-round
+Rematch button.
+
+A duel hero renews posture after a break; the campaign hero keeps its old
+behaviour. Online pause releases controls, drops a held guard and stops controlled
+movement while simulation and snapshots continue. Already committed attacks can
+finish. Practice pause freezes normal simulation. A match ending during online
+pause clears that pause before results/rematch.
+
+The provisional 90-second round clock belongs to the room online and to simulated
+seconds in practice. Higher health share wins at expiry; an exact tie replays the
+same numbered round in a new epoch. The display uses receipt-time timing and may
+lag the room by network transit; the room's finish message decides the result.
+
+Names are at most 16 UTF-16 code units, saved as yudhveer.duel.name in localStorage,
+default Yodha. Hello transmits the name, and round messages repeat both names.
+Floating head labels use local gold and opponent vermilion. Names in those labels,
+the boss HUD and results use textContent exclusively. The string <b>Local</b> was
+shown literally in both browsers; it created no b element.
+
+## Fists and the clips needed
+
+Fists is a real WeaponSet and WeaponId. Its empty prop group is fitted to
+Socket_Hand_R with a 12 cm hit segment, measured and swept through the usual
+hitbox code. There is no staff, dhal or scabbard. Reach is 1.05 m centre to centre,
+used by attack assistance and the duel HeroBot. Damage/posture/reach live in the
+blow table; sounds live in the weapon set.
+
+FISTS_STATES in src/entities/characters/YodhaWeapons.ts is the separate, single
+placeholder mapping. Its attacks/stance/run/reactions are copied lathi motions;
+changing a fist entry does not change the lathi. Real animation names and timings
+can replace individual entries there. Desired replacements, on the existing hero
+skeleton:
+
+- Guarded boxing idle (IDLE), boxing walk and run (MOVE/SPRINT; WALK uses the base
+  hero clip until a boxing walk is supplied).
+- Three distinct **right-hand** strikes: straight/jab (ATTACK_1), cross
+  (ATTACK_2), hook/overhand finisher (ATTACK_3), with readable wind-ups and recovery,
+  approximately 0.7, 0.7 and 1.0 seconds. The current hit volume follows the right
+  hand; left-hand attacking clips would also need a hand-selection data field.
+- Unarmed body-hit reaction (STAGGER), recoil (DEFLECTED), fall/death (DEAD).
+- Optional unarmed slide, jump and posture-break recovery; those retain the
+  existing hero clips. No block/parry clips are needed for the unarmed kit.
+
+No model, animation, story, voice, trailer or game asset/ file was changed.
+
+## Measurements — 2026-10-08
+
+The dev hook __debug.duelPlaytest(3) plays both heroes through HeroBot and real
+buffered controls, rig-derived strike windows and swept contact detection. It
+measures each kit independently, including the final even when a normal match
+would end 2-0. The local bot's seed is recorded by run; opponent/effect randomness
+is not deterministic. Values are simulated fight seconds, excluding the card;
+debugAdvance does not reproduce real wall-clock hit-stop pacing.
+
+Initial fist damage 4/5/4 produced 13.42, 18.85 and 33.32 seconds. Campaign-strength
+khanda rounds took 3.18 seconds each at 100 health and 4.00/4.00/4.23 at 130 health.
+Fists were reduced to 1.5/2/1.5 damage, with posture 7/9/8 unchanged. Armed duel
+damage was first tried at 0.10, then reduced to 0.07 of the shared weapon Blow.
+Posture and campaign weapon damage are unchanged. The final samples were:
+
+| Kit | Run 1 | Run 2 | Run 3 | Median | Starting target |
+| --- | --- | --- | --- | --- | --- |
+| Unarmed, 100 HP | 49.45 s | 75.12 s | 59.85 s | 59.85 s | 40-60 s |
+| Summit, 100 HP | 26.67 s | 30.22 s | 32.55 s | 30.22 s | 30-45 s |
+| Summit, 130 HP | 39.50 s | 45.10 s | 28.57 s | 39.50 s | 30-45 s |
+
+These are three samples per kit, not settled balance. Some runs miss the target.
+All nine final samples ended by KO, without a stall, and the local fighter won
+all nine. Local practice resolves its contacts first; this yardstick does not
+establish equal win rates or represent two human players.
+
+Two real browser clients completed a full 2-1 match through the development relay
+with the 80 ms preset (40 ms outgoing delay per peer, no jitter/loss). Hidden panes
+had gameLoop disabled and were stepped with debugAdvance. Both clients reported
+scores 1-0, 1-1, 2-1, and the final started at 130 HP on both heroes. Scripted
+standing contacts took 41.46, 45.47 and 58.19 wall-clock seconds; this was a
+protocol/contact test, not the bot tuning scenario or a human feel test.
+
+| Final network run | Peer RTT mean; range | Predicted-contact-to-verdict mean; range | Feedback samples |
+| --- | --- | --- | --- |
+| Seat 0 | 97.44 ms; 89.10-122.00 ms | 201.06 ms; 177.90-244.70 ms | 108 |
+| Seat 1 | 98.03 ms; 88.10-117.20 ms | 207.60 ms; 187.90-235.50 ms | 41 |
+
+Actual RTT includes relay/browser scheduling above the configured 80 ms. Contact
+feedback is measured from the attacker's predicted contact, not a peer timestamp.
+Neither client reported a console error. Stage 1's 40/80/150 ms and jitter/loss
+measurements are retained in the historical notes below; Stage 2 does not claim
+a new full sweep of all presets.
+
+A separate two-client transition check confirmed that online pause dropped a
+held guard to IDLE, kept the timer moving from 84.79 to 77.43 seconds, and allowed
+eight real incoming hits (100 to 81.072 HP, no additional parries). An 83.33 ms
+scripted parry was accepted before pause. Explicit dev-only KO messages then
+exercised a paused 0-2 finish; both Rematch buttons reset scores, names and cached
+fists/100 HP in a fresh epoch (4 to 5). Quitting the peer displayed Opponent
+disconnected with no Rematch. Those explicit KOs only checked transitions; the
+full 2-1 match above used physical contacts. Pointer-lock Resume interaction could
+not be verified in the isolated browser; normal mouse capture still needs review.
+The real browser __debug.duelCheck() passes 17 checks: the 140 ms parry boundary,
+guard chip/posture/facing, slide immunity, scaled charged damage, death/posture
+renewal, the kits, empty hand hitbox, unarmed guard rejection, 2-0, 1-1/130 HP,
+guard dropping on suspension and practice pause's normal simulation gate.
+The 13 shared-room tests also exercise ready/card timing, stale epochs, invalid
+loadouts, no healing, timer/tie, rematch, names, disconnect and racing lethal verdicts.
+
+Before and after, the exact browser invocation was
+__debug.playtest([2, 4, 5], 2, { skill: 'steady' }). Both completed six runs with
+zero errors and zero stalls. Wins stayed 2/2, 0/2, 0/2 in chapters 2, 4, 5.
+Mean damage over all runs changed from 25 / 131 / 127.5 to 17.5 / 141 / 100;
+chapter 2's winning median changed from 38.5 to 36.1 seconds. As in Stage 1,
+these tiny variable samples do not establish identical balance.
+
+Source comparison materialized main's Engine.ts with checkout CRLF and compared
+the complete campaign fixed-update block byte for byte: it matches. Campaign
+weapon Blow data, enemy AI, story, voices, trailers and assets were not edited.
+TypeScript, Vite build, all 13 relay tests and the asset URL check pass.
+New and edited source retains CRLF.
+
+## Still open / not verified
+
+- Human feel needs two humans playing at the latency presets. Scripted parries
+  and contacts cannot establish that the game feels fair or responsive.
+- The 90-second clock, two-second card, fist numbers and 0.07 armed damage
+  multiplier are tuning choices for review. Health and best-of-three are decided.
+- Placeholder staff-derived motions look like weapon swings without a weapon.
+  Proper boxing clips, including a decision about left-hand hit volumes, remain.
+- Receipt-time interpolation, five seconds without state ending the session,
+  snapshot-only simulated loss, trusted defender health, first lethal verdict
+  winning a racing KO, and limited validation remain spike constraints.
+- The Worker/Durable Object adapter has not been run or deployed in Cloudflare.
+  Use cf for that future step; no wrangler.toml was added.
+
+## Run locally
+
+Run npm run dev and, in another terminal, npm run duel:relay. Both clients open
+Duel, choose names, use the same relay URL, and create/join the six-character
+code. Remote hosting will need an approved Cloudflare relay deployment and a
+Vite build with VITE_DUEL_RELAY=wss://the-relay-endpoint, alongside the existing
+static-site hosting. This branch has not been deployed.
+
+For browser QA, node scripts/make-pvp-check.mjs generates a temporary
+pvp-check.html with visible dev controls. It is not shipped. Use the 80 ms preset
+on both peers, Script full match and Step live on each. The script alternates
+which peer attacks to exercise all three rounds; it does not bypass hit resolution.
+
+## Stage 1 historical notes (superseded rules)
+
+The following is the original spike report. Its single-round/100-HP and posture
+open questions are historical; the Stage 2 table and decisions above supersede them.
+
 # PvP duel — Stage 1 spike
 
 The title offers Campaign and Duel. Campaign retains its existing chapter, story,

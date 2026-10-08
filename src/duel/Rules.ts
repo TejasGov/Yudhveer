@@ -7,20 +7,23 @@
 import type { HeroKit } from '../game/Progression';
 
 export type GameMode = 'campaign' | 'duel';
-export interface DuelRound { loadout: HeroKit; health: number }
+export interface DuelRound {
+  loadout: HeroKit;
+  health: number;
+  /** Duel pacing only: the resolver still takes every blow from the shared weapon data. Open tuning decision. */
+  damageScale: number;
+}
 export const DUEL_ROUNDS_TO_WIN = 2;
 export const DUEL_ROUND_SECONDS = 90; // Open decision: compare health shares, replay an exact tie.
 export const DUEL_ROUND_CARD_SECONDS = 2; // Open decision: short, automatic, after both peers are ready.
 export const DUEL_ROUND_KITS: readonly DuelRound[] = [
-  { health: 100, loadout: { id: 'prologue', attire: 'training', weapon: 'fists', abilities: ['dodge', 'combo'], taught: [] } },
-  { health: 100, loadout: { id: 'summit', attire: 'kavach', weapon: 'khanda', abilities: ['dodge', 'combo', 'block', 'parry', 'charge', 'leap'], taught: [] } },
-  { health: 130, loadout: { id: 'summit', attire: 'kavach', weapon: 'khanda', abilities: ['dodge', 'combo', 'block', 'parry', 'charge', 'leap'], taught: [] } },
+  { health: 100, damageScale: 1, loadout: { id: 'prologue', attire: 'training', weapon: 'fists', abilities: ['dodge', 'combo'], taught: [] } },
+  { health: 100, damageScale: 0.07, loadout: { id: 'summit', attire: 'kavach', weapon: 'khanda', abilities: ['dodge', 'combo', 'block', 'parry', 'charge', 'leap'], taught: [] } },
+  { health: 130, damageScale: 0.07, loadout: { id: 'summit', attire: 'kavach', weapon: 'khanda', abilities: ['dodge', 'combo', 'block', 'parry', 'charge', 'leap'], taught: [] } },
 ];
 /** Wire identity includes attire and weapon; both peers reject a different round kit. */
 export const duelLoadoutId = (round: number): string => {
   const kit = DUEL_ROUND_KITS[round - 1].loadout;
   return kit.attire + ':' + kit.weapon;
 };
-export const DUEL_LOADOUT = DUEL_ROUND_KITS[1].loadout;
-export const DUEL_STARTING_HEALTH = DUEL_ROUND_KITS[1].health;
 export const DUEL_SPAWNS = [[0, 0, 3], [0, 0, -3]] as const;

@@ -608,7 +608,7 @@ export class HeroBot {
     const skill = this.skill;
     const tdist = target.dist;
     const big = target.e.isBoss;
-    const swingRange = this.duel ? (player.weapon.reach ?? 2.6) : big ? 3.4 : 2.6;
+    const swingRange = this.duel ? (player.weapon.blows[state]?.reach ?? player.weapon.reach ?? 2.6) : big ? 3.4 : 2.6;
     // The soonest blow he has noticed and not answered: a swing now must be over (cancellable) before it lands.
     const soonest = threats.filter((t) => t.tContact > -0.1).reduce((m, t) => Math.min(m, t.tContact), Infinity);
     const swingCost = state.startsWith('ATTACK') ? 0.3 : 0.5;

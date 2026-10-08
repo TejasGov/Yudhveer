@@ -105,12 +105,21 @@ test('90 seconds compares health shares; an exact tie replays the same kit in a 
   assert.deepEqual(p.room.score, [0, 1]); assert.equal(p.a.messages.at(-1).reason, 'time');
 });
 test('hello preserves names as bounded text, and round messages carry both names', () => {
-  const p = pair(); p.room.phase = 'lobby'; p.room.active = false;
+  const time = clock(), room = new DuelRoom('ABC123', time), a = socket(), b = socket();
+  room.join(a, true); room.join(b, false); const p = { room, a, b, time };
   send(p.room, p.a, { type: 'hello', name: '  <b>Yodha</b>  ' }); send(p.room, p.b, { type: 'hello', name: '01234567890123456789' });
   assert.deepEqual(p.a.messages.at(-1).names, ['<b>Yodha</b>', '0123456789012345']);
+  ready(room, a, b); time.advance(2);
+  assert.deepEqual(a.messages.at(-1).names, ['<b>Yodha</b>', '0123456789012345']);
 });
 test('disconnect cancels card/clock; peer probes traverse the room', () => {
   const p = pair(); send(p.room, p.a, { type: 'probe', round: 1, at: 123 }); assert.equal(p.b.messages.at(-1).type, 'probe');
   p.room.leave(p.a); assert.equal(p.room.active, false); assert.equal(p.b.messages.at(-1).type, 'disconnected');
   p.time.advance(100); assert.equal(p.room.phase, 'closed');
+});
+
+test('a racing lethal verdict cannot award a second score after the round is closed', () => {
+  const p = pair(); send(p.room, p.a, hit(1, 0)); send(p.room, p.b, hit(1, 0));
+  assert.deepEqual(p.room.score, [0, 1]);
+  assert.equal(p.a.messages.filter(m => m.type === 'finish').length, 1);
 });

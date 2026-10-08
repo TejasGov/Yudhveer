@@ -24,7 +24,7 @@ export class DuelNameTags {
 
   public update(camera: THREE.Camera): void {
     this.heroes.forEach((hero, i) => {
-      const head = hero.rig?.root.getObjectByName('mixamorigHead');
+      const head = hero.rig?.root.getObjectByName('Head') ?? hero.rig?.root.getObjectByName('mixamorigHead');
       if (head) head.getWorldPosition(this.position);
       else this.position.copy(hero.group.position).add(new THREE.Vector3(0, 1.7, 0));
       this.position.y += 0.3;

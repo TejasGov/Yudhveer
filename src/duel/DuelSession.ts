@@ -31,7 +31,7 @@ export class DuelSession {
   public onNames: (() => void) | null = null;
   public onStart: (() => void) | null = null;
   public onFinish: ((won: boolean) => void) | null = null;
-  public onDisconnect: (() => void) | null = null;
+  public onDisconnect: ((reason?: string) => void) | null = null;
   private readonly input = InputManager.isolated();
   private readonly camera = { viewYaw: 0, cameraYaw: 0 };
   private readonly bot: HeroBot | null;
@@ -74,10 +74,10 @@ export class DuelSession {
     }
   }
 
-  private disconnect(): void {
+  private disconnect(reason?: string): void {
     this.active = false; this.finished = true; this.transport?.close();
     document.getElementById('duel-card')!.hidden = true;
-    this.onDisconnect?.();
+    this.onDisconnect?.(reason);
   }
 
   private setNames(names?: [string, string]): void {
@@ -103,13 +103,12 @@ export class DuelSession {
     const hero = this.engine.player!;
     if (m.type === 'disconnected') { this.disconnect(); return; }
     if (m.type === 'error') {
-      document.getElementById('duel-outcome')!.textContent = m.message;
-      this.disconnect(); return;
+      this.disconnect(m.message); return;
     }
     if (m.type === 'profiles') { this.setNames(m.names); return; }
     if (m.type === 'card') {
       if (!DUEL_ROUND_KITS[m.roundNumber - 1] || m.loadout !== duelLoadoutId(m.roundNumber) || m.health !== DUEL_ROUND_KITS[m.roundNumber - 1].health) {
-        this.disconnect(); return;
+        this.disconnect('Round loadout mismatch. Reload both clients.'); return;
       }
       this.epoch = m.round; this.score = m.score; this.reset(m.roundNumber); this.setNames(m.names);
       this.active = false; this.finished = false; this.card(); this.onStart?.(); return;
@@ -133,7 +132,7 @@ export class DuelSession {
     }
     if (!this.active || this.finished) return;
     if (m.type === 'state') {
-      if (m.state.loadout !== duelLoadoutId(this.roundNumber)) { this.disconnect(); return; }
+      if (m.state.loadout !== duelLoadoutId(this.roundNumber)) { this.disconnect('Round loadout mismatch. Reload both clients.'); return; }
       this.lastReceived = performance.now(); (this.opponent as RemoteHero).receive(m.state);
     }
     if (m.type === 'hit') {
@@ -141,7 +140,13 @@ export class DuelSession {
       if (this.verdicts.has(key)) return; this.verdicts.add(key);
       const at = this.sentAt.get(m.seenSeq), contact = this.contacts.get(key);
       if (at !== undefined) this.transport!.metrics.verdictAgeMs = performance.now() - at;
-      if (contact !== undefined) this.transport!.metrics.verdictFeedbackMs = performance.now() - contact;
+      if (contact !== undefined) {
+        const metrics = this.transport!.metrics;
+        metrics.verdictFeedbackMs = performance.now() - contact;
+        metrics.feedbackMinMs = metrics.feedbacks ? Math.min(metrics.feedbackMinMs, metrics.verdictFeedbackMs) : metrics.verdictFeedbackMs;
+        metrics.feedbackMaxMs = Math.max(metrics.feedbackMaxMs, metrics.verdictFeedbackMs);
+        metrics.feedbackMeanMs += (metrics.verdictFeedbackMs - metrics.feedbackMeanMs) / ++metrics.feedbacks;
+      }
       this.engine.combatSystem.stats.damageDealt += Math.max(0, this.opponent.currentHealth - m.health);
       this.opponent.currentHealth = Math.min(this.opponent.currentHealth, m.health); this.opponent.currentMarma = m.posture;
       if (m.charged) hero.chargedHits = Math.max(0, hero.chargedHits - 1);
@@ -160,7 +165,7 @@ export class DuelSession {
     const rule = DUEL_ROUND_KITS[number - 1];
     const heroes = [this.engine.player!, this.opponent];
     heroes.forEach((hero, i) => {
-      hero.equipDuelKit(rule.loadout); hero.maxHealth = rule.health; hero.mortal = true; hero.renewsPosture = true;
+      hero.equipDuelKit(rule.loadout); hero.maxHealth = rule.health; hero.duelBlowScale = rule.damageScale; hero.mortal = true; hero.renewsPosture = true;
       hero.revive(); hero.speed = 0; hero.stateMachine.guardHeld = false;
       const seat = this.transport ? (i === 0 ? this.transport.seat : 1 - this.transport.seat) : i;
       const spawn = DUEL_SPAWNS[seat]; hero.setPosition(spawn[0], spawn[1], spawn[2]);
@@ -269,6 +274,7 @@ export class DuelSession {
     if (this.sendTimer) clearInterval(this.sendTimer); if (this.probeTimer) clearInterval(this.probeTimer);
     this.bot?.release(); this.transport?.close(); this.tags.dispose();
     document.getElementById('duel-card')!.hidden = true; document.getElementById('duel-match')!.hidden = true;
+    this.engine.player!.duelBlowScale = 1;
     this.engine.player!.clearDuelKits(); this.opponent.clearDuelKits(); this.opponent.retire();
   }
 }

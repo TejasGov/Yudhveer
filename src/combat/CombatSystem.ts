@@ -504,7 +504,7 @@ export class CombatSystem {
     const scale = charged ? CHARGED_MULTIPLIER : 1;
     if (defender.isEvading()) this.resolveEvasion(attacker, defender);
     else this.resolveIncomingBlow(attacker, defender, point, {
-      damage: blow.damage * scale * (defender.stateMachine.currentState === 'POSTURE_BROKEN' ? 2.2 : 1),
+      damage: blow.damage * scale * attacker.duelBlowScale * (defender.stateMachine.currentState === 'POSTURE_BROKEN' ? 2.2 : 1),
       posture: blow.posture * scale,
     });
   }

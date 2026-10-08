@@ -228,7 +228,18 @@ const LATHI_STATES: Partial<Record<CharacterState, StateAnimation>> = {
  * like Yatudhana's hand attack, so measured windows and swept hit detection follow the fist rather than a blade.
  */
 export const FISTS_STATES: Partial<Record<CharacterState, StateAnimation>> = {
-  ...LATHI_STATES, ATTACK_JUMP: undefined, CHARGE: undefined,
+  // PLACEHOLDER: each entry can be replaced here without changing combat or the lathi.
+  IDLE: { clip: 'great_sword_idle', fade: 0.3 },
+  MOVE: { clip: 'great_sword_run_2', matchSpeed: true, fade: 0.22 },
+  SPRINT: { clip: 'great_sword_run_2', matchSpeed: true, fade: 0.25 },
+  ATTACK_1: { clip: 'great_sword_slash', startAt: 0.34, endAt: 1.05, timeScale: 1, timesState: true, fade: 0.08 },
+  ATTACK_2: { clip: 'great_sword_slash_3', startAt: 0.72, endAt: 1.3, timeScale: 0.8, timesState: true, fade: 0.22 },
+  ATTACK_3: { clip: 'great_sword_high_spin_attack', startAt: 0.2, endAt: 1.6, timeScale: 1.35, timesState: true, rootMotion: true, fade: 0.12 },
+  ATTACK_JUMP: undefined,
+  CHARGE: undefined,
+  STAGGER: { clip: 'great_sword_impact_2', timeScale: 1.3, timesState: true, fade: 0.05 },
+  DEFLECTED: { clip: 'great_sword_impact', timeScale: 1.3, fade: 0.05 },
+  DEAD: { clip: 'two_handed_sword_death_2', fade: 0.1 },
 };
 
 /**
@@ -286,9 +297,9 @@ export const WEAPON_SETS: Record<WeaponId, WeaponSet> = {
     }),
     // Starting guesses; bot measurements and human play determine the final numbers.
     blows: {
-      ATTACK_1: { damage: 4, posture: 7, reach: 1.05 },
-      ATTACK_2: { damage: 5, posture: 9, reach: 1.05 },
-      ATTACK_3: { damage: 4, posture: 8, reach: 1.05 },
+      ATTACK_1: { damage: 1.5, posture: 7, reach: 1.05 },
+      ATTACK_2: { damage: 2, posture: 9, reach: 1.05 },
+      ATTACK_3: { damage: 1.5, posture: 8, reach: 1.05 },
     },
     shield: false, stowable: false,
     sound: { swing: [1.25, 1.4, 1.1], whoosh: 'lathi', impact: 'crush' },
