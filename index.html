@@ -84,14 +84,35 @@
       <p class="title-tagline">Echoes of the sacred ghat</p>
       <nav class="menu" id="title-menu">
         <button data-action="continue" id="title-continue">Continue<small id="continue-detail"></small></button>
-        <button data-action="new">New game</button>
-        <button data-action="chapters">Chapters</button>
+        <button data-action="campaign">Campaign</button>
+        <button data-action="duel">Duel</button>
         <button data-action="settings">Settings</button>
         <button data-action="controls">Controls</button>
         <button data-action="about">About the author</button>
       </nav>
     </div>
     <div class="title-foot">Keyboard and mouse, or a controller</div>
+  </section>
+
+  <section id="campaign-menu" class="screen scrim" hidden>
+    <div class="panel"><h2>Campaign</h2><nav class="menu">
+      <button data-action="continue">Continue</button>
+      <button data-action="new">New game</button>
+      <button data-action="chapters">Chapters</button>
+      <button data-action="back">Back</button>
+    </nav></div>
+  </section>
+  <section id="duel-menu" class="screen scrim" hidden>
+    <div class="panel"><h2>Duel</h2><p class="panel-sub">Khanda and dhal · Akhada</p><nav class="menu">
+      <button data-action="bot">Practice against HeroBot</button>
+      <button data-action="back">Back</button>
+    </nav></div>
+  </section>
+  <section id="duel-result" class="screen scrim" hidden>
+    <div class="panel"><h2 id="duel-outcome">Round over</h2><p class="panel-sub">Duel · Akhada</p><nav class="menu">
+      <button data-action="rematch">Rematch</button>
+      <button data-action="quit">Quit to title</button>
+    </nav></div>
   </section>
 
   <section id="pause" class="screen scrim" hidden>

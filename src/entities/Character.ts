@@ -161,7 +161,7 @@ export class Character extends Entity {
   private actualSpeed = 0;
   private stillFor = 0;
   /** `actualSpeed` smoothed: what speed-matched walks and runs pace their stride to (JITTER.md, fix 5). */
-  private visSpeed = 0;
+  protected visSpeed = 0;
   /**
    * How fast the heading is turning (rad/s). Turning has momentum: it winds up at no more than `turnAccel` and settles
    * the same way, so a heavy body never snaps from still to full turn in one step (JITTER.md, fix 2).

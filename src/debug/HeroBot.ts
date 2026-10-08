@@ -2,7 +2,9 @@ import * as THREE from 'three';
 import type { Engine } from '../core/Engine';
 import type { InputState, PressAction } from '../core/InputManager';
 import type { Enemy } from '../entities/Enemy';
-import type { Player } from '../entities/Player';
+import type { Character } from '../entities/Character';
+import type { InputManager } from '../core/InputManager';
+import { Player } from '../entities/Player';
 import type { CharacterState } from '../entities/CharacterStateMachine';
 import { CharacterMotor } from '../physics/CharacterMotor';
 import { Settings } from '../core/Settings';
@@ -68,7 +70,12 @@ interface EnemyPrivates {
   lungeSpec: { maxDist: number };
   route: THREE.Vector3[];
 }
-const priv = (e: Enemy) => e as unknown as EnemyPrivates;
+type BotFoe = Character & Partial<Pick<Enemy, 'displayName' | 'isBoss' | 'guard' | 'shoveReach'>>;
+const priv = (e: BotFoe): EnemyPrivates => e instanceof Player ? {
+  isTelegraphing: false, telegraphTimer: 0, telegraphDuration: 0,
+  engageRange: 2.6, attackStates: ['ATTACK_1', 'ATTACK_2', 'ATTACK_3'], attackIndex: 0,
+  lungeSpec: { maxDist: 2.2 }, route: [],
+} : e as unknown as EnemyPrivates;
 
 interface Tracker {
   state: string;
@@ -115,7 +122,7 @@ export interface BotEvent {
 }
 
 interface View {
-  e: Enemy;
+  e: BotFoe;
   dist: number;
   /** Ground direction from the hero to it (unit). */
   dir: THREE.Vector3;
@@ -169,15 +176,16 @@ export class HeroBot {
   private move: { x: number; z: number; sprint: boolean } | null = null;
   private lookTarget: THREE.Vector3 | null = null;
 
-  constructor(private readonly engine: Engine, public readonly skill: BotSkill, private readonly rng: () => number) {
-    this.input = engine.inputManager;
-    this.player = engine.player!;
+  constructor(private readonly engine: Engine, public readonly skill: BotSkill, private readonly rng: () => number,
+    private readonly duel?: { hero: Player; foe: Player; input: InputManager; camera: { viewYaw: number; cameraYaw: number } }) {
+    this.input = duel?.input ?? engine.inputManager;
+    this.player = duel?.hero ?? engine.player!;
     this.original = this.input.getState.bind(this.input);
     // The stick's analogue push: movement is whatever the bot decided this step; everything else is the real state.
     this.input.getState = (): InputState => {
       const s = this.original();
       if (this.move) {
-        const yaw = this.engine.sceneManager.viewYaw;
+        const yaw = (this.duel?.camera ?? this.engine.sceneManager).viewYaw;
         const c = Math.cos(yaw);
         const sn = Math.sin(yaw);
         // WASD's inverse: forward is -(sin, cos), right is (cos, -sin) in the view's frame.
@@ -192,6 +200,10 @@ export class HeroBot {
       }
       return s;
     };
+  }
+
+  private get foes(): BotFoe[] {
+    return this.duel ? [this.duel.foe] : this.engine.enemies;
   }
 
   /** Gives the keyboard back: nothing held, no push on the stick. */
@@ -240,7 +252,7 @@ export class HeroBot {
   private enemyViews(): View[] {
     const hero = this.player.getPosition();
     const views: View[] = [];
-    for (const e of this.engine.enemies) {
+    for (const e of this.foes) {
       if (e.stateMachine.currentState === 'DEAD' || !e.group.visible) continue;
       // The cue of a cast or a draw, seen from the first moment of it (the bolt comes later).
       const tr = this.tracker(e);
@@ -255,7 +267,7 @@ export class HeroBot {
     return views.sort((a, b) => a.dist - b.dist);
   }
 
-  private tracker(e: Enemy): Tracker {
+  private tracker(e: BotFoe): Tracker {
     let t = this.trackers.get(e.id);
     if (!t) {
       t = { state: e.stateMachine.currentState, serial: 0, seenAt: this.now, telegraphing: false, telegraphEndedAt: -9, cueAt: -99, casting: false, diveAt: -99 };
@@ -268,9 +280,9 @@ export class HeroBot {
    * Whether the hero is inside the area a swing can reach: a boss's strike range, a minion's engage range and lunge. A
    * leap's last blow (`landing`) is its landing, which reaches wherever he stands within the run; its first is the take-off.
    */
-  private inReach(e: Enemy, dist: number, state: string, landing = false): boolean {
+  private inReach(e: BotFoe, dist: number, state: string, landing = false): boolean {
     const p = priv(e);
-    if (state === 'SHOVE') return dist <= e.shoveReach() + 0.9;
+    if (state === 'SHOVE') return dist <= (e.shoveReach?.() ?? 2.8) + 0.9;
     if (state === 'ATTACK_JUMP' && landing) return dist <= (p.tuning?.leapMax ?? 8) + 2;
     const reach = e.isBoss ? (p.tuning?.strikeRange ?? 3.5) + 1.6 : p.engageRange + (p.lungeSpec?.maxDist ?? 1.2) + 0.7;
     return dist <= reach;
@@ -326,7 +338,7 @@ export class HeroBot {
       }
     }
     // A boss under the water (Shalva's dive): the pool churns where he will come up, and his smash lands a second after.
-    for (const e of this.engine.enemies) {
+    for (const e of this.foes) {
       const dive = (e as unknown as { dive?: { phase: string; t: number; burst: THREE.Vector3 } | null }).dive;
       if (!e.submerged || !dive || dive.phase !== 'under' || dive.t < DIVE.under - DIVE.boil) continue;
       const tr = this.tracker(e);
@@ -398,7 +410,7 @@ export class HeroBot {
 
   /** The training's vanara is in the arena: the lesson asks for the guard, then the parry, and a player does as he says. */
   private inLesson(): boolean {
-    return this.engine.enemies.some((e) => e.displayName === 'Old Vanara' && e.group.visible && e.stateMachine.currentState !== 'DEAD');
+    return this.foes.some((e) => e.displayName === 'Old Vanara' && e.group.visible && e.stateMachine.currentState !== 'DEAD');
   }
 
   /** Decides the answer to every blow the bot has had time to notice. */
@@ -577,7 +589,7 @@ export class HeroBot {
       if (priv(v.e).route.length > 0 && v.dist > 9) continue; // still crossing a bridge
       let score = v.dist;
       if (this.skill.tricks) {
-        if (CASTERS.has(v.e.displayName) && v.dist < 14) score -= 4;
+        if (CASTERS.has(v.e.displayName ?? '') && v.dist < 14) score -= 4;
         if (v.e.stateMachine.currentState === 'POSTURE_BROKEN') score -= 3;
       }
       if (score < bestScore) {
@@ -651,7 +663,7 @@ export class HeroBot {
 
     // Out of a sprint, a leap (the mace and the khanda), when the target is a stretch away and nothing is about to land.
     if (skill.tricks && state === 'SPRINT' && player.can('leap') && tdist > 4.2 && tdist < 7.5 && soonest > 1.2
-      && (big || CASTERS.has(target.e.displayName))) {
+      && (big || CASTERS.has(target.e.displayName ?? ''))) {
       this.tap('attack');
       this.lastAttackPress = this.now;
       return;
@@ -676,7 +688,7 @@ export class HeroBot {
       this.move = { x: this.detour.x, z: this.detour.z, sprint: false };
       return;
     }
-    const sprint = skill.tricks && tdist > 8.5 && player.can('leap') && (big || CASTERS.has(target.e.displayName)) && soonest > 1.5;
+    const sprint = skill.tricks && tdist > 8.5 && player.can('leap') && (big || CASTERS.has(target.e.displayName ?? '')) && soonest > 1.5;
     this.move = { x: target.dir.x, z: target.dir.z, sprint };
     this.lastApproach = this.now;
   }
@@ -690,7 +702,7 @@ export class HeroBot {
     }
     if (this.now - this.progressAt < 1.5) return;
     if (dist > this.progressDist - 0.5) {
-      const t = this.engine.enemies.find((e) => e.stateMachine.currentState !== 'DEAD' && e.group.visible && !e.submerged);
+      const t = this.foes.find((e) => e.stateMachine.currentState !== 'DEAD' && e.group.visible && !e.submerged);
       const hero = this.player.getPosition();
       const way = toward?.clone() ?? (t ? new THREE.Vector3(t.getPosition().x - hero.x, 0, t.getPosition().z - hero.z).normalize() : new THREE.Vector3(0, 0, -1));
       this.detourSide = this.detourSide === 1 ? -1 : 1;
@@ -734,7 +746,7 @@ export class HeroBot {
 
   /** Turns the camera toward `lookTarget` at the player's own speed, through the mouse's path (a guard faces the camera's way). */
   private turnCamera(dt: number): void {
-    const sm = this.engine.sceneManager;
+    const sm = this.duel?.camera ?? this.engine.sceneManager;
     const hero = this.player.getPosition();
     // On the route with nobody in sight: look the way it goes.
     let at = this.lookTarget;

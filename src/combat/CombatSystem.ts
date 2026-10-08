@@ -88,6 +88,7 @@ export class CombatSystem {
   private clock = 0;
   /** Until when (combat clock) further hits on the player deal damage without restarting a stagger. */
   private playerStaggerImmuneUntil = 0;
+  private readonly heroStaggerImmuneUntil = new Map<string, number>();
   /** Per enemy: until when light hits cannot stagger it again. */
   private readonly staggerImmuneUntil = new Map<string, number>();
 
@@ -477,7 +478,7 @@ export class CombatSystem {
     }
   }
 
-  private resolveEvasion(enemy: Enemy, player: Player): void {
+  private resolveEvasion(enemy: Character, player: Player): void {
     this.record({ attacker: enemy.id, defender: player.id, attack: enemy.stateMachine.currentState,
       at: enemy.stateMachine.stateTime, result: 'evaded', point: player.getPosition().toArray() });
     this.slowBeat(0.35, 0.2);
@@ -486,6 +487,45 @@ export class CombatSystem {
   }
 
   private resolveEnemyHitOnPlayer(enemy: Enemy, player: Player, hitPoint: THREE.Vector3): void {
+    this.resolveIncomingBlow(enemy, player, hitPoint, enemyBlow(enemy));
+  }
+
+  /**
+   * Third melee case: two heroes. The defender uses the same parry, guard, slide and posture path as campaign.
+   * A weapon's Blow supplies the numbers; no boss scale or armour is borrowed. Network callers invoke this only
+   * on the defender's browser and send the resulting outcome back to the attacker.
+   */
+  public resolveHeroHitOnHero(attacker: Player, defender: Player, point: THREE.Vector3): void {
+    const blow = attacker.weapon.blows[attacker.stateMachine.currentState] ?? attacker.weapon.blows.ATTACK_1!;
+    const charged = attacker.chargedHits > 0;
+    if (charged) attacker.chargedHits--;
+    const scale = charged ? CHARGED_MULTIPLIER : 1;
+    if (defender.isEvading()) this.resolveEvasion(attacker, defender);
+    else this.resolveIncomingBlow(attacker, defender, point, {
+      damage: blow.damage * scale * (defender.stateMachine.currentState === 'POSTURE_BROKEN' ? 2.2 : 1),
+      posture: blow.posture * scale,
+    });
+  }
+
+  /** One duel step: the local bot has two authorities; a network peer resolves only incoming blades. */
+  public updateDuel(local: Player, opponent: Player, dt: number, network = false): void {
+    this.clock += dt;
+    this.stepDt = dt;
+    if (!local.isDown() && !opponent.isDown()) {
+      for (const [attacker, defender] of network ? [[opponent, local]] : [[local, opponent], [opponent, local]]) {
+        const window = this.activeStrike(attacker);
+        if (window === null) continue;
+        const { hit, hitPoint } = this.hitboxManager.checkWeaponIntersection(attacker, defender);
+        if (hit) {
+          this.markLanded(attacker, window);
+          this.resolveHeroHitOnHero(attacker, defender, hitPoint);
+        }
+      }
+    }
+    this.hitboxManager.commitBlades([local, opponent]);
+  }
+
+  private resolveIncomingBlow(enemy: Enemy | Player, player: Player, hitPoint: THREE.Vector3, blow: { damage: number; posture: number }): void {
     const entry = { attacker: enemy.id, defender: player.id, attack: enemy.stateMachine.currentState,
       at: enemy.stateMachine.stateTime, point: hitPoint.toArray() };
     // 140ms Dhal Parry Window -> DEFLECTION!
@@ -496,7 +536,7 @@ export class CombatSystem {
     }
 
     // Raised dhal (a guard, or a parry pressed too early): the blow lands on the shield.
-    const { damage, posture } = enemyBlow(enemy);
+    const { damage, posture } = blow;
     if (player.isGuarding() && player.isFacing(enemy.getPosition())) {
       this.handleBlockedHit(player, hitPoint, damage, posture, enemy.getPosition(), enemy);
       this.record({ ...entry, result: 'blocked' });
@@ -510,7 +550,7 @@ export class CombatSystem {
     this.onPlayerHurt?.(damage);
     if (broken && player.stateMachine.currentState !== 'DEAD') this.callout({ text: 'Posture broken', tone: 'red' });
 
-    this.soundFX.playHitImpact(enemy.impactSound);
+    this.soundFX.playHitImpact(enemy instanceof Player ? enemy.weapon.sound.impact : enemy.impactSound);
     const blood = BloodFX.getInstance();
     if (!blood.bleeds('red')) this.particleFX.spawnSparks(hitPoint, 30, false);
     else {
@@ -519,17 +559,20 @@ export class CombatSystem {
     // Knocked back, away from the attacker. A boss's heavy blow lands harder, by how much it dealt.
     const away = player.getPosition().clone().sub(enemy.getPosition()).setY(0);
     if (broken) this.impact('guardBroken', away);
-    else if (enemy.isBoss && damage >= 24) this.impact('hurtHeavy', away, Math.min(1.4, damage / 18));
+    else if (enemy instanceof Enemy && enemy.isBoss && damage >= 24) this.impact('hurtHeavy', away, Math.min(1.4, damage / 18));
     else this.impact('hurt', away);
     // No stun-lock: a stagger (and a short grace after it) is not restarted by the rest of a combo, so the player
     // always gets a window to guard, parry or get out.
-    if (!broken && player.stateMachine.currentState !== 'DEAD' && this.clock >= this.playerStaggerImmuneUntil) {
+    if (!broken && player.stateMachine.currentState !== 'DEAD' && this.clock >= (enemy instanceof Player
+      ? this.heroStaggerImmuneUntil.get(player.id) ?? 0 : this.playerStaggerImmuneUntil)) {
       player.stateMachine.changeState('STAGGER');
-      this.playerStaggerImmuneUntil = this.clock + player.stateMachine.STAGGER_DURATION + STAGGER_GRACE;
+      const until = this.clock + player.stateMachine.STAGGER_DURATION + STAGGER_GRACE;
+      if (enemy instanceof Player) this.heroStaggerImmuneUntil.set(player.id, until);
+      else this.playerStaggerImmuneUntil = until;
     }
   }
 
-  private handlePerfectParry(player: Player, enemy: Enemy, hitPoint: THREE.Vector3): void {
+  private handlePerfectParry(player: Player, enemy: Character, hitPoint: THREE.Vector3): void {
     this.soundFX.playParryClash();
     HitFeel.clash({ point: hitPoint, attacker: enemy, weapon: weaponKindOf(enemy), power: 1.5, floor: enemy.group.position.y, dt: this.stepDt });
     this.particleFX.spawnDeflectionShockwave(hitPoint);
@@ -554,7 +597,7 @@ export class CombatSystem {
    * A blow taken on the guard: a little health gets through, posture takes more, and the dhal rocks back. `from`:
    * where the blow came from (the camera is knocked back away from it).
    */
-  public handleBlockedHit(player: Player, hitPoint: THREE.Vector3, damage: number, postureDamage: number, from?: THREE.Vector3, attacker?: Enemy): void {
+  public handleBlockedHit(player: Player, hitPoint: THREE.Vector3, damage: number, postureDamage: number, from?: THREE.Vector3, attacker?: Character): void {
     this.stats.blocks++;
     player.takeDamage(damage * 0.2);
     const broken = player.addMarmaDamage(postureDamage * 1.25);
@@ -589,6 +632,7 @@ export class CombatSystem {
     this.strikes.clear();
     this.staggerImmuneUntil.clear();
     this.playerStaggerImmuneUntil = 0;
+    this.heroStaggerImmuneUntil.clear();
     gsap.killTweensOf(this);
     this.globalTimeScale = 1;
     this.freezes.length = 0;

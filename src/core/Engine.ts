@@ -15,6 +15,8 @@ import { ProjectileManager } from '../combat/ProjectileManager';
 import { Voices } from '../combat/Voices';
 import { HitboxManager } from '../combat/HitboxManager';
 import { Player } from '../entities/Player';
+import { DuelSession } from '../duel/DuelSession';
+import type { GameMode } from '../duel/Rules';
 import { Enemy } from '../entities/Enemy';
 import { Boss } from '../entities/Boss';
 import { Vetala } from '../entities/Vetala';
@@ -335,6 +337,9 @@ export class Engine {
 
   public player: Player | null = null;
   public enemies: Enemy[] = [];
+  /** Campaign or duel is separate from the existing screen-flow mode. */
+  public gameMode: GameMode = 'campaign';
+  public duel: DuelSession | null = null;
   /** The chapter story's characters who do not fight (the guru), spawned with it. */
   public cast: Extra[] = [];
 
@@ -569,6 +574,8 @@ export class Engine {
     };
 
     click('title', (action) => {
+      if (action === 'duel') { this.screens.push('duel-menu'); return; }
+      if (action === 'campaign') { this.screens.push('campaign-menu'); return; }
       if (action === 'continue') void this.beginCampaign(Math.min(Progress.unlocked(), LAST_CHAPTER));
       else if (action === 'new') {
         this.newCampaign();
@@ -578,6 +585,20 @@ export class Engine {
       else if (action === 'settings') this.openSettings();
       else if (action === 'controls') this.screens.push('controls');
       else if (action === 'about') this.screens.push('about');
+    });
+    click('campaign-menu', (action) => {
+      if (action === 'new') { this.newCampaign(); void this.beginCampaign(CHAPTERS[0].id); }
+      else if (action === 'continue') void this.beginCampaign(Math.min(Progress.unlocked(), LAST_CHAPTER));
+      else if (action === 'chapters') this.openChapters();
+      else if (action === 'back') this.screens.pop();
+    });
+    click('duel-menu', (action) => {
+      if (action === 'bot') void this.startDuel();
+      else if (action === 'back') this.screens.pop();
+    });
+    click('duel-result', (action) => {
+      if (action === 'rematch') void this.startDuel();
+      else if (action === 'quit') this.enterTitle();
     });
     click('pause', (action) => {
       if (action === 'resume') void this.resume();
@@ -644,7 +665,7 @@ export class Engine {
       this.renderSettings();
       // Pro mode turned on or off mid-chapter: his health scales with it, keeping its share.
       const p = this.player;
-      if (p && p.maxHealth !== this.heroHealth()) {
+      if (this.gameMode === 'campaign' && p && p.maxHealth !== this.heroHealth()) {
         const share = p.maxHealth > 0 ? p.currentHealth / p.maxHealth : 1;
         p.maxHealth = this.heroHealth();
         p.currentHealth = Math.round(share * p.maxHealth);
@@ -829,6 +850,7 @@ export class Engine {
 
   /** The title screen over a slow orbit of whatever arena is loaded. */
   private enterTitle(): void {
+    this.clearDuel();
     this.loadToken++;
     this.paused = false;
     this.credits.stop();
@@ -868,6 +890,7 @@ export class Engine {
    */
   public async startChapter(id: number, options: { intro: boolean }): Promise<void> {
     if (!this.player) return;
+    this.clearDuel();
     const chapter = chapterById(id);
     const token = ++this.loadToken;
     this.chapter = chapter;
@@ -1462,7 +1485,8 @@ export class Engine {
     this.dialogue.setPaused(true);
     this.inputManager.releaseAll();
     this.inputManager.exitPointerLock();
-    $('pause-chapter').textContent = this.chapter ? `${chapterTitle(this.chapter)}, ${this.chapter.name}` : '';
+    document.querySelector<HTMLButtonElement>('#pause-menu [data-action=restart]')!.hidden = this.gameMode === 'duel';
+    $('pause-chapter').textContent = this.gameMode === 'duel' ? 'Duel — Akhada' : this.chapter ? `${chapterTitle(this.chapter)}, ${this.chapter.name}` : '';
     this.screens.only('pause');
     this.updateCaptureHint();
   }
@@ -1627,6 +1651,71 @@ export class Engine {
     this.sceneManager.scene.add(fighter.slashRibbon.mesh);
   }
 
+  /** Duel cleanup runs only when a duel exists: the campaign's simulation paths stay as they were. */
+  private clearDuel(): void {
+    const duel = this.duel;
+    if (!duel) return;
+    duel.dispose();
+    const foe = duel.opponent;
+    this.sceneManager.scene.remove(foe.group, foe.slashRibbon.mesh);
+    foe.detachPhysics();
+    if (foe.rigidBody) this.physicsWorld.removeBody(foe.rigidBody);
+    foe.rig?.dispose();
+    disposeObject(foe.group);
+    disposeObject(foe.slashRibbon.mesh);
+    HitboxManager.getInstance().forget(foe.id);
+    this.duel = null;
+    this.gameMode = 'campaign';
+    if (this.player) this.player.renewsPosture = false;
+  }
+
+  /** Load the Akhada directly, with two summit heroes and no campaign scenes or saves. */
+  public async startDuel(): Promise<void> {
+    if (!this.player) return;
+    this.clearDuel();
+    this.clearEnemies();
+    this.gameMode = 'duel';
+    const token = ++this.loadToken;
+    this.chapter = null;
+    this.paused = false;
+    this.beaten = false;
+    this.outcome = null;
+    this.screens.clear();
+    this.dialogue.clear();
+    this.director.skip();
+    this.cinema.setActive(false);
+    this.cinema.setFade(0);
+    this.hud.show(false);
+    this.player.group.visible = false;
+    this.setMode('loading');
+    this.showLoading('Duel', 'Akhada', 0);
+    const duel = new DuelSession(this);
+    this.duel = duel;
+    try {
+      await this.levelManager.loadLevel(2, (f) => { if (token === this.loadToken) this.showLoading('Duel', 'Akhada', f * 0.7); });
+      if (token !== this.loadToken) return;
+      await duel.prepare();
+      if (token !== this.loadToken) return;
+      this.addFighter(duel.opponent, new THREE.Vector3(0, 0, -3), FIGHTER_CAPSULE);
+      duel.reset();
+      BloodFX.getInstance().clear();
+      this.interpolated.clear();
+      this.poses.clear();
+      this.hud.bindDuel(duel.opponent);
+      this.hud.show(true);
+      this.hud.showBoss(true);
+      this.hideLoading();
+      this.setMode('play');
+      this.inputManager.releaseAll();
+      this.inputManager.discardLook();
+      this.soundFX.music.play('akhada');
+      this.soundFX.playAmbience('akhada');
+      void this.capturePointer();
+    } catch (err) {
+      if (token === this.loadToken) this.loadFailed('The duel could not load. Return to the title and try again.', err);
+    }
+  }
+
   private clearEnemies(): void {
     for (const enemy of this.enemies) {
       enemy.retire();
@@ -1697,6 +1786,19 @@ export class Engine {
     if (!player) return;
     this.physicsWorld.step(dt);
     this.inputManager.advance(dt);
+    if (this.gameMode === 'duel' && this.duel) {
+      if (this.mode === 'play') {
+        this.duel.step(dt);
+        if (player.isDown() || this.duel.opponent.isDown()) {
+          this.duel.finished = true;
+          this.setMode('over');
+          this.inputManager.exitPointerLock();
+          $('duel-outcome').textContent = player.isDown() ? 'You fell' : 'You won';
+          this.screens.only('duel-result');
+        }
+      }
+      return;
+    }
     const acting = this.mode === 'play' || this.mode === 'handoff' || this.mode === 'outro';
     const playerControl = acting && !this.beaten;
     this.applyEase();
@@ -1745,6 +1847,7 @@ export class Engine {
 
   private simulatedCharacters(): Character[] {
     const characters: Character[] = [...this.enemies, ...this.cast];
+    if (this.duel) characters.push(this.duel.opponent);
     if (this.player) characters.push(this.player);
     return characters;
   }
@@ -2023,6 +2126,7 @@ export class Engine {
   }
 
   private updateFlow(dt: number): void {
+    if (this.gameMode === 'duel') return;
     switch (this.mode) {
       case 'intro': {
         // Hold to skip; a tap moves on to the next line.

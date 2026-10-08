@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import type { Player } from '../entities/Player';
 import type { Enemy } from '../entities/Enemy';
+import type { Character } from '../entities/Character';
 import type { Callout } from '../combat/CombatSystem';
 import type { InputDevice } from '../core/InputManager';
 import { refreshGlyphs, withGlyphs } from './Glyphs';
@@ -81,7 +82,7 @@ export class Hud {
   private readonly hurtEl = $('hurt-vignette');
   private readonly bloodEl = $('blood-pulse');
   private pulse: Animation | null = null;
-  private boss: Enemy | null = null;
+  private boss: Character | null = null;
   private calloutTimer = 0;
   private hintTimer = 0;
   private shakti = -1;
@@ -101,6 +102,16 @@ export class Hud {
     enemies.forEach((e) => this.add(e));
     this.playerHealth.reset(1);
     this.playerPosture.reset(0);
+  }
+
+  /** A hero opponent uses the existing boss health and posture bars. */
+  public bindDuel(opponent: Player): void {
+    this.bind([]);
+    this.boss = opponent;
+    $('boss-name').textContent = 'Opponent';
+    $('boss-epithet').textContent = 'Khanda and dhal';
+    this.bossHealth.reset(1);
+    this.bossPosture.reset(0);
   }
 
   /** An enemy joins the fight (also mid-fight: a wave, a boss arriving). Bosses take the big bar. */

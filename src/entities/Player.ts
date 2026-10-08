@@ -105,14 +105,14 @@ export class Player extends Character {
   private clock = 0;
   private readonly doings: Record<keyof Habits, number[]> = { slides: [], blocks: [], attacks: [], parries: [] };
 
-  constructor() {
-    super('player_hero', 0xd4af37); // Royal Gold
+  constructor(id = 'player_hero', input = InputManager.getInstance()) {
+    super(id, 0xd4af37); // Royal Gold
     this.chainsEarly = true;
     this.turnAccel = LOCOMOTION.turnAccel;
     // His gait follows the stick at once: the clip dwell that steadies the AI's would only make him feel late.
     this.visualDwell = 0;
 
-    this.inputManager = InputManager.getInstance();
+    this.inputManager = input;
     this.soundFX = SoundFX.getInstance();
     this.particleFX = ParticleFX.getInstance();
 
