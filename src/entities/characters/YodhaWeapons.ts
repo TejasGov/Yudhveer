@@ -50,7 +50,13 @@ export function dressed(set: WeaponSet, attire: Attire): CharacterDefinition {
   // The same definition each time (his strike windows are measured once for it, `Character.fitProps`).
   const key = `${set.id}:${attire}`;
   let definition = DRESSED.get(key);
-  if (!definition) DRESSED.set(key, (definition = { ...set.definition, ...ATTIRE_MODELS[attire] }));
+  if (!definition) {
+    // Only the duel's unarmed training kit uses the boxing build; campaign attire keeps its original assets.
+    const model = set.id === 'fists' && attire === 'training'
+      ? { model: asset('characters/yodha_duel_boxing.glb'), manifest: asset('characters/yodha_duel_boxing.manifest.json') }
+      : ATTIRE_MODELS[attire];
+    DRESSED.set(key, (definition = { ...set.definition, ...model }));
+  }
   return definition;
 }
 const DRESSED = new Map<string, CharacterDefinition>();
@@ -223,23 +229,26 @@ const LATHI_STATES: Partial<Record<CharacterState, StateAnimation>> = {
 };
 
 /**
- * Temporary unarmed motion, in one state-to-clip table. These are the lathi clips with the staff entirely absent;
- * replace an entry's clip and timing here when real boxing clips arrive. The hand socket carries an empty group,
+ * Duel boxing motion, in one state-to-clip table, retargeted from Mixamo onto the training hero's own rig. The jab
+ * is mirrored at download so all three punches strike with the right hand. The hand socket carries an empty group,
  * like Yatudhana's hand attack, so measured windows and swept hit detection follow the fist rather than a blade.
+ * Each attack is cropped around its forward stroke: the return to guard must not become a second hit window.
+ * Jump, slide and posture recovery still use the existing hero clips; the armed and campaign sets keep theirs.
  */
 export const FISTS_STATES: Partial<Record<CharacterState, StateAnimation>> = {
-  // PLACEHOLDER: each entry can be replaced here without changing combat or the lathi.
-  IDLE: { clip: 'great_sword_idle', fade: 0.3 },
-  MOVE: { clip: 'great_sword_run_2', matchSpeed: true, fade: 0.22 },
-  SPRINT: { clip: 'great_sword_run_2', matchSpeed: true, fade: 0.25 },
-  ATTACK_1: { clip: 'great_sword_slash', startAt: 0.34, endAt: 1.05, timeScale: 1, timesState: true, fade: 0.08 },
-  ATTACK_2: { clip: 'great_sword_slash_3', startAt: 0.72, endAt: 1.3, timeScale: 0.8, timesState: true, fade: 0.22 },
-  ATTACK_3: { clip: 'great_sword_high_spin_attack', startAt: 0.2, endAt: 1.6, timeScale: 1.35, timesState: true, rootMotion: true, fade: 0.12 },
+  IDLE: { clip: 'boxing_idle', fade: 0.2 },
+  REST: { clip: 'boxing_idle', fade: 0.3 },
+  WALK: { clip: 'boxing_walk', matchSpeed: true },
+  MOVE: { clip: 'boxing_run', matchSpeed: true, fade: 0.22 },
+  SPRINT: { clip: 'boxing_run', matchSpeed: true, fade: 0.25 },
+  ATTACK_1: { clip: 'boxing_jab_right', startAt: 0.1, endAt: 0.5, timeScale: 0.8, timesState: true, fade: 0.06 },
+  ATTACK_2: { clip: 'boxing_cross', startAt: 0.25, endAt: 1, timesState: true, fade: 0.06 },
+  ATTACK_3: { clip: 'boxing_hook', startAt: 0.2, endAt: 1.1, timesState: true, fade: 0.06 },
   ATTACK_JUMP: undefined,
   CHARGE: undefined,
-  STAGGER: { clip: 'great_sword_impact_2', timeScale: 1.3, timesState: true, fade: 0.05 },
-  DEFLECTED: { clip: 'great_sword_impact', timeScale: 1.3, fade: 0.05 },
-  DEAD: { clip: 'two_handed_sword_death_2', fade: 0.1 },
+  STAGGER: { clip: 'boxing_body_hit', timeScale: 1.3, timesState: true, fade: 0.05 },
+  DEFLECTED: { clip: 'boxing_recoil', timeScale: 1.3, fade: 0.05 },
+  DEAD: { clip: 'boxing_knockout', fade: 0.1 },
 };
 
 /**
@@ -297,9 +306,9 @@ export const WEAPON_SETS: Record<WeaponId, WeaponSet> = {
     }),
     // Starting guesses; bot measurements and human play determine the final numbers.
     blows: {
-      ATTACK_1: { damage: 1.5, posture: 7, reach: 1.05 },
-      ATTACK_2: { damage: 2, posture: 9, reach: 1.05 },
-      ATTACK_3: { damage: 1.5, posture: 8, reach: 1.05 },
+      ATTACK_1: { damage: 2.5, posture: 7, reach: 1.05 },
+      ATTACK_2: { damage: 3, posture: 9, reach: 1.05 },
+      ATTACK_3: { damage: 2.5, posture: 8, reach: 1.05 },
     },
     shield: false, stowable: false,
     sound: { swing: [1.25, 1.4, 1.1], whoosh: 'lathi', impact: 'crush' },

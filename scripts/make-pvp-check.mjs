@@ -8,6 +8,7 @@ import { readFileSync, writeFileSync } from 'node:fs';
 const controls = `<div style="position:fixed;z-index:99999;top:0;left:0;background:#111;color:white;max-width:60vw;max-height:35vh;overflow:auto">
 <button id="run-baseline">Run campaign check</button><button id="run-local">Run local duel check</button>
 <button id="bot-check">Measure both bots</button><button id="match-live">Script full match</button><button id="snapshot-check">Read session</button>
+<button id="boxing-check">Inspect boxing</button>
 <button id="test-ko">Report test KO</button><button id="debug-unpause">Release debug pause</button>
 <button id="defence-check">Check defence rules</button><button id="step-live">Step live</button><button id="attack-live">Script attacks</button><button id="parry-live">Script parries</button><button id="stop-live">Stop stepping</button><button id="pause-check">Check pause menu</button>
 <pre id="test-result">Ready</pre></div>
@@ -34,6 +35,10 @@ document.getElementById('debug-unpause').onclick=()=>{const e=__yudhveer;e.pause
  if(e.duel?.finished)e.finishNetworkDuel('Match over');else e.screens.clear();};
 document.getElementById('snapshot-check').onclick=()=>{__yudhveer.duel?.updatePresentation();out.textContent=JSON.stringify(summary(__yudhveer));};
 document.getElementById('bot-check').onclick=async()=>{clearInterval(interval);out.textContent='Measuring both bots';try{await ready();__yudhveer.gameLoop=()=>{};out.textContent=JSON.stringify(await __debug.duelPlaytest(3));}catch(err){out.textContent=err.stack;}};
+document.getElementById('boxing-check').onclick=async()=>{clearInterval(interval);await ready();const e=__yudhveer;e.gameLoop=()=>{};await e.startDuel();e.inputManager.exitPointerLock();const hero=e.player;
+ const {Vector3}=await import('three');const moves={};for(const state of ['ATTACK_1','ATTACK_2','ATTACK_3']){const c=hero.rig.definition.states[state];moves[state]={config:c,windows:hero.hitWindows(state),raw:hero.rig.measureStrikes(c.clip,()=>hero.swordMesh.localToWorld(new Vector3(0,0.12,0)))};}
+ e.debugAdvance(2.5);
+ e.sceneManager.render(1/60);out.textContent=JSON.stringify({moves,clips:Object.fromEntries(Object.entries(hero.rig.manifest.clips).filter(([id])=>id.startsWith('boxing_')))});};
 document.getElementById('match-live').onclick=()=>{matchScript=!matchScript;};
 document.getElementById('step-live').onclick = () => { const e=__yudhveer; e.gameLoop=()=>{}; clearInterval(interval); e.inputManager.exitPointerLock();
  interval=setInterval(()=>{ try {

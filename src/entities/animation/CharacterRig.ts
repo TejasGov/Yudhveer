@@ -31,7 +31,7 @@ export interface ClipInfo {
 /**
  * The finger poses a rig built with finger bones of its own (game asset/characters/hands.py, `--finger-markers`) carries
  * as `hand_<pose>` clips: closed round the haft in the hand's socket, hanging relaxed, laid flat. Each frame a hand that
- * holds a prop closes, an empty one relaxes, and a clip marked `hands: 'flat'` (prayer) lays both flat.
+ * holds a prop closes, an empty one relaxes, and a clip marked `hands` overrides both (flat for prayer, fists for boxing).
  */
 export type HandPose = 'fist' | 'relaxed' | 'flat';
 const HAND_POSES: HandPose[] = ['fist', 'relaxed', 'flat'];
@@ -477,18 +477,18 @@ export class CharacterRig {
 
   /**
    * Sets the fingers of each hand (rigs built with finger bones, see `HandPose`), eased toward what it does now: both
-   * flat while the clip asks for it (prayer), otherwise closed on what it holds and relaxed when empty.
+   * in the clip's requested pose (flat for prayer, fists for boxing), otherwise closed on what it holds and relaxed when empty.
    */
   private updateHands(dt: number): void {
     if (!this.hands) return;
-    const flat = !!this.current && this.manifest.clips[this.current.config.clip]?.hands === 'flat';
+    const pose = this.current ? this.manifest.clips[this.current.config.clip]?.hands : undefined;
     const k = 1 - Math.exp(-HAND_RATE * dt);
     for (const hand of this.hands) {
-      const grip = flat ? 0 : this.gripOf(hand);
+      const grip = pose ? 0 : this.gripOf(hand);
       const first = !hand.shown;
       const shown = (hand.shown ??= hand.bones.map(() => new THREE.Quaternion()));
       hand.bones.forEach((bone, i) => {
-        if (flat) _hq.copy(hand.poses.flat[i]);
+        if (pose) _hq.copy(hand.poses[pose][i]);
         else _hq.copy(hand.poses.relaxed[i]).slerp(hand.poses.fist[i], grip);
         if (first) shown[i].copy(_hq);
         else shown[i].slerp(_hq, k);

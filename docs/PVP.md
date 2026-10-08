@@ -59,7 +59,7 @@ Floating head labels use local gold and opponent vermilion. Names in those label
 the boss HUD and results use textContent exclusively. The string <b>Local</b> was
 shown literally in both browsers; it created no b element.
 
-## Fists and the clips needed
+## Fists and boxing clips
 
 Fists is a real WeaponSet and WeaponId. Its empty prop group is fitted to
 Socket_Hand_R with a 12 cm hit segment, measured and swept through the usual
@@ -67,25 +67,116 @@ hitbox code. There is no staff, dhal or scabbard. Reach is 1.05 m centre to cent
 used by attack assistance and the duel HeroBot. Damage/posture/reach live in the
 blow table; sounds live in the weapon set.
 
-FISTS_STATES in src/entities/characters/YodhaWeapons.ts is the separate, single
-placeholder mapping. Its attacks/stance/run/reactions are copied lathi motions;
-changing a fist entry does not change the lathi. Real animation names and timings
-can replace individual entries there. Desired replacements, on the existing hero
-skeleton:
+FISTS_STATES in src/entities/characters/YodhaWeapons.ts is the single mapping.
+The original staff-derived placeholders have been replaced by nine Mixamo clips,
+downloaded on X Bot without skin, Binary FBX, 30 fps, no keyframe reduction. Only
+the leading-hand jab was mirrored, making all three attacks right-handed.
 
-- Guarded boxing idle (IDLE), boxing walk and run (MOVE/SPRINT; WALK uses the base
-  hero clip until a boxing walk is supplied).
-- Three distinct **right-hand** strikes: straight/jab (ATTACK_1), cross
-  (ATTACK_2), hook/overhand finisher (ATTACK_3), with readable wind-ups and recovery,
-  approximately 0.7, 0.7 and 1.0 seconds. The current hit volume follows the right
-  hand; left-hand attacking clips would also need a hand-selection data field.
-- Unarmed body-hit reaction (STAGGER), recoil (DEFLECTED), fall/death (DEAD).
-- Optional unarmed slide, jump and posture-break recovery; those retain the
-  existing hero clips. No block/parry clips are needed for the unarmed kit.
+| State | Mixamo selection / description | Clip ID |
+| --- | --- | --- |
+| IDLE, REST | Boxing Idle | boxing_idle |
+| WALK | Boxing Advancing Forward | boxing_walk |
+| MOVE, SPRINT | Unarmed Run Forward / Running Forward | boxing_run |
+| ATTACK_1 | Boxing Leading Hand Jab, mirrored | boxing_jab_right |
+| ATTACK_2 | Boxing Back Hand Cross | boxing_cross |
+| ATTACK_3 | Boxing Back Hand Hook | boxing_hook |
+| STAGGER | Stomach Hit | boxing_body_hit |
+| DEFLECTED | Head Hit | boxing_recoil |
+| DEAD | Knocked Out Falling To Back | boxing_knockout |
 
-No model, animation, story, voice, trailer or game asset/ file was changed.
+The new yodha_duel_boxing.glb and manifest are used only by training:fists. They
+retain the training mesh, height, sockets, finger poses and inherited hero clips.
+The original training/kavach models and every campaign asset remain untouched.
+The lobby already preloads all round kits for both heroes; it now preloads this
+boxing rig too. RemoteHero uses the same definition and clip offsets.
 
-## Measurements — 2026-10-08
+Boxing manifest entries request hands: 'fist', closing both empty hands. The
+existing manifest hand override now supports all three declared poses; clips
+without an override still close on props and relax when empty, and prayer stays
+flat. Slide, jump and posture recovery keep their existing animations; an unarmed
+slide or recovery can be supplied later. Left-hand attacks still need a hand
+selection field. No block/parry clips are needed for the unarmed kit.
+
+Sources stay outside the repo in E:\hindan\pvp-boxing-sources. The nine FBX
+SHA-256 hashes and export settings are recorded in PVP_BOXING_SOURCES.json.
+Rebuild with PowerShell 7: pwsh -File scripts/build-duel-boxing.ps1. Its parameters
+can point at another source/staging/Blender directory. It copies inputs to staging,
+reads the existing character pipeline, exports only the two new duel assets and
+losslessly packs the GLB. It writes nothing under game asset/.
+
+## Boxing integration measurements — 2026-10-08
+
+Blender 5.2.2 retargeted all nine clips onto the existing training skeleton; the
+export has 30,959 triangles and 80 clips including inherited hero moves and hand
+poses. Packing reduced 4.71 MB to 2.88 MB, with all 6,087 animation tracks and
+eight mesh attribute arrays identical. The build retains existing rig warnings
+about hand bone lengths and finger/socket construction; no missing clip warnings
+were observed in the browser. It adds one separate model download to a duel.
+
+The engine measures hand motion at 60 Hz. The full jab included a second window
+at 0.517-0.567 clip seconds on the return stroke. Cropping it at 0.5 seconds removes
+that extra strike. Cross/hook each measure one window; their recovery is cropped
+to keep the combo shorter than the source clips' long trailing settle.
+
+| Punch | Source crop | Playback rate | State length | Measured hit window, state seconds |
+| --- | --- | --- | --- | --- |
+| Jab | 0.10-0.50 s | 0.8 | 0.50 s | 0.208-0.375 |
+| Cross | 0.25-1.00 s | 1 | 0.75 s | 0.250-0.550 |
+| Hook | 0.20-1.10 s | 1 | 0.90 s | 0.217-0.500 |
+
+All 25 browser duel checks pass. Added checks exercise one window on each rig,
+the new model/hand metadata, and actual animated swept contacts for each punch:
+one blow at 0.9 m centre distance, zero damage at 3 m. The existing resolver,
+140 ms parry, guard, slide, posture and round checks are retained.
+
+With the new motion and old fist damage 1.5/2/1.5, all three unarmed bot trials
+took 86.18 simulated seconds. Fist damage was raised to 2.5/3/2.5, keeping posture
+7/9/8 and reach 1.05 m. Armed data and the 0.07 duel multiplier were not changed.
+The final __debug.duelPlaytest(3) samples were:
+
+| Kit | Run 1 | Run 2 | Run 3 | Median |
+| --- | --- | --- | --- | --- |
+| Boxing, 100 HP | 50.43 s | 50.43 s | 50.43 s | 50.43 s |
+| Summit, 100 HP | 21.52 s | 33.35 s | 33.87 s | 33.35 s |
+| Summit, 130 HP | 40.68 s | 31.97 s | 39.75 s | 39.75 s |
+
+All nine ended by KO without a stall. The three identical boxing samples reflect
+the bots' repeated close-range exchanges, not broad statistical confidence.
+Damage, crop offsets and playback rates remain choices for human review. The run
+uses simulated seconds and does not reproduce wall-clock hit-stop pacing.
+
+Two real browser clients then completed a 2-1 match through the local relay at the
+80 ms preset, using actual hand/blade contacts and defender verdicts. Both agreed
+on each score and round; the final used 130 HP. The scripted standing fights took
+29.19, 46.92 and 62.51 wall-clock seconds. These are a protocol/contact scenario,
+not the bot pacing scenario above and not human reaction measurements.
+
+| Client | Peer RTT mean; range | Contact-to-verdict mean; range | Feedback samples |
+| --- | --- | --- | --- |
+| Seat 0 | 98.35 ms; 85.60-118.80 ms | 203.70 ms; 181.30-231.70 ms | 86 |
+| Seat 1 | 97.26 ms; 86.20-113.90 ms | 208.65 ms; 188.90-243.70 ms | 41 |
+
+One rematch request waited for the peer; the second restored scores 0-0, fists,
+100 HP and zero posture on both heroes in epoch 4. Closing the peer exercised
+disconnect handling. No runtime errors or missing clips were reported by either
+client; the isolated Browser pane refused pointer lock, so normal mouse capture
+is still unverified. This integration reran only the 80 ms preset; the older
+40/150 ms and loss measurements below remain historical. Human feel is unsettled.
+
+The exact before/after campaign invocation was
+__debug.playtest([2, 4, 5], 2, { skill: 'steady' }). Both finished six runs with
+zero errors and stalls; wins were 2/2, 0/2, 1/2 both times. Mean damage over all
+runs changed from 24.5/120.5/60 to 39.5/120.5/109. These small variable samples
+do not establish identical balance. The complete campaign fixed-update block
+matches main byte for byte after Git checkout CRLF conversion. Campaign assets,
+enemy AI, story, voices, trailers and game asset/ were not edited.
+
+The recorded PowerShell rebuild completed successfully and reproduced the packed
+GLB byte for byte (SHA-256 0709baeb6e1453f347e7e2a16f6ae61a61d56eaf27a7cd19b7119ce414d3365d).
+TypeScript, Vite build, all 13 relay tests and the 135-file asset URL check pass.
+Edited source and new text assets retain CRLF. The nine raw FBXs are not committed.
+
+## Historical Stage 2 plumbing measurements — 2026-10-08
 
 The dev hook __debug.duelPlaytest(3) plays both heroes through HeroBot and real
 buffered controls, rig-derived strike windows and swept contact detection. It
@@ -164,8 +255,8 @@ New and edited source retains CRLF.
   and contacts cannot establish that the game feels fair or responsive.
 - The 90-second clock, two-second card, fist numbers and 0.07 armed damage
   multiplier are tuning choices for review. Health and best-of-three are decided.
-- Placeholder staff-derived motions look like weapon swings without a weapon.
-  Proper boxing clips, including a decision about left-hand hit volumes, remain.
+- Left-hand punch volumes and optional unarmed jump, slide and posture recovery
+  clips remain. The first boxing set uses three right-hand strikes.
 - Receipt-time interpolation, five seconds without state ending the session,
   snapshot-only simulated loss, trusted defender health, first lethal verdict
   winning a racing KO, and limited validation remain spike constraints.
