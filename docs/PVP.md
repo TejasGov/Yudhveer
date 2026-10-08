@@ -1,5 +1,7 @@
 ## Audit fixes — 8 October 2026
 
+7. Charge reconciliation: every completed charge has a generation and an acknowledged spend count. The defender retains unacknowledged consumption, so rereading an old pose cannot refund a blow; the owner ignores late consumption from a previous charge. Tests cover three stale-snapshot contacts, partial acknowledgements, fresh charge/round reset and duplicate/late owner verdicts. All 33 tests, TypeScript and build pass.
+
 6. Room reuse: recreating an empty closed room resets its lobby, scores and epochs. Old detached sockets cannot affect its replacement. The Node wrapper checks map identity before deleting a room, preventing a delayed old close event from deleting a new room with the same code. Added retained-room lifecycle regression; all 29 tests, TypeScript and build pass. Cloudflare execution remains unverified.
 
 5. Duel HeroBot now passes only perceived threats to offence, approach and camera decisions. Its 300 ms steady reaction delay applies consistently; campaign bots retain the original threat selection. A production-method regression checks the pre/post-reaction boundary and the campaign branch. All 28 tests, TypeScript and build pass. Difficulty remains steady; no damage/parry-window tuning was changed.

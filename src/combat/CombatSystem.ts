@@ -500,7 +500,7 @@ export class CombatSystem {
   public resolveHeroHitOnHero(attacker: Player, defender: Player, point: THREE.Vector3): void {
     const blow = attacker.weapon.blows[attacker.stateMachine.currentState] ?? attacker.weapon.blows.ATTACK_1!;
     const charged = attacker.chargedHits > 0;
-    if (charged) attacker.chargedHits--;
+    if (charged) attacker.spendCharge();
     const scale = charged ? CHARGED_MULTIPLIER : 1;
     if (defender.isEvading()) this.resolveEvasion(attacker, defender);
     else this.resolveIncomingBlow(attacker, defender, point, {

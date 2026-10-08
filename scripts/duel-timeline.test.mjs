@@ -6,7 +6,7 @@ import { DUEL_ATTACKS } from '../src/duel/Rules.ts';
 /** Actual receiver timeline with a controlled clock. Animation windows are the same wire bounds checked by duelCheck. */
 const pose = (seq, tick, state = 'ATTACK_1', time = tick / 60) => ({
   seq, tick, state, time, swing: 1, loadout: 'training:fists', position: [0, 0, tick / 60],
-  velocity: [0, 0, 1], yaw: 0, health: 100, posture: 0, charged: 0,
+  velocity: [0, 0, 1], yaw: 0, health: 100, posture: 0, charged: 0, chargeId: 0, chargeSpent: 0,
 });
 const within = (s, window) => !!s?.state.startsWith('ATTACK') && s.time >= window[0] && s.time <= window[1];
 

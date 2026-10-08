@@ -29,7 +29,7 @@ const pair = () => {
 };
 const next = p => { ready(p.room, p.a, p.b); p.time.advance(2); };
 const hit = (round, health = 70) => ({ type: 'hit', round, swing: 1, window: 0, result: 'player-hit', health, posture: 20, charged: false, seenSeq: 1, point: [0, 1, 0] });
-const state = { loadout: 'training:fists', seq: 1, tick: 1, position: [0, 0, 0], velocity: [1, 0, 0], yaw: 0, state: 'IDLE', time: 0.3, swing: 1, health: 100, posture: 0, charged: 0 };
+const state = { loadout: 'training:fists', seq: 1, tick: 1, position: [0, 0, 0], velocity: [1, 0, 0], yaw: 0, state: 'IDLE', time: 0.3, swing: 1, health: 100, posture: 0, charged: 0, chargeId: 0, chargeSpent: 0 };
 
 test('shared table is best of three, unarmed 100 then summit 100 and 130', () => {
   assert.equal(DUEL_ROUNDS_TO_WIN, 2);

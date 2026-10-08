@@ -3,6 +3,7 @@ import { Character } from '../entities/Character';
 import { InputManager } from '../core/InputManager';
 import type { CharacterState } from '../entities/CharacterStateMachine';
 import { CombatTimeline, interpolateHero } from '../duel/CombatTimeline';
+import { ChargeLedger } from '../duel/ChargeLedger';
 
 /**
  * A received hero wears exactly the local hero's rig and weapon. It has no physics motor and never reads the
@@ -24,6 +25,8 @@ export interface HeroSnapshot {
   health: number;
   posture: number;
   charged: number;
+  chargeId: number;
+  chargeSpent: number;
 }
 export const DUEL_INTERPOLATION_MS = 100;
 
@@ -31,6 +34,7 @@ export class RemoteHero extends Player {
   private readonly snapshots: { at: number; state: HeroSnapshot }[] = [];
   public snapshot: HeroSnapshot | null = null;
   public readonly combatTimeline = new CombatTimeline();
+  private readonly charges = new ChargeLedger();
 
   constructor(id = 'duel_opponent') {
     super(id, InputManager.isolated());
@@ -48,6 +52,12 @@ export class RemoteHero extends Player {
     this.snapshot = null;
     this.receivedAttackId = null;
     this.combatTimeline.reset();
+    this.charges.reset();
+  }
+
+  public override spendCharge(): void {
+    super.spendCharge();
+    if (this.snapshot) this.charges.consume(this.snapshot);
   }
 
   public override update(dt: number): void {
@@ -74,7 +84,7 @@ export class RemoteHero extends Player {
     sm.isParryActive = state.state === 'PARRY' && time <= sm.parryWindow;
     this.currentHealth = Math.min(this.currentHealth, state.health);
     this.currentMarma = state.posture;
-    this.chargedHits = state.charged;
+    this.chargedHits = this.charges.remaining(state);
     this.visSpeed = Math.hypot(state.velocity[0], state.velocity[2]);
     // Character advances the same rig and trails; discard root motion and knockback after posing it.
     Character.prototype.update.call(this, dt);

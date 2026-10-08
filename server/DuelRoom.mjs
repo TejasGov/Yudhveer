@@ -21,6 +21,8 @@ export function validSnapshot(s, number = 1) {
     && finite(s.yaw, -100, 100) && STATES.has(s.state) && finite(s.time, 0, 86400)
     && Number.isSafeInteger(s.swing) && s.swing >= 0 && finite(s.health, 0, rule.health)
     && finite(s.posture, 0, 100) && Number.isInteger(s.charged) && s.charged >= 0 && s.charged <= 3
+    && Number.isSafeInteger(s.chargeId) && s.chargeId >= 0 && Number.isInteger(s.chargeSpent)
+    && s.chargeSpent >= 0 && s.chargeSpent + s.charged <= 3
     && s.loadout === duelLoadoutId(number)
     && (number !== 1 || (!['PARRY', 'BLOCK', 'BLOCK_HIT', 'CHARGE', 'ATTACK_JUMP', 'SHEATHE', 'DRAW'].includes(s.state) && s.charged === 0));
 }
@@ -160,6 +162,7 @@ export class DuelRoom {
       && (this.roundNumber !== 1 || (!['blocked', 'deflected'].includes(m.result) && !m.charged))) {
       const attacker = [...this.seats.values()].find(s => s !== sender);
       if (!attacker?.evidence.witnessed(m)) return;
+      if (m.charged && !attacker.evidence.samples.get(m.seenSeq).charged) return;
       const key = m.swing + ':' + m.window; if (sender.hits.has(key)) return;
       sender.hits.add(key); sender.health = Math.min(sender.health, m.health); m.health = sender.health;
       if (sender.hits.size > 2048) { socket.close(1008, 'Round message limit'); this.leave(socket); return; }

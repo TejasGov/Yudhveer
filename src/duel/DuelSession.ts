@@ -43,6 +43,9 @@ export class DuelSession {
   private lastStep = performance.now();
   private publishedSwing = -1;
   private publishedAttack = false;
+  private chargeId = 0;
+  private chargeSpent = 0;
+  private readonly restoreChargeHook: () => void;
   private readonly sentStates = new Map<number, HeroSnapshot>();
   private readonly velocity = new THREE.Vector3();
   private readonly sentAt = new Map<number, number>();
@@ -60,6 +63,10 @@ export class DuelSession {
   }
 
   constructor(private readonly engine: Engine, public readonly transport?: DuelTransport) {
+    const hero = engine.player!, previousCharge = hero.onCharged;
+    const onCharged = () => { this.chargeId++; this.chargeSpent = 0; previousCharge?.(); };
+    hero.onCharged = onCharged;
+    this.restoreChargeHook = () => { if (hero.onCharged === onCharged) hero.onCharged = previousCharge; };
     this.opponent = transport ? new RemoteHero() : new Player('duel_opponent', this.input);
     this.tags = new DuelNameTags([engine.player!, this.opponent]);
     if (transport) { this.localName = transport.name; this.opponentName = 'Yodha'; }
@@ -156,7 +163,9 @@ export class DuelSession {
       }
       this.engine.combatSystem.stats.damageDealt += Math.max(0, this.opponent.currentHealth - m.health);
       this.opponent.currentHealth = Math.min(this.opponent.currentHealth, m.health); this.opponent.currentMarma = m.posture;
-      if (m.charged) hero.chargedHits = Math.max(0, hero.chargedHits - 1);
+      if (m.charged && seen.chargeId === this.chargeId) {
+        hero.spendCharge(); this.chargeSpent = Math.min(3, this.chargeSpent + 1);
+      }
       if (m.result === 'deflected') this.engine.combatSystem.applyHeroDeflection(hero);
       this.engine.combatSystem.confirmHeroContact(hero, this.opponent, m.result, new THREE.Vector3(...m.point));
     }
@@ -184,6 +193,7 @@ export class DuelSession {
     this.engine.combatSystem.resetStats(); this.remaining = DUEL_ROUND_SECONDS;
     this.seq = 0; this.tick = 0; this.lastStep = performance.now(); this.velocity.set(0, 0, 0); this.sentAt.clear(); this.contacts.clear(); this.verdicts.clear();
     this.publishedSwing = -1; this.publishedAttack = false; this.sentStates.clear();
+    this.chargeId = 0; this.chargeSpent = 0;
     this.previous.copy(heroes[0].getPosition());
     if (this.opponent instanceof RemoteHero) this.opponent.clearSnapshots();
     this.setNames();
@@ -295,6 +305,7 @@ export class DuelSession {
       loadout: duelLoadoutId(this.roundNumber), seq, tick: this.tick, position: hero.getPosition().toArray(), yaw: hero.group.rotation.y,
       velocity: this.velocity.toArray(), state: hero.stateMachine.currentState, time: hero.stateMachine.stateTime,
       swing: hero.attackId, health: hero.currentHealth, posture: hero.currentMarma, charged: hero.chargedHits,
+      chargeId: this.chargeId, chargeSpent: this.chargeSpent,
     };
     this.sentAt.set(seq, performance.now()); this.sentStates.set(seq, state);
     if (this.sentStates.size > 512) { const first = this.sentStates.keys().next().value!; this.sentStates.delete(first); this.sentAt.delete(first); }
@@ -302,6 +313,7 @@ export class DuelSession {
   }
 
   public dispose(): void {
+    this.restoreChargeHook();
     if (this.sendTimer) clearInterval(this.sendTimer); if (this.probeTimer) clearInterval(this.probeTimer);
     this.bot?.release(); this.transport?.close(); this.tags.dispose();
     document.getElementById('duel-card')!.hidden = true; document.getElementById('duel-match')!.hidden = true;
