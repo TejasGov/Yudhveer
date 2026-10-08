@@ -4,7 +4,7 @@ import { DuelRoom, validSnapshot } from '../server/DuelRoom.mjs';
 import { DUEL_ROUND_KITS, DUEL_ROUNDS_TO_WIN, duelLoadoutId } from '../src/duel/Rules.ts';
 
 /** The actual shared core, with a controllable server clock: no waiting, fake scoring or duplicated kit table. */
-const socket = () => ({ messages: [], closed: false, send(raw) { this.messages.push(JSON.parse(raw)); }, close() { this.closed = true; } });
+const socket = () => ({ messages: [], closed: false, send(raw) { const message = JSON.parse(raw); this.messages.push(message); if (this.room && this.autoAck !== false && message.delivery) this.room.message(this, JSON.stringify({ type: 'ack', delivery: message.delivery })); }, close() { this.closed = true; } });
 const send = (room, peer, data) => room.message(peer, JSON.stringify(data));
 const clock = () => {
   let at = 0, serial = 0; const timers = new Map();
@@ -24,7 +24,7 @@ const ready = (room, a, b) => {
 };
 const pair = () => {
   const time = clock(), room = new DuelRoom('ABC123', time), a = socket(), b = socket();
-  room.join(a, true); room.join(b, false); ready(room, a, b); time.advance(2); room.testAdvance = seconds => time.advance(seconds);
+  a.room = b.room = room; room.join(a, true); room.join(b, false); ready(room, a, b); time.advance(2); room.testAdvance = seconds => time.advance(seconds);
   return { room, a, b, time };
 };
 const next = p => { ready(p.room, p.a, p.b); p.time.advance(2); };
@@ -187,4 +187,21 @@ test('teleports, unregistered attacks, impossible clocks and same-frame attack s
   send(p.room,p.a,{type:'attack',round:1,state:opening});
   for(let n=2;n<30;n++)send(p.room,p.a,{type:'attack',round:1,state:{...opening,seq:n+1,swing:n}});
   assert.equal(p.b.messages.filter(m=>m.type==='attack').length,1);
+});
+
+test('room bounds unacknowledged delivery even on a Worker socket without bufferedAmount', () => {
+  const p = pair(); p.b.autoAck = false;
+  for (let n = 0; n < 500 && p.room.seats.has(p.b); n++) p.room.send(p.b, { type: 'motion', state: { ...state, padding: 'x'.repeat(500) } });
+  assert.equal(p.room.phase, 'closed'); assert.equal(p.b.closed, true);
+});
+
+test('future acknowledgements cannot erase backlog and missing receipts end an active session', () => {
+  const p = pair(); p.b.autoAck = false; p.room.send(p.b, { type: 'probe', round: 1, at: 0 });
+  const seat = p.room.seats.get(p.b), before = seat.outBytes;
+  send(p.room, p.b, { type: 'ack', delivery: seat.delivery + 1 }); assert.equal(seat.outBytes, before);
+  for (let n = 0; n < 8 && p.room.active; n++) {
+    for (const peer of [p.a, p.b]) send(p.room, peer, { type: 'state', round: 1, state: { ...state, seq: n + 1, tick: n * 15, position: [0, 0, peer === p.a ? 3 : -3] } });
+    p.time.advance(0.25);
+  }
+  assert.equal(p.room.phase, 'closed');
 });

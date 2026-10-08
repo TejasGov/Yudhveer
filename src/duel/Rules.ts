@@ -18,6 +18,9 @@ export const DUEL_ROUND_SECONDS = 90; // Open decision: compare health shares, r
 export const DUEL_ROUND_CARD_SECONDS = 2; // Open decision: short, automatic, after both peers are ready.
 /** A connected browser must still simulate defence. Covers normal hit-stop and the largest lobby delay preset. */
 export const DUEL_STALL_MS = 2000;
+/** Replaceable snapshots yield first; reliable combat/control cannot grow an unbounded socket backlog. */
+export const DUEL_SNAPSHOT_QUEUE_BYTES = 4096;
+export const DUEL_MAX_QUEUE_BYTES = 32768;
 /**
  * Wire validation bounds measured from the shipped rigs (seconds). These do not drive animation or damage:
  * Character still measures its windows and CombatSystem still reads Blow. The defence check compares both.

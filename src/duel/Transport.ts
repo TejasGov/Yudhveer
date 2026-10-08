@@ -1,5 +1,6 @@
 import type { HeroSnapshot } from '../entities/RemoteHero';
 import type { CombatEvent } from '../combat/CombatSystem';
+import { DUEL_SNAPSHOT_QUEUE_BYTES, DUEL_MAX_QUEUE_BYTES } from './Rules';
 
 /**
  * WebSocket room transport, with a deliberately visible latency simulator. Each endpoint delays outgoing packets
@@ -37,7 +38,7 @@ export class DuelTransport {
   public readonly metrics = { sent: 0, received: 0, dropped: 0, peerRtt: 0, probes: 0, verdictAgeMs: 0, parryAgeMs: 0, predictedContacts: 0, verdictFeedbackMs: 0, peerRttMin: 0, peerRttMax: 0, peerRttMean: 0,
     feedbacks: 0, feedbackMinMs: 0, feedbackMaxMs: 0, feedbackMeanMs: 0 };
   public onMessage: ((message: DuelMessage) => void) | null = null;
-  public onDisconnect: (() => void) | null = null;
+  public onDisconnect: ((reason?: string) => void) | null = null;
   private socket: WebSocket | null = null;
   private readonly timers = new Set<ReturnType<typeof setTimeout>>();
   private reliableDue = 0;
@@ -61,6 +62,9 @@ export class DuelTransport {
       socket.onmessage = event => {
         let m: DuelMessage;
         try { m = JSON.parse(String(event.data)); } catch { return; }
+        // Cumulative delivery receipts bound the room's outbound queue, including Workers without bufferedAmount.
+        const delivery = (m as DuelMessage & { delivery?: number }).delivery;
+        if (Number.isSafeInteger(delivery) && delivery! > 0) this.send({ type: 'ack', delivery });
         this.metrics.received++;
         if (m.type === 'joined') { joined = true; this.seat = m.seat; clearTimeout(timeout); this.send({ type: 'hello', name: this.name }); resolve(); }
         if (m.type === 'error' && !joined) { clearTimeout(timeout); reject(new Error(m.message)); }
@@ -87,6 +91,7 @@ export class DuelTransport {
 
   public send<T extends { type: string }>(message: T): void {
     if (!this.socket || this.closed) return;
+    if (this.timers.size >= 128) { this.congested(); return; }
     const replaceable = message.type === 'state';
     if (replaceable && (Math.random() < this.latency.loss || this.timers.size > 120)) {
       this.metrics.dropped++; return;
@@ -97,12 +102,18 @@ export class DuelTransport {
     const timer = setTimeout(() => {
       this.timers.delete(timer);
       if (this.socket?.readyState !== WebSocket.OPEN || this.closed) return;
+      if (this.socket.bufferedAmount >= DUEL_MAX_QUEUE_BYTES) { this.congested(); return; }
+      if (replaceable && this.socket.bufferedAmount >= DUEL_SNAPSHOT_QUEUE_BYTES) { this.metrics.dropped++; return; }
       this.socket.send(JSON.stringify(message)); this.metrics.sent++;
     }, Math.max(0, due - now));
     this.timers.add(timer);
   }
 
   public probe(): void { this.send({ type: 'probe', round: this.round, at: performance.now() }); }
+  private congested(): void {
+    const notify = this.onDisconnect;
+    this.close(); notify?.('Duel stopped: connection could not keep up.');
+  }
   public rematch(): void { this.send({ type: 'rematch', round: this.round }); }
   public close(): void {
     this.closed = true;

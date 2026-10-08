@@ -4,7 +4,7 @@
  * rematches, so an old snapshot or verdict can never enter a new fight. Rules.ts is the single round table;
  * Node 22.18+ strips its types and the Worker bundles it. Modified defenders can still lie: no anti-cheat yet.
  */
-import { DUEL_ROUND_KITS, DUEL_ROUNDS_TO_WIN, DUEL_ROUND_SECONDS, DUEL_ROUND_CARD_SECONDS, DUEL_STALL_MS, duelLoadoutId } from '../src/duel/Rules.ts';
+import { DUEL_ROUND_KITS, DUEL_ROUNDS_TO_WIN, DUEL_ROUND_SECONDS, DUEL_ROUND_CARD_SECONDS, DUEL_STALL_MS, DUEL_SNAPSHOT_QUEUE_BYTES, DUEL_MAX_QUEUE_BYTES, duelLoadoutId } from '../src/duel/Rules.ts';
 import { DuelPeer } from './DuelPeer.mjs';
 const STATES = new Set(['IDLE', 'REST', 'WALK', 'MOVE', 'SPRINT', 'STRAFE_LEFT', 'STRAFE_RIGHT', 'WALK_BACK',
   'JUMP', 'DODGE', 'ATTACK_1', 'ATTACK_2', 'ATTACK_3', 'ATTACK_JUMP', 'CHARGE', 'CAST', 'PARRY', 'BLOCK',
@@ -31,7 +31,22 @@ export class DuelRoom {
     this.progressTimer = null;
     this.now = clock.now ?? Date.now; this.schedule = clock.schedule ?? setTimeout; this.cancel = clock.cancel ?? clearTimeout;
   }
-  send(socket, message) { try { socket.send(JSON.stringify(message)); } catch { this.leave(socket); } }
+  send(socket, message) {
+    const seat = this.seats.get(socket);
+    if (seat) {
+      const queued = Math.max(socket.bufferedAmount ?? 0, seat.outBytes);
+      if (queued >= DUEL_MAX_QUEUE_BYTES) { this.leave(socket); socket.close(1000, 'Connection congested'); return; }
+      if (message.type === 'state' && queued >= DUEL_SNAPSHOT_QUEUE_BYTES) return;
+      message = { ...message, delivery: ++seat.delivery };
+    }
+    const raw = JSON.stringify(message);
+    if (seat) {
+      const bytes = new TextEncoder().encode(raw).length;
+      if (seat.outBytes + bytes > DUEL_MAX_QUEUE_BYTES) { this.leave(socket); socket.close(1000, 'Connection congested'); return; }
+      seat.outgoing.set(message.delivery, { bytes, at: this.now() }); seat.outBytes += bytes;
+    }
+    try { socket.send(raw); } catch { this.leave(socket); }
+  }
   broadcast(message) { for (const socket of this.seats.keys()) this.send(socket, message); }
   names() { return [0, 1].map(i => [...this.seats.values()].find(s => s.seat === i)?.name ?? 'Yodha'); }
   roundData(type) {
@@ -44,7 +59,8 @@ export class DuelRoom {
     if (this.seats.size >= 2) { this.send(socket, { type: 'error', message: 'Room is full' }); socket.close(1008); return false; }
     const seat = [...this.seats.values()].some(s => s.seat === 0) ? 1 : 0;
     this.seats.set(socket, { seat, name: 'Yodha', ready: false, rematch: false, seq: -1, health: 100,
-      hits: new Set(), rateAt: this.now(), rate: 0, tick: -1, progressedAt: this.now() });
+      hits: new Set(), rateAt: this.now(), rate: 0, tick: -1, progressedAt: this.now(),
+      outgoing: new Map(), outBytes: 0, delivery: 0 });
     this.send(socket, { type: 'joined', room: this.code, seat });
     this.broadcast({ type: 'waiting', players: this.seats.size }); return true;
   }
@@ -99,6 +115,13 @@ export class DuelRoom {
     if (++sender.rate > 120) { socket.close(1008, 'Message limit'); this.leave(socket); return; }
     let m; try { m = JSON.parse(raw); } catch { return; }
     if (!m || typeof m !== 'object') return;
+    if (m.type === 'ack' && Number.isSafeInteger(m.delivery) && m.delivery > 0 && m.delivery <= sender.delivery) {
+      for (const [id, packet] of sender.outgoing) {
+        if (id > m.delivery) break;
+        sender.outBytes -= packet.bytes; sender.outgoing.delete(id);
+      }
+      return;
+    }
     if (m.type === 'hello' && this.phase === 'lobby') {
       sender.name = playerName(m.name); this.broadcast({ type: 'profiles', names: this.names() }); return;
     }
@@ -144,6 +167,10 @@ export class DuelRoom {
   /** Socket traffic alone is not liveness: the defender must advance its fixed-step simulation. */
   checkProgress() {
     for (const [socket, seat] of this.seats) {
+      const pending = seat.outgoing.values().next().value;
+      if (pending && this.now() - pending.at >= DUEL_STALL_MS) {
+        this.leave(socket); socket.close(1000, 'Delivery stalled'); return false;
+      }
       if (this.now() - seat.progressedAt < DUEL_STALL_MS) continue;
       this.send(socket, { type: 'error', message: 'Duel stopped: browser simulation stalled.' });
       this.leave(socket); socket.close(1000, 'Simulation stalled'); return false;

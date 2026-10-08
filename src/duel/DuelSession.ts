@@ -75,7 +75,7 @@ export class DuelSession {
     }, 1000) : null;
     if (transport) {
       transport.onMessage = m => this.receive(m);
-      transport.onDisconnect = () => this.disconnect();
+      transport.onDisconnect = reason => this.disconnect(reason);
     }
   }
 
