@@ -13,7 +13,7 @@ const vector = (v) => Array.isArray(v) && v.length === 3 && v.every(n => finite(
 export const roomCode = (code) => typeof code === 'string' && /^[A-Z0-9]{6}$/.test(code);
 export function validSnapshot(s) {
   return !!s && Number.isSafeInteger(s.seq) && s.seq >= 0 && vector(s.position) && vector(s.velocity)
-    && finite(s.yaw, -100, 100) && STATES.has(s.state) && finite(s.time, 0, 60)
+    && finite(s.yaw, -100, 100) && STATES.has(s.state) && finite(s.time, 0, 86400)
     && Number.isSafeInteger(s.swing) && s.swing >= 0 && finite(s.health, 0, 100)
     && finite(s.posture, 0, 100) && Number.isInteger(s.charged) && s.charged >= 0 && s.charged <= 3;
 }
@@ -38,6 +38,9 @@ export class DuelRoom {
     this.active = false;
     for (const seat of this.seats.values()) { seat.ready = false; seat.rematch = false; }
     this.broadcast({ type: 'disconnected' });
+    const peers = [...this.seats.keys()];
+    this.seats.clear();
+    for (const peer of peers) peer.close(1000, 'Opponent disconnected');
   }
   startIfReady() {
     if (this.seats.size !== 2 || ![...this.seats.values()].every(s => s.ready)) return;
@@ -72,7 +75,8 @@ export class DuelRoom {
       sender.seq = m.state.seq;
     } else if (m.type === 'hit' && Number.isSafeInteger(m.swing) && m.swing >= 0
       && Number.isInteger(m.window) && m.window >= 0 && m.window < 8 && RESULTS.has(m.result)
-      && finite(m.health, 0, 100) && finite(m.posture, 0, 100) && typeof m.charged === 'boolean') {
+      && finite(m.health, 0, 100) && finite(m.posture, 0, 100) && typeof m.charged === 'boolean'
+      && Number.isSafeInteger(m.seenSeq) && m.seenSeq >= 0) {
       const key = m.swing + ':' + m.window;
       if (sender.hits.has(key)) return;
       sender.hits.add(key);

@@ -26,6 +26,8 @@ window.addEventListener('DOMContentLoaded', async () => {
     const probe = new JitterProbe(engine);
     // Combat test hooks: step the simulation deterministically, read the hit log, show the overlay.
     (window as unknown as { __debug: unknown }).__debug = {
+      duelCheck: async () => (await import('./debug/DuelCheck')).checkDuelDefence(engine),
+      duelMetrics: () => engine.duel?.transport?.metrics ?? null,
       step: (frames: number, each?: (frame: number) => void) => engine.debugStep(frames, each),
       log: () => engine.combatSystem.log,
       overlay: (on?: boolean) => engine.combatDebug.toggle(on),

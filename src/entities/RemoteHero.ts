@@ -62,12 +62,19 @@ export class RemoteHero extends Player {
     this.receivedAttackId = state.swing;
     sm.stateTime = Math.max(0, time - dt);
     sm.isParryActive = state.state === 'PARRY' && time <= sm.parryWindow;
-    this.currentHealth = state.health;
+    this.currentHealth = Math.min(this.currentHealth, state.health);
     this.currentMarma = state.posture;
     this.chargedHits = state.charged;
     this.visSpeed = Math.hypot(state.velocity[0], state.velocity[2]);
     // Character advances the same rig and trails; discard root motion and knockback after posing it.
     Character.prototype.update.call(this, dt);
+    // Attack and defence clips follow the received state clock, including the owner's hit-stop. Locomotion keeps
+    // its speed-matched loop. Sampling again at zero delta poses the bones without replaying root motion.
+    if (this.rig && !['IDLE', 'REST', 'WALK', 'MOVE', 'SPRINT'].includes(state.state)) {
+      const config = this.rig.definition.states[state.state];
+      this.rig.seek((config?.startAt ?? 0) + time * (config?.timeScale ?? 1));
+      this.rig.update(0, this.visSpeed);
+    }
     this.group.position.set(...a.state.position).lerp({
       x: b.state.position[0], y: b.state.position[1], z: b.state.position[2],
     }, k);

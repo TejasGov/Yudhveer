@@ -25,6 +25,8 @@ const GUARD_BREAK_POSTURE = 0.16;
 const ARMORED_POSTURE = 0.3;
 /** After a stagger ends, this long before another hit can stagger the player again (s). */
 const STAGGER_GRACE = 0.4;
+/** Both campaign parries and replicated duel parries apply this same posture cost. */
+const DEFLECTION_POSTURE = 50;
 /** After an enemy's stagger ends, this long before a light hit can stagger it again (s): its chance to answer. */
 const ENEMY_STAGGER_GRACE = 0.8;
 /** A boss shrugs off even heavy blows for this long after one staggers it (s): finishers alone can't pin it down. */
@@ -518,9 +520,11 @@ export class CombatSystem {
         if (window === null) continue;
         const { hit, hitPoint } = this.hitboxManager.checkWeaponIntersection(attacker, defender);
         if (hit) {
+          const before = defender.currentHealth;
           const charged = attacker.chargedHits > 0;
           this.markLanded(attacker, window);
           this.resolveHeroHitOnHero(attacker, defender, hitPoint);
+          if (attacker === local) this.stats.damageDealt += before - defender.currentHealth;
           onHit?.(this.log[this.log.length - 1], window, charged);
         }
       }
@@ -577,7 +581,7 @@ export class CombatSystem {
 
   /** The owner receives a defender's parry verdict: the same posture cost and deflected state. */
   public applyHeroDeflection(hero: Player): void {
-    const broken = hero.addMarmaDamage(50);
+    const broken = hero.addMarmaDamage(DEFLECTION_POSTURE);
     if (!broken) hero.stateMachine.changeState('DEFLECTED');
     this.impact(broken ? 'postureBreak' : 'deflect');
   }
@@ -591,7 +595,7 @@ export class CombatSystem {
     this.impact('deflect', toward);
 
     this.stats.deflections++;
-    const postureBroken = enemy.addMarmaDamage(50);
+    const postureBroken = enemy.addMarmaDamage(DEFLECTION_POSTURE);
     if (postureBroken) this.impact('postureBreak', toward);
     if (postureBroken) {
       this.stats.postureBreaks++;

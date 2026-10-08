@@ -891,6 +891,7 @@ export class Engine {
     const resume = unlocked > CHAPTERS[0].id;
     const cont = $('title-continue') as HTMLButtonElement;
     cont.hidden = !resume;
+    document.querySelector<HTMLButtonElement>('#campaign-menu [data-action=continue]')!.hidden = !resume;
     $('continue-detail').textContent = resume ? `${chapterTitle(chapterById(unlocked))}, ${chapterById(unlocked).name}` : '';
     this.screens.only('title', resume ? cont : null);
     refreshGlyphs(document, this.inputManager.device);
@@ -1502,7 +1503,7 @@ export class Engine {
     this.inputManager.releaseAll();
     this.inputManager.exitPointerLock();
     document.querySelector<HTMLButtonElement>('#pause-menu [data-action=restart]')!.hidden = this.gameMode === 'duel';
-    $('pause-chapter').textContent = this.gameMode === 'duel' ? 'Duel — Akhada' : this.chapter ? `${chapterTitle(this.chapter)}, ${this.chapter.name}` : '';
+    $('pause-chapter').textContent = this.gameMode === 'duel' ? (this.duel?.transport ? 'Duel — the match continues online' : 'Duel — Akhada') : this.chapter ? `${chapterTitle(this.chapter)}, ${this.chapter.name}` : '';
     this.screens.only('pause');
     this.updateCaptureHint();
   }
@@ -1684,9 +1685,10 @@ export class Engine {
     this.duel = null;
     this.gameMode = 'campaign';
     if (this.player) this.player.renewsPosture = false;
+    $('duel-network').hidden = true;
   }
 
-  /** Load the Akhada directly, with two summit heroes and no campaign scenes or saves. */
+  /** Simulator values read from the duel lobby; the same controls can be adjusted from the dev console. */
   private duelLatency(): { delayMs: number; jitterMs: number; loss: number } {
     const number = (id: string, max: number) => Math.max(0, Math.min(max, Number(($(id) as HTMLInputElement).value) || 0));
     return { delayMs: number('duel-delay', 500), jitterMs: number('duel-jitter', 250), loss: number('duel-loss', 50) / 100 };
@@ -1708,10 +1710,13 @@ export class Engine {
     } finally { button.disabled = false; }
   }
 
+  /** Load the Akhada directly, with two summit heroes and no campaign scenes or saves. */
   public async startDuel(transport?: DuelTransport): Promise<void> {
     if (!this.player) return;
     this.clearDuel();
     this.clearEnemies();
+    this.interpolated.clear();
+    this.poses.clear();
     this.gameMode = 'duel';
     const token = ++this.loadToken;
     this.chapter = null;
@@ -1759,11 +1764,12 @@ export class Engine {
       this.inputManager.releaseAll();
       this.inputManager.discardLook();
       document.querySelector<HTMLButtonElement>('#duel-result [data-action=rematch]')!.hidden = false;
+      $('duel-network').hidden = !transport;
       if (transport) {
         $('duel-room-label').textContent = 'Room ' + transport.room;
         this.hud.hint('Room ' + transport.room + ' — waiting for the other hero', 3600);
         transport.send({ type: 'ready' });
-      } else $('duel-room-label').textContent = 'Practice';
+      } else $('duel-room-label').textContent = 'Practice · first to ' + duel.rules.roundsToWin;
       this.soundFX.music.play('akhada');
       this.soundFX.playAmbience('akhada');
       void this.capturePointer();

@@ -14,7 +14,7 @@ export type DuelMessage =
   | { type: 'waiting'; players: number }
   | { type: 'start'; round: number }
   | { type: 'state'; round: number; state: HeroSnapshot }
-  | { type: 'hit'; round: number; swing: number; window: number; result: CombatEvent['result']; health: number; posture: number; charged: boolean }
+  | { type: 'hit'; round: number; swing: number; window: number; result: CombatEvent['result']; health: number; posture: number; charged: boolean; seenSeq: number }
   | { type: 'finish'; round: number; winner: 0 | 1 }
   | { type: 'rematch-wait' }
   | { type: 'disconnected' }
@@ -26,7 +26,7 @@ export class DuelTransport {
   public seat: 0 | 1 = 0;
   public round = 0;
   public latency: LatencySettings = { delayMs: 0, jitterMs: 0, loss: 0 };
-  public readonly metrics = { sent: 0, received: 0, dropped: 0, peerRtt: 0, probes: 0 };
+  public readonly metrics = { sent: 0, received: 0, dropped: 0, peerRtt: 0, probes: 0, verdictAgeMs: 0, parryAgeMs: 0 };
   public onMessage: ((message: DuelMessage) => void) | null = null;
   public onDisconnect: (() => void) | null = null;
   private socket: WebSocket | null = null;

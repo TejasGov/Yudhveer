@@ -6,17 +6,18 @@ import { RemoteHero } from '../entities/RemoteHero';
 import { DuelTransport, type DuelMessage } from './Transport';
 import { separateFighters } from '../physics/CharacterMotor';
 import { HeroBot, SKILLS } from '../debug/HeroBot';
-import { DUEL_LOADOUT, DUEL_SPAWNS, DUEL_STARTING_HEALTH } from './Rules';
+import { DUEL_LOADOUT, DUEL_ROUNDS_TO_WIN, DUEL_SPAWNS, DUEL_STARTING_HEALTH } from './Rules';
 
 /**
  * The first duel spike: a second real hero driven through HeroBot's buffered controls, on the existing Akhada.
  * Its input and camera bearing belong to it alone. Neither the campaign's crowd AI nor its scenes, waves, saves
- * and lessons take part. Network sessions later replace this local opponent with a RemoteHero; both paths call
+ * and lessons take part. Network sessions replace this local opponent with a RemoteHero; both paths call
  * the third combat case, whose defender uses the campaign's existing defence functions.
  */
 export class DuelSession {
   public readonly opponent: Player;
   public readonly loadout = DUEL_LOADOUT;
+  public readonly rules = { roundsToWin: DUEL_ROUNDS_TO_WIN, startingHealth: DUEL_STARTING_HEALTH };
   public finished = false;
   private readonly input = InputManager.isolated();
   private readonly camera = { viewYaw: 0, cameraYaw: 0 };
@@ -27,8 +28,11 @@ export class DuelSession {
   public onFinish: ((won: boolean) => void) | null = null;
   public onDisconnect: (() => void) | null = null;
   private seq = 0;
-  private sendClock = 0;
-  private probeClock = 0;
+  private readonly velocity = new THREE.Vector3();
+  private readonly sentAt = new Map<number, number>();
+  private readonly sendTimer: ReturnType<typeof setInterval> | null;
+  private readonly probeTimer: ReturnType<typeof setInterval> | null;
+  private lastReceived = performance.now();
   private readonly previous = new THREE.Vector3();
   private readonly verdicts = new Set<string>();
 
@@ -38,6 +42,13 @@ export class DuelSession {
     this.bot = transport ? null : new HeroBot(engine, SKILLS.steady, Math.random, {
       hero: this.opponent, foe: engine.player!, input: this.input, camera: this.camera,
     });
+    this.sendTimer = transport ? setInterval(() => this.sendState(), 1000 / 30) : null;
+    this.probeTimer = transport ? setInterval(() => {
+      if (!this.active || this.finished) return;
+      if (performance.now() - this.lastReceived > 5000) {
+        transport.close(); this.active = false; this.finished = true; this.onDisconnect?.();
+      } else transport.probe();
+    }, 1000) : null;
     if (transport) {
       transport.onMessage = (m) => this.receive(m);
       transport.onDisconnect = () => { this.active = false; this.finished = true; this.onDisconnect?.(); };
@@ -47,14 +58,17 @@ export class DuelSession {
   private receive(m: DuelMessage): void {
     const hero = this.engine.player!;
     if (m.type === 'disconnected') { this.active = false; this.finished = true; this.onDisconnect?.(); return; }
-    if (m.type === 'start') { this.reset(); this.active = true; this.onStart?.(); return; }
+    if (m.type === 'start') { this.reset(); this.active = true; this.lastReceived = performance.now(); this.onStart?.(); return; }
     if (!('round' in m) || m.round !== this.transport?.round) return;
-    if (m.type === 'state') (this.opponent as RemoteHero).receive(m.state);
+    if (m.type === 'state') { this.lastReceived = performance.now(); (this.opponent as RemoteHero).receive(m.state); }
     if (m.type === 'hit') {
       const key = m.swing + ':' + m.window;
       if (this.verdicts.has(key)) return;
       this.verdicts.add(key);
-      this.opponent.currentHealth = m.health;
+      const at = this.sentAt.get(m.seenSeq);
+      if (at !== undefined) this.transport!.metrics.verdictAgeMs = performance.now() - at;
+      this.engine.combatSystem.stats.damageDealt += Math.max(0, this.opponent.currentHealth - m.health);
+      this.opponent.currentHealth = Math.min(this.opponent.currentHealth, m.health);
       this.opponent.currentMarma = m.posture;
       if (m.charged) hero.chargedHits = Math.max(0, hero.chargedHits - 1);
       if (m.result === 'deflected') this.engine.combatSystem.applyHeroDeflection(hero);
@@ -70,7 +84,7 @@ export class DuelSession {
   public reset(): void {
     const heroes = [this.engine.player!, this.opponent];
     heroes.forEach((hero, i) => {
-      hero.maxHealth = DUEL_STARTING_HEALTH;
+      hero.maxHealth = this.rules.startingHealth;
       hero.mortal = true;
       hero.renewsPosture = true;
       hero.revive();
@@ -86,7 +100,7 @@ export class DuelSession {
     this.engine.sceneManager.resetFollowCamera(heroes[0].getPosition(), heroes[0].group.rotation.y);
     this.engine.combatSystem.resetStats();
     this.finished = false;
-    this.seq = 0; this.sendClock = 0; this.probeClock = 0;
+    this.seq = 0; this.velocity.set(0, 0, 0); this.sentAt.clear();
     this.verdicts.clear();
     this.previous.copy(heroes[0].getPosition());
     if (this.opponent instanceof RemoteHero) this.opponent.clearSnapshots();
@@ -110,29 +124,38 @@ export class DuelSession {
     this.opponent.update(dt);
     this.engine.combatSystem.updateDuel(hero, this.opponent, dt, !!this.transport, (event, window, charged) => {
       if (!this.transport) return;
+      if (event.result === 'deflected') this.transport.metrics.parryAgeMs = hero.stateMachine.stateTime * 1000;
       this.transport.send({ type: 'hit', round: this.transport.round,
         swing: (this.opponent as RemoteHero).snapshot?.swing ?? 0, window, result: event.result,
-        health: hero.currentHealth, posture: hero.currentMarma, charged,
+        health: hero.currentHealth, posture: hero.currentMarma, charged, seenSeq: (this.opponent as RemoteHero).snapshot?.seq ?? 0,
       });
     });
-    if (this.transport) {
-      this.sendClock += dt; this.probeClock += dt;
-      const p = hero.getPosition();
-      if (this.sendClock >= 1 / 30) {
-        this.sendClock %= 1 / 30;
-        this.transport.send({ type: 'state', round: this.transport.round, state: {
-          seq: this.seq++, position: p.toArray(), yaw: hero.group.rotation.y,
-          velocity: p.clone().sub(this.previous).divideScalar(dt).toArray(),
-          state: hero.stateMachine.currentState, time: hero.stateMachine.stateTime, swing: hero.attackId,
-          health: hero.currentHealth, posture: hero.currentMarma, charged: hero.chargedHits,
-        } });
-      }
-      this.previous.copy(p);
-      if (this.probeClock >= 1) { this.probeClock = 0; this.transport.probe(); }
-    }
+    const p = hero.getPosition();
+    this.velocity.copy(p).sub(this.previous).divideScalar(Math.max(dt, 1e-4));
+    this.previous.copy(p);
+  }
+
+  /** Wall-clock cadence: hit-stop must not stop the network stream. */
+  private sendState(): void {
+    if (!this.transport || !this.active || this.finished) return;
+    const hero = this.engine.player!;
+    const seq = this.seq++;
+    this.sentAt.set(seq, performance.now());
+    if (this.sentAt.size > 256) this.sentAt.delete(this.sentAt.keys().next().value!);
+    this.transport.send({ type: 'state', round: this.transport.round, state: {
+      seq, position: hero.getPosition().toArray(), yaw: hero.group.rotation.y,
+      velocity: this.velocity.toArray(), state: hero.stateMachine.currentState,
+      time: hero.stateMachine.stateTime, swing: hero.attackId, health: hero.currentHealth,
+      posture: hero.currentMarma, charged: hero.chargedHits,
+    } });
+    const status = document.getElementById('duel-network');
+    const text = 'Room ' + this.transport.room + ' · ' + Math.round(this.transport.metrics.peerRtt) + ' ms ping';
+    if (status && status.textContent !== text) status.textContent = text;
   }
 
   public dispose(): void {
+    if (this.sendTimer) clearInterval(this.sendTimer);
+    if (this.probeTimer) clearInterval(this.probeTimer);
     this.bot?.release();
     this.transport?.close();
     this.opponent.retire();

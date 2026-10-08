@@ -11,7 +11,7 @@ import { Settings } from '../core/Settings';
 
 /*
  * The hero bot (docs/STORY.md, "Milestone 12"): plays Yudhveer through the engine's own input path, for the playtest
- * (`__debug.playtest`, src/debug/Playtest.ts). Dev builds only.
+ * (`__debug.playtest`, src/debug/Playtest.ts). Duel practice uses the same controller with isolated controls.
  *
  * It is meant to stand in for a player, not a solver: it sees what a player sees (where everyone is, what state they are
  * in, a blow's wind-up, a bolt in the air) and answers it the way a player's hands would, a reaction time late and with
