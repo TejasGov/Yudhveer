@@ -121,8 +121,8 @@ export class DuelRoom {
     if ((m.type === 'probe' || m.type === 'echo') && finite(m.at, 0, 1e15)) {
       for (const [peer] of this.seats) if (peer !== socket) this.send(peer, m); return;
     }
-    if ((m.type === 'state' || m.type === 'attack') && validSnapshot(m.state, this.roundNumber)
-      && (m.type === 'attack' || m.state.seq > sender.seq)) {
+    if (['state', 'attack', 'motion'].includes(m.type) && validSnapshot(m.state, this.roundNumber)
+      && (m.type !== 'state' || m.state.seq > sender.seq)) {
       if (!sender.evidence.accept(m.state, this.now(), m.type === 'attack')) return;
       if (m.state.tick > sender.tick) { sender.tick = m.state.tick; sender.progressedAt = this.now(); }
       sender.seq = Math.max(sender.seq, m.state.seq); sender.health = Math.min(sender.health, m.state.health); m.state.health = sender.health;

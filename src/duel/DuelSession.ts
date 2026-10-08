@@ -42,6 +42,7 @@ export class DuelSession {
   private tick = 0;
   private lastStep = performance.now();
   private publishedSwing = -1;
+  private publishedAttack = false;
   private readonly sentStates = new Map<number, HeroSnapshot>();
   private readonly velocity = new THREE.Vector3();
   private readonly sentAt = new Map<number, number>();
@@ -135,9 +136,9 @@ export class DuelSession {
       return;
     }
     if (!this.active || this.finished) return;
-    if (m.type === 'state' || m.type === 'attack') {
+    if (m.type === 'state' || m.type === 'attack' || m.type === 'motion') {
       if (m.state.loadout !== duelLoadoutId(this.roundNumber)) { this.disconnect('Round loadout mismatch. Reload both clients.'); return; }
-      this.lastReceived = performance.now(); (this.opponent as RemoteHero).receive(m.state);
+      this.lastReceived = performance.now(); (this.opponent as RemoteHero).receive(m.state, performance.now(), m.type !== 'state');
     }
     if (m.type === 'hit') {
       const seen = this.sentStates.get(m.seenSeq);
@@ -182,7 +183,7 @@ export class DuelSession {
     this.engine.sceneManager.resetFollowCamera(heroes[0].getPosition(), heroes[0].group.rotation.y);
     this.engine.combatSystem.resetStats(); this.remaining = DUEL_ROUND_SECONDS;
     this.seq = 0; this.tick = 0; this.lastStep = performance.now(); this.velocity.set(0, 0, 0); this.sentAt.clear(); this.contacts.clear(); this.verdicts.clear();
-    this.publishedSwing = -1; this.sentStates.clear();
+    this.publishedSwing = -1; this.publishedAttack = false; this.sentStates.clear();
     this.previous.copy(heroes[0].getPosition());
     if (this.opponent instanceof RemoteHero) this.opponent.clearSnapshots();
     this.setNames();
@@ -234,8 +235,12 @@ export class DuelSession {
       position: f.group.position, radius: f.motor!.radius, mass: f.mass, push: f.sepPush, solid: !f.isDown() && !f.isEvading(),
     })));
     hero.update(dt); this.opponent.update(dt);
+    if (this.opponent instanceof RemoteHero && this.opponent.combatTimeline.overflowed) {
+      this.disconnect('Duel stopped: combat updates fell too far behind.'); return;
+    }
     if (this.transport && hero.attackId !== this.publishedSwing && hero.stateMachine.currentState.startsWith('ATTACK')) {
       this.publishedSwing = hero.attackId;
+      this.publishedAttack = true;
       this.transport.send({ type: 'attack', round: this.transport.round, state: this.snapshot() });
     }
     this.engine.combatSystem.updateDuel(hero, this.opponent, dt, !!this.transport, (event, window, charged) => {
@@ -251,6 +256,11 @@ export class DuelSession {
       if (this.contacts.size > 256) this.contacts.delete(this.contacts.keys().next().value!);
       if (this.transport) this.transport.metrics.predictedContacts++;
     });
+    // Cancellation and recovery are reliable too: they bound the last active pose even at 100% snapshot loss.
+    if (this.transport && this.publishedAttack && !hero.stateMachine.currentState.startsWith('ATTACK')) {
+      this.publishedAttack = false;
+      this.transport.send({ type: 'motion', round: this.transport.round, state: this.snapshot() });
+    }
     const p = hero.getPosition(); this.velocity.copy(p).sub(this.previous).divideScalar(Math.max(dt, 1e-4)); this.previous.copy(p);
     if (!this.transport) {
       if (hero.isDown() || this.opponent.isDown()) this.finishPractice(hero.isDown() ? 1 : 0, 'ko');
@@ -272,7 +282,8 @@ export class DuelSession {
     if (!this.transport || !this.active || this.finished) return;
     // A background tab can run timers without rendering. Do not advertise a healthy but invulnerable hero.
     if (performance.now() - this.lastStep >= DUEL_STALL_MS) { this.disconnect('Duel stopped: your browser stopped simulating.'); return; }
-    this.transport.send({ type: 'state', round: this.transport.round, state: this.snapshot() });
+    this.transport.send({ type: this.engine.player!.stateMachine.currentState.startsWith('ATTACK') ? 'motion' : 'state',
+      round: this.transport.round, state: this.snapshot() });
     const status = document.getElementById('duel-network');
     const text = 'Room ' + this.transport.room + ' · ' + Math.round(this.transport.metrics.peerRtt) + ' ms ping';
     if (status && status.textContent !== text) status.textContent = text;

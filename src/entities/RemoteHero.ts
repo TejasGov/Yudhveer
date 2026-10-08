@@ -1,7 +1,8 @@
 import { Player } from '../entities/Player';
-import { Character, wrapAngle } from '../entities/Character';
+import { Character } from '../entities/Character';
 import { InputManager } from '../core/InputManager';
 import type { CharacterState } from '../entities/CharacterStateMachine';
+import { CombatTimeline, interpolateHero } from '../duel/CombatTimeline';
 
 /**
  * A received hero wears exactly the local hero's rig and weapon. It has no physics motor and never reads the
@@ -29,12 +30,14 @@ export const DUEL_INTERPOLATION_MS = 100;
 export class RemoteHero extends Player {
   private readonly snapshots: { at: number; state: HeroSnapshot }[] = [];
   public snapshot: HeroSnapshot | null = null;
+  public readonly combatTimeline = new CombatTimeline();
 
   constructor(id = 'duel_opponent') {
     super(id, InputManager.isolated());
   }
 
-  public receive(state: HeroSnapshot, at = performance.now()): void {
+  public receive(state: HeroSnapshot, at = performance.now(), critical = false): void {
+    if (critical) this.combatTimeline.receive(state, at);
     if (state.seq <= (this.snapshots.at(-1)?.state.seq ?? -1)) return;
     this.snapshots.push({ at, state });
     if (this.snapshots.length > 32) this.snapshots.shift();
@@ -44,6 +47,7 @@ export class RemoteHero extends Player {
     this.snapshots.length = 0;
     this.snapshot = null;
     this.receivedAttackId = null;
+    this.combatTimeline.reset();
   }
 
   public override update(dt: number): void {
@@ -53,9 +57,13 @@ export class RemoteHero extends Player {
     const a = this.snapshots[0];
     const b = this.snapshots[1] ?? a;
     const k = Math.max(0, Math.min(1, (now - a.at) / Math.max(1, b.at - a.at)));
-    const state = k >= 1 ? b.state : a.state;
-    const time = a.state.state === b.state.state && a.state.swing === b.state.swing
-      ? a.state.time + (b.state.time - a.state.time) * k : state.time;
+    const pending = this.combatTimeline.pending;
+    const combat = this.combatTimeline.sample(now, dt);
+    if (pending && !combat) return;
+    let state = combat ?? interpolateHero(a.state, b.state, k);
+    const completed = this.combatTimeline.completed;
+    if (!combat && completed && state.seq < completed.seq) state = completed;
+    const time = state.time;
     const sm = this.stateMachine;
     if (sm.currentState !== state.state || this.snapshot?.swing !== state.swing) {
       sm.reset();
@@ -77,10 +85,8 @@ export class RemoteHero extends Player {
       this.rig.seek((config?.startAt ?? 0) + time * (config?.timeScale ?? 1));
       this.rig.update(0, this.visSpeed);
     }
-    this.group.position.set(...a.state.position).lerp({
-      x: b.state.position[0], y: b.state.position[1], z: b.state.position[2],
-    }, k);
-    this.group.rotation.y = a.state.yaw + wrapAngle(b.state.yaw - a.state.yaw) * k;
+    this.group.position.set(...state.position);
+    this.group.rotation.y = state.yaw;
     sm.currentState = state.state;
     sm.stateTime = time;
     this.snapshot = state;

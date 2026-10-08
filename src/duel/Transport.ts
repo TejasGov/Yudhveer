@@ -20,7 +20,7 @@ export type DuelMessage =
   | ({ type: 'card'; cardSeconds: number } & RoundMessage)
   | { type: 'profiles'; names: [string, string] }
   | { type: 'prepare'; round: number; roundNumber: number; score: [number, number] }
-  | { type: 'state' | 'attack'; round: number; state: HeroSnapshot }
+  | { type: 'state' | 'attack' | 'motion'; round: number; state: HeroSnapshot }
   | { type: 'hit'; round: number; swing: number; window: number; result: CombatEvent['result']; health: number; posture: number; charged: boolean; seenSeq: number; point: number[] }
   | { type: 'finish'; round: number; roundNumber: number; winner: 0 | 1 | null; score: [number, number]; matchOver: boolean; nextRound: number; reason: 'ko' | 'time' }
   | { type: 'rematch-wait' }
