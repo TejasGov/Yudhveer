@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import type { Engine } from '../core/Engine';
 import { InputManager } from '../core/InputManager';
 import { Player } from '../entities/Player';
-import { RemoteHero } from '../entities/RemoteHero';
+import { RemoteHero, type HeroSnapshot } from '../entities/RemoteHero';
 import { DuelTransport, type DuelMessage } from './Transport';
 import { separateFighters } from '../physics/CharacterMotor';
 import { HeroBot, SKILLS } from '../debug/HeroBot';
@@ -41,6 +41,8 @@ export class DuelSession {
   private seq = 0;
   private tick = 0;
   private lastStep = performance.now();
+  private publishedSwing = -1;
+  private readonly sentStates = new Map<number, HeroSnapshot>();
   private readonly velocity = new THREE.Vector3();
   private readonly sentAt = new Map<number, number>();
   private readonly contacts = new Map<string, number>();
@@ -133,11 +135,13 @@ export class DuelSession {
       return;
     }
     if (!this.active || this.finished) return;
-    if (m.type === 'state') {
+    if (m.type === 'state' || m.type === 'attack') {
       if (m.state.loadout !== duelLoadoutId(this.roundNumber)) { this.disconnect('Round loadout mismatch. Reload both clients.'); return; }
       this.lastReceived = performance.now(); (this.opponent as RemoteHero).receive(m.state);
     }
     if (m.type === 'hit') {
+      const seen = this.sentStates.get(m.seenSeq);
+      if (!seen || seen.swing !== m.swing || !seen.state.startsWith('ATTACK') || !hero.hitWindows(seen.state)[m.window]) return;
       const key = m.swing + ':' + m.window;
       if (this.verdicts.has(key)) return; this.verdicts.add(key);
       const at = this.sentAt.get(m.seenSeq), contact = this.contacts.get(key);
@@ -178,6 +182,7 @@ export class DuelSession {
     this.engine.sceneManager.resetFollowCamera(heroes[0].getPosition(), heroes[0].group.rotation.y);
     this.engine.combatSystem.resetStats(); this.remaining = DUEL_ROUND_SECONDS;
     this.seq = 0; this.tick = 0; this.lastStep = performance.now(); this.velocity.set(0, 0, 0); this.sentAt.clear(); this.contacts.clear(); this.verdicts.clear();
+    this.publishedSwing = -1; this.sentStates.clear();
     this.previous.copy(heroes[0].getPosition());
     if (this.opponent instanceof RemoteHero) this.opponent.clearSnapshots();
     this.setNames();
@@ -229,6 +234,10 @@ export class DuelSession {
       position: f.group.position, radius: f.motor!.radius, mass: f.mass, push: f.sepPush, solid: !f.isDown() && !f.isEvading(),
     })));
     hero.update(dt); this.opponent.update(dt);
+    if (this.transport && hero.attackId !== this.publishedSwing && hero.stateMachine.currentState.startsWith('ATTACK')) {
+      this.publishedSwing = hero.attackId;
+      this.transport.send({ type: 'attack', round: this.transport.round, state: this.snapshot() });
+    }
     this.engine.combatSystem.updateDuel(hero, this.opponent, dt, !!this.transport, (event, window, charged) => {
       if (!this.transport) return;
       if (event.result === 'deflected') this.transport.metrics.parryAgeMs = hero.stateMachine.stateTime * 1000;
@@ -263,16 +272,22 @@ export class DuelSession {
     if (!this.transport || !this.active || this.finished) return;
     // A background tab can run timers without rendering. Do not advertise a healthy but invulnerable hero.
     if (performance.now() - this.lastStep >= DUEL_STALL_MS) { this.disconnect('Duel stopped: your browser stopped simulating.'); return; }
-    const hero = this.engine.player!, seq = this.seq++;
-    this.sentAt.set(seq, performance.now()); if (this.sentAt.size > 256) this.sentAt.delete(this.sentAt.keys().next().value!);
-    this.transport.send({ type: 'state', round: this.transport.round, state: {
-      loadout: duelLoadoutId(this.roundNumber), seq, tick: this.tick, position: hero.getPosition().toArray(), yaw: hero.group.rotation.y,
-      velocity: this.velocity.toArray(), state: hero.stateMachine.currentState, time: hero.stateMachine.stateTime,
-      swing: hero.attackId, health: hero.currentHealth, posture: hero.currentMarma, charged: hero.chargedHits,
-    } });
+    this.transport.send({ type: 'state', round: this.transport.round, state: this.snapshot() });
     const status = document.getElementById('duel-network');
     const text = 'Room ' + this.transport.room + ' · ' + Math.round(this.transport.metrics.peerRtt) + ' ms ping';
     if (status && status.textContent !== text) status.textContent = text;
+  }
+
+  private snapshot(): HeroSnapshot {
+    const hero = this.engine.player!, seq = this.seq++;
+    const state: HeroSnapshot = {
+      loadout: duelLoadoutId(this.roundNumber), seq, tick: this.tick, position: hero.getPosition().toArray(), yaw: hero.group.rotation.y,
+      velocity: this.velocity.toArray(), state: hero.stateMachine.currentState, time: hero.stateMachine.stateTime,
+      swing: hero.attackId, health: hero.currentHealth, posture: hero.currentMarma, charged: hero.chargedHits,
+    };
+    this.sentAt.set(seq, performance.now()); this.sentStates.set(seq, state);
+    if (this.sentStates.size > 512) { const first = this.sentStates.keys().next().value!; this.sentStates.delete(first); this.sentAt.delete(first); }
+    return state;
   }
 
   public dispose(): void {

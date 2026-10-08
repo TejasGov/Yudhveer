@@ -5,6 +5,7 @@
  * Node 22.18+ strips its types and the Worker bundles it. Modified defenders can still lie: no anti-cheat yet.
  */
 import { DUEL_ROUND_KITS, DUEL_ROUNDS_TO_WIN, DUEL_ROUND_SECONDS, DUEL_ROUND_CARD_SECONDS, DUEL_STALL_MS, duelLoadoutId } from '../src/duel/Rules.ts';
+import { DuelPeer } from './DuelPeer.mjs';
 const STATES = new Set(['IDLE', 'REST', 'WALK', 'MOVE', 'SPRINT', 'STRAFE_LEFT', 'STRAFE_RIGHT', 'WALK_BACK',
   'JUMP', 'DODGE', 'ATTACK_1', 'ATTACK_2', 'ATTACK_3', 'ATTACK_JUMP', 'CHARGE', 'CAST', 'PARRY', 'BLOCK',
   'BLOCK_HIT', 'SHOVE', 'SHEATHE', 'DRAW', 'STAGGER', 'DEFLECTED', 'POSTURE_BROKEN', 'DEAD']);
@@ -66,7 +67,7 @@ export class DuelRoom {
     this.timer = this.schedule(() => {
       if (this.phase !== 'card') return;
       this.phase = 'fight'; this.active = true; this.broadcast(this.roundData('start'));
-      for (const seat of this.seats.values()) { seat.tick = -1; seat.progressedAt = this.now(); }
+      for (const seat of this.seats.values()) { seat.tick = -1; seat.progressedAt = this.now(); seat.evidence = new DuelPeer(seat.seat, this.now()); }
       this.watchProgress();
       this.timer = this.schedule(() => this.timeout(), DUEL_ROUND_SECONDS * 1000);
       this.timer?.unref?.();
@@ -120,15 +121,18 @@ export class DuelRoom {
     if ((m.type === 'probe' || m.type === 'echo') && finite(m.at, 0, 1e15)) {
       for (const [peer] of this.seats) if (peer !== socket) this.send(peer, m); return;
     }
-    if (m.type === 'state' && validSnapshot(m.state, this.roundNumber) && m.state.seq > sender.seq) {
-      if (m.state.tick < sender.tick) return;
+    if ((m.type === 'state' || m.type === 'attack') && validSnapshot(m.state, this.roundNumber)
+      && (m.type === 'attack' || m.state.seq > sender.seq)) {
+      if (!sender.evidence.accept(m.state, this.now(), m.type === 'attack')) return;
       if (m.state.tick > sender.tick) { sender.tick = m.state.tick; sender.progressedAt = this.now(); }
-      sender.seq = m.state.seq; sender.health = Math.min(sender.health, m.state.health); m.state.health = sender.health;
+      sender.seq = Math.max(sender.seq, m.state.seq); sender.health = Math.min(sender.health, m.state.health); m.state.health = sender.health;
     } else if (m.type === 'hit' && Number.isSafeInteger(m.swing) && m.swing >= 0
       && Number.isInteger(m.window) && m.window >= 0 && m.window < 8 && RESULTS.has(m.result)
       && finite(m.health, 0, DUEL_ROUND_KITS[this.roundNumber - 1].health) && finite(m.posture, 0, 100)
       && typeof m.charged === 'boolean' && Number.isSafeInteger(m.seenSeq) && m.seenSeq >= 0 && vector(m.point)
       && (this.roundNumber !== 1 || (!['blocked', 'deflected'].includes(m.result) && !m.charged))) {
+      const attacker = [...this.seats.values()].find(s => s !== sender);
+      if (!attacker?.evidence.witnessed(m)) return;
       const key = m.swing + ':' + m.window; if (sender.hits.has(key)) return;
       sender.hits.add(key); sender.health = Math.min(sender.health, m.health); m.health = sender.health;
       if (sender.hits.size > 2048) { socket.close(1008, 'Round message limit'); this.leave(socket); return; }

@@ -1,5 +1,7 @@
 ## Audit fixes — 8 October 2026
 
+2. Verdict validation: reliable attack starts register a swing before replaceable poses. Both relay and attacker require a real observed snapshot, attack serial and weapon window. The relay bounds simulation clock, attack cadence and accumulated movement (20 m/s with 3 m burst tolerance), with bounded evidence history. These are generous plausibility bounds, not competitive anti-cheat; a modified defender can still lie about defence. The wire window table was measured with the shipped GLB animation and is checked against each rig by duelCheck. Added forged-parry, unknown-reference/window, clock, cadence and teleport regressions; all 17 relay tests and TypeScript pass.
+
 1. Simulation liveness: snapshots carry a fixed-step tick. Both the client and room stop a session after two seconds without simulation progress, independently of packet sequence/probe traffic. Foreground online pause still simulates. This disconnects without awarding a round; the two-second tolerance is a tuning choice. Added frozen-tick and idle-progress relay regressions; all 15 relay tests, TypeScript and Vite build pass. Browser baseline access was denied; before/after browser checks remain pending.
 
 # PvP duel — Stage 2

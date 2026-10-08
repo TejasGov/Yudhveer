@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import type { Engine } from '../core/Engine';
-import { DUEL_ROUND_KITS, DUEL_ROUNDS_TO_WIN } from '../duel/Rules';
+import { DUEL_ROUND_KITS, DUEL_ROUNDS_TO_WIN, DUEL_ATTACKS, duelLoadoutId } from '../duel/Rules';
 
 /**
  * Dev-only defence regression checks for the third melee case. They use two equipped heroes and the actual
@@ -18,6 +18,14 @@ export async function checkDuelDefence(engine: Engine): Promise<Record<string, b
   const combat = engine.combatSystem;
   const point = new THREE.Vector3(0, 1, 0);
   const result: Record<string, boolean> = {};
+  for (const round of [1, 2]) {
+    duel.reset(round);
+    result['wireWindowsRound' + round] = Object.entries(DUEL_ATTACKS[duelLoadoutId(round)]).every(([state, rule]) => {
+      const windows = defender.hitWindows(state as Parameters<typeof defender.hitWindows>[0]);
+      return windows.length === rule.windows.length && windows.every((w, i) =>
+        Math.abs(w.t0 - rule.windows[i][0]) < 0.002 && Math.abs(w.t1 - rule.windows[i][1]) < 0.002);
+    });
+  }
   const reset = () => {
     engine.duel!.reset();
     combat.resetStats();
