@@ -105,11 +105,11 @@ export class Hud {
   }
 
   /** A hero opponent uses the existing boss health and posture bars. */
-  public bindDuel(opponent: Player): void {
+  public bindDuel(opponent: Player, name = 'Opponent'): void {
     this.bind([]);
     this.boss = opponent;
-    $('boss-name').textContent = 'Opponent';
-    $('boss-epithet').textContent = 'Khanda and dhal';
+    $('boss-name').textContent = name;
+    $('boss-epithet').textContent = opponent.weapon.shield ? 'Khanda and dhal' : 'Unarmed';
     this.bossHealth.reset(1);
     this.bossPosture.reset(0);
   }

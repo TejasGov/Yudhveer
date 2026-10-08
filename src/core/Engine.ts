@@ -18,6 +18,7 @@ import { Player } from '../entities/Player';
 import { DuelSession } from '../duel/DuelSession';
 import type { GameMode } from '../duel/Rules';
 import { DuelTransport } from '../duel/Transport';
+import { readDuelName } from '../duel/NameTags';
 import { Enemy } from '../entities/Enemy';
 import { Boss } from '../entities/Boss';
 import { Vetala } from '../entities/Vetala';
@@ -669,6 +670,12 @@ export class Engine {
       if (id === 'credits') this.credits.finish();
     };
     this.credits.onDone = () => this.enterTitle();
+    const name = $('duel-name') as HTMLInputElement;
+    name.value = readDuelName();
+    name.addEventListener('input', () => {
+      try { localStorage.setItem('yudhveer.duel.name', name.value.trim().slice(0, 16) || 'Yodha'); }
+      catch { /* Storage blocked: this lobby's name still travels in hello. */ }
+    });
     const relay = $('duel-relay') as HTMLInputElement;
     relay.value = import.meta.env.VITE_DUEL_RELAY ?? (import.meta.env.DEV ? 'ws://' + location.hostname + ':8787' : '');
     const updateLatency = () => {
@@ -1498,7 +1505,7 @@ export class Engine {
   private pause(): void {
     if (this.paused) return;
     this.paused = true;
-    if (this.duel?.transport) this.duel.suspended = true;
+    if (this.duel?.transport) this.duel.suspend();
     this.dialogue.setPaused(true);
     this.inputManager.releaseAll();
     this.inputManager.exitPointerLock();
@@ -1702,7 +1709,7 @@ export class Engine {
     $('duel-status').textContent = 'Connecting…';
     try {
       await transport.connect(($('duel-relay') as HTMLInputElement).value,
-        create ? undefined : ($('duel-room') as HTMLInputElement).value);
+        create ? undefined : ($('duel-room') as HTMLInputElement).value, ($('duel-name') as HTMLInputElement).value);
       await this.startDuel(transport);
     } catch (err) {
       transport.close();
@@ -1733,16 +1740,18 @@ export class Engine {
     this.setMode('loading');
     this.showLoading('Duel', 'Akhada', 0);
     const duel = new DuelSession(this, transport);
+    duel.onNames = () => this.hud.bindDuel(duel.opponent, duel.opponentName);
     duel.onStart = () => {
-      this.paused = false;
-      this.screens.clear();
-      this.hud.bindDuel(duel.opponent);
+      const paused = this.paused && !!transport;
+      if (!paused) { this.paused = false; this.screens.clear(); }
+      duel.suspended = paused;
+      this.hud.bindDuel(duel.opponent, duel.opponentName);
       this.hud.showBoss(true);
       this.hud.clearHint();
       this.setMode('play');
       this.inputManager.releaseAll();
     };
-    duel.onFinish = (won) => this.finishNetworkDuel(won ? 'You won' : 'You fell');
+    duel.onFinish = (won) => this.finishNetworkDuel(won ? duel.localName + ' won against ' + duel.opponentName : duel.opponentName + ' won');
     duel.onDisconnect = () => this.finishNetworkDuel('Opponent disconnected', true);
     this.duel = duel;
     try {
@@ -1753,6 +1762,7 @@ export class Engine {
       if (!transport) this.addFighter(duel.opponent, new THREE.Vector3(0, 0, -3), FIGHTER_CAPSULE);
       else this.sceneManager.scene.add(duel.opponent.group, duel.opponent.slashRibbon.mesh);
       duel.reset();
+      if (!transport) duel.beginPractice();
       BloodFX.getInstance().clear();
       this.interpolated.clear();
       this.poses.clear();
@@ -1768,7 +1778,7 @@ export class Engine {
       if (transport) {
         $('duel-room-label').textContent = 'Room ' + transport.room;
         this.hud.hint('Room ' + transport.room + ' — waiting for the other hero', 3600);
-        transport.send({ type: 'ready' });
+        duel.ready();
       } else $('duel-room-label').textContent = 'Practice · first to ' + duel.rules.roundsToWin;
       this.soundFX.music.play('akhada');
       this.soundFX.playAmbience('akhada');
@@ -1782,6 +1792,8 @@ export class Engine {
     this.setMode('over');
     this.inputManager.exitPointerLock();
     $('duel-outcome').textContent = text;
+    $('duel-room-label').textContent = (this.duel?.transport ? 'Room ' + this.duel.transport.room : 'Practice') +
+      ' · ' + this.duel?.scoreText + ' · vs ' + this.duel?.opponentName;
     document.querySelector<HTMLButtonElement>('#duel-result [data-action=rematch]')!.hidden = disconnected;
     this.screens.only('duel-result');
   }
@@ -1859,13 +1871,7 @@ export class Engine {
     if (this.gameMode === 'duel' && this.duel) {
       if (this.mode === 'play') {
         this.duel.step(dt);
-        if (!this.duel.transport && (player.isDown() || this.duel.opponent.isDown())) {
-          this.duel.finished = true;
-          this.setMode('over');
-          this.inputManager.exitPointerLock();
-          $('duel-outcome').textContent = player.isDown() ? 'You fell' : 'You won';
-          this.screens.only('duel-result');
-        }
+
       }
       return;
     }
@@ -2135,6 +2141,7 @@ export class Engine {
       this.hud.update(this.player, this.enemies, this.sceneManager.camera, rawDt);
     }
 
+    this.duel?.updatePresentation();
     this.sceneManager.render(rawDt);
     this.debugFrame?.(rawDt);
     if (simulate) this.restoreSimulationState();

@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import type { Engine } from '../core/Engine';
+import { DUEL_ROUND_KITS, DUEL_ROUNDS_TO_WIN } from '../duel/Rules';
 
 /**
  * Dev-only defence regression checks for the third melee case. They use two equipped heroes and the actual
@@ -9,6 +10,8 @@ import type { Engine } from '../core/Engine';
  */
 export async function checkDuelDefence(engine: Engine): Promise<Record<string, boolean>> {
   await engine.startDuel();
+  const duel = engine.duel!;
+  duel.reset(2);
   const attacker = engine.duel!.opponent;
   const defender = engine.player!;
   const combat = engine.combatSystem;
@@ -49,7 +52,24 @@ export async function checkDuelDefence(engine: Engine): Promise<Record<string, b
   result.lethalStaysDead = defender.isDown() && defender.currentHealth === 0;
   reset(); defender.addMarmaDamage(100); defender.update(2.6);
   result.duelPostureRenews = defender.currentMarma === 0;
-  engine.duel!.reset();
+  duel.reset(1);
+  result.roundTable = DUEL_ROUNDS_TO_WIN === 2 && DUEL_ROUND_KITS.map(r => r.health).join(',') === '100,100,130';
+  result.unarmedKit = defender.weapon.id === 'fists' && defender.attire === 'training' && defender.can('dodge') && defender.can('combo');
+  engine.inputManager.keys.Mouse2 = true; (engine.inputManager as unknown as { press(action: 'parry'): void }).press('parry');
+  defender.handleInput(1 / 60, 0, [attacker]);
+  result.unarmedCannotGuard = !defender.can('block') && !defender.can('parry') && !defender.isGuarding();
+  result.handHitbox = defender.swordMesh.children.length === 0 && defender.weapon.reach! < 1.2;
+  const winRound = (winner: 0 | 1) => {
+    duel.active = true; (winner === 0 ? attacker : defender).takeDamage(999);
+    duel.step(1 / 60);
+  };
+  duel.score = [0, 0]; winRound(0);
+  result.secondRoundIsSummit = duel.roundNumber === 2 && defender.weapon.id === 'khanda' && defender.can('parry');
+  winRound(0); result.sweepEndsEarly = duel.finished && duel.score.join(',') === '2,0' && duel.roundNumber === 2;
+  duel.finished = false; duel.score = [0, 0]; duel.reset(1); winRound(0); winRound(1);
+  result.splitOpensFinal = !duel.finished && duel.roundNumber === 3 && duel.score.join(',') === '1,1';
+  result.finalHealth130 = defender.maxHealth === 130 && defender.currentHealth === 130 && attacker.currentHealth === 130;
+  duel.finished = false; duel.score = [0, 0]; duel.rounds.length = 0; duel.reset(1); duel.beginPractice();
   if (Object.values(result).some(ok => !ok)) throw new Error('Duel defence regression: ' + JSON.stringify(result));
   return result;
 }

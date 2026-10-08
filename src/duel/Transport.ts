@@ -9,13 +9,20 @@ import type { CombatEvent } from '../combat/CombatSystem';
  * complete simulated peer round trip. No clock sync or timestamp from another browser is trusted.
  */
 export interface LatencySettings { delayMs: number; jitterMs: number; loss: number }
+export interface RoundMessage {
+  round: number; roundNumber: number; score: [number, number]; loadout: string; health: number;
+  names: [string, string]; seconds: number;
+}
 export type DuelMessage =
   | { type: 'joined'; room: string; seat: 0 | 1 }
   | { type: 'waiting'; players: number }
-  | { type: 'start'; round: number }
+  | ({ type: 'start' } & RoundMessage)
+  | ({ type: 'card'; cardSeconds: number } & RoundMessage)
+  | { type: 'profiles'; names: [string, string] }
+  | { type: 'prepare'; round: number; roundNumber: number; score: [number, number] }
   | { type: 'state'; round: number; state: HeroSnapshot }
-  | { type: 'hit'; round: number; swing: number; window: number; result: CombatEvent['result']; health: number; posture: number; charged: boolean; seenSeq: number }
-  | { type: 'finish'; round: number; winner: 0 | 1 }
+  | { type: 'hit'; round: number; swing: number; window: number; result: CombatEvent['result']; health: number; posture: number; charged: boolean; seenSeq: number; point: number[] }
+  | { type: 'finish'; round: number; roundNumber: number; winner: 0 | 1 | null; score: [number, number]; matchOver: boolean; nextRound: number; reason: 'ko' | 'time' }
   | { type: 'rematch-wait' }
   | { type: 'disconnected' }
   | { type: 'error'; message: string }
@@ -23,10 +30,11 @@ export type DuelMessage =
 
 export class DuelTransport {
   public room = '';
+  public name = 'Yodha';
   public seat: 0 | 1 = 0;
   public round = 0;
   public latency: LatencySettings = { delayMs: 0, jitterMs: 0, loss: 0 };
-  public readonly metrics = { sent: 0, received: 0, dropped: 0, peerRtt: 0, probes: 0, verdictAgeMs: 0, parryAgeMs: 0 };
+  public readonly metrics = { sent: 0, received: 0, dropped: 0, peerRtt: 0, probes: 0, verdictAgeMs: 0, parryAgeMs: 0, predictedContacts: 0, verdictFeedbackMs: 0 };
   public onMessage: ((message: DuelMessage) => void) | null = null;
   public onDisconnect: (() => void) | null = null;
   private socket: WebSocket | null = null;
@@ -34,7 +42,8 @@ export class DuelTransport {
   private reliableDue = 0;
   private closed = false;
 
-  public async connect(endpoint: string, code?: string): Promise<void> {
+  public async connect(endpoint: string, code?: string, name = 'Yodha'): Promise<void> {
+    this.name = name.trim().slice(0, 16) || 'Yodha';
     const url = new URL(endpoint);
     if (url.protocol !== 'ws:' && url.protocol !== 'wss:') throw new Error('Use a ws:// or wss:// relay address');
     const room = code?.trim().toUpperCase() ?? Array.from(crypto.getRandomValues(new Uint8Array(6)), n =>
@@ -52,9 +61,9 @@ export class DuelTransport {
         let m: DuelMessage;
         try { m = JSON.parse(String(event.data)); } catch { return; }
         this.metrics.received++;
-        if (m.type === 'joined') { joined = true; this.seat = m.seat; clearTimeout(timeout); resolve(); }
+        if (m.type === 'joined') { joined = true; this.seat = m.seat; clearTimeout(timeout); this.send({ type: 'hello', name: this.name }); resolve(); }
         if (m.type === 'error' && !joined) { clearTimeout(timeout); reject(new Error(m.message)); }
-        if (m.type === 'start') this.round = m.round;
+        if (m.type === 'start' || m.type === 'card') this.round = m.round;
         if (m.type === 'probe') { this.send({ type: 'echo', round: m.round, at: m.at }); return; }
         if (m.type === 'echo') {
           this.metrics.peerRtt = performance.now() - m.at; this.metrics.probes++; return;

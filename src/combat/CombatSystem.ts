@@ -511,10 +511,24 @@ export class CombatSystem {
 
   /** One duel step: the local bot has two authorities; a network peer resolves only incoming blades. */
   public updateDuel(local: Player, opponent: Player, dt: number, network = false,
-    onHit?: (event: CombatEvent, window: number, charged: boolean) => void): void {
+    onHit?: (event: CombatEvent, window: number, charged: boolean) => void,
+    onContact?: (window: number) => void): void {
     this.clock += dt;
     this.stepDt = dt;
     if (!local.isDown() && !opponent.isDown()) {
+      if (network) {
+        // Predict contact only: no blood, damage, posture, charge consumption or defence verdict here.
+        const window = this.activeStrike(local);
+        if (window !== null) {
+          const contact = this.hitboxManager.checkWeaponIntersection(local, opponent);
+          if (contact.hit) {
+            this.markLanded(local, window);
+            this.particleFX.spawnSparks(contact.hitPoint, 5);
+            this.soundFX.playHitImpact('wood');
+            onContact?.(window);
+          }
+        }
+      }
       for (const [attacker, defender] of network ? [[opponent, local]] : [[local, opponent], [opponent, local]]) {
         const window = this.activeStrike(attacker);
         if (window === null) continue;
@@ -530,6 +544,23 @@ export class CombatSystem {
       }
     }
     this.hitboxManager.commitBlades([local, opponent]);
+  }
+
+  /** Adds the confirmed peer feedback after the neutral predicted contact; it never applies peer damage locally. */
+  public confirmHeroContact(attacker: Player, defender: Player, result: CombatEvent['result'], point: THREE.Vector3): void {
+    if (result === 'evaded') return;
+    if (result === 'blocked' || result === 'deflected') {
+      this.particleFX.spawnSparks(point, result === 'deflected' ? 24 : 12);
+      if (result === 'deflected') this.soundFX.playParryClash();
+      else { this.soundFX.playShieldBlock(); this.impact('block'); }
+      return;
+    }
+    this.soundFX.playHitImpact(attacker.weapon.sound.impact);
+    const blood = BloodFX.getInstance();
+    if (blood.bleeds('red')) blood.spill(point, defender.getPosition().clone().sub(attacker.getPosition()),
+      attacker.weapon.blows.ATTACK_1!.damage, 'red', defender.group.position.y, defender.currentHealth <= 0);
+    else this.particleFX.spawnSparks(point, 16, false);
+    this.impact('hitLight');
   }
 
   private resolveIncomingBlow(enemy: Enemy | Player, player: Player, hitPoint: THREE.Vector3, blow: { damage: number; posture: number }): void {

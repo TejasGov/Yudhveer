@@ -1302,3 +1302,11 @@ kbd {
   color: var(--muted);
   font-size: 16px;
 }
+
+/* Duel overlays share the HUD viewport; names are text nodes, projected above each rig's head. */
+#duel-match { position: fixed; top: 7rem; left: 50%; transform: translateX(-50%); color: #e4c77b; font-size: 1rem; }
+#duel-card { position: fixed; top: 38%; left: 50%; transform: translate(-50%, -50%); padding: 1.5rem 3rem; background: #131015e8; border: 1px solid #ad803d; text-align: center; white-space: pre-line; font-size: 1.7rem; color: #e4c77b; pointer-events: none; }
+#duel-tags { position: fixed; inset: 0; pointer-events: none; }
+.duel-name { position: absolute; transform: translate(-50%, -100%); padding: .15rem .4rem; border-radius: .2rem; background: #131015bb; font-size: .8rem; white-space: nowrap; }
+.duel-name.local { color: #e4b54d; }
+.duel-name.remote { color: #ed593e; }

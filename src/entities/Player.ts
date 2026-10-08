@@ -189,7 +189,9 @@ export class Player extends Character {
     if (!prepared) throw new Error('Duel kit was not preloaded');
     const cached = [...this.duelRigs.values()].some(p => p.rig === this.rig);
     this.skills.setKit(kit);
+    this.stowSword(false);
     this.swordSheathed = false;
+    if (prepared.prop && prepared.definition.weapon) prepared.rig.attach(prepared.prop, prepared.definition.weapon);
     if (this.rig !== prepared.rig) this.mountRig(prepared, false, cached);
     this.weapon = WEAPON_SETS[kit.weapon];
     this.attire = kit.attire;

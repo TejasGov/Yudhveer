@@ -11,6 +11,7 @@ import type { CharacterState } from '../entities/CharacterStateMachine';
  * There is no rollback, clock agreement or attempt to replay the remote player's non-deterministic simulation.
  */
 export interface HeroSnapshot {
+  loadout: string;
   seq: number;
   position: [number, number, number];
   velocity: [number, number, number];

@@ -23,6 +23,8 @@
   <div id="hud" class="layer" hidden>
     <div id="enemy-plates"></div>
     <div id="duel-network" hidden></div>
+    <div id="duel-match" hidden></div><div id="duel-tags" hidden></div>
+    <div id="duel-card" hidden aria-live="polite"></div>
 
     <div id="callout" aria-live="polite">
       <div id="callout-text"></div>
@@ -104,7 +106,8 @@
     </nav></div>
   </section>
   <section id="duel-menu" class="screen scrim" hidden>
-    <div class="panel duel-panel"><h2>Duel</h2><p class="panel-sub">Khanda and dhal · Akhada</p>
+    <div class="panel duel-panel"><h2>Duel</h2><p class="panel-sub">Best of three · Akhada</p>
+      <label>Name <input id="duel-name" maxlength="16" value="Yodha" aria-label="Duel name"></label>
       <label>Relay <input id="duel-relay" type="url" placeholder="wss://your-relay.example" aria-label="Relay address"></label>
       <label>Room <input id="duel-room" maxlength="6" placeholder="ABC123" aria-label="Room code"></label>
       <details><summary>Latency simulator</summary>
@@ -124,7 +127,7 @@
     </nav></div>
   </section>
   <section id="duel-result" class="screen scrim" hidden>
-    <div class="panel"><h2 id="duel-outcome">Round over</h2><p class="panel-sub" id="duel-room-label">Duel · Akhada</p><nav class="menu">
+    <div class="panel"><h2 id="duel-outcome">Match over</h2><p class="panel-sub" id="duel-room-label">Duel · Akhada</p><nav class="menu">
       <button data-action="rematch">Rematch</button>
       <button data-action="quit">Quit to title</button>
     </nav></div>
