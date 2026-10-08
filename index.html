@@ -103,13 +103,27 @@
     </nav></div>
   </section>
   <section id="duel-menu" class="screen scrim" hidden>
-    <div class="panel"><h2>Duel</h2><p class="panel-sub">Khanda and dhal · Akhada</p><nav class="menu">
+    <div class="panel"><h2>Duel</h2><p class="panel-sub">Khanda and dhal · Akhada</p>
+      <label>Relay <input id="duel-relay" type="url" placeholder="wss://your-relay.example" aria-label="Relay address"></label>
+      <label>Room <input id="duel-room" maxlength="6" placeholder="ABC123" aria-label="Room code"></label>
+      <details><summary>Latency simulator</summary>
+        <label>One-way delay (ms) <input id="duel-delay" type="number" value="0" min="0" max="500"></label>
+        <label>Jitter (±ms) <input id="duel-jitter" type="number" value="0" min="0" max="250"></label>
+        <label>Snapshot loss (%) <input id="duel-loss" type="number" value="0" min="0" max="50"></label>
+        <p>Set the same preset on both heroes. Room results stay reliable.</p>
+      </details>
+      <p id="duel-status" aria-live="polite"></p><nav class="menu">
+      <button data-action="create">Create room</button>
+      <button data-action="join">Join room</button>
+      <button data-action="latency" data-ping="40">40 ms ping</button>
+      <button data-action="latency" data-ping="80">80 ms ping</button>
+      <button data-action="latency" data-ping="150">150 ms ping</button>
       <button data-action="bot">Practice against HeroBot</button>
       <button data-action="back">Back</button>
     </nav></div>
   </section>
   <section id="duel-result" class="screen scrim" hidden>
-    <div class="panel"><h2 id="duel-outcome">Round over</h2><p class="panel-sub">Duel · Akhada</p><nav class="menu">
+    <div class="panel"><h2 id="duel-outcome">Round over</h2><p class="panel-sub" id="duel-room-label">Duel · Akhada</p><nav class="menu">
       <button data-action="rematch">Rematch</button>
       <button data-action="quit">Quit to title</button>
     </nav></div>

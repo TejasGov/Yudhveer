@@ -17,6 +17,7 @@ import { HitboxManager } from '../combat/HitboxManager';
 import { Player } from '../entities/Player';
 import { DuelSession } from '../duel/DuelSession';
 import type { GameMode } from '../duel/Rules';
+import { DuelTransport } from '../duel/Transport';
 import { Enemy } from '../entities/Enemy';
 import { Boss } from '../entities/Boss';
 import { Vetala } from '../entities/Vetala';
@@ -592,12 +593,20 @@ export class Engine {
       else if (action === 'chapters') this.openChapters();
       else if (action === 'back') this.screens.pop();
     });
-    click('duel-menu', (action) => {
+    click('duel-menu', (action, button) => {
       if (action === 'bot') void this.startDuel();
+      else if (action === 'create' || action === 'join') void this.joinDuel(action === 'create');
+      else if (action === 'latency') {
+        const ping = Number(button.dataset.ping);
+        ($('duel-delay') as HTMLInputElement).value = String(ping / 2);
+      }
       else if (action === 'back') this.screens.pop();
     });
     click('duel-result', (action) => {
-      if (action === 'rematch') void this.startDuel();
+      if (action === 'rematch') {
+        if (this.duel?.transport) { this.duel.transport.rematch(); $('duel-outcome').textContent = 'Waiting for rematch'; }
+        else void this.startDuel();
+      }
       else if (action === 'quit') this.enterTitle();
     });
     click('pause', (action) => {
@@ -660,6 +669,12 @@ export class Engine {
       if (id === 'credits') this.credits.finish();
     };
     this.credits.onDone = () => this.enterTitle();
+    const relay = $('duel-relay') as HTMLInputElement;
+    relay.value = import.meta.env.VITE_DUEL_RELAY ?? (import.meta.env.DEV ? 'ws://' + location.hostname + ':8787' : '');
+    const updateLatency = () => {
+      if (this.duel?.transport) this.duel.transport.latency = this.duelLatency();
+    };
+    for (const id of ['duel-delay', 'duel-jitter', 'duel-loss']) $(id).addEventListener('change', updateLatency);
     this.renderSettings();
     Settings.onChange(() => {
       this.renderSettings();
@@ -1482,6 +1497,7 @@ export class Engine {
   private pause(): void {
     if (this.paused) return;
     this.paused = true;
+    if (this.duel?.transport) this.duel.suspended = true;
     this.dialogue.setPaused(true);
     this.inputManager.releaseAll();
     this.inputManager.exitPointerLock();
@@ -1500,6 +1516,7 @@ export class Engine {
     }
     this.screens.clear();
     this.paused = false;
+    if (this.duel) this.duel.suspended = false;
     this.dialogue.setPaused(false);
     this.inputManager.releaseAll();
     this.inputManager.discardLook();
@@ -1670,7 +1687,28 @@ export class Engine {
   }
 
   /** Load the Akhada directly, with two summit heroes and no campaign scenes or saves. */
-  public async startDuel(): Promise<void> {
+  private duelLatency(): { delayMs: number; jitterMs: number; loss: number } {
+    const number = (id: string, max: number) => Math.max(0, Math.min(max, Number(($(id) as HTMLInputElement).value) || 0));
+    return { delayMs: number('duel-delay', 500), jitterMs: number('duel-jitter', 250), loss: number('duel-loss', 50) / 100 };
+  }
+
+  private async joinDuel(create: boolean): Promise<void> {
+    const transport = new DuelTransport();
+    transport.latency = this.duelLatency();
+    const button = document.querySelector<HTMLButtonElement>('#duel-menu [data-action=' + (create ? 'create' : 'join') + ']')!;
+    button.disabled = true;
+    $('duel-status').textContent = 'Connecting…';
+    try {
+      await transport.connect(($('duel-relay') as HTMLInputElement).value,
+        create ? undefined : ($('duel-room') as HTMLInputElement).value);
+      await this.startDuel(transport);
+    } catch (err) {
+      transport.close();
+      $('duel-status').textContent = err instanceof Error ? err.message : 'Connection failed';
+    } finally { button.disabled = false; }
+  }
+
+  public async startDuel(transport?: DuelTransport): Promise<void> {
     if (!this.player) return;
     this.clearDuel();
     this.clearEnemies();
@@ -1689,14 +1727,26 @@ export class Engine {
     this.player.group.visible = false;
     this.setMode('loading');
     this.showLoading('Duel', 'Akhada', 0);
-    const duel = new DuelSession(this);
+    const duel = new DuelSession(this, transport);
+    duel.onStart = () => {
+      this.paused = false;
+      this.screens.clear();
+      this.hud.bindDuel(duel.opponent);
+      this.hud.showBoss(true);
+      this.hud.clearHint();
+      this.setMode('play');
+      this.inputManager.releaseAll();
+    };
+    duel.onFinish = (won) => this.finishNetworkDuel(won ? 'You won' : 'You fell');
+    duel.onDisconnect = () => this.finishNetworkDuel('Opponent disconnected', true);
     this.duel = duel;
     try {
       await this.levelManager.loadLevel(2, (f) => { if (token === this.loadToken) this.showLoading('Duel', 'Akhada', f * 0.7); });
       if (token !== this.loadToken) return;
       await duel.prepare();
       if (token !== this.loadToken) return;
-      this.addFighter(duel.opponent, new THREE.Vector3(0, 0, -3), FIGHTER_CAPSULE);
+      if (!transport) this.addFighter(duel.opponent, new THREE.Vector3(0, 0, -3), FIGHTER_CAPSULE);
+      else this.sceneManager.scene.add(duel.opponent.group, duel.opponent.slashRibbon.mesh);
       duel.reset();
       BloodFX.getInstance().clear();
       this.interpolated.clear();
@@ -1708,12 +1758,26 @@ export class Engine {
       this.setMode('play');
       this.inputManager.releaseAll();
       this.inputManager.discardLook();
+      document.querySelector<HTMLButtonElement>('#duel-result [data-action=rematch]')!.hidden = false;
+      if (transport) {
+        $('duel-room-label').textContent = 'Room ' + transport.room;
+        this.hud.hint('Room ' + transport.room + ' — waiting for the other hero', 3600);
+        transport.send({ type: 'ready' });
+      } else $('duel-room-label').textContent = 'Practice';
       this.soundFX.music.play('akhada');
       this.soundFX.playAmbience('akhada');
       void this.capturePointer();
     } catch (err) {
       if (token === this.loadToken) this.loadFailed('The duel could not load. Return to the title and try again.', err);
     }
+  }
+
+  private finishNetworkDuel(text: string, disconnected = false): void {
+    this.setMode('over');
+    this.inputManager.exitPointerLock();
+    $('duel-outcome').textContent = text;
+    document.querySelector<HTMLButtonElement>('#duel-result [data-action=rematch]')!.hidden = disconnected;
+    this.screens.only('duel-result');
   }
 
   private clearEnemies(): void {
@@ -1789,7 +1853,7 @@ export class Engine {
     if (this.gameMode === 'duel' && this.duel) {
       if (this.mode === 'play') {
         this.duel.step(dt);
-        if (player.isDown() || this.duel.opponent.isDown()) {
+        if (!this.duel.transport && (player.isDown() || this.duel.opponent.isDown())) {
           this.duel.finished = true;
           this.setMode('over');
           this.inputManager.exitPointerLock();
@@ -1842,7 +1906,7 @@ export class Engine {
   }
 
   private simulating(): boolean {
-    return !this.paused && (this.inFight() || this.mode === 'over');
+    return (!this.paused || !!this.duel?.transport) && (this.inFight() || this.mode === 'over');
   }
 
   private simulatedCharacters(): Character[] {

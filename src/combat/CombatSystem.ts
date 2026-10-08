@@ -81,7 +81,7 @@ export class CombatSystem {
   private sceneManager: SceneManager;
 
   /** Per attacker: the attack in progress and which of its strike windows have already landed. */
-  private readonly strikes = new Map<string, { state: string; lastTime: number; landed: Set<number> }>();
+  private readonly strikes = new Map<string, { state: string; lastTime: number; serial: number | null; landed: Set<number> }>();
   /** Recent hits, newest last (debug overlay and tests read this). */
   public readonly log: CombatEvent[] = [];
   /** Total simulated combat time, for the log. */
@@ -218,8 +218,8 @@ export class CombatSystem {
     const sm = c.stateMachine;
     const state = sm.currentState;
     let track = this.strikes.get(c.id);
-    if (!track || track.state !== state || sm.stateTime < track.lastTime) {
-      track = { state, lastTime: sm.stateTime, landed: new Set() };
+    if (!track || track.state !== state || track.serial !== c.receivedAttackId || (c.receivedAttackId === null && sm.stateTime < track.lastTime)) {
+      track = { state, lastTime: sm.stateTime, serial: c.receivedAttackId, landed: new Set() };
       this.strikes.set(c.id, track);
     }
     track.lastTime = sm.stateTime;
@@ -508,7 +508,8 @@ export class CombatSystem {
   }
 
   /** One duel step: the local bot has two authorities; a network peer resolves only incoming blades. */
-  public updateDuel(local: Player, opponent: Player, dt: number, network = false): void {
+  public updateDuel(local: Player, opponent: Player, dt: number, network = false,
+    onHit?: (event: CombatEvent, window: number, charged: boolean) => void): void {
     this.clock += dt;
     this.stepDt = dt;
     if (!local.isDown() && !opponent.isDown()) {
@@ -517,8 +518,10 @@ export class CombatSystem {
         if (window === null) continue;
         const { hit, hitPoint } = this.hitboxManager.checkWeaponIntersection(attacker, defender);
         if (hit) {
+          const charged = attacker.chargedHits > 0;
           this.markLanded(attacker, window);
           this.resolveHeroHitOnHero(attacker, defender, hitPoint);
+          onHit?.(this.log[this.log.length - 1], window, charged);
         }
       }
     }
@@ -570,6 +573,13 @@ export class CombatSystem {
       if (enemy instanceof Player) this.heroStaggerImmuneUntil.set(player.id, until);
       else this.playerStaggerImmuneUntil = until;
     }
+  }
+
+  /** The owner receives a defender's parry verdict: the same posture cost and deflected state. */
+  public applyHeroDeflection(hero: Player): void {
+    const broken = hero.addMarmaDamage(50);
+    if (!broken) hero.stateMachine.changeState('DEFLECTED');
+    this.impact(broken ? 'postureBreak' : 'deflect');
   }
 
   private handlePerfectParry(player: Player, enemy: Character, hitPoint: THREE.Vector3): void {

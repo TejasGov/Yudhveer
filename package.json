@@ -10,7 +10,8 @@
     "build:itch": "node scripts/pack-itch.mjs",
     "preview": "vite preview",
     "serve": "node scripts/serve-dist.mjs",
-    "pack:glb": "node scripts/pack-glb.mjs"
+    "pack:glb": "node scripts/pack-glb.mjs",
+    "duel:relay": "node scripts/duel-relay.mjs"
   },
   "repository": {
     "type": "git",
@@ -34,6 +35,7 @@
   "devDependencies": {
     "@types/three": "^0.186.0",
     "typescript": "^7.0.2",
-    "vite": "^8.3.1"
+    "vite": "^8.3.1",
+    "ws": "^8.22.0"
   }
 }

@@ -41,6 +41,7 @@ export class RemoteHero extends Player {
   public clearSnapshots(): void {
     this.snapshots.length = 0;
     this.snapshot = null;
+    this.receivedAttackId = null;
   }
 
   public override update(dt: number): void {
@@ -58,6 +59,7 @@ export class RemoteHero extends Player {
       sm.reset();
       sm.changeState(state.state);
     }
+    this.receivedAttackId = state.swing;
     sm.stateTime = Math.max(0, time - dt);
     sm.isParryActive = state.state === 'PARRY' && time <= sm.parryWindow;
     this.currentHealth = state.health;

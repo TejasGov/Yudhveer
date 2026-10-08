@@ -59,3 +59,36 @@ TypeScript and the Vite production build pass. No assets were changed.
 
 Network measurements and the final campaign comparison will be recorded after
 the network path is implemented. No claim about netcode feel has been made.
+
+## Network spike
+
+Run `npm run dev` and `npm run duel:relay`. Open two browsers, choose Duel,
+create a room on one and join its six-character code on the other. The default
+development relay is `ws://<page-host>:8787`; set `DUEL_HOST=0.0.0.0` when testing
+from another machine. A production endpoint can be supplied through
+`VITE_DUEL_RELAY` or the Relay field. No cloud endpoint is provisioned.
+
+The shared room core in `server/DuelRoom.mjs` owns two seats and round epochs.
+Both rigs must be ready. Defender verdicts are deduplicated by swing and strike
+window. Snapshots have sequence numbers; stale or reordered ones are discarded.
+A lethal verdict ends the round for both peers. Rematch needs both players and
+starts a new epoch, rejecting delayed messages from the old round.
+
+The latency simulator delays outgoing packets by the chosen one-way delay. Set
+20, 40 or 75 ms on both browsers for 40, 80 or 150 ms peer RTT, plus the real
+network cost. Jitter is a uniform plus/minus offset. Loss drops replaceable state
+packets; room and hit-result messages stay reliable, matching WebSocket's
+semantics. A probe/echo through the peer measures the actual simulated RTT.
+
+Six automated shared-room protocol tests pass:
+`node --test scripts/duel-relay.test.mjs`. Two real browser clients joined the
+local relay and interpolated each other's received heroes. At the 40 ms preset,
+a scripted defender deflected 18 incoming swings, lost no health, and the final
+measured peer RTT was 41.3 ms. This verifies the real 140 ms defender window,
+not a person's experience of timing it. Further measurements follow below.
+
+The Worker delegates by room code to a `DUEL_ROOMS` binding of
+`DuelRoomObject`. Its source follows the
+[Cloudflare WebSocket Durable Object API](https://developers.cloudflare.com/durable-objects/examples/websocket-server/).
+The `cf` CLI is present. No Worker binding, migration, deployment or Wrangler
+configuration was created; cloud execution remains unverified.

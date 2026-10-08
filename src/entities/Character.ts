@@ -95,6 +95,8 @@ export class Character extends Entity {
    */
   public renewsPosture = false;
 
+  /** Received swing identity, only for a network hero; local and campaign fighters use their state clock. */
+  public receivedAttackId: number | null = null;
   public stateMachine: CharacterStateMachine;
   public walkSpeed = 1.8;
   public moveSpeed = 5.5;

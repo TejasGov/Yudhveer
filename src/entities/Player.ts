@@ -132,6 +132,9 @@ export class Player extends Character {
     };
   }
 
+  /** Attack serial sent with duel snapshots (a chained blow is a new swing). */
+  public get attackId(): number { return this.swingSerial; }
+
   /**
    * Whether `ability` is his in this chapter. The guard and the parry are the dhal's, so they need the shield as well
    * as the lesson.
