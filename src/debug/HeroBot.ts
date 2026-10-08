@@ -244,7 +244,10 @@ export class HeroBot {
     const views = this.enemyViews();
     const threats = this.collectThreats(views);
     this.plan(threats, views);
-    this.act(threats, views, dt);
+    // Practice must not avoid committing a blow before it could have noticed the counter. Campaign playtests
+    // retain their established controller; only the duel's offence, approach and camera use delayed perception.
+    const perceived = this.duel ? threats.filter(t => this.now >= (this.noticeAt.get(t.group) ?? Infinity)) : threats;
+    this.act(perceived, views, dt);
   }
 
   // ---------------------------------------------------------------------------------------------------- seeing
