@@ -16,6 +16,8 @@ export interface DuelRound {
 export const DUEL_ROUNDS_TO_WIN = 2;
 export const DUEL_ROUND_SECONDS = 90; // Open decision: compare health shares, replay an exact tie.
 export const DUEL_ROUND_CARD_SECONDS = 2; // Open decision: short, automatic, after both peers are ready.
+/** A connected browser must still simulate defence. Covers normal hit-stop and the largest lobby delay preset. */
+export const DUEL_STALL_MS = 2000;
 export const DUEL_ROUND_KITS: readonly DuelRound[] = [
   { health: 100, damageScale: 1, loadout: { id: 'prologue', attire: 'training', weapon: 'fists', abilities: ['dodge', 'combo'], taught: [] } },
   { health: 100, damageScale: 0.07, loadout: { id: 'summit', attire: 'kavach', weapon: 'khanda', abilities: ['dodge', 'combo', 'block', 'parry', 'charge', 'leap'], taught: [] } },

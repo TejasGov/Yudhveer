@@ -1,3 +1,7 @@
+## Audit fixes — 8 October 2026
+
+1. Simulation liveness: snapshots carry a fixed-step tick. Both the client and room stop a session after two seconds without simulation progress, independently of packet sequence/probe traffic. Foreground online pause still simulates. This disconnects without awarding a round; the two-second tolerance is a tuning choice. Added frozen-tick and idle-progress relay regressions; all 15 relay tests, TypeScript and Vite build pass. Browser baseline access was denied; before/after browser checks remain pending.
+
 # PvP duel — Stage 2
 
 Stage 2 adds best-of-three matches to practice and room play. Campaign still uses

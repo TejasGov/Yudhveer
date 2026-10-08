@@ -7,7 +7,7 @@ import { DuelTransport, type DuelMessage } from './Transport';
 import { separateFighters } from '../physics/CharacterMotor';
 import { HeroBot, SKILLS } from '../debug/HeroBot';
 import { DuelNameTags, readDuelName } from './NameTags';
-import { DUEL_ROUND_KITS, DUEL_ROUNDS_TO_WIN, DUEL_ROUND_SECONDS, DUEL_ROUND_CARD_SECONDS, DUEL_SPAWNS, duelLoadoutId } from './Rules';
+import { DUEL_ROUND_KITS, DUEL_ROUNDS_TO_WIN, DUEL_ROUND_SECONDS, DUEL_ROUND_CARD_SECONDS, DUEL_STALL_MS, DUEL_SPAWNS, duelLoadoutId } from './Rules';
 
 /**
  * One best-of-three duel: practice simulates both heroes; an online session simulates only its owner, interpolates
@@ -39,6 +39,8 @@ export class DuelSession {
   private cardLeft = 0;
   private deadline = 0;
   private seq = 0;
+  private tick = 0;
+  private lastStep = performance.now();
   private readonly velocity = new THREE.Vector3();
   private readonly sentAt = new Map<number, number>();
   private readonly contacts = new Map<string, number>();
@@ -120,7 +122,7 @@ export class DuelSession {
     }
     if (m.type === 'start') {
       if (m.round !== this.epoch || m.loadout !== duelLoadoutId(this.roundNumber)) return;
-      this.active = true; this.lastReceived = performance.now(); this.deadline = performance.now() + m.seconds * 1000;
+      this.active = true; this.lastStep = this.lastReceived = performance.now(); this.deadline = performance.now() + m.seconds * 1000;
       document.getElementById('duel-card')!.hidden = true; this.onStart?.(); return;
     }
     if (m.type === 'finish') {
@@ -175,7 +177,7 @@ export class DuelSession {
     this.camera.cameraYaw = this.camera.viewYaw = Math.PI;
     this.engine.sceneManager.resetFollowCamera(heroes[0].getPosition(), heroes[0].group.rotation.y);
     this.engine.combatSystem.resetStats(); this.remaining = DUEL_ROUND_SECONDS;
-    this.seq = 0; this.velocity.set(0, 0, 0); this.sentAt.clear(); this.contacts.clear(); this.verdicts.clear();
+    this.seq = 0; this.tick = 0; this.lastStep = performance.now(); this.velocity.set(0, 0, 0); this.sentAt.clear(); this.contacts.clear(); this.verdicts.clear();
     this.previous.copy(heroes[0].getPosition());
     if (this.opponent instanceof RemoteHero) this.opponent.clearSnapshots();
     this.setNames();
@@ -217,6 +219,7 @@ export class DuelSession {
     }
     const hero = this.engine.player!;
     this.remaining = this.transport ? Math.max(0, (this.deadline - performance.now()) / 1000) : Math.max(0, this.remaining - dt);
+    this.lastStep = performance.now(); this.tick++;
     this.input.advance(dt); this.bot?.step(dt);
     this.camera.cameraYaw -= this.input.consumeLook(dt).yaw; this.camera.viewYaw = this.camera.cameraYaw;
     if (!this.suspended) hero.handleInput(dt, this.engine.sceneManager.viewYaw, [this.opponent]);
@@ -258,10 +261,12 @@ export class DuelSession {
   /** Wall-clock snapshots continue through hit-stop and online pause. Every one identifies its round kit. */
   private sendState(): void {
     if (!this.transport || !this.active || this.finished) return;
+    // A background tab can run timers without rendering. Do not advertise a healthy but invulnerable hero.
+    if (performance.now() - this.lastStep >= DUEL_STALL_MS) { this.disconnect('Duel stopped: your browser stopped simulating.'); return; }
     const hero = this.engine.player!, seq = this.seq++;
     this.sentAt.set(seq, performance.now()); if (this.sentAt.size > 256) this.sentAt.delete(this.sentAt.keys().next().value!);
     this.transport.send({ type: 'state', round: this.transport.round, state: {
-      loadout: duelLoadoutId(this.roundNumber), seq, position: hero.getPosition().toArray(), yaw: hero.group.rotation.y,
+      loadout: duelLoadoutId(this.roundNumber), seq, tick: this.tick, position: hero.getPosition().toArray(), yaw: hero.group.rotation.y,
       velocity: this.velocity.toArray(), state: hero.stateMachine.currentState, time: hero.stateMachine.stateTime,
       swing: hero.attackId, health: hero.currentHealth, posture: hero.currentMarma, charged: hero.chargedHits,
     } });

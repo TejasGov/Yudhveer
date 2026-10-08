@@ -13,6 +13,7 @@ import type { CharacterState } from '../entities/CharacterStateMachine';
 export interface HeroSnapshot {
   loadout: string;
   seq: number;
+  tick: number;
   position: [number, number, number];
   velocity: [number, number, number];
   yaw: number;

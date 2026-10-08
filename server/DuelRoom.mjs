@@ -4,7 +4,7 @@
  * rematches, so an old snapshot or verdict can never enter a new fight. Rules.ts is the single round table;
  * Node 22.18+ strips its types and the Worker bundles it. Modified defenders can still lie: no anti-cheat yet.
  */
-import { DUEL_ROUND_KITS, DUEL_ROUNDS_TO_WIN, DUEL_ROUND_SECONDS, DUEL_ROUND_CARD_SECONDS, duelLoadoutId } from '../src/duel/Rules.ts';
+import { DUEL_ROUND_KITS, DUEL_ROUNDS_TO_WIN, DUEL_ROUND_SECONDS, DUEL_ROUND_CARD_SECONDS, DUEL_STALL_MS, duelLoadoutId } from '../src/duel/Rules.ts';
 const STATES = new Set(['IDLE', 'REST', 'WALK', 'MOVE', 'SPRINT', 'STRAFE_LEFT', 'STRAFE_RIGHT', 'WALK_BACK',
   'JUMP', 'DODGE', 'ATTACK_1', 'ATTACK_2', 'ATTACK_3', 'ATTACK_JUMP', 'CHARGE', 'CAST', 'PARRY', 'BLOCK',
   'BLOCK_HIT', 'SHOVE', 'SHEATHE', 'DRAW', 'STAGGER', 'DEFLECTED', 'POSTURE_BROKEN', 'DEAD']);
@@ -16,6 +16,7 @@ export const playerName = name => typeof name === 'string' ? name.replace(/[\x00
 export function validSnapshot(s, number = 1) {
   const rule = DUEL_ROUND_KITS[number - 1];
   return !!rule && !!s && Number.isSafeInteger(s.seq) && s.seq >= 0 && vector(s.position) && vector(s.velocity)
+    && Number.isSafeInteger(s.tick) && s.tick >= 0
     && finite(s.yaw, -100, 100) && STATES.has(s.state) && finite(s.time, 0, 86400)
     && Number.isSafeInteger(s.swing) && s.swing >= 0 && finite(s.health, 0, rule.health)
     && finite(s.posture, 0, 100) && Number.isInteger(s.charged) && s.charged >= 0 && s.charged <= 3
@@ -26,6 +27,7 @@ export class DuelRoom {
   constructor(code, clock = {}) {
     this.code = code; this.seats = new Map(); this.round = 0; this.roundNumber = 0; this.nextRound = 1;
     this.score = [0, 0]; this.active = false; this.phase = 'lobby'; this.timer = null;
+    this.progressTimer = null;
     this.now = clock.now ?? Date.now; this.schedule = clock.schedule ?? setTimeout; this.cancel = clock.cancel ?? clearTimeout;
   }
   send(socket, message) { try { socket.send(JSON.stringify(message)); } catch { this.leave(socket); } }
@@ -41,13 +43,14 @@ export class DuelRoom {
     if (this.seats.size >= 2) { this.send(socket, { type: 'error', message: 'Room is full' }); socket.close(1008); return false; }
     const seat = [...this.seats.values()].some(s => s.seat === 0) ? 1 : 0;
     this.seats.set(socket, { seat, name: 'Yodha', ready: false, rematch: false, seq: -1, health: 100,
-      hits: new Set(), rateAt: this.now(), rate: 0 });
+      hits: new Set(), rateAt: this.now(), rate: 0, tick: -1, progressedAt: this.now() });
     this.send(socket, { type: 'joined', room: this.code, seat });
     this.broadcast({ type: 'waiting', players: this.seats.size }); return true;
   }
   leave(socket) {
     if (!this.seats.delete(socket)) return;
     this.cancel(this.timer); this.timer = null; this.active = false; this.phase = 'closed';
+    this.cancel(this.progressTimer); this.progressTimer = null;
     this.broadcast({ type: 'disconnected' });
     const peers = [...this.seats.keys()]; this.seats.clear();
     for (const peer of peers) peer.close(1000, 'Opponent disconnected');
@@ -63,6 +66,8 @@ export class DuelRoom {
     this.timer = this.schedule(() => {
       if (this.phase !== 'card') return;
       this.phase = 'fight'; this.active = true; this.broadcast(this.roundData('start'));
+      for (const seat of this.seats.values()) { seat.tick = -1; seat.progressedAt = this.now(); }
+      this.watchProgress();
       this.timer = this.schedule(() => this.timeout(), DUEL_ROUND_SECONDS * 1000);
       this.timer?.unref?.();
     }, DUEL_ROUND_CARD_SECONDS * 1000);
@@ -70,12 +75,14 @@ export class DuelRoom {
   }
   timeout() {
     if (!this.active) return;
+    if (!this.checkProgress()) return;
     const health = [0, 1].map(i => [...this.seats.values()].find(s => s.seat === i).health / DUEL_ROUND_KITS[this.roundNumber - 1].health);
     this.finish(health[0] === health[1] ? null : health[0] > health[1] ? 0 : 1, 'time');
   }
   finish(winner, reason = 'ko') {
     if (!this.active) return;
     this.cancel(this.timer); this.timer = null; this.active = false;
+    this.cancel(this.progressTimer); this.progressTimer = null;
     if (winner !== null) this.score[winner]++;
     const matchOver = this.score.some(s => s >= DUEL_ROUNDS_TO_WIN);
     this.phase = matchOver ? 'finished' : 'between';
@@ -114,6 +121,8 @@ export class DuelRoom {
       for (const [peer] of this.seats) if (peer !== socket) this.send(peer, m); return;
     }
     if (m.type === 'state' && validSnapshot(m.state, this.roundNumber) && m.state.seq > sender.seq) {
+      if (m.state.tick < sender.tick) return;
+      if (m.state.tick > sender.tick) { sender.tick = m.state.tick; sender.progressedAt = this.now(); }
       sender.seq = m.state.seq; sender.health = Math.min(sender.health, m.state.health); m.state.health = sender.health;
     } else if (m.type === 'hit' && Number.isSafeInteger(m.swing) && m.swing >= 0
       && Number.isInteger(m.window) && m.window >= 0 && m.window < 8 && RESULTS.has(m.result)
@@ -126,5 +135,21 @@ export class DuelRoom {
     } else return;
     for (const [peer] of this.seats) if (peer !== socket) this.send(peer, { ...m, seat: sender.seat });
     if (m.type === 'hit' && m.health === 0) this.finish(1 - sender.seat);
+  }
+
+  /** Socket traffic alone is not liveness: the defender must advance its fixed-step simulation. */
+  checkProgress() {
+    for (const [socket, seat] of this.seats) {
+      if (this.now() - seat.progressedAt < DUEL_STALL_MS) continue;
+      this.send(socket, { type: 'error', message: 'Duel stopped: browser simulation stalled.' });
+      this.leave(socket); socket.close(1000, 'Simulation stalled'); return false;
+    }
+    return true;
+  }
+  watchProgress() {
+    this.progressTimer = this.schedule(() => {
+      if (this.active && this.checkProgress()) this.watchProgress();
+    }, 250);
+    this.progressTimer?.unref?.();
   }
 }

@@ -29,7 +29,7 @@ const pair = () => {
 };
 const next = p => { ready(p.room, p.a, p.b); p.time.advance(2); };
 const hit = (round, health = 70) => ({ type: 'hit', round, swing: 1, window: 0, result: 'player-hit', health, posture: 20, charged: false, seenSeq: 1, point: [0, 1, 0] });
-const state = { loadout: 'training:fists', seq: 1, position: [0, 0, 0], velocity: [1, 0, 0], yaw: 0, state: 'ATTACK_1', time: 0.3, swing: 1, health: 100, posture: 0, charged: 0 };
+const state = { loadout: 'training:fists', seq: 1, tick: 1, position: [0, 0, 0], velocity: [1, 0, 0], yaw: 0, state: 'ATTACK_1', time: 0.3, swing: 1, health: 100, posture: 0, charged: 0 };
 
 test('shared table is best of three, unarmed 100 then summit 100 and 130', () => {
   assert.equal(DUEL_ROUNDS_TO_WIN, 2);
@@ -99,9 +99,9 @@ test('only both requests at match end rematch; score resets and epochs do not', 
   send(p.room, p.a, hit(2, 0)); assert.deepEqual(p.room.score, [0, 0]);
 });
 test('90 seconds compares health shares; an exact tie replays the same kit in a fresh epoch', () => {
-  const p = pair(); p.time.advance(90); assert.equal(p.room.phase, 'between'); assert.deepEqual(p.room.score, [0, 0]);
+  const p = pair(); playFor(p, 90); assert.equal(p.room.phase, 'between'); assert.deepEqual(p.room.score, [0, 0]);
   next(p); assert.equal(p.room.round, 2); assert.equal(p.room.roundNumber, 1);
-  send(p.room, p.a, { type: 'state', round: 2, state: { ...state, health: 70 } }); p.time.advance(90);
+  send(p.room, p.a, { type: 'state', round: 2, state: { ...state, health: 70 } }); playFor(p, 90);
   assert.deepEqual(p.room.score, [0, 1]); assert.equal(p.a.messages.at(-1).reason, 'time');
 });
 test('hello preserves names as bounded text, and round messages carry both names', () => {
@@ -122,4 +122,31 @@ test('a racing lethal verdict cannot award a second score after the round is clo
   const p = pair(); send(p.room, p.a, hit(1, 0)); send(p.room, p.b, hit(1, 0));
   assert.deepEqual(p.room.score, [0, 1]);
   assert.equal(p.a.messages.filter(m => m.type === 'finish').length, 1);
+});
+
+function playFor(p, seconds) {
+  for (let n = 0; n < seconds; n++) {
+    for (const peer of [p.a, p.b]) {
+      const seat = p.room.seats.get(peer);
+      send(p.room, peer, { type: 'state', round: p.room.round, state: { ...state, state: 'IDLE', seq: seat.seq + 1, tick: seat.tick + 60, health: seat.health, loadout: duelLoadoutId(p.room.roundNumber) } });
+    }
+    p.time.advance(1);
+  }
+}
+
+test('fresh sequence numbers and probes cannot keep a frozen simulation alive', () => {
+  const p = pair();
+  for (let n = 1; n <= 9 && p.room.active; n++) {
+    send(p.room, p.a, { type: 'state', round: 1, state: { ...state, seq: n, tick: 1 } });
+    send(p.room, p.b, { type: 'state', round: 1, state: { ...state, seq: n, tick: n * 15 } });
+    send(p.room, p.a, { type: 'probe', round: 1, at: n });
+    p.time.advance(0.25);
+  }
+  assert.equal(p.room.phase, 'closed'); assert.deepEqual(p.room.score, [0, 0]);
+  assert.equal(p.b.messages.at(-1).type, 'disconnected');
+});
+
+test('an idle or paused hero remains connected while its simulation advances', () => {
+  const p = pair(); playFor(p, 10); assert.equal(p.room.active, true);
+  p.room.leave(p.a);
 });
