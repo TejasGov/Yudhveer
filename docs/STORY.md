@@ -2261,3 +2261,10 @@ Each milestone is one chat. Start it with: "Read docs/STORY.md, let's do milesto
 - [x] **13. Release:** final build, deploy, a trailer if wanted. *Deploy prepared, publishing waits for the user
   (docs/DEPLOY.md, "Release"): the build works from any address, the host files, the sizes and the production smoke
   test are done; the host is the user's choice (docs/APPROVALS.md, "Milestone 13"). A trailer: not made.*
+# Island keeper wiring — 2026-10-09
+
+The user's revised Chapter III flow: keep the first cave fight; move the former final mob pack and rear wave to
+the second fight; make the last encounter a spider demoness wielding one chained axe. After her death her human
+soul leads the hero to a cave wall and magically opens it. The ghee/fire room, altar and blessed mace remain intact.
+The first implementation uses locally authored prototype rigs, a removable seal in the existing chamber and
+subtitle-only soul dialogue. Details and unverified browser checks: [ISLAND_DEMONESS.md](ISLAND_DEMONESS.md).

@@ -9,6 +9,7 @@ import { WEAPON_SETS } from '../entities/characters/YodhaWeapons';
 import { ease, type Shot } from '../cinematics/CinematicDirector';
 import type { IntroContext } from '../cinematics/Intros';
 import { asset } from '../core/Assets';
+import type RAPIER from '@dimforge/rapier3d-compat';
 
 const LEVEL_URL = asset('levels/island_caves.glb');
 
@@ -107,6 +108,12 @@ export class Level5_Island extends GLBLevel {
   public readonly maceRest = ISLAND.mace.clone();
   private mace: THREE.Object3D | null = null;
   private maceHalo: THREE.Mesh | null = null;
+  /** The added seal is separate from the exported cave: opening it removes only its own physics body. */
+  private readonly shrineSeal = new THREE.Group();
+  private sealBody: RAPIER.RigidBody | null = null;
+  private sealOpen = false;
+  private sealFade = 0;
+  private readonly sealLight = new THREE.PointLight(0x91e3ff, 0, 9, 1.5);
   private ramp = createToonRamp([0.22, 0.5, 0.8, 1.0]);
   private lamps: Lamp[] = [];
   private lights: THREE.PointLight[] = [];
@@ -142,6 +149,7 @@ export class Level5_Island extends GLBLevel {
   }
 
   protected async loadEnvironment(): Promise<void> {
+    this.buildShrineSeal();
     // The mace on the altar: the hero's own (the blessed mace of his next kit), laid on its side across the cloth.
     const weapon = WEAPON_SETS.mace.definition.weapon;
     if (!weapon?.model) return;
@@ -374,8 +382,28 @@ export class Level5_Island extends GLBLevel {
     this.lampsPlaced = true;
   }
 
-  /** Story cues: `take-mace` lifts the mace off the altar (he has it now). */
+  /** A rock curtain across the altar chamber. The original cave, lamps, fire, altar and mace are left intact. */
+  private buildShrineSeal(): void {
+    const rock = new THREE.MeshToonMaterial({ color: 0x292324, gradientMap: this.ramp });
+    for (const x of [-5, 0, 5]) {
+      const mesh = new THREE.Mesh(new THREE.IcosahedronGeometry(1, 1), rock);
+      mesh.position.set(x, 1, -72.5); mesh.scale.set(4.2, 4.8, 1.1); mesh.castShadow = true;
+      this.shrineSeal.add(mesh);
+    }
+    this.shrineSeal.name = 'SealedMaceRoom'; this.group.add(this.shrineSeal);
+    this.sealLight.position.set(0, -0.4, -71.3); this.group.add(this.sealLight);
+    if (!this.sealOpen) this.sealBody = this.physics.createStaticBox(v(0, 1, -72.5), v(8, 4.8, 0.8)).body;
+    this.shrineSeal.visible = !this.sealOpen;
+  }
+
+  /** Story cues: the soul opens the seal; `take-mace` still lifts the mace from its original altar. */
   public cue(name: string): void {
+    if (name === 'open-shrine') {
+      if (this.sealOpen) return;
+      this.sealOpen = true; this.sealFade = 1.8;
+      if (this.sealBody) { this.physics.removeBody(this.sealBody); this.sealBody = null; }
+      return;
+    }
     if (name !== 'take-mace') return;
     if (this.mace) this.mace.visible = false;
     const glow = this.lamps.find((l) => l.color === MACE_COLOR);
@@ -383,6 +411,12 @@ export class Level5_Island extends GLBLevel {
   }
 
   public override update(time: number, dt: number, camera: THREE.Camera): void {
+    if (this.sealFade > 0) {
+      this.sealFade = Math.max(0, this.sealFade - dt);
+      this.shrineSeal.position.y = -10 * (1 - this.sealFade / 1.8);
+      this.shrineSeal.visible = this.sealFade > 0;
+      this.sealLight.intensity = 6 * Math.sin(Math.PI * this.sealFade / 1.8);
+    }
     this.fires?.update(time);
     super.update(time, dt, camera);
     const eye = camera.position;
@@ -414,6 +448,7 @@ export class Level5_Island extends GLBLevel {
   }
 
   public override dispose(): void {
+    if (this.sealBody) { this.physics.removeBody(this.sealBody); this.sealBody = null; }
     this.fires?.dispose();
     super.dispose();
   }

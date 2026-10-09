@@ -7,6 +7,8 @@ import { ISLAND } from '../../levels/Level5_Island';
 import { ISLAND_FOES } from '../IslandExpedition';
 import { grade } from '../../cinematics/Entrance';
 import { GURU } from '../../entities/characters/Village';
+import { ISLAND_SOUL } from '../../entities/characters/IslandDemoness';
+import { Extra } from '../../entities/Extra';
 
 /*
  * Chapter III: the island (docs/STORY.md, "Chapter III" and "Milestone 7"). He comes ashore in a sea cave with the
@@ -37,7 +39,11 @@ const POWER_UP_SECONDS = 3.03;
 
 export const ISLAND_STORY: ChapterStory = {
   // The guru, only as a memory at the end (out of sight until then).
-  cast: [{ id: 'guru', rig: GURU, at: v(0, -2.1, -70), hidden: true }],
+  cast: [
+    { id: 'guru', rig: GURU, at: v(0, -2.1, -70), hidden: true },
+    { id: 'island_soul', rig: ISLAND_SOUL, at: v(0, -2.45, -68.5), hidden: true,
+      shade: { color: 0x9adbea, opacity: 0.55 } },
+  ],
 
   // Ashore at the landing: the boatman stays under his canopy in the dark of the boat and will go no further.
   opening: {
@@ -130,7 +136,7 @@ export const ISLAND_STORY: ChapterStory = {
       lines: [{ speaker: 'Yudhveer', text: 'Something moves in the water. Keep to the stone.' }],
     },
     {
-      on: { when: (s) => s.pos('hero').z < -56 && allDown(s, ISLAND_FOES.pool) },
+      on: { when: (s) => s.pos('hero').z < -56 && allDown(s, [...ISLAND_FOES.pool, ...ISLAND_FOES.poolBehind]) },
       lines: [{ speaker: 'Yudhveer', text: 'Warm air, and ghee burning. The shrine is close.', voice: 'island_walk_hero_4' }],
     },
     {
@@ -138,8 +144,55 @@ export const ISLAND_STORY: ChapterStory = {
       lines: [{ speaker: 'Voice in the shrine', text: 'Many have come down for it. None has carried it up.', voice: 'island_shrine_voice_1' }],
     },
     {
-      on: { when: (s) => allDown(s, [...ISLAND_FOES.shrine, ...ISLAND_FOES.shrineBehind]) },
-      lines: [{ speaker: 'Voice in the shrine', text: 'Come, then. Come and lift it, if you can.', voice: 'island_shrine_voice_2' }],
+      on: { when: s => !!s.actor(ISLAND_FOES.boss)?.group.visible },
+      scene: {
+        id: 'island-demoness-reveal',
+        shots: [{
+          duration: 3, fadeIn: 0.2,
+          camera: s => [
+            { pos: s.pos(ISLAND_FOES.boss).add(v(3.5, 1.1, 4)), look: s.head(ISLAND_FOES.boss), fov: 48 },
+            { pos: s.pos(ISLAND_FOES.boss).add(v(3.0, 1.4, 3.4)), look: s.head(ISLAND_FOES.boss), fov: 44 },
+          ],
+        }],
+      },
+    },
+    {
+      on: { fallen: ISLAND_FOES.boss },
+      scene: {
+        id: 'island-soul-release',
+        shots: [
+          {
+            duration: 2.2, fadeIn: 0.25,
+            camera: s => [{ pos: s.pos(ISLAND_FOES.boss).add(v(3, 2.3, 4)), look: s.pos(ISLAND_FOES.boss).add(v(0, 1.2, 0)), fov: 46 }],
+          },
+          {
+            duration: 3.5, fadeIn: 0.3,
+            cues: [{ at: 0, actor: 'island_soul', appear: true, over: 1.4 }, { at: 0.2, actor: 'island_soul', face: 'hero' }],
+            lines: [{ speaker: 'Released soul', text: 'The binding is broken. Follow me.' }],
+            camera: s => [{ pos: s.at('island_soul', 3, 1.3, 1.6), look: s.head('island_soul'), fov: 38 }],
+          },
+          {
+            duration: 3.5,
+            cues: [{ at: 0, actor: 'island_soul', moveTo: v(0, -2.45, -70.5), face: v(0, -2.45, -76) }],
+            lines: [{ speaker: 'Released soul', text: 'Behind this stone, the lamps still burn.' }],
+            camera: [{ pos: v(3.5, -0.2, -66.5), look: v(0, -0.7, -71), fov: 48 }],
+          },
+          {
+            duration: 5, fadeIn: 0.15,
+            cues: [
+              // The opening is gameplay, so skipping the scene must also remove the collider.
+              { at: 0.5, essential: true, run: s => s.level.cue?.('open-shrine') },
+              { at: 0.8, actor: 'island_soul', moveTo: v(1.7, -2.14, -74.6), face: ISLAND.altar },
+              { at: 4.5, essential: true, run: s => {
+                const soul = s.actor('island_soul');
+                soul?.setPosition(1.7, -2.14, -74.6);
+                if (soul instanceof Extra) soul.appear(true, 0);
+              } },
+            ],
+            camera: [{ pos: v(2.6, -0.7, -69), look: ISLAND.altar.clone().add(v(0, 1.2, 0)), fov: 50 }],
+          },
+        ],
+      },
     },
   ],
 

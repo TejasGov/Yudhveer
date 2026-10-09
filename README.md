@@ -118,7 +118,7 @@ Real gameplay, captured in the engine at 1080p. Nothing here gives the story awa
 | Prologue | The Last Lesson | A desert village at dusk | Raiders | The lathi |
 | I | The Moonlit Baoli | A stepwell under the stars | The Baoli Guardian | The lathi |
 | II | Hanuman Akhada | A forest training-ground, sunset into night | The old vanara, the Vetala, Mayavi | The talwar and the dhal |
-| III | The Island | Lamp-lit sea caves | Cave runts and hurlers | The talwar and the dhal |
+| III | The Island | Lamp-lit sea caves | Cave runts, hurlers and the Spider Demoness | The talwar and the dhal |
 | IV | Dwarka | The sea city in rain and tide | Shalva, Takshaka | The blessed mace |
 | V | Kailasha Summit | Snow and bridges under an eclipse | Rakshasas, yatudhanas, and one more | The khanda and the dhal |
 

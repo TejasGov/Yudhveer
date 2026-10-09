@@ -24,6 +24,8 @@ export interface ExpeditionSpawn {
 
 export interface Encounter {
   id: string;
+  /** Optional cleared encounters that must precede this one (the sealed island shrine's keeper). */
+  requires?: string[];
   /**
    * When it starts: the hero comes within `radius` of `at` (on the ground plane), or an earlier encounter is down to
    * `alive` opponents still standing (a second wave).
@@ -93,21 +95,26 @@ export class ExpeditionRun {
       return !enemy || enemy.stateMachine.currentState !== 'DEAD';
     }).length;
 
-    this.def.encounters.forEach((e, i) => {
+    this.def.encounters.forEach((e) => {
       if (this.started.has(e.id)) {
         if (!this.cleared.has(e.id) && standing(e) === 0) {
           this.cleared.add(e.id);
-          if (e.checkpoint && i > (checkpoints.get(this.key) ?? -1)) checkpoints.set(this.key, i);
         }
         return;
       }
       const due = 'after' in e.start
         ? this.started.has(e.start.after) && standing(this.def.encounters.find((x) => x.id === (e.start as { after: string }).after)!) <= e.start.alive
         : Math.hypot(hero.x - e.start.at.x, hero.z - e.start.at.z) < e.start.radius && Math.abs(hero.y - e.start.at.y) < 4;
-      if (due) {
+      if (due && (e.requires ?? []).every(id => this.cleared.has(id))) {
         this.started.add(e.id);
         start.push(e);
       }
+    });
+
+    // A reinforcement wave can fall before its parent encounter. A checkpoint must not skip the survivors on retry.
+    this.def.encounters.forEach((e, i) => {
+      if (e.checkpoint && i > (checkpoints.get(this.key) ?? -1)
+        && this.def.encounters.slice(0, i + 1).every(prior => this.cleared.has(prior.id))) checkpoints.set(this.key, i);
     });
 
     const g = this.def.goal;
