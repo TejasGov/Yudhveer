@@ -339,6 +339,11 @@ credited above.
 
 ## Still to confirm
 
+The island demoness, human soul and chained axe added on 2026-10-09 are user-supplied GLBs (`spider demon.glb`,
+`human form of spider.glb`, `spider chain axe.glb`). Source hashes and local prototype-rig transformations are
+recorded in ISLAND_DEMONESS_SOURCES.json and ISLAND_DEMONESS.md. Provider, plan and license details are not recorded;
+these entries do not assert a third-party license. The supplied originals remain outside the repository.
+
 Nothing below is known to be wrong; each is a place where the records stop, so a credit could not be written in full.
 
 1. **Poly Haven authors** not recorded: Sandstone Cracks, Old Sandstone 02, Large Sandstone Blocks 01, Tree Small 02,

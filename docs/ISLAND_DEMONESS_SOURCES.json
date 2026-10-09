@@ -1,0 +1,25 @@
+{
+  "sourceRoot": "E:\\hindan",
+  "sources": {
+    "spider demon.glb": "add0b43722ad0089a52bd0c1e23c0fe5d3b65c8ba49f51bf1ef52866c8ae0ad1",
+    "human form of spider.glb": "4325c6b4121372c19e97f8f954a0d26c8eb43f84304901736b379dddfa89f57e",
+    "spider chain axe.glb": "47e3dc77327bdb1a6dfab6db83bc94c8728b11cca1835bf426cfbcc54fe21b0a"
+  },
+  "status": "user supplied; no third-party license asserted",
+  "texturesMax": 1024,
+  "animation": "locally authored prototype",
+  "outputs": {
+    "public/assets/characters/island_demoness.glb": {
+      "bytes": 3971508,
+      "sha256": "46259d7092ac2e59068814debf4c8263faa57adfea591b112c9d6df36e9b4c02"
+    },
+    "public/assets/characters/island_soul.glb": {
+      "bytes": 5161496,
+      "sha256": "328f8872db21ce306a208272308871c442e25c6e40c1917d6a89a916dea3ce8a"
+    },
+    "public/assets/weapons/island_chain_axe.glb": {
+      "bytes": 2560068,
+      "sha256": "bfa48d65cb718ec71d2d4a8922df7dd32f6bf837ab4ec7d18f8bafe55e37ee86"
+    }
+  }
+}

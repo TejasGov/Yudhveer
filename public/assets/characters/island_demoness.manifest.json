@@ -1,0 +1,48 @@
+{
+  "model": "island_demoness.glb",
+  "source": "spider demon.glb",
+  "sourceSHA256": "add0b43722ad0089a52bd0c1e23c0fe5d3b65c8ba49f51bf1ef52866c8ae0ad1",
+  "height": 3.2,
+  "triangles": 27664,
+  "sockets": [
+    "Socket_Hand_R"
+  ],
+  "clips": {
+    "idle": {
+      "duration": 2.0,
+      "loop": true,
+      "speed": 0
+    },
+    "move": {
+      "duration": 1.0,
+      "loop": true,
+      "speed": 2
+    },
+    "attack_1": {
+      "duration": 1.8,
+      "loop": false,
+      "speed": 0
+    },
+    "attack_2": {
+      "duration": 2.0,
+      "loop": false,
+      "speed": 0
+    },
+    "attack_3": {
+      "duration": 2.2,
+      "loop": false,
+      "speed": 0
+    },
+    "impact": {
+      "duration": 0.6666666666666666,
+      "loop": false,
+      "speed": 0
+    },
+    "death": {
+      "duration": 2.0,
+      "loop": false,
+      "speed": 0
+    }
+  },
+  "prototype": true
+}

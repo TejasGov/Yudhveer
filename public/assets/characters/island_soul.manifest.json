@@ -1,0 +1,48 @@
+{
+  "model": "island_soul.glb",
+  "source": "human form of spider.glb",
+  "sourceSHA256": "4325c6b4121372c19e97f8f954a0d26c8eb43f84304901736b379dddfa89f57e",
+  "height": 1.8,
+  "triangles": 30658,
+  "sockets": [
+    "Socket_Hand_R"
+  ],
+  "clips": {
+    "idle": {
+      "duration": 2.0,
+      "loop": true,
+      "speed": 0
+    },
+    "move": {
+      "duration": 1.0,
+      "loop": true,
+      "speed": 2
+    },
+    "attack_1": {
+      "duration": 1.8,
+      "loop": false,
+      "speed": 0
+    },
+    "attack_2": {
+      "duration": 2.0,
+      "loop": false,
+      "speed": 0
+    },
+    "attack_3": {
+      "duration": 2.2,
+      "loop": false,
+      "speed": 0
+    },
+    "impact": {
+      "duration": 0.6666666666666666,
+      "loop": false,
+      "speed": 0
+    },
+    "death": {
+      "duration": 2.0,
+      "loop": false,
+      "speed": 0
+    }
+  },
+  "prototype": true
+}
