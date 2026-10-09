@@ -1,4 +1,20 @@
+# PvP duel — Stage 2
+
 ## Audit fixes — 8 October 2026
+
+Current verification: 38 automated tests pass, including production transport/room/timeline over real local WebSockets, and animation-window measurements on both shipped duel GLBs. TypeScript, Vite build and asset URL validation pass. The campaign Engine.ts is unchanged from the audited baseline a633db4; campaign combat resolver bodies are unchanged. Required before/after browser campaign playtests and interactive duel checks remain unverified because browser access was denied. Earlier browser measurements below predate these fixes and are retained as history. No cloud deployment or human latency-feel validation was performed.
+
+The real-socket fixtures use 10 ms jitter and 50% replaceable movement-snapshot loss. They complete alternating wins across all three rounds, reset scores/health on rematch and notify the peer on disconnect. Contacts are scripted verdicts after the production timeline reaches an eligible window; they do not exercise physics or a human's 140 ms parry timing. One run measured:
+
+| Simulator ping preset | Peer RTT means, two clients | Referenced snapshot to verdict, three contacts |
+| --- | --- | --- |
+| 40 ms | 57.9 / 47.5 ms | 205.8 / 203.7 / 173.2 ms |
+| 80 ms | 101.7 / 93.6 ms | 203.6 / 250.9 / 220.1 ms |
+| 150 ms | 164.0 / 166.9 ms | 312.6 / 296.9 / 298.8 ms |
+
+These include local event-loop/socket overhead and are single-run protocol measurements. Snapshot-to-verdict age includes playback buffering; it is not click-to-feedback latency. Run the regression suite with `node --experimental-vm-modules --test scripts/duel-*.test.mjs` (Node 22.18+). VM/TypeScript-stripping experimental warnings are expected.
+
+Open tuning choices introduced by the fixes: two seconds for simulation/delivery stalls, 4 KiB snapshot and 32 KiB hard queue limits, at most 2x combat catch-up, 20 m/s movement budget with 3 m burst tolerance, and three registered attacks per second with an initial burst of four. The relay still trusts defender-reported defence/health; these checks do not make this client-authoritative design cheat-proof.
 
 7. Charge reconciliation: every completed charge has a generation and an acknowledged spend count. The defender retains unacknowledged consumption, so rereading an old pose cannot refund a blow; the owner ignores late consumption from a previous charge. Tests cover three stale-snapshot contacts, partial acknowledgements, fresh charge/round reset and duplicate/late owner verdicts. All 33 tests, TypeScript and build pass.
 
@@ -13,8 +29,6 @@
 2. Verdict validation: reliable attack starts register a swing before replaceable poses. Both relay and attacker require a real observed snapshot, attack serial and weapon window. The relay bounds simulation clock, attack cadence and accumulated movement (20 m/s with 3 m burst tolerance), with bounded evidence history. These are generous plausibility bounds, not competitive anti-cheat; a modified defender can still lie about defence. The wire window table was measured with the shipped GLB animation and is checked against each rig by duelCheck. Added forged-parry, unknown-reference/window, clock, cadence and teleport regressions; all 17 relay tests and TypeScript pass.
 
 1. Simulation liveness: snapshots carry a fixed-step tick. Both the client and room stop a session after two seconds without simulation progress, independently of packet sequence/probe traffic. Foreground online pause still simulates. This disconnects without awarding a round; the two-second tolerance is a tuning choice. Added frozen-tick and idle-progress relay regressions; all 15 relay tests, TypeScript and Vite build pass. Browser baseline access was denied; before/after browser checks remain pending.
-
-# PvP duel — Stage 2
 
 Stage 2 adds best-of-three matches to practice and room play. Campaign still uses
 its existing fixed-update block, defence numbers, weapons, scenes and enemy AI.

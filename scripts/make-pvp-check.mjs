@@ -9,7 +9,7 @@ const controls = `<div style="position:fixed;z-index:99999;top:0;left:0;backgrou
 <button id="run-baseline">Run campaign check</button><button id="run-local">Run local duel check</button>
 <button id="bot-check">Measure both bots</button><button id="match-live">Script full match</button><button id="snapshot-check">Read session</button>
 <button id="boxing-check">Inspect boxing</button>
-<button id="test-ko">Report test KO</button><button id="debug-unpause">Release debug pause</button>
+<button id="test-forged-hit">Send invalid verdict</button><button id="debug-unpause">Release debug pause</button>
 <button id="defence-check">Check defence rules</button><button id="step-live">Step live</button><button id="attack-live">Script attacks</button><button id="parry-live">Script parries</button><button id="stop-live">Stop stepping</button><button id="pause-check">Check pause menu</button>
 <pre id="test-result">Ready</pre></div>
 <script type="module">
@@ -28,9 +28,10 @@ document.getElementById('run-local').onclick = async () => { clearInterval(inter
 try { await ready(); const e=__yudhveer; e.gameLoop=()=>{}; await e.startDuel(); e.inputManager.exitPointerLock(); let n=0; while(!e.duel.finished&&n++<3600)e.debugAdvance(1/60);
  e.hud.update(e.player,[],e.sceneManager.camera,1/60); e.sceneManager.render(1/60); out.textContent=JSON.stringify({...summary(e),seconds:n/60}); }catch(e){out.textContent=e.stack;} };
 document.getElementById('defence-check').onclick = async () => { await ready(); const {checkDuelDefence}=await import('/src/debug/DuelCheck.ts'); out.textContent=JSON.stringify(await checkDuelDefence(__yudhveer)); };
-// These two controls are for protocol/pause transitions only. The full-match script above uses real contacts.
-document.getElementById('test-ko').onclick=()=>{const e=__yudhveer, d=e.duel, t=d?.transport;if(!t||!d.active)return;
- e.player.takeDamage(999);t.send({type:'hit',round:t.round,swing:999,window:0,result:'player-hit',health:0,posture:e.player.currentMarma,charged:false,seenSeq:d.opponent.snapshot?.seq??0,point:e.player.group.position.toArray()});};
+// This intentionally invalid verdict must be rejected. Use the full-match script for real round transitions.
+document.getElementById('test-forged-hit').onclick=()=>{const e=__yudhveer, d=e.duel, t=d?.transport;if(!t||!d.active)return;
+ t.send({type:'hit',round:t.round,swing:999,window:0,result:'player-hit',health:0,posture:e.player.currentMarma,charged:false,seenSeq:d.opponent.snapshot?.seq??0,point:e.player.group.position.toArray()});
+ out.textContent='Invalid verdict sent: health and score should stay unchanged.';};
 document.getElementById('debug-unpause').onclick=()=>{const e=__yudhveer;e.paused=false;e.dialogue.setPaused(false);if(e.duel)e.duel.suspended=false;
  if(e.duel?.finished)e.finishNetworkDuel('Match over');else e.screens.clear();};
 document.getElementById('snapshot-check').onclick=()=>{__yudhveer.duel?.updatePresentation();out.textContent=JSON.stringify(summary(__yudhveer));};

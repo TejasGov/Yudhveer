@@ -5,8 +5,8 @@ import { DUEL_SNAPSHOT_QUEUE_BYTES, DUEL_MAX_QUEUE_BYTES } from './Rules';
 /**
  * WebSocket room transport, with a deliberately visible latency simulator. Each endpoint delays outgoing packets
  * by delayMs (one-way); set 20, 40 or 75 on both peers for 40, 80 or 150 ms peer RTT before the real network cost.
- * Jitter may reorder replaceable snapshots. Loss drops snapshots only: room control and defender results remain
- * reliable, as they are on WebSocket, so a lost update cannot erase a death or a parry. Probe/echo measures the
+ * Jitter may reorder replaceable locomotion snapshots. Loss drops those only: combat poses, room control and
+ * defender results remain reliable, so a lost update cannot erase a strike, death or parry. Probe/echo measures the
  * complete simulated peer round trip. No clock sync or timestamp from another browser is trusted.
  */
 export interface LatencySettings { delayMs: number; jitterMs: number; loss: number }
