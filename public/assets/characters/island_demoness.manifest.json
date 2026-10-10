@@ -14,9 +14,9 @@
       "speed": 0
     },
     "move": {
-      "duration": 1.0,
+      "duration": 0.8,
       "loop": true,
-      "speed": 2
+      "speed": 0.6923076923076923
     },
     "attack_1": {
       "duration": 1.8,
@@ -43,6 +43,13 @@
       "loop": false,
       "speed": 0
     }
+  },
+  "rig": {
+    "legs": 8,
+    "legJoints": 3,
+    "skin": "bone heat with nearest-weighted fill",
+    "filledVertices": 0,
+    "footIK": "baked"
   },
   "prototype": true
 }

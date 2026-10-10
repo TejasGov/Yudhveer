@@ -337,12 +337,28 @@ cropped, never scaled up), and in-engine captures for the characters that have n
 banner, the loop and the social preview are frames of the trailer, captured in the engine; they show the third-party assets
 credited above.
 
+## Island demoness, human soul and chained axe (2026-10-09 / 2026-10-10)
+
+The three meshes are user-supplied GLBs: `spider demon.glb`, `human form of spider.glb` and
+`spider chain axe.glb`. Their supplied originals remain unchanged outside the repository. The original model
+provider, plan and license details were not supplied, so no third-party mesh license is asserted.
+
+The human soul uses a user-approved Meshy humanoid rig and its bundled walk, task
+`01a12465-28fb-744f-9461-3f645036c8e5` (SUCCEEDED, actual cost 5 credits). Its calm standing idle is the existing
+Adobe Mixamo `Stance-Calm Idle.fbx`, retargeted locally; Mixamo is credited as a courtesy alongside the other
+character animations above. `scripts/prepare-island-soul.py` combines the rest-frame-corrected clips and removes
+horizontal root travel for game-driven movement. The spider's integrated eight-leg rig is authored and skinned
+locally with `scripts/build-island-spider.py`; its foot IK is baked into exported tracks. The axe retains its
+local preparation from the legacy prototype builder. No supplied source or `game asset/` file was modified.
+
+Hashes, script inputs, job provenance and current export checks are
+recorded in [ISLAND_DEMONESS_SOURCES.json](ISLAND_DEMONESS_SOURCES.json) and
+[ISLAND_DEMONESS.md](ISLAND_DEMONESS.md). These records contain no signed provider URLs.
+
 ## Still to confirm
 
-The island demoness, human soul and chained axe added on 2026-10-09 are user-supplied GLBs (`spider demon.glb`,
-`human form of spider.glb`, `spider chain axe.glb`). Source hashes and local prototype-rig transformations are
-recorded in ISLAND_DEMONESS_SOURCES.json and ISLAND_DEMONESS.md. Provider, plan and license details are not recorded;
-these entries do not assert a third-party license. The supplied originals remain outside the repository.
+The origin and applicable model-license details of the three user-supplied island meshes remain unrecorded.
+The known Meshy rig job and Mixamo animation source do not establish those originals' provenance.
 
 Nothing below is known to be wrong; each is a place where the records stop, so a credit could not be written in full.
 

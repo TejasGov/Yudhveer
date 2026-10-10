@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { Character } from './Character';
 import type { CharacterDefinition, CharacterRig } from './animation/CharacterRig';
+import { CharacterMotor } from '../physics/CharacterMotor';
 import { addRimLight } from '../levels/environment/ToonRelight';
 
 /** A shade's opacity when wholly there (see `CastMember.shade`). */
@@ -19,7 +20,7 @@ export class Extra extends Character {
   /** Set before the rig loads: drawn as a pale, see-through memory (see `CastMember.ghost`). */
   public ghost: { color: THREE.ColorRepresentation; opacity?: number } | null = null;
   /** Set before the rig loads: the spirit of someone fallen, risen to speak over the body (see `CastMember.shade`). */
-  public shade: { color: THREE.ColorRepresentation; opacity?: number } | null = null;
+  public shade: { color: THREE.ColorRepresentation; opacity?: number; grounded?: boolean } | null = null;
   /**
    * A shade's presence: 0 gone, 1 wholly there. It eases toward its target (`appear`); as it comes the shade rises out
    * of the ground to hover a hand's breadth up, and its see-through materials fade in with it.
@@ -31,6 +32,8 @@ export class Extra extends Character {
   private ghostMaterials: { material: THREE.Material; opacity: number }[] = [];
   /** Seconds a shade has been about (its breathing and flicker). */
   private haunting = 0;
+  private readonly groundProbe = new THREE.Vector3();
+  private readonly groundNormal = new THREE.Vector3();
 
   constructor(id: string) {
     super(id, 0x8a7560);
@@ -62,6 +65,7 @@ export class Extra extends Character {
   }
 
   public override update(dt: number): void {
+    if (this.shade?.grounded) this.followGround();
     super.update(dt);
     if (!this.shade) return;
     this.haunting += dt;
@@ -74,12 +78,23 @@ export class Extra extends Character {
     this.applyPresence();
   }
 
+  /** A walking shade follows nearby walkable level surfaces; walls, overhead rock and fighter capsules cannot lift it. */
+  private followGround(): void {
+    const feet = this.group.position;
+    this.groundProbe.copy(feet).y += 0.6;
+    const ground = CharacterMotor.groundBelow(this.groundProbe, 1.8, this.groundNormal);
+    if (ground !== null && this.groundNormal.y >= Math.cos(THREE.MathUtils.degToRad(50))
+      && ground <= feet.y + 0.45 && ground >= feet.y - 1.2) feet.y = ground;
+  }
+
   /** A shade's height off the ground, opacity and visibility, from its presence (and a slow breath and flicker). */
   private applyPresence(): void {
     if (!this.shade) return;
     const t = this.haunting;
     const k = this.presence * this.presence * (3 - 2 * this.presence);
-    this.modelGroup.position.y = SHADE_HOVER - SHADE_RISE * (1 - k) + Math.sin(t * 1.25) * 0.03;
+    this.modelGroup.position.y = this.shade.grounded
+      ? -SHADE_RISE * (1 - k)
+      : SHADE_HOVER - SHADE_RISE * (1 - k) + Math.sin(t * 1.25) * 0.03;
     const flicker = 0.9 + 0.06 * Math.sin(t * 6.1) + 0.04 * Math.sin(t * 15.7 + 1.3);
     for (const g of this.ghostMaterials) g.material.opacity = g.opacity * k * flicker;
     if (this.presence <= 0 && this.presenceTarget <= 0) this.group.visible = false;

@@ -42,7 +42,7 @@ export const ISLAND_STORY: ChapterStory = {
   cast: [
     { id: 'guru', rig: GURU, at: v(0, -2.1, -70), hidden: true },
     { id: 'island_soul', rig: ISLAND_SOUL, at: v(0, -2.45, -68.5), hidden: true,
-      shade: { color: 0x9adbea, opacity: 0.55 } },
+      shade: { color: 0x9adbea, opacity: 0.55, grounded: true } },
   ],
 
   // Ashore at the landing: the boatman stays under his canopy in the dark of the boat and will go no further.
@@ -178,14 +178,15 @@ export const ISLAND_STORY: ChapterStory = {
             camera: [{ pos: v(3.5, -0.2, -66.5), look: v(0, -0.7, -71), fov: 48 }],
           },
           {
-            duration: 5, fadeIn: 0.15,
+            duration: 6.2, fadeIn: 0.15,
             cues: [
               // The opening is gameplay, so skipping the scene must also remove the collider.
               { at: 0.5, essential: true, run: s => s.level.cue?.('open-shrine') },
-              { at: 0.8, actor: 'island_soul', moveTo: v(1.7, -2.14, -74.6), face: ISLAND.altar },
-              { at: 4.5, essential: true, run: s => {
+              // Wait for the rock's 1.8 s fade to finish before she steps through the opening.
+              { at: 2.4, actor: 'island_soul', moveTo: v(1.7, -2.11, -74.6), face: ISLAND.altar },
+              { at: 5.95, essential: true, run: s => {
                 const soul = s.actor('island_soul');
-                soul?.setPosition(1.7, -2.14, -74.6);
+                soul?.setPosition(1.7, -2.11, -74.6);
                 if (soul instanceof Extra) soul.appear(true, 0);
               } },
             ],

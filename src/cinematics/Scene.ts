@@ -154,9 +154,10 @@ export interface CastMember {
    * The spirit of someone who has fallen, risen to speak over the body (Shalva, Takshaka, the Baoli Guardian): drawn
    * as a ghost, washed in `color` with a stronger glow and rim (`opacity` defaults to 0.6), hovering a hand's breadth
    * off the ground, breathing and flickering faintly. Brought on and off with `appear` cues, which fade it. Its rig is
-   * usually the fallen fighter's without weapons (`shadeOf` in game/Story.ts).
+   * usually the fallen fighter's without weapons (`shadeOf` in game/Story.ts). `grounded` keeps a walking shade
+   * on nearby walkable floor instead of hovering and bobbing.
    */
-  shade?: { color: THREE.ColorRepresentation; opacity?: number };
+  shade?: { color: THREE.ColorRepresentation; opacity?: number; grounded?: boolean };
 }
 
 /** What a chapter tells, and when. */

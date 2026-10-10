@@ -49,7 +49,7 @@ export class BossIslandDemoness extends Boss {
     super(id, 0x5f3430, { attackInterval: 2.1, strikeRange: 4.8, tooClose: 1.5, leapRange: 100, leapMax: 100, roarRange: 0 });
     this.displayName = 'Spider Demoness'; this.epithet = 'Keeper of the sealed shrine';
     this.maxHealth = this.currentHealth = 480; this.maxMarma = 130; this.renewsPosture = true;
-    this.damageScale = 0.65; this.moveSpeed = 2.3; this.turnRate = 2.8; this.hasRoared = true;
+    this.damageScale = 0.65; this.moveSpeed = 1.3; this.turnRate = 2.8; this.hasRoared = true;
     this.lungeSpec = { a: 0, b: 0, maxDist: 0, stopDist: 1.5 };
     this.axe.name = 'TravellingChainAxe';
     this.tether.frustumCulled = false;
