@@ -1,4 +1,4 @@
-# Island demoness — first wiring pass
+# Island demoness — encounter prototype
 
 The hall fight is unchanged. The pool now contains the former final encounter's two hurlers, four runts and two
 rear reinforcements. Once both waves clear, the final chamber starts the Spider Demoness fight. Her human soul
@@ -35,13 +35,14 @@ and the axe GLB into public/assets/weapons after inspection. It recreates export
 ## Combat and scene choices
 
 One axe travels on authored local paths: a broad horizontal sweep, overhead slam, and straight throw with a
-dangerous return. The return has its own strike window. Up to 128 instanced alternating metal links connect the
+harmless return and a punish window. Up to 128 instanced alternating metal links connect the
 animated hand to the axe; the links are visual, without physics or damage. The supplied weapon also has its own
 short ornamental chain. The blade uses the existing swept intersection and campaign defence resolver. The axe
-currently passes through cave walls; wall interaction and final body-to-weapon choreography remain unfinished.
+now sweeps a conservative head sphere against static scenery; a rock contact cancels that attack's remaining
+damage and recalls the axe. Final body-to-weapon choreography remains unfinished.
 
-Provisional values: 480 health, 130 posture, 0.65 enemy damage scale, 2.3 m/s movement, 1.8 seconds between attacks,
-and 5.8 m engagement range. She has no added guard or magical attack in this pass. No balance measurement supports
+Provisional values: 480 health, 130 posture, 0.65 enemy damage scale, 2.3 m/s movement, 2.1 seconds between attacks,
+and 4.8 m engagement range. She has no added guard or magical attack in this pass. No human balance measurement supports
 these numbers yet. The release scene's two new lines are subtitles; no voice files were created or replaced.
 
 The pool checkpoint waits for the main pack and rear wave. The boss requires all previous encounters cleared.
@@ -50,7 +51,7 @@ the soul visible near the original altar. Restarting before victory rebuilds the
 
 ## Verification and trying it
 
-TypeScript, Vite build and asset URL validation pass. Seven targeted tests execute production code: encounter
+TypeScript, Vite build and asset URL validation pass. Ten targeted tests execute production code: encounter
 prerequisites/goal, checkpoint ordering, swept axe contacts, rig clips/durations, gate removal/retry, skipped scene
 settlement, and downward rays at every encounter/checkpoint position against the shipped cave geometry.
 
@@ -71,3 +72,26 @@ test of this sequence. For a hidden Browser pane, stop the normal loop and use d
 Browser access was previously denied. A full browser playthrough, camera/collision review, defence feel and
 campaign before/after bot runs remain unverified. This is a first wiring prototype ready for review, not a claim
 of polished chained-weapon animation or final difficulty.
+
+## Combat correction — 2026-10-10
+
+The first playtest reported bad axe/combat behaviour. Inspection found discontinuous attack entry/exit poses,
+spin during the entire throw state, a hit segment along the handle instead of the curved cutting head, and
+short-range attacks selected at almost six metres. The new `ChainAxeMotion.ts` keeps pose keys and strike
+windows together. Each attack starts and ends at the animated hand. Close attacks alternate below 3.1 m;
+farther away she throws. Reach is captured at attack entry, capped at 4.8 m, and tracking ends at 0.35 seconds.
+Interrupted attacks recall over 0.4 seconds instead of teleporting. The decorative tether disappears when held.
+The supplied axe's grip is placed at local source (0.1, 0.72, 0); damage endpoints follow its curved head.
+
+Wall handling uses real Rapier sphere sweeps along the tether and from the previous head position. It excludes
+fighter bodies and sensors. A collision cancels further damage for that attack, with a fresh attack clearing
+the latch. This is conservative collision for a rigid axe, not a physical chain wrapping around pillars.
+
+TypeScript, Vite and all 48 duel/encounter regression tests pass. Ten targeted tests include production pose/contact sampling at 60 Hz, both close attack choices at
+1.65/2.5/3.1 m, throws at 4/4.8 m, interruption recall, real Rapier wall/fighter/sensor cases, and all three attacks
+at the boss spawn against the shipped cave collision meshes. The tests also retain encounter progression,
+retry/skip and rig-export checks. These are automated geometry and logic measurements, not a human feel verdict.
+
+Choices to review in play: harmless return, 2.1-second attack interval and 4.8 m maximum range. Refresh the game
+and start chapter III again so the existing boss instance is rebuilt. The procedural body rig, cave presentation
+and soul animation still need a visual pass; no model or animation asset was changed in this combat correction.

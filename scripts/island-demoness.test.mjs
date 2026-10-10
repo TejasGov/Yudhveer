@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 import { loadDuelModule } from './duel-test-runtime.mjs';
+import RAPIER from '@dimforge/rapier3d-compat';
 
 /**
  * Executes the production expedition and axe paths with explicit platform doubles. The tests exercise gated
@@ -43,16 +44,20 @@ test('killing the rear wave first cannot checkpoint past surviving parent enemie
 });
 
 class Boss {
-  constructor() { this.group=new THREE.Group();this.stateMachine={currentState:'IDLE',stateTime:0}; }
+  constructor() { this.group=new THREE.Group();this.stateMachine={currentState:'IDLE',stateTime:0};this.soundFX={playHitImpact(){}}; }
   update() {}
 }
+const axePhysics={world:null,RAPIER_INSTANCE:null};
+const axeMotion=await loadDuelModule('src/combat/ChainAxeMotion.ts',{three:THREE});
 const { BossIslandDemoness } = await loadDuelModule('src/entities/BossIslandDemoness.ts', {
   three: THREE, './Boss': { Boss }, './animation/CharacterRig': { CharacterRig: {} },
   '../core/Assets': { asset: x => x }, '../levels/GLBLevel': { disposeObject() {} },
   '../levels/environment/ToonRelight': { createToonRamp() {}, toonifyModel() {} },
+  '../core/PhysicsWorld':{PhysicsWorld:{getInstance:()=>axePhysics}},
+  '../combat/ChainAxeMotion':axeMotion,
 });
 const { sweepBlade } = await loadDuelModule('src/combat/HitboxManager.ts', { three: THREE, '../entities/Character': { Character: class {} } });
-test('each authored attack sweeps a real capsule in range, never one far away; returning throw is a second window', () => {
+test('each authored attack sweeps a real capsule in range, never one far away', () => {
   const boss = new BossIslandDemoness();
   for (const state of ['ATTACK_1','ATTACK_2','ATTACK_3']) {
     const windows=boss.hitWindows(state), contacts=new Set(); let prev;
@@ -73,6 +78,72 @@ test('each authored attack sweeps a real capsule in range, never one far away; r
     assert.equal(contacts.size,windows.length,state+' reachable windows');
   }
   boss.stateMachine.currentState='DEAD';boss.update(1/60);assert.equal(boss.group.getObjectByName('TravellingChainAxe').visible,false);
+});
+
+test('attack selection reaches its chosen target; recall never opens another damage window',()=>{
+  for(const distance of [1.65,2.5,3.1,4,4.8]) {
+    const boss=new BossIslandDemoness();
+    for(let attempt=0;attempt<2;attempt++) {
+      const state=boss.chooseAttack(null,distance);
+      if(distance>3.1)assert.equal(state,'ATTACK_3');
+      let previous,hit=false;
+      const body={a:new THREE.Vector3(0,.4,distance),b:new THREE.Vector3(0,1.4,distance),radius:.35};
+      for(let f=0;f<140;f++) {
+        boss.stateMachine.currentState=state;boss.stateMachine.stateTime=f/60;boss.update(1/60);
+        const curr=boss.getWeaponPoints();
+        if(previous&&boss.hitWindows().some(w=>f/60>=w.t0&&f/60<=w.t1)) hit ||= sweepBlade(previous,curr,body).hit;
+        previous=curr;
+      }
+      assert.ok(hit,`${state} reaches ${distance}m`);
+    }
+  }
+  assert.equal(axeMotion.AXE_WINDOWS.ATTACK_3.length,1);
+  assert.ok(axeMotion.AXE_WINDOWS.ATTACK_3[0].t1<1.3);
+});
+
+test('axe leaves and returns to the hand continuously; deflection recalls instead of teleporting',()=>{
+  const boss=new BossIslandDemoness(),axe=boss.group.getObjectByName('TravellingChainAxe');
+  const hand=axe.position.clone(),held=axe.quaternion.clone();
+  for(const state of ['ATTACK_1','ATTACK_2','ATTACK_3']) {
+    let previous=hand.clone();
+    for(let f=0;f<=132;f++) {
+      boss.stateMachine.currentState=state;boss.stateMachine.stateTime=f/60;boss.update(1/60);
+      assert.ok(axe.position.distanceTo(previous)<.4,`${state} frame ${f} has continuous travel`);
+      previous.copy(axe.position);
+    }
+    assert.ok(axe.position.distanceTo(hand)<1e-6);assert.ok(axe.quaternion.angleTo(held)<1e-6);
+  }
+  boss.stateMachine.currentState='ATTACK_3';boss.stateMachine.stateTime=1;boss.update(1/60);
+  const released=axe.position.clone();assert.ok(released.distanceTo(hand)>1);
+  boss.stateMachine.currentState='DEFLECTED';boss.stateMachine.stateTime=0;boss.update(1/60);
+  assert.ok(axe.position.distanceTo(released)<.05);assert.equal(boss.hitWindows().length,0);
+  for(let f=1;f<30;f++){boss.stateMachine.stateTime=f/60;boss.update(1/60);}
+  assert.ok(axe.position.distanceTo(hand)<1e-6);
+  const chain=boss.group.children.find(o=>o.isInstancedMesh);assert.equal(chain.count,0);
+});
+
+test('real Rapier cave wall stops axe and cancels damage; fighter and sensor colliders do not',async()=>{
+  await RAPIER.init();axePhysics.RAPIER_INSTANCE=RAPIER;
+  for(const kind of ['wall','fighter','sensor']) {
+    const world=axePhysics.world=new RAPIER.World({x:0,y:0,z:0});
+    try {
+      const desc=kind==='fighter'?RAPIER.RigidBodyDesc.kinematicPositionBased():RAPIER.RigidBodyDesc.fixed();
+      const body=world.createRigidBody(desc.setTranslation(0,1.5,2.5));
+      world.createCollider(RAPIER.ColliderDesc.cuboid(3,2,.1).setSensor(kind==='sensor'),body);world.step();
+      const boss=new BossIslandDemoness();boss.chooseAttack(null,4.8);
+      let blocked=false,furthest=0;
+      for(let f=0;f<140;f++) {
+        boss.stateMachine.currentState='ATTACK_3';boss.stateMachine.stateTime=f/60;boss.update(1/60);
+        const {tip,hilt}=boss.getWeaponPoints();furthest=Math.max(furthest,tip.z,hilt.z);
+        if(!boss.hitWindows().length)blocked=true;
+        if(blocked)assert.equal(boss.hitWindows().length,0,'damage remains cancelled through recall');
+      }
+      if(kind==='wall'){assert.ok(blocked);assert.ok(furthest<2.4,`axe stops before wall: ${furthest}`);}
+      else {assert.equal(blocked,false);assert.ok(furthest>4.5);}
+      boss.stateMachine.stateTime=0;boss.update(1/60);assert.equal(boss.hitWindows().length,1,'new attack clears obstruction');
+    } finally {world.free();axePhysics.world=null;}
+  }
+  axePhysics.RAPIER_INSTANCE=null;
 });
 test('both locally built rigs export all declared clips and a skin; manifest durations match animation time bounds', () => {
   for(const name of ['island_demoness','island_soul']) {
@@ -160,4 +231,27 @@ test('all actual encounter and checkpoint positions have nearby solid cave floor
     const hits=ray.intersectObjects(colliders,false);
     assert.ok(hits.some(h=>Math.abs(h.point.y-s.at.y)<.65),s.id+' has floor: '+JSON.stringify(hits.slice(0,3).map(h=>({mesh:h.object.name,point:h.point.toArray()}))));
   }
+  // Reuse the shipped collision mesh in real Rapier: the boss must be able to finish each attack at her spawn,
+  // rather than having every wind-up cancelled by our conservative head sphere touching the floor or ceiling.
+  await RAPIER.init();axePhysics.RAPIER_INSTANCE=RAPIER;
+  const world=axePhysics.world=new RAPIER.World({x:0,y:0,z:0});
+  try {
+    for(const mesh of colliders) {
+      const geometry=mesh.geometry.clone().applyMatrix4(mesh.matrixWorld),positions=geometry.attributes.position;
+      const vertices=new Float32Array(positions.count*3);
+      for(let i=0;i<positions.count;i++){vertices[i*3]=positions.getX(i);vertices[i*3+1]=positions.getY(i);vertices[i*3+2]=positions.getZ(i);}
+      const indices=geometry.index?Uint32Array.from(geometry.index.array):Uint32Array.from({length:positions.count},(_,i)=>i);
+      world.createCollider(RAPIER.ColliderDesc.trimesh(vertices,indices),world.createRigidBody(RAPIER.RigidBodyDesc.fixed()));
+      geometry.dispose();
+    }
+    world.step();
+    const boss=new BossIslandDemoness();boss.group.position.copy(ISLAND_EXPEDITION.encounters.at(-1).spawns[0].at);
+    for(const distance of [2.5,2.5,4.5]) {
+      const state=boss.chooseAttack(null,distance);
+      for(let f=0;f<135;f++) {
+        boss.stateMachine.currentState=state;boss.stateMachine.stateTime=f/60;boss.update(1/60);
+        assert.ok(boss.hitWindows().length,`${state} has room at cave spawn, frame ${f}`);
+      }
+    }
+  } finally {world.free();axePhysics.world=null;axePhysics.RAPIER_INSTANCE=null;}
 });
