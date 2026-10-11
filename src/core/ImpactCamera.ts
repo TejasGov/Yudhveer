@@ -27,7 +27,10 @@ export type ImpactKind =
   | 'block' | 'deflect' | 'postureBreak' | 'guardBroken' // guard and parry; a posture broken (an enemy's, the hero's)
   | 'clash' // the hero's blow turned aside by a boss's guard: a short freeze and a kick back along the bounce
   | 'bossKill' | 'quake' | 'evade' // a boss's last blow; the ground shaking (a boss's roar); a slide under a blow
-  | 'thud'; // a weapon brought down on stone (the mace's slam, a leaping strike): a dip, a low rumble, no side to it
+  | 'thud' // a weapon brought down on stone (the mace's slam, a leaping strike): a dip, a low rumble, no side to it
+  // The island demoness's chained axe (combat/AxeFX.ts): the whip-out's punch, the chain snapping taut, the blade
+  // slammed into stone, dragged along it, and snapped back into her hand. No hit-stop: they are hers, not blows landed.
+  | 'axeWhip' | 'axeTaut' | 'axeSlam' | 'axeScrape' | 'axeRecall';
 
 /** One event's numbers. Angles in degrees, distances in metres, times in milliseconds, all at a setting of 100 %. */
 export interface ImpactSpec {
@@ -67,6 +70,11 @@ export const IMPACTS: Record<ImpactKind, ImpactSpec> = {
   quake: { freeze: 0, trauma: 0.45, kick: 0, dip: 0, push: 0, fov: 0, fovMs: 0, rumble: [0.4, 0, 250] },
   evade: { freeze: 0, trauma: 0, kick: 0, dip: 0, push: 0, fov: -1, fovMs: 200, rumble: [0, 0.1, 40] },
   thud: { freeze: 55, trauma: 0.2, kick: 0, dip: 0.55, push: 0.01, fov: 0, fovMs: 0, rumble: [0.5, 0.15, 90] },
+  axeWhip: { freeze: 0, trauma: 0.2, kick: 0.2, dip: 0, push: 0.01, fov: -1.2, fovMs: 150, rumble: [0.1, 0.3, 70] },
+  axeTaut: { freeze: 0, trauma: 0.12, kick: 0.35, dip: 0, push: 0, fov: 0, fovMs: 0, rumble: [0.15, 0.35, 60] },
+  axeSlam: { freeze: 0, trauma: 0.42, kick: 0, dip: 0.75, push: 0.02, fov: -1.8, fovMs: 220, rumble: [0.75, 0.3, 180] },
+  axeScrape: { freeze: 0, trauma: 0.1, kick: 0, dip: 0.1, push: 0, fov: 0, fovMs: 0, rumble: [0.2, 0.25, 70] },
+  axeRecall: { freeze: 0, trauma: 0.05, kick: 0.3, dip: 0, push: 0, fov: 0, fovMs: 0, rumble: [0.05, 0.25, 50] },
 };
 
 export interface ImpactOptions {
