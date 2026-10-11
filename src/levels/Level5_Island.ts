@@ -635,6 +635,9 @@ export class Level5_Island extends GLBLevel {
       );
       ring.name = 'PoolRipple';
       ring.rotation.x = -Math.PI / 2;
+      // Idle: hidden, tiny and far below the pool (the warm-up frame draws it, and nothing of it could show).
+      ring.position.y = -500;
+      ring.scale.setScalar(0.001);
       ring.visible = false;
       ring.userData.warm = true;
       this.group.add(ring);
@@ -669,6 +672,8 @@ export class Level5_Island extends GLBLevel {
       if (k >= 1) {
         rp.live = false;
         rp.mesh.visible = false;
+        rp.mesh.position.y = -500;
+        rp.mesh.scale.setScalar(0.001);
       }
     }
   }

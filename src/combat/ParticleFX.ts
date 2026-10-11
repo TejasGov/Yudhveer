@@ -287,6 +287,9 @@ export class ParticleFX {
     anchor.name = 'ShockwaveAnchor';
     anchor.visible = false;
     anchor.frustumCulled = false;
+    // (Far below the world and tiny: the warm-up frame draws it, and nothing of it could show.)
+    anchor.position.set(0, -500, 0);
+    anchor.scale.setScalar(0.001);
     scene.add(anchor);
     for (const o of [this.sparkMesh, this.dust.points, this.flame.points, this.mistPool.points, anchor]) o.userData.warm = true;
     // Sparks and fire glow in every level (the bloom keeps them selected across level loads).
