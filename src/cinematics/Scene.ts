@@ -6,7 +6,7 @@ import type { CharacterDefinition } from '../entities/animation/CharacterRig';
 import type { CharacterState } from '../entities/CharacterStateMachine';
 import type { Player } from '../entities/Player';
 import { Enemy } from '../entities/Enemy';
-import { Extra } from '../entities/Extra';
+import { Extra, type ShadeSpec } from '../entities/Extra';
 import { haunt } from './Shade';
 import type { Chapter } from '../game/Chapters';
 import type { Ability } from '../game/Progression';
@@ -155,9 +155,10 @@ export interface CastMember {
    * as a ghost, washed in `color` with a stronger glow and rim (`opacity` defaults to 0.6), hovering a hand's breadth
    * off the ground, breathing and flickering faintly. Brought on and off with `appear` cues, which fade it. Its rig is
    * usually the fallen fighter's without weapons (`shadeOf` in game/Story.ts). `grounded` keeps a walking shade
-   * on nearby walkable floor instead of hovering and bobbing.
+   * on nearby walkable floor instead of hovering and bobbing. `radiant` draws it as a body of moonlight, and `graceful`
+   * stages its walks with eased starts, stops and turns (see `ShadeSpec`).
    */
-  shade?: { color: THREE.ColorRepresentation; opacity?: number; grounded?: boolean };
+  shade?: ShadeSpec;
 }
 
 /** What a chapter tells, and when. */
@@ -251,6 +252,19 @@ const TURN_RATE = 6;
 const STAGED_TURN = { deadzone: 0.005 };
 /** Close enough to a mark. */
 const ARRIVED = 0.08;
+/**
+ * A graceful walker (`Extra.graceful`): its speed builds over `GLIDE_IN` seconds and falls over about 0.4 s (`GLIDE_OUT`, a little
+ * more, for the last centimetres): it brakes
+ * onto its mark at the rate that stops it there, so there is no end snap); it turns toward where it is going before it
+ * moves off, setting off once within `GLIDE_TURN_START` of the heading and at full pace within `GLIDE_TURN_FULL`.
+ */
+const GLIDE_IN = 0.35;
+const GLIDE_OUT = 0.44;
+const GLIDE_TURN_RATE = 3.4;
+const GLIDE_TURN_START = THREE.MathUtils.degToRad(30);
+const GLIDE_TURN_FULL = THREE.MathUtils.degToRad(12);
+/** A graceful walker on its mark. */
+const GLIDE_ARRIVED = 0.005;
 /** Seconds a staged walk may make no headway before it is reported (dev builds). */
 const STUCK_WARNING = 0.75;
 
@@ -267,6 +281,8 @@ interface Move {
   /** How far it still had to go last step, and how long it has been making no headway (held by the level). */
   left: number;
   stuck: number;
+  /** A graceful walker's speed now (m/s). */
+  v: number;
 }
 
 /**
@@ -283,6 +299,7 @@ export class Staging {
   public begin(hero: Character, others: readonly Character[]): void {
     const halt = (a: Character, held: CharacterState[]) => {
       if (held.includes(a.stateMachine.currentState)) a.stateMachine.changeState('IDLE');
+      if (a instanceof Extra) a.commandedSpeed = 0;
       a.slashRibbon.clear();
     };
     halt(hero, [...LOCOMOTION, ...HERO_HELD]);
@@ -293,7 +310,10 @@ export class Staging {
     this.moves = this.moves.filter((m) => m.actor !== actor);
     this.turns.delete(actor);
     const run = gait === 'run';
-    this.moves.push({ actor, to, speed: run ? actor.moveSpeed : actor.walkSpeed, gait: run ? 'MOVE' : 'WALK', face, left: Infinity, stuck: 0 });
+    this.moves.push({
+      actor, to, speed: run ? actor.moveSpeed : actor.walkSpeed, gait: run ? 'MOVE' : 'WALK', face, left: Infinity, stuck: 0,
+      v: actor instanceof Extra && actor.graceful ? actor.commandedSpeed : 0,
+    });
   }
 
   public face(actor: Character, point: THREE.Vector3): void {
@@ -306,12 +326,54 @@ export class Staging {
     this.moves = this.moves.filter((m) => m.actor !== actor);
     this.turns.delete(actor);
     actor.setPosition(to.x, to.y, to.z);
+    if (actor instanceof Extra) actor.commandedSpeed = 0;
     if (face) this.turnNow(actor, face);
     this.onTeleport?.(actor);
   }
 
+  /**
+   * One step of a graceful walker's move: it turns to the heading first (standing, at ease), then its speed builds to the
+   * walk, and it brakes at the rate that brings it to rest on the mark. Returns whether it has arrived.
+   */
+  private glide(m: Move, actor: Extra, dt: number): boolean {
+    const pos = actor.group.position;
+    const dx = m.to.x - pos.x;
+    const dz = m.to.z - pos.z;
+    const dist = Math.hypot(dx, dz);
+    if (dist <= GLIDE_ARRIVED) {
+      pos.x = m.to.x;
+      pos.z = m.to.z;
+      m.v = 0;
+      actor.commandedSpeed = 0;
+      return true;
+    }
+    const left = actor.turnToward(Math.atan2(dx, dz), GLIDE_TURN_RATE, dt, STAGED_TURN);
+    const aligned = 1 - THREE.MathUtils.smoothstep(Math.abs(left), GLIDE_TURN_FULL, GLIDE_TURN_START);
+    const accelIn = m.speed / GLIDE_IN;
+    const accelOut = m.speed / GLIDE_OUT;
+    const target = Math.min(m.speed * aligned, Math.sqrt(2 * accelOut * dist));
+    m.v += THREE.MathUtils.clamp(target - m.v, -accelOut * dt, accelIn * dt);
+    const step = Math.min(dist, m.v * dt);
+    pos.x += (dx / dist) * step;
+    pos.z += (dz / dist) * step;
+    actor.commandedSpeed = m.v;
+    const state = actor.stateMachine.currentState;
+    if (m.v > 0.02) {
+      if (state !== m.gait) actor.stateMachine.changeState(m.gait);
+    } else if (LOCOMOTION.includes(state)) actor.stateMachine.changeState('IDLE');
+    return false;
+  }
+
   public update(dt: number): void {
     for (const m of [...this.moves]) {
+      if (m.actor instanceof Extra && m.actor.graceful) {
+        if (this.glide(m, m.actor, dt)) {
+          this.moves.splice(this.moves.indexOf(m), 1);
+          m.actor.stateMachine.changeState('IDLE');
+          if (m.face) this.turns.set(m.actor, m.face);
+        }
+        continue;
+      }
       const pos = m.actor.group.position;
       const d = new THREE.Vector3(m.to.x - pos.x, 0, m.to.z - pos.z);
       const dist = d.length();
@@ -334,7 +396,8 @@ export class Staging {
     }
     for (const [actor, point] of this.turns) {
       const p = actor.getPosition();
-      if (Math.abs(actor.turnToward(Math.atan2(point.x - p.x, point.z - p.z), TURN_RATE, dt, STAGED_TURN)) < 0.01) this.turns.delete(actor);
+      const rate = actor instanceof Extra && actor.graceful ? GLIDE_TURN_RATE : TURN_RATE;
+      if (Math.abs(actor.turnToward(Math.atan2(point.x - p.x, point.z - p.z), rate, dt, STAGED_TURN)) < 0.01) this.turns.delete(actor);
     }
   }
 

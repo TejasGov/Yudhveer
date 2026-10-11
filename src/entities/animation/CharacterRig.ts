@@ -326,6 +326,14 @@ export class CharacterRig {
   private readonly mounts: Mount[] = [];
   /** The definition's `scale`, applied once props are attached (see `applyScale`). */
   private scale = 1;
+  /**
+   * Opt in (a staged, eased walk; both default to the way every other character is timed): the lowest playback rate a
+   * speed-matched loop may take, and whether a clip that has just started takes its matched rate at once instead of
+   * easing to it from where the last clip left it (the start of an eased walk would otherwise dip to half speed).
+   */
+  public matchFloor = MATCH_SPEED_RANGE[0];
+  public matchSnap = false;
+  private justStarted = false;
   /** Finger bones and poses (see `HandPose`), for a rig built with them; null otherwise (the clips move any fingers). */
   private readonly hands: Hand[] | null;
   /**
@@ -770,6 +778,7 @@ export class CharacterRig {
       action.setEffectiveWeight(1);
     }
     this.current = { config, action, lastTime: action.time };
+    this.justStarted = true;
   }
 
   /** How much of the pose `action` makes up now (0 if it is not playing at all). */
@@ -852,15 +861,17 @@ export class CharacterRig {
     if (cur?.config.matchSpeed) {
       const authored = this.manifest.clips[cur.config.clip]?.speed;
       if (authored && authored > 0.01) {
-        const want = THREE.MathUtils.clamp(groundSpeed / (authored * this.scale), ...MATCH_SPEED_RANGE);
+        const want = THREE.MathUtils.clamp(groundSpeed / (authored * this.scale), this.matchFloor, MATCH_SPEED_RANGE[1]);
         // The stride re-times smoothly: a small deadband (the already smoothed speed's last per cent of wobble is not
         // worth chasing), and at most STRIDE_RATE per second of change.
         const now = cur.action.getEffectiveTimeScale();
-        if (Math.abs(want - now) > 0.02 * want) {
+        if (this.matchSnap && this.justStarted) cur.action.setEffectiveTimeScale(want);
+        else if (Math.abs(want - now) > 0.02 * want) {
           cur.action.setEffectiveTimeScale(now + THREE.MathUtils.clamp(want - now, -STRIDE_RATE * dt, STRIDE_RATE * dt));
         }
       }
     }
+    this.justStarted = false;
     this.updateFades(dt);
     this.mixer.update(dt);
     this.updateHands(dt);
