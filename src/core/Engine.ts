@@ -15,9 +15,9 @@ import { ProjectileManager } from '../combat/ProjectileManager';
 import { Voices } from '../combat/Voices';
 import { HitboxManager } from '../combat/HitboxManager';
 import { Player } from '../entities/Player';
-import { DuelSession } from '../duel/DuelSession';
+import type { DuelSession } from '../duel/DuelSession';
 import type { GameMode } from '../duel/Rules';
-import { DuelTransport } from '../duel/Transport';
+import type { DuelTransport } from '../duel/Transport';
 import { readDuelName } from '../duel/NameTags';
 import { Enemy } from '../entities/Enemy';
 import { Boss } from '../entities/Boss';
@@ -166,6 +166,9 @@ const HERO_HEALTH = 100;
 
 /** The project's source, linked from the About the author screen. */
 const PROJECT_URL = 'https://github.com/TejasGov/Yudhveer';
+
+/** The duel menu's line while no relay is set (Create and Join are off). */
+const NO_RELAY_NOTE = 'Online duels aren’t available yet. Practice against HeroBot works.';
 
 const v3 = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
 /**
@@ -680,6 +683,8 @@ export class Engine {
     });
     const relay = $('duel-relay') as HTMLInputElement;
     relay.value = import.meta.env.VITE_DUEL_RELAY ?? (import.meta.env.DEV ? 'ws://' + location.hostname + ':8787' : '');
+    relay.addEventListener('input', () => this.updateDuelRelay());
+    this.updateDuelRelay();
     const updateLatency = () => {
       if (this.duel?.transport) this.duel.transport.latency = this.duelLatency();
     };
@@ -1703,25 +1708,52 @@ export class Engine {
     return { delayMs: number('duel-delay', 500), jitterMs: number('duel-jitter', 250), loss: number('duel-loss', 50) / 100 };
   }
 
+  /**
+   * Online rooms need a relay to meet through. A build with none (the default: `VITE_DUEL_RELAY` unset, nothing typed in the
+   * Relay field) turns Create and Join off and says so, instead of letting the connection fail on a raw "Invalid URL".
+   * Practice against HeroBot never needs one.
+   */
+  private updateDuelRelay(): void {
+    const none = ($('duel-relay') as HTMLInputElement).value.trim() === '';
+    document.querySelectorAll<HTMLButtonElement>('#duel-menu [data-action=create], #duel-menu [data-action=join]').forEach((b) => { b.disabled = none; });
+    const status = $('duel-status');
+    if (none) status.textContent = NO_RELAY_NOTE;
+    else if (status.textContent === NO_RELAY_NOTE) status.textContent = '';
+  }
+
   private async joinDuel(create: boolean): Promise<void> {
-    const transport = new DuelTransport();
-    transport.latency = this.duelLatency();
+    if (($('duel-relay') as HTMLInputElement).value.trim() === '') { this.updateDuelRelay(); return; }
     const button = document.querySelector<HTMLButtonElement>('#duel-menu [data-action=' + (create ? 'create' : 'join') + ']')!;
     button.disabled = true;
     $('duel-status').textContent = 'Connecting…';
+    let transport: DuelTransport | null = null;
     try {
+      // The duel's code is fetched the first time a duel is asked for, not with the campaign (see `startDuel`).
+      transport = new (await import('../duel/Transport')).DuelTransport();
+      transport.latency = this.duelLatency();
       await transport.connect(($('duel-relay') as HTMLInputElement).value,
         create ? undefined : ($('duel-room') as HTMLInputElement).value, ($('duel-name') as HTMLInputElement).value);
       await this.startDuel(transport);
     } catch (err) {
-      transport.close();
+      transport?.close();
       $('duel-status').textContent = err instanceof Error ? err.message : 'Connection failed';
-    } finally { button.disabled = false; }
+    } finally { this.updateDuelRelay(); }
   }
 
   /** Load the Akhada directly, with two summit heroes and no campaign scenes or saves. */
   public async startDuel(transport?: DuelTransport): Promise<void> {
     if (!this.player) return;
+    // The session, and the practice bot that plays against the hero with it, are their own chunk: a campaign player never
+    // downloads them, a duel's first load does (behind the menu: the load screen below comes up once they are here).
+    let DuelSession: typeof import('../duel/DuelSession').DuelSession;
+    try {
+      ({ DuelSession } = await import('../duel/DuelSession'));
+    } catch (err) {
+      console.error(err);
+      transport?.close();
+      $('duel-status').textContent = 'The duel could not be loaded. Check your connection and try again.';
+      return;
+    }
     this.clearDuel();
     this.clearEnemies();
     this.interpolated.clear();

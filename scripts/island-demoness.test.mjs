@@ -499,3 +499,85 @@ test('the release scene: the seal opens through an essential cue, the voice in t
   assert.ok(start - voice.at >= 5.5, 'and the reveal is held for the whole of it');
   assert.ok(readFileSync(new URL('../public/assets/voice/island_shrine_voice_2.mp3', import.meta.url)).length > 1000, 'the recording ships');
 });
+
+// ======================================================================================= cd-polish: begin
+// HitReact, the demoness's rim and her new assets. The engine keeps each step's skeleton as Float32 (Engine.capturePose) and
+// puts it back after every rendered frame, so a flinch has to be undone by recognising its own, single-precision-rounded pose.
+const hitReactModule = await loadDuelModule('src/combat/HitReact.ts', { three: THREE, '../levels/environment/ToonRelight': { patchShader() {} } }, { performance });
+
+test('HitReact: a flinch is put away completely when the engine rounds the pose to single precision between steps', () => {
+  const { HitReact } = hitReactModule;
+  const bone = (name, parent, q) => { const b = new THREE.Bone(); b.name = name; b.quaternion.copy(q); parent?.add(b); return b; };
+  // Hips > Spine > Spine1 > Neck > Head, each with an odd rest rotation (a clip never rewrites them here: only the flinch moves them).
+  const rest = [0.3, -0.7, 1.1, 0.2].map((a, i) => new THREE.Quaternion().setFromEuler(new THREE.Euler(a, 0.4 * i - 0.5, -a / 2)));
+  const root = new THREE.Group();
+  const hips = bone('mixamorig:Hips', root, new THREE.Quaternion());
+  const bones = [bone('mixamorig:Spine', hips, rest[0]), null, null, null];
+  bones[1] = bone('mixamorig:Spine1', bones[0], rest[1]);
+  bones[2] = bone('mixamorig:Neck', bones[1], rest[2]);
+  bones[3] = bone('mixamorig:Head', bones[2], rest[3]);
+  root.updateMatrixWorld(true);
+  const victim = { rig: { root }, stateMachine: { currentState: 'IDLE' }, group: new THREE.Group() };
+  const single = (b) => { const f = new Float32Array(4); b.quaternion.toArray(f); b.quaternion.fromArray(f); };
+  const turn = (a, b) => 2 * Math.asin(Math.min(1, Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z, a.w - b.w) / 2));
+  HitReact.trigger(victim, { along: new THREE.Vector3(1, 0, 0.3), kind: 'crush', tier: 'heavy' });
+  bones.forEach(single);
+  assert.ok(bones.some((b, i) => turn(b.quaternion, rest[i]) > 0.01), 'the blow turns the spine, neck and head');
+  let rounded = 0;
+  for (let i = 0; i < 240; i++) {
+    HitReact.step(victim, 1 / 60);
+    bones.forEach(single); rounded++;
+  }
+  assert.ok(HitReact.read(victim).lean < 1e-3, 'the springs have settled');
+  bones.forEach((b, i) => assert.ok(turn(b.quaternion, rest[i]) < 1e-6, `${b.name} is back where the clip left it (off by ${turn(b.quaternion, rest[i])} rad after ${rounded} rounded steps)`));
+});
+
+// The follow camera. A fake world with a wall 0.4 m behind the hero (nothing else): the usual arm collapses below its minimum.
+const cameraModule = await loadDuelModule('src/core/SceneManager.ts', {
+  three: THREE, './postfx/PostFX': { PostFX: class {} }, './PhysicsWorld': { PhysicsWorld: { getInstance: () => ({}) } },
+  './ImpactCamera': { ImpactCamera: class {}, IMPACTS: {} }, './InputManager': { InputManager: {} },
+});
+function followCamera(wallAt) {
+  const sm = Object.create(cameraModule.SceneManager.prototype);
+  const world = { wallAt, casts: 0 };
+  Object.assign(sm, {
+    camera: new THREE.PerspectiveCamera(65), gameplayFov: 65, cameraPivot: new THREE.Vector3(0, 1.65, 0), cameraDistance: 3.4, cameraHeight: 1.65,
+    cameraShoulderOffset: 0.55, cameraYaw: 0, cameraPitch: -0.12, viewYaw: 0, armLength: 3.4, armSwing: 0, focusKeyLight() {},
+    // A wall across z = wallAt (x within 3 m of the hero), solid to rays going toward +z.
+    physics: { castCameraRay(origin, dir, max) { world.casts++; if (world.wallAt === null || dir.z < 1e-6) return null; const t = (world.wallAt - origin.z) / dir.z; const x = origin.x + dir.x * t; return t > 0 && t <= max && Math.abs(x) < 3 ? t : null; } },
+  });
+  return { sm, world, step: (n = 1) => { for (let i = 0; i < n; i++) sm.updateCamera(new THREE.Vector3(0, 0, 0), 0, 0, 1 / 60); } };
+}
+
+test('camera: with room behind the hero it is exactly the spring arm it always was', () => {
+  const { sm, world, step } = followCamera(null);
+  step(120);
+  // The old arm: back (sin yaw cos pitch, -sin pitch, cos yaw cos pitch) 3.4 m and the shoulder 0.55 m, from the head.
+  const back = new THREE.Vector3(0, -Math.sin(-0.12), Math.cos(-0.12)).multiplyScalar(3.4).add(new THREE.Vector3(1, 0, 0).multiplyScalar(0.55));
+  assert.ok(sm.camera.position.distanceTo(new THREE.Vector3(0, 1.65, 0).add(back)) < 1e-4, 'the same camera position');
+  assert.equal(sm.armSwing, 0); assert.equal(world.casts, 120, 'one cast a frame, as before');
+  const look = new THREE.Vector3(0.275, 1.65, 0).sub(sm.camera.position);
+  assert.ok(Math.abs(sm.viewYaw - Math.atan2(-look.x, -look.z)) < 1e-12);
+  // A wall at 1.2 m shortens the arm (the old behaviour: pulled in to the wall less the padding, never a swing).
+  const near = followCamera(1.4); near.step(120);
+  assert.equal(near.sm.armSwing, 0); assert.ok(near.sm.arm > 0.9 && near.sm.arm < 1.2, `arm ${near.sm.arm}`);
+});
+
+test('camera: in a pocket where even the shortest arm is inside the stone it swings round to where the hero is in view, and turns back', () => {
+  const { sm, world, step } = followCamera(0.4);
+  step(10);
+  assert.ok(Math.abs(sm.armSwing - Math.PI / 2) < 1e-9, `swung ${sm.armSwing}`);
+  assert.ok(sm.camera.position.z < 0.4, 'the camera is not behind the wall');
+  assert.ok(sm.arm > 3, `with nearly the usual arm (${sm.arm})`);
+  // Movement keeps the view the player steers by: the same view yaw as the unswung camera at this arm length.
+  const nominal = new THREE.Vector3(0, -Math.sin(-0.12), Math.cos(-0.12)).multiplyScalar(3.4).add(new THREE.Vector3(1, 0, 0).multiplyScalar(0.55)).normalize().multiplyScalar(sm.arm);
+  const look = new THREE.Vector3(0.275, 0, 0).sub(nominal);
+  assert.ok(Math.abs(sm.viewYaw - Math.atan2(-look.x, -look.z)) < 1e-9, 'W still runs the way the player is looking');
+  step(300); assert.ok(Math.abs(sm.armSwing - Math.PI / 2) < 1e-9, 'it holds while the pocket is around him');
+  world.wallAt = null; step(240);
+  assert.equal(sm.armSwing, 0, 'and turns back once it clears');
+  assert.ok(Math.abs(sm.arm - Math.hypot(3.4, 0.55)) < 0.01, 'the arm is its full length again');
+  // A reset (a retry, a new fight) drops the swing at once.
+  world.wallAt = 0.4; step(5); assert.notEqual(sm.armSwing, 0); sm.resetFollowCamera(new THREE.Vector3(), 0); assert.equal(sm.armSwing, 0);
+});
+// ======================================================================================= cd-polish: end

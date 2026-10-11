@@ -20,6 +20,8 @@ export const ISLAND_DEMONESS: CharacterDefinition = {
     POSTURE_BROKEN: { clip: 'impact' }, DEAD: { clip: 'death', fade: 0.2 },
   },
   locomotion: { walkSpeed: 0.9, moveSpeed: 1.3, sprintSpeed: 1.6 },
+  // Her dark, torn flaps (cloth, hair, claws) would otherwise catch the rim as pale slivers beside the ink outline.
+  rim: { albedo: 1 },
 };
 
 /**

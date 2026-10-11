@@ -12,6 +12,7 @@ from mathutils import Vector
 parser = argparse.ArgumentParser()
 parser.add_argument('--source', required=True)
 parser.add_argument('--output', required=True)
+parser.add_argument('--only', choices=['all', 'axe'], default='all', help='axe: write only island_chain_axe.glb (the rigs below are superseded)')
 args = parser.parse_args(sys.argv[sys.argv.index('--') + 1:])
 os.makedirs(args.output, exist_ok=True)
 
@@ -108,9 +109,14 @@ def rig(file, name, height, spider):
     manifest={'model':name+'.glb','source':file,'sourceSHA256':source_digest(os.path.join(args.source,file)),'height':height,'triangles':sum(len(p.vertices)-2 for p in obj.data.polygons),'sockets':['Socket_Hand_R'],'clips':clips,'prototype':True}
     with open(os.path.join(args.output,name+'.manifest.json'),'w') as out: json.dump(manifest,out,indent=2)
 
-rig('spider demon.glb','island_demoness',3.2,True)
-rig('human form of spider.glb','island_soul',1.8,False)
+if args.only == 'all':
+    rig('spider demon.glb','island_demoness',3.2,True)
+    rig('human form of spider.glb','island_soul',1.8,False)
 axe=import_mesh('spider chain axe.glb',1.5); axe.name='IslandChainAxe'
-bpy.ops.export_scene.gltf(filepath=os.path.join(args.output,'island_chain_axe.glb'),export_format='GLB',export_animations=False,export_image_format='AUTO')
+# The shipped axe is WebP: the 1024 px PNG normal map was 1.97 MB of its 2.56 MB. Only the base colour and the normal map are
+# read by the cel shader; the metal-rough map stays as a valid PBR channel at a fraction of the size.
+for image in bpy.data.images:
+    if image.name in ('Image_1',) and max(image.size) > 512: image.scale(512, 512)
+bpy.ops.export_scene.gltf(filepath=os.path.join(args.output,'island_chain_axe.glb'),export_format='GLB',export_animations=False,export_image_format='WEBP',export_image_quality=85)
 with open(os.path.join(args.output,'sources.json'),'w') as out:
     json.dump({'sourceRoot':args.source,'sources':{f:source_digest(os.path.join(args.source,f)) for f in ['spider demon.glb','human form of spider.glb','spider chain axe.glb']},'status':'user supplied; no third-party license asserted','texturesMax':1024,'animation':'locally authored prototype'},out,indent=2)

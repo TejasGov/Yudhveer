@@ -46,7 +46,8 @@ export class DuelTransport {
 
   public async connect(endpoint: string, code?: string, name = 'Yodha'): Promise<void> {
     this.name = name.trim().slice(0, 16) || 'Yodha';
-    const url = new URL(endpoint);
+    let url: URL;
+    try { url = new URL(endpoint.trim()); } catch { throw new Error('That is not a relay address: use ws:// or wss://, for example wss://your-relay.example'); }
     if (url.protocol !== 'ws:' && url.protocol !== 'wss:') throw new Error('Use a ws:// or wss:// relay address');
     const room = code?.trim().toUpperCase() ?? Array.from(crypto.getRandomValues(new Uint8Array(6)), n =>
       'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'[n % 32]).join('');
