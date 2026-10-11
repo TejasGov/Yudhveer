@@ -49,16 +49,41 @@ const SEAL_SPLIT = 1.4;
 const SEAL_FACE = v(0.9, -2.45, -72.6);
 
 /**
- * Where her released soul rises: off the corpse's flank on the side of the way in (the body is four metres across, and she
- * must not stand in it), a little toward the hero, and on the seal's side of the chamber (her walk to it passes clear of the
- * body). Pushed farther along if the hero is standing there.
+ * Where her released soul rises, in the chamber before the seal (metres: the floor there is solid, and the walk from its far
+ * edge to the seal's mark takes less time than the runes need to ignite). The keeper has no leash, so her corpse may lie
+ * anywhere she chased the hero; the soul never rises outside this.
+ */
+const SOUL_ZONE = { x0: -4.5, x1: 5.5, z0: -71, z1: -67.6 };
+/** How far from the middle of the corpse she must rise (the body is four metres across), and from the hero. */
+const BODY_CLEAR = 2.5;
+const HERO_CLEAR = 1.5;
+
+/**
+ * Where her released soul rises: off the corpse's flank on the side of the way in (she must not stand in the body), a
+ * little toward the hero, and on the seal's side of the chamber (her walk to it passes clear of the body). The spot is
+ * worked out from the corpse but kept in the chamber (`SOUL_ZONE`): a corpse down the corridor does not draw her after it,
+ * and one lying where she would rise (or the hero standing there) moves her to the nearest free spot instead of into it.
  */
 const soulSpawn = (s: Stage): THREE.Vector3 => {
   const boss = s.pos(ISLAND_FOES.boss), hero = s.pos('hero');
-  const p = boss.clone().add(v(2.7, 0, 0.9));
-  p.x = THREE.MathUtils.clamp(p.x, 2.7, 3.5);
-  if (Math.hypot(hero.x - p.x, hero.z - p.z) < 1.5) { p.x = Math.min(3.5, p.x + 0.6); p.z -= 0.9; }
-  return p;
+  const z = SOUL_ZONE, mark = ISLAND.sealMark;
+  const free = (x: number, y: number) => x >= z.x0 && x <= z.x1 && y >= z.z0 && y <= z.z1
+    && Math.hypot(x - boss.x, y - boss.z) >= BODY_CLEAR && Math.hypot(x - hero.x, y - hero.z) >= HERO_CLEAR;
+  // Off the corpse's flank (x relative to it, within the seal's side of the zone), a little toward the hero.
+  let px = THREE.MathUtils.clamp(boss.x + 2.7, 2.7, 3.5), pz = THREE.MathUtils.clamp(boss.z + 0.9, z.z0, z.z1);
+  if (!free(px, pz)) {
+    // Taken (the body, the hero): the free spot nearest the seal's mark (her walk stays short), not far from where she would have risen.
+    const wx = px, wz = pz;
+    let best = Infinity;
+    for (let x = z.x0; x <= z.x1 + 1e-6; x += 0.25) {
+      for (let y = z.z0; y <= z.z1 + 1e-6; y += 0.25) {
+        if (!free(x, y)) continue;
+        const cost = Math.hypot(x - mark.x, y - mark.z) + 0.3 * Math.hypot(x - wx, y - wz);
+        if (cost < best) { best = cost; px = x; pz = y; }
+      }
+    }
+  }
+  return v(px, boss.y, pz);
 };
 
 export const ISLAND_STORY: ChapterStory = {

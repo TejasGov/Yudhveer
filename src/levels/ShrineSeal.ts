@@ -110,9 +110,14 @@ const RUNE_H = 864;
 /** Where the mandala sits (the middle of the doors). */
 const HUB = { x: 0, y: 1.1 };
 
+/** `Math`, held in the module: the raster's per-pixel loops call it a million times, and a global lookup is slow wherever the globals sit behind a wrapper (a test's sandbox). */
+const M = Math;
+
 class RuneRaster {
-  public readonly data = new Uint8Array(RUNE_W * RUNE_H * 4);
   private readonly pxPerM = RUNE_W / (RUNE_AREA.x1 - RUNE_AREA.x0);
+
+  /** `data` (RGBA, RUNE_W by RUNE_H) is painted into as it stands: a map begun elsewhere, or the empty one. */
+  constructor(public readonly data: Uint8Array = new Uint8Array(RUNE_W * RUNE_H * 4)) {}
 
   /**
    * Marks every pixel within reach of a primitive (distance in metres, from `dist`). `spans` (optional) gives the x ranges
@@ -120,25 +125,25 @@ class RuneRaster {
    */
   private stroke(box: [number, number, number, number], width: number, order: number, dist: (x: number, y: number) => number, glow = true, spans?: (y: number, reach: number) => [number, number][]): void {
     const reach = width * 0.9 + 0.045;
-    const px0 = Math.max(0, Math.floor((box[0] - reach - RUNE_AREA.x0) * this.pxPerM));
-    const px1 = Math.min(RUNE_W - 1, Math.ceil((box[1] + reach - RUNE_AREA.x0) * this.pxPerM));
-    const py0 = Math.max(0, Math.floor((box[2] - reach - RUNE_AREA.y0) * this.pxPerM));
-    const py1 = Math.min(RUNE_H - 1, Math.ceil((box[3] + reach - RUNE_AREA.y0) * this.pxPerM));
-    const o = Math.round(Math.min(1, Math.max(0, order)) * 255);
+    const px0 = M.max(0, M.floor((box[0] - reach - RUNE_AREA.x0) * this.pxPerM));
+    const px1 = M.min(RUNE_W - 1, M.ceil((box[1] + reach - RUNE_AREA.x0) * this.pxPerM));
+    const py0 = M.max(0, M.floor((box[2] - reach - RUNE_AREA.y0) * this.pxPerM));
+    const py1 = M.min(RUNE_H - 1, M.ceil((box[3] + reach - RUNE_AREA.y0) * this.pxPerM));
+    const o = M.round(M.min(1, M.max(0, order)) * 255);
     for (let py = py0; py <= py1; py++) {
       const y = RUNE_AREA.y0 + (py + 0.5) / this.pxPerM;
       const ranges: [number, number][] = spans ? spans(y, reach) : [[box[0] - reach, box[1] + reach]];
       for (const [r0, r1] of ranges) {
-      const a0 = Math.max(px0, Math.floor((r0 - RUNE_AREA.x0) * this.pxPerM)), a1 = Math.min(px1, Math.ceil((r1 - RUNE_AREA.x0) * this.pxPerM));
+      const a0 = M.max(px0, M.floor((r0 - RUNE_AREA.x0) * this.pxPerM)), a1 = M.min(px1, M.ceil((r1 - RUNE_AREA.x0) * this.pxPerM));
       for (let px = a0; px <= a1; px++) {
         const x = RUNE_AREA.x0 + (px + 0.5) / this.pxPerM;
         const d = dist(x, y);
-        const core = Math.min(1, Math.max(0, 1 - (d - width / 2) / 0.016));
-        const groove = Math.min(1, Math.max(0, 1 - (d - width * 0.9) / 0.04));
+        const core = M.min(1, M.max(0, 1 - (d - width / 2) / 0.016));
+        const groove = M.min(1, M.max(0, 1 - (d - width * 0.9) / 0.04));
         if (groove <= 0.01) continue;
         const i = (py * RUNE_W + px) * 4;
         const d8 = this.data;
-        const r = Math.round(core * 255), b = Math.round(groove * 255);
+        const r = M.round(core * 255), b = M.round(groove * 255);
         if (glow && r > d8[i]) d8[i] = r;
         if (b >= d8[i + 2]) { if (glow) d8[i + 1] = o; d8[i + 2] = b; }
       }
@@ -150,47 +155,47 @@ class RuneRaster {
   private static segmentSpans(ax: number, ay: number, bx: number, by: number): (y: number, reach: number) => [number, number][] {
     const dy = by - ay;
     return (y, reach) => {
-      if (Math.abs(dy) < 1e-6) return [[Math.min(ax, bx) - reach, Math.max(ax, bx) + reach]];
-      const t0 = Math.min(1, Math.max(0, (y - reach - ay) / dy)), t1 = Math.min(1, Math.max(0, (y + reach - ay) / dy));
+      if (M.abs(dy) < 1e-6) return [[M.min(ax, bx) - reach, M.max(ax, bx) + reach]];
+      const t0 = M.min(1, M.max(0, (y - reach - ay) / dy)), t1 = M.min(1, M.max(0, (y + reach - ay) / dy));
       const x0 = ax + (bx - ax) * t0, x1 = ax + (bx - ax) * t1;
-      return [[Math.min(x0, x1) - reach, Math.max(x0, x1) + reach]];
+      return [[M.min(x0, x1) - reach, M.max(x0, x1) + reach]];
     };
   }
 
   /** A cut in the stone that does not glow (its edge darkens the rock): the gate's mouldings and joints. */
   public cut(ax: number, ay: number, bx: number, by: number, width: number): void {
     const dx = bx - ax, dy = by - ay;
-    const len2 = Math.max(1e-9, dx * dx + dy * dy);
-    this.stroke([Math.min(ax, bx), Math.max(ax, bx), Math.min(ay, by), Math.max(ay, by)], width, 0, (x, y) => {
-      const t = Math.min(1, Math.max(0, ((x - ax) * dx + (y - ay) * dy) / len2));
+    const len2 = M.max(1e-9, dx * dx + dy * dy);
+    this.stroke([M.min(ax, bx), M.max(ax, bx), M.min(ay, by), M.max(ay, by)], width, 0, (x, y) => {
+      const t = M.min(1, M.max(0, ((x - ax) * dx + (y - ay) * dy) / len2));
       const ex = x - ax - dx * t, ey = y - ay - dy * t;
-      return Math.sqrt(ex * ex + ey * ey);
+      return M.sqrt(ex * ex + ey * ey);
     }, false, RuneRaster.segmentSpans(ax, ay, bx, by));
   }
 
   public line(ax: number, ay: number, bx: number, by: number, width: number, order: number): void {
     const dx = bx - ax, dy = by - ay;
-    const len2 = Math.max(1e-9, dx * dx + dy * dy);
-    this.stroke([Math.min(ax, bx), Math.max(ax, bx), Math.min(ay, by), Math.max(ay, by)], width, order, (x, y) => {
-      const t = Math.min(1, Math.max(0, ((x - ax) * dx + (y - ay) * dy) / len2));
+    const len2 = M.max(1e-9, dx * dx + dy * dy);
+    this.stroke([M.min(ax, bx), M.max(ax, bx), M.min(ay, by), M.max(ay, by)], width, order, (x, y) => {
+      const t = M.min(1, M.max(0, ((x - ax) * dx + (y - ay) * dy) / len2));
       const ex = x - ax - dx * t, ey = y - ay - dy * t;
-      return Math.sqrt(ex * ex + ey * ey);
+      return M.sqrt(ex * ex + ey * ey);
     }, true, RuneRaster.segmentSpans(ax, ay, bx, by));
   }
 
   public ring(cx: number, cy: number, r: number, width: number, order: number): void {
-    this.stroke([cx - r, cx + r, cy - r, cy + r], width, order, (x, y) => Math.abs(Math.sqrt((x - cx) * (x - cx) + (y - cy) * (y - cy)) - r), true, (y, reach) => {
+    this.stroke([cx - r, cx + r, cy - r, cy + r], width, order, (x, y) => M.abs(M.sqrt((x - cx) * (x - cx) + (y - cy) * (y - cy)) - r), true, (y, reach) => {
       const dy = y - cy, out = r + reach, inner = r - reach;
-      if (Math.abs(dy) > out) return [];
-      const hx = Math.sqrt(out * out - dy * dy);
-      if (Math.abs(dy) >= inner) return [[cx - hx, cx + hx]];
-      const ix = Math.sqrt(inner * inner - dy * dy);
+      if (M.abs(dy) > out) return [];
+      const hx = M.sqrt(out * out - dy * dy);
+      if (M.abs(dy) >= inner) return [[cx - hx, cx + hx]];
+      const ix = M.sqrt(inner * inner - dy * dy);
       return [[cx - hx, cx - ix], [cx + ix, cx + hx]];
     });
   }
 
   public dot(cx: number, cy: number, r: number, order: number): void {
-    this.stroke([cx, cx, cy, cy], r * 2, order, (x, y) => Math.sqrt((x - cx) * (x - cx) + (y - cy) * (y - cy)));
+    this.stroke([cx, cx, cy, cy], r * 2, order, (x, y) => M.sqrt((x - cx) * (x - cx) + (y - cy) * (y - cy)));
   }
 
   /** Pixels in a metre of the map. */
@@ -201,8 +206,8 @@ class RuneRaster {
    * The scratch pixels are the map's own (same scale, aligned on the pixel edge), so nothing is resampled.
    */
   public lay(core: Uint8ClampedArray, groove: Uint8ClampedArray, size: number, cx: number, cy: number, order: number): void {
-    const pcx = Math.round((cx - RUNE_AREA.x0) * this.pxPerM), pcy = Math.round((cy - RUNE_AREA.y0) * this.pxPerM);
-    const o = Math.round(Math.min(1, Math.max(0, order)) * 255), d8 = this.data;
+    const pcx = M.round((cx - RUNE_AREA.x0) * this.pxPerM), pcy = M.round((cy - RUNE_AREA.y0) * this.pxPerM);
+    const o = M.round(M.min(1, M.max(0, order)) * 255), d8 = this.data;
     for (let j = 0; j < size; j++) {
       const py = pcy + size / 2 - j - 1;
       if (py < 0 || py >= RUNE_H) continue;
@@ -224,10 +229,10 @@ class RuneRaster {
    * headline with a stem or two hanging from it and a curl, `h` tall, turned `rot` radians.
    */
   public stand(text: string, cx: number, cy: number, h: number, rot: number, order: number): void {
-    const c = Math.cos(rot), sn = Math.sin(rot);
+    const c = M.cos(rot), sn = M.sin(rot);
     const P = (u: number, v: number): [number, number] => [cx + (u * c - v * sn) * h, cy + (u * sn + v * c) * h];
     const seg = (u0: number, v0: number, u1: number, v1: number) => { const a = P(u0, v0), b = P(u1, v1); this.line(a[0], a[1], b[0], b[1], 0.03, order); };
-    const n = Math.max(1, Math.min(3, Array.from(text).length > 2 ? 3 : 1));
+    const n = M.max(1, M.min(3, Array.from(text).length > 2 ? 3 : 1));
     const w = 0.32 * n;
     seg(-w, 0.34, w, 0.34);
     for (let k = 0; k < n; k++) {
@@ -263,14 +268,20 @@ function fontReady(): boolean {
 
 interface TextItem { text: string; x: number; y: number; h: number; rot: number; order: number }
 
-/** Sets each item of text in the canvas (core and a wider, blurred cut round it) and lays it on the map; without a canvas, strokes. */
-function paintText(r: RuneRaster, items: TextItem[]): void {
+/**
+ * Sets each item of text in the canvas (core and a wider, blurred cut round it) and lays it on the map; without a canvas,
+ * strokes. Returns the painter: each call lays items for up to `budget` milliseconds (at least one; Infinity: all of them)
+ * and says whether every item is laid. The items go on in order however the calls slice them, so the map is the same.
+ */
+function textPainter(r: RuneRaster, items: TextItem[]): (budget: number) => boolean {
   const SIZE = 160;
   const canvas = typeof document !== 'undefined' ? document.createElement('canvas') : null;
   const ctx = canvas ? canvas.getContext('2d', { willReadFrequently: true }) : null;
   if (!canvas || !ctx) {
-    for (const it of items) r.stand(it.text, it.x, it.y, it.h, it.rot, it.order);
-    return;
+    return () => {
+      for (const it of items) r.stand(it.text, it.x, it.y, it.h, it.rot, it.order);
+      return true;
+    };
   }
   canvas.width = SIZE; canvas.height = SIZE;
   const ppm = r.pixelsPerMetre;
@@ -291,16 +302,34 @@ function paintText(r: RuneRaster, items: TextItem[]): void {
     ctx.filter = 'none';
     return ctx.getImageData(0, 0, SIZE, SIZE).data;
   };
-  for (const it of items) r.lay(set(it, false), set(it, true), SIZE, it.x, it.y, it.order);
+  let next = 0;
+  return (budget) => {
+    const until = performance.now() + budget;
+    while (next < items.length) {
+      const it = items[next++];
+      r.lay(set(it, false), set(it, true), SIZE, it.x, it.y, it.order);
+      if (performance.now() >= until) break;
+    }
+    return next >= items.length;
+  };
 }
 
+/** The gate's carving without its text (the strokes), and the text still to be laid over it; painted once for the page. */
+interface RuneStrokes { data: Uint8Array; text: TextItem[] }
+let strokeCache: RuneStrokes | null = null;
+/** The finished map (strokes and text, in the face the game means), kept for the page: a retry or a replay builds the gate again. */
+let finishedRunes: Uint8Array | null = null;
+/** Milliseconds of text laid per slice while the level loads (the rest waits for the next turn, so no frame is held up). */
+const TEXT_SLICE_MS = 5;
+
 /**
- * Paints the whole gate's carving into a map (R the glow of a stroke, G when it ignites, B how deep it is cut): a Sri Yantra
+ * Paints the gate's carving into a map (R the glow of a stroke, G when it ignites, B how deep it is cut): a Sri Yantra
  * on the doors (nested interlocking triangles round a bindu with ॐ, two rings of lotus petals, a bhupura square with its four
  * T-shaped gates), the bija mantras round it, Devanagari in the columns beside it and in a ring round the arch, ॐ at its crown;
- * and the gate's mouldings, cut but not lit. Written into `into` when given (the text repainted once its font has arrived).
+ * and the gate's mouldings, cut but not lit. This is the strokes; the text, listed with them, is laid over them by `RunePaint`.
  */
-function paintRunes(into?: THREE.DataTexture): THREE.DataTexture {
+function runeStrokes(): RuneStrokes {
+  if (strokeCache) return strokeCache;
   const r = new RuneRaster();
   const rand = rng(31);
   const { half, spring, rise, floor } = GATE;
@@ -410,13 +439,79 @@ function paintRunes(into?: THREE.DataTexture): THREE.DataTexture {
   // The crown: ॐ in a ring above the arch's apex.
   r.ring(0, 4.85, 0.36, W, 0.9);
   text.push({ text: 'ॐ', x: 0, y: 4.85, h: 0.4, rot: 0, order: 0.9 });
-  paintText(r, text);
-  if (into) {
-    (into.image.data as Uint8Array).set(r.data);
-    into.needsUpdate = true;
-    return into;
+  return strokeCache = { data: r.data, text };
+}
+
+/**
+ * The gate's rune map, in two layers: the strokes (quick, and painted once for the page) and the text over them, which is slow
+ * to set in the canvas and so is laid a few milliseconds at a time between the turns of the load, not in the level's
+ * constructor (it is long done before the hero reaches the gate). A map already finished is handed back as it is, with no
+ * painting at all; one begun before the game's Devanagari face had arrived is laid again, over the same strokes, once it has.
+ */
+class RunePaint {
+  public readonly texture: THREE.DataTexture;
+  private readonly raster: RuneRaster | null = null;
+  private readonly strokes: RuneStrokes | null = null;
+  private paint: ((budget: number) => boolean) | null = null;
+  private timer: ReturnType<typeof setTimeout> | null = null;
+  /** The face is as it will be, so what is finished is the map for good. */
+  private settled: boolean;
+  private disposed = false;
+
+  constructor() {
+    if (finishedRunes) {
+      this.settled = true;
+      this.texture = new RuneRaster(finishedRunes).texture();
+      return;
+    }
+    this.strokes = runeStrokes();
+    this.raster = new RuneRaster(this.strokes.data.slice());
+    this.texture = this.raster.texture();
+    this.settled = fontReady();
+    this.lay();
+    // The game's Devanagari face may still be on its way: the text is laid again once it is here.
+    if (!this.settled) {
+      void document.fonts.load('48px "Tiro Devanagari Hindi"', 'ॐह्रीं').then(() => this.arrived(true), () => this.arrived(false));
+    }
   }
-  return r.texture();
+
+  /** The text over the bare strokes (again, if it was begun): all at once with no document to set it in, else slice by slice. */
+  private lay(): void {
+    if (!this.raster || !this.strokes) return;
+    if (this.timer !== null) clearTimeout(this.timer);
+    this.timer = null;
+    this.raster.data.set(this.strokes.data);
+    this.paint = textPainter(this.raster, this.strokes.text);
+    if (typeof document === 'undefined') { this.paint(Infinity); this.done(); } else this.timer = setTimeout(() => this.slice(), 0);
+  }
+
+  private slice(): void {
+    this.timer = null;
+    if (this.disposed || !this.paint) return;
+    if (this.paint(TEXT_SLICE_MS)) this.done();
+    else this.timer = setTimeout(() => this.slice(), 0);
+  }
+
+  private done(): void {
+    this.paint = null;
+    this.texture.needsUpdate = true;
+    if (this.settled && this.raster && !finishedRunes) finishedRunes = this.raster.data;
+  }
+
+  /** The face has come (`loaded`) or never will: what is laid in it is the map from now on. */
+  private arrived(loaded: boolean): void {
+    if (this.disposed) return;
+    this.settled = true;
+    if (loaded) this.lay();
+    else if (!this.paint) this.done();
+  }
+
+  public dispose(): void {
+    this.disposed = true;
+    if (this.timer !== null) clearTimeout(this.timer);
+    this.timer = null;
+    this.texture.dispose();
+  }
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
@@ -943,6 +1038,8 @@ function makeCloud(spec: CloudSpec, shared: Record<string, THREE.IUniform>, fill
 interface Chunk {
   p: THREE.Vector3; v: THREE.Vector3; q: THREE.Quaternion; w: THREE.Vector3;
   size: THREE.Vector3; born: number; rest: boolean; bounces: number;
+  /** The throw as it was made (position, velocity, turn, spin), for `rearm` to put back: a replay throws the same rocks. */
+  start: { p: THREE.Vector3; v: THREE.Vector3; q: THREE.Quaternion; w: THREE.Vector3 };
 }
 
 function chunkGeometry(): THREE.BufferGeometry {
@@ -990,6 +1087,7 @@ export class ShrineSeal {
   private readonly cloudUniforms: Record<string, THREE.IUniform>;
   private rock: THREE.MeshToonMaterial;
   private readonly runeMap: THREE.DataTexture;
+  private readonly runes: RunePaint;
   private frame: THREE.Mesh;
   private readonly doors: THREE.Mesh[] = [];
   private gap: THREE.Mesh;
@@ -1012,11 +1110,8 @@ export class ShrineSeal {
 
   constructor(private readonly hooks: SealHooks = {}, ramp: THREE.Texture | null = null, soulMark = new THREE.Vector3(2.6, -2.45, -71.2), insideMark = new THREE.Vector3(1.7, -2.11, -74.6)) {
     this.group.name = 'SealedMaceRoom';
-    this.runeMap = paintRunes();
-    // The game's Devanagari face may still be on its way: the text is painted again once it is here.
-    if (!fontReady()) {
-      void document.fonts.load('48px "Tiro Devanagari Hindi"', 'ॐह्रीं').then(() => { if (!this.disposed) paintRunes(this.runeMap); }).catch(() => undefined);
-    }
+    this.runes = new RunePaint();
+    this.runeMap = this.runes.texture;
     this.uniforms = {
       uRuneMap: { value: this.runeMap },
       uTime: { value: 0 },
@@ -1105,15 +1200,17 @@ export class ShrineSeal {
       const fromSeam = i < 16;
       const side = i % 2 ? 1 : -1;
       const size = (fromSeam ? 0.1 + rand() * 0.28 : 0.14 + rand() * 0.34) * 0.62;
+      const p = new THREE.Vector3(fromSeam ? side * (0.1 + rand() * 0.5) : (rand() - 0.5) * 7.4, fromSeam ? GATE.floor + rand() * 5.6 : 3.2 + rand() * 1.4, GATE.doorFront + 0.05);
+      const v = new THREE.Vector3(fromSeam ? side * (0.5 + rand() * 1.6) : (rand() - 0.5) * 0.8, fromSeam ? rand() * 1.4 : -rand() * 0.5, 0.15 + rand() * 0.55);
+      const q = new THREE.Quaternion().setFromEuler(new THREE.Euler(rand() * 6, rand() * 6, rand() * 6));
+      const w = new THREE.Vector3(rand() - 0.5, rand() - 0.5, rand() - 0.5).multiplyScalar(9);
       this.chunks.push({
-        p: new THREE.Vector3(fromSeam ? side * (0.1 + rand() * 0.5) : (rand() - 0.5) * 7.4, fromSeam ? GATE.floor + rand() * 5.6 : 3.2 + rand() * 1.4, GATE.doorFront + 0.05),
-        v: new THREE.Vector3(fromSeam ? side * (0.5 + rand() * 1.6) : (rand() - 0.5) * 0.8, fromSeam ? rand() * 1.4 : -rand() * 0.5, 0.15 + rand() * 0.55),
-        q: new THREE.Quaternion().setFromEuler(new THREE.Euler(rand() * 6, rand() * 6, rand() * 6)),
-        w: new THREE.Vector3(rand() - 0.5, rand() - 0.5, rand() - 0.5).multiplyScalar(9),
+        p, v, q, w,
         size: new THREE.Vector3(size * (0.8 + rand() * 0.5), size * (0.7 + rand() * 0.5), size * (0.8 + rand() * 0.5)),
         born: fromSeam ? SEAL_TIMES.split + rand() * 0.55 : SEAL_TIMES.split + 0.15 + rand() * 1.5,
         rest: false,
         bounces: 0,
+        start: { p: p.clone(), v: v.clone(), q: q.clone(), w: w.clone() },
       });
     }
 
@@ -1167,7 +1264,11 @@ export class ShrineSeal {
     this.doors.forEach((d, i) => { d.position.set(0, 0, 0); d.visible = true; d.userData.side = i ? -1 : 1; });
     this.frame.visible = true;
     this.show(false);
-    this.chunks.forEach((c) => { c.rest = false; c.bounces = 0; });
+    // The rocks are back where the seam and the arch throw them from (they lay on the floor, spent, after the first opening).
+    this.chunks.forEach((c) => {
+      c.rest = false; c.bounces = 0;
+      c.p.copy(c.start.p); c.v.copy(c.start.v); c.q.copy(c.start.q); c.w.copy(c.start.w);
+    });
     this.chunkTime = 0;
     this.debris.count = 0;
     this.applyClosed();
@@ -1338,6 +1439,6 @@ export class ShrineSeal {
       else mat?.dispose?.();
     });
     this.debris.dispose();
-    this.runeMap.dispose();
+    this.runes.dispose();
   }
 }

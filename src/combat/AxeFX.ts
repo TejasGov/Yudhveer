@@ -162,6 +162,25 @@ export class AxeFX {
     bloom.addBloom(object);
   }
 
+  /** `object` is no longer selected for the bloom (a demoness's trail and chain, once she is gone). */
+  public unglow(object: THREE.Object3D): void {
+    SceneManager.getInstance().postFX.removeBloom(object);
+  }
+
+  /**
+   * Every ember and the flash gone at once. Only a demoness steps this shared pool, so the one that is retired (the chapter
+   * left or tried again, the game quit) clears it, or its last embers and flash would hang in the shared scene, drawn at
+   * the same spot every frame, for good (audit L1).
+   */
+  public clear(): void {
+    this.count = 0;
+    this.geometry.setDrawRange(0, 0);
+    this.points.visible = false;
+    this.flashAge = this.flashLife;
+    this.flashUniforms.uGain.value = 0;
+    this.flashMesh.visible = false;
+  }
+
   /** One simulation step: the embers fly and cool, the flash fades. */
   public step(dt: number): void {
     this.attach();
