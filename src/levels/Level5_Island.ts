@@ -6,7 +6,9 @@ import { FireField, findModelledFlames, spotForFlame, type ModelledFlame } from 
 import { PhysicsWorld } from '../core/PhysicsWorld';
 import { CharacterRig } from '../entities/animation/CharacterRig';
 import { WEAPON_SETS } from '../entities/characters/YodhaWeapons';
-import { ease, type Shot } from '../cinematics/CinematicDirector';
+import { ease, joltCamera, type Shot } from '../cinematics/CinematicDirector';
+import { SoundFX } from '../combat/SoundFX';
+import { ShrineSeal, GATE, GATE_COLLIDER, type SealHooks } from './ShrineSeal';
 import type { IntroContext } from '../cinematics/Intros';
 import { asset } from '../core/Assets';
 import type RAPIER from '@dimforge/rapier3d-compat';
@@ -38,6 +40,12 @@ export const ISLAND = {
   beforeAltar: v(0, -2.14, -74.75),
   /** Where the mace rests on the altar (the export's `Mark_Mace` refines it). */
   mace: v(0, -1.06, -76.5),
+  /**
+   * The rock seal across the chamber (STORY.md, Chapter III): the soul's mark in front of it (east of the corpse's reach,
+   * a metre and a half from the gate's face), and the mark she is settled on inside the opened room.
+   */
+  sealMark: v(2.6, -2.45, -71.2),
+  inside: v(1.7, -2.11, -74.6),
 };
 
 const FLAME = /^Flame_/;
@@ -47,13 +55,41 @@ const NO_SHADOW = /^(Flame_|Water_|Eyes_|Stalactites|Props|Cave|Prop_|Pool_Rim|S
 /** Point lights the lamps share: the nearest this many lamps are lit (a constant count: no shader recompiles). */
 const LAMP_LIGHTS = 8;
 const LAMP_COLOR = new THREE.Color(1.0, 0.56, 0.24);
-const MACE_COLOR = new THREE.Color(1.0, 0.8, 0.45);
+/** The mace's own glow: the lamp the level lights over it (put out when he takes the mace up, lit again on a restart). */
+export const MACE_COLOR = new THREE.Color(1.0, 0.8, 0.45);
 /**
  * A lamp's light stands at least this far off the rock (and out of anything it stands in), as near its flame as that
  * allows: lights 0.3 m from the wall blew the rock behind them to white, and the brass deepastambhas, their lights
  * inside them, burned near-white.
  */
 const LAMP_CLEARANCE = 0.55;
+/**
+ * The demoness's chamber (docs/ISLAND_DEMONESS.md): the brass lamp stands copied in from the altar room, by the walls
+ * either side of her; the diyas set at the foot of the seal; the warm fill over the middle of the floor; and how much
+ * the two shelf lamps at the chamber's mouth are strengthened.
+ */
+const CHAMBER_STANDS = { x: 4.6, z: -67.2, floor: -2.5, power: 1.25, range: 10 };
+const GATE_DIYAS = [-3.4, -1.2, 1.2];
+const GATE_DIYAS_Z = -71.35;
+const CHAMBER_SHELF_BOOST = 1.5;
+const CHAMBER_FILL = { pos: v(0, 1.5, -66.6), power: 0.75, range: 12, color: new THREE.Color(1.0, 0.66, 0.34) };
+
+/** What the seal calls on the game for: the cutscene camera's shake, and its sounds (a build of chimes, a rumble, the doors, a bloom). */
+function sealHooks(): SealHooks {
+  const CHIMES = [0.9, 1.0, 1.2, 1.5, 2.0];
+  return {
+    jolt: (amount) => joltCamera(amount),
+    sound: (cue, n) => {
+      const fx = SoundFX.getInstance();
+      if (cue === 'chime') fx.playTempleBell(CHIMES[Math.min(n, CHIMES.length - 1)], n % 2 ? 0.3 : -0.3);
+      else if (cue === 'rumble') { fx.playImpactBoom(0.42); fx.playHeavyStep(0.45); }
+      else if (cue === 'split') { fx.playStoneStrike(1.3); fx.playImpactBoom(0.8); }
+      else if (cue === 'grind') fx.playHeavyStep(0.5 - n * 0.08);
+      else if (cue === 'bloom') { fx.playTempleBell(0.5, 0); fx.playTempleBell(1.0, 0.1); fx.playTempleBell(2.0, -0.1); fx.playTanpura(4.5, 0.1); }
+    },
+  };
+}
+
 /** A lamp light's strength per unit of `lamp_power` (candela), and its falloff: gentler than the inverse square, so the
  *  pool of light reaches out into the dark without the near rock clipping. */
 const LAMP_GAIN = 17;
@@ -69,6 +105,8 @@ interface Lamp {
   /** The fire group its flame burns in (its light flickers with it); none for the mace's glow. */
   group: string | null;
   out?: boolean;
+  /** Stands in the altar room behind the seal: its light comes up only as the seal opens (ShrineSeal.roomGain). */
+  behind?: boolean;
 }
 interface Eyes { mesh: THREE.Object3D; seed: number; next: number; shut: number; gone: number }
 interface Ripple { mesh: THREE.Mesh; t: number; life: number }
@@ -108,12 +146,17 @@ export class Level5_Island extends GLBLevel {
   public readonly maceRest = ISLAND.mace.clone();
   private mace: THREE.Object3D | null = null;
   private maceHalo: THREE.Mesh | null = null;
-  /** The added seal is separate from the exported cave: opening it removes only its own physics body. */
-  private readonly shrineSeal = new THREE.Group();
+  /**
+   * The seal across the last chamber: a carved gate of the cave's own rock (ShrineSeal), added to the exported cave.
+   * Opening it removes only the door's own physics body; the wings of the gate stay solid.
+   */
+  private readonly seal: ShrineSeal;
+  private readonly shrineSeal: THREE.Group;
   private sealBody: RAPIER.RigidBody | null = null;
   private sealOpen = false;
+  /** Seconds of the opening sequence still to run (0 shut, or done). */
   private sealFade = 0;
-  private readonly sealLight = new THREE.PointLight(0x91e3ff, 0, 9, 1.5);
+  private readonly sealLight: THREE.PointLight;
   private ramp = createToonRamp([0.22, 0.5, 0.8, 1.0]);
   private lamps: Lamp[] = [];
   private lights: THREE.PointLight[] = [];
@@ -130,6 +173,9 @@ export class Level5_Island extends GLBLevel {
   constructor() {
     super(LEVEL_URL);
     this.ownedTextures.add(this.ramp);
+    this.seal = new ShrineSeal(sealHooks(), this.ramp, ISLAND.sealMark);
+    this.shrineSeal = this.seal.group;
+    this.sealLight = this.seal.light;
     this.playerSpawn.copy(ISLAND.landing);
     // Keeps him out of the sea: the cave's own rock does the rest (its walls are the level's collision).
     this.arenaBoundsSpec = {
@@ -181,6 +227,9 @@ export class Level5_Island extends GLBLevel {
   }
 
   protected prepareModel(model: THREE.Object3D): void {
+    // A pair of the altar room's brass lamp stands and a few diyas stood in the demoness's chamber (before the pass below,
+    // which sets every mesh's shadows).
+    const dressing = this.copyChamberProps(model);
     const lampMeshes: THREE.Object3D[] = [];
     const flameMeshes: THREE.Mesh[] = [];
     model.traverse((obj) => {
@@ -217,10 +266,13 @@ export class Level5_Island extends GLBLevel {
       mesh.geometry.dispose();
     }
     const wicks = this.drawLampsOutOfRock(model, flames);
+    this.lightChamber(flames, wicks, dressing);
     this.lightFlames(flames, wicks);
     // The mace's own glow: a lamp of its own on the altar, gold rather than flame.
     const glow = this.maceRest.clone().add(v(0, 0.6, 0.3));
     this.lamps.push({ pos: glow, light: glow.clone(), power: 0.3, range: 5, color: MACE_COLOR, group: null });
+    // The altar room's lamps (the mace's glow with them) stay dark while it is sealed: they light as the seal opens.
+    for (const lamp of this.lamps) if (lamp.pos.z < -73.2) lamp.behind = true;
     if (this.moon) this.group.add(this.moon);
     if (this.mace) this.mace.position.copy(this.maceRest);
 
@@ -235,6 +287,88 @@ export class Level5_Island extends GLBLevel {
       return undefined;
     });
     this.collectBloom(model, 0.6);
+    // The seal's stone is the cave wall's own (its strata, its normal map, its colour beside the gate).
+    // (The cave is one node with a mesh per material: the wall's is the one painted over most of the rock.)
+    const walls: THREE.Mesh[] = [];
+    model.getObjectByName('Cave')?.traverse((obj) => {
+      const mesh = obj as THREE.Mesh;
+      if (mesh.isMesh && !Array.isArray(mesh.material) && mesh.material.name === 'CaveWall') walls.push(mesh);
+    });
+    this.seal.setRock(walls[0] ? (walls[0].material as THREE.Material) : null, this.wallTint(walls[0]));
+    // The gate's wings are part of the rock: solid however the doors stand (the door's own collider is the one that goes).
+    for (const side of [-1, 1]) this.addStaticBox(v(side * 6.85, 1, -72.65), v(2.65, 4.8, 0.7));
+  }
+
+  /** The mean colour of the cave's wall paint within sight of the gate (the seal's stone is tinted to match it). */
+  private wallTint(cave?: THREE.Mesh): THREE.Color | undefined {
+    const col = cave?.geometry.getAttribute('color');
+    const pos = cave?.geometry.getAttribute('position');
+    if (!col || !pos) return undefined;
+    const sum = new THREE.Color(0, 0, 0);
+    let n = 0;
+    for (let i = 0; i < pos.count; i++) {
+      const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
+      if (Math.abs(x) > 7 || z > -62 || z < -76 || y < -2.4 || y > 2.4) continue;
+      sum.r += col.getX(i); sum.g += col.getY(i); sum.b += col.getZ(i);
+      n++;
+    }
+    return n > 20 ? sum.multiplyScalar(1 / n) : undefined;
+  }
+
+  /**
+   * Dresses the demoness's chamber (she fights between the tunnel and the seal): a pair of the shrine's brass lamp stands
+   * (copies of the altar room's, with their flames: `lightChamber`) set by the walls, and a few clay diyas at the foot of the
+   * seal. Returns where each stand was copied from and by how much it moved, and the copied diyas' wicks.
+   */
+  private copyChamberProps(model: THREE.Object3D): { stands: { from: THREE.Vector3; by: THREE.Vector3 }[]; diyas: THREE.Vector3[] } {
+    const stands: { from: THREE.Vector3; by: THREE.Vector3 }[] = [];
+    for (const [name, x, z] of [['Deepastambha_E', CHAMBER_STANDS.x, CHAMBER_STANDS.z], ['Deepastambha_W', -CHAMBER_STANDS.x, CHAMBER_STANDS.z]] as const) {
+      const src = model.getObjectByName(name);
+      if (!src) continue;
+      const from = src.getWorldPosition(new THREE.Vector3());
+      const copy = src.clone();
+      copy.name = name.replace('Deepastambha', 'Deepastambha_Chamber');
+      copy.position.set(x, CHAMBER_STANDS.floor, z);
+      model.add(copy);
+      stands.push({ from, by: copy.position.clone().sub(from) });
+    }
+    const diyas: THREE.Vector3[] = [];
+    const diya = model.getObjectByName('Prop_diya');
+    if (diya) {
+      for (const [i, x] of GATE_DIYAS.entries()) {
+        const copy = diya.clone();
+        copy.name = `Prop_diya_gate_${i}`;
+        copy.position.set(x, CHAMBER_STANDS.floor, GATE_DIYAS_Z);
+        copy.rotation.set(0, i * 1.7, 0);
+        model.add(copy);
+        diyas.push(copy.position.clone());
+      }
+    }
+    return { stands, diyas };
+  }
+
+  /**
+   * The chamber's light (the first this chamber has had): each copied stand burns like the altar room's (its five flames, a
+   * lamp of its own in the shared pool); the diyas by the seal burn as wicks; a high warm fill hangs in the middle of the
+   * chamber, so that the fight reads, a lamp like the others (the pool's nearest eight are lit, so it costs no light).
+   */
+  private lightChamber(flames: ModelledFlame[], wicks: Set<ModelledFlame>, dressing: { stands: { from: THREE.Vector3; by: THREE.Vector3 }[]; diyas: THREE.Vector3[] }): void {
+    dressing.stands.forEach((stand, i) => {
+      for (const f of flames.filter((o) => Math.hypot(o.foot.x - stand.from.x, o.foot.z - stand.from.z) < 0.7 && o.foot.y > stand.from.y)) {
+        flames.push({ foot: f.foot.clone().add(stand.by), height: f.height, width: f.width });
+      }
+      const original = this.lamps.reduce((a, b) => (b.pos.distanceToSquared(stand.from) < a.pos.distanceToSquared(stand.from) ? b : a));
+      const pos = original.pos.clone().add(stand.by);
+      this.lamps.push({ pos, light: pos.clone(), power: CHAMBER_STANDS.power, range: CHAMBER_STANDS.range, color: LAMP_COLOR, group: `lamp_stand_${i}` });
+    });
+    for (const at of dressing.diyas) {
+      const wick: ModelledFlame = { foot: v(at.x, at.y + 0.135, at.z), height: 0.2, width: 0.07 };
+      flames.push(wick);
+      wicks.add(wick);
+    }
+    // The two shelf lamps at the chamber's mouth stand stronger now, and one more, warmer, hangs over the middle of the floor.
+    for (const lamp of this.lamps) if (lamp.pos.z < -63 && lamp.pos.z > -66 && lamp.group) lamp.power *= CHAMBER_SHELF_BOOST;
+    this.lamps.push({ pos: CHAMBER_FILL.pos.clone(), light: CHAMBER_FILL.pos.clone(), power: CHAMBER_FILL.power, range: CHAMBER_FILL.range, color: CHAMBER_FILL.color, group: null });
   }
 
   /**
@@ -382,26 +516,39 @@ export class Level5_Island extends GLBLevel {
     this.lampsPlaced = true;
   }
 
-  /** A rock curtain across the altar chamber. The original cave, lamps, fire, altar and mace are left intact. */
+  /** The rock seal across the chamber, shut (its door collider in place). The exported cave, lamps, altar and mace are left as they are. */
   private buildShrineSeal(): void {
-    const rock = new THREE.MeshToonMaterial({ color: 0x292324, gradientMap: this.ramp });
-    for (const x of [-5, 0, 5]) {
-      const mesh = new THREE.Mesh(new THREE.IcosahedronGeometry(1, 1), rock);
-      mesh.position.set(x, 1, -72.5); mesh.scale.set(4.2, 4.8, 1.1); mesh.castShadow = true;
-      this.shrineSeal.add(mesh);
-    }
-    this.shrineSeal.name = 'SealedMaceRoom'; this.group.add(this.shrineSeal);
-    this.sealLight.position.set(0, -0.4, -71.3); this.group.add(this.sealLight);
-    if (!this.sealOpen) this.sealBody = this.physics.createStaticBox(v(0, 1, -72.5), v(8, 4.8, 0.8)).body;
-    this.shrineSeal.visible = !this.sealOpen;
+    this.group.add(this.shrineSeal);
+    this.sealLight.position.set(0, 0.2, -70.4);
+    this.group.add(this.sealLight);
+    this.bloomObjects.push(...this.seal.glowing);
+    if (!this.sealOpen) this.sealBody = this.physics.createStaticBox(GATE_COLLIDER.centre, GATE_COLLIDER.half).body;
+    this.shrineSeal.visible = true;
   }
 
-  /** Story cues: the soul opens the seal; `take-mace` still lifts the mace from its original altar. */
+  /**
+   * Story cues: the soul opens the seal; `take-mace` lifts the mace from its altar; `chapter-start` (the chapter begun again,
+   * a retry or a replay in the same page: the level is reused) puts back everything the story changed here, so the shut
+   * seal, its collider, the mace and the mace's lamp are all as on the first visit. Each is safe to send twice.
+   */
   public cue(name: string): void {
     if (name === 'open-shrine') {
       if (this.sealOpen) return;
-      this.sealOpen = true; this.sealFade = 1.8;
+      this.sealOpen = true;
       if (this.sealBody) { this.physics.removeBody(this.sealBody); this.sealBody = null; }
+      this.seal.open();
+      this.sealFade = this.seal.remaining;
+      return;
+    }
+    if (name === 'chapter-start') {
+      this.sealOpen = false;
+      this.sealFade = 0;
+      this.seal.rearm();
+      this.shrineSeal.visible = true;
+      if (!this.sealBody) this.sealBody = this.physics.createStaticBox(GATE_COLLIDER.centre, GATE_COLLIDER.half).body;
+      if (this.mace) this.mace.visible = true;
+      const lit = this.lamps.find((l) => l.color === MACE_COLOR);
+      if (lit) lit.out = false;
       return;
     }
     if (name !== 'take-mace') return;
@@ -411,12 +558,8 @@ export class Level5_Island extends GLBLevel {
   }
 
   public override update(time: number, dt: number, camera: THREE.Camera): void {
-    if (this.sealFade > 0) {
-      this.sealFade = Math.max(0, this.sealFade - dt);
-      this.shrineSeal.position.y = -10 * (1 - this.sealFade / 1.8);
-      this.shrineSeal.visible = this.sealFade > 0;
-      this.sealLight.intensity = 6 * Math.sin(Math.PI * this.sealFade / 1.8);
-    }
+    this.seal.update(dt, time);
+    this.sealFade = this.seal.remaining;
     this.fires?.update(time);
     super.update(time, dt, camera);
     const eye = camera.position;
@@ -432,7 +575,9 @@ export class Level5_Island extends GLBLevel {
 
   /** The nearest lamps to the camera get the lights, flickering with their flames; the rest are flames in the dark. */
   private updateLamps(eye: THREE.Vector3): void {
-    const lit = this.lamps.filter((l) => !l.out).sort((a, b) => a.pos.distanceToSquared(eye) - b.pos.distanceToSquared(eye));
+    // The altar room's lamps come up as the seal opens (its light floods through); shut, they are dark and cost no slot.
+    const room = this.seal.roomGain;
+    const lit = this.lamps.filter((l) => !l.out && !(l.behind && room <= 0.001)).sort((a, b) => a.pos.distanceToSquared(eye) - b.pos.distanceToSquared(eye));
     for (let i = 0; i < this.lights.length; i++) {
       const light = this.lights[i];
       const lamp = lit[i];
@@ -443,12 +588,13 @@ export class Level5_Island extends GLBLevel {
       light.position.copy(lamp.light);
       light.color.copy(lamp.color);
       light.distance = lamp.range * 1.5;
-      light.intensity = lamp.power * LAMP_GAIN * (lamp.group ? this.fires?.flicker(lamp.group) ?? 1 : 1);
+      light.intensity = lamp.power * LAMP_GAIN * (lamp.group ? this.fires?.flicker(lamp.group) ?? 1 : 1) * (lamp.behind ? room : 1);
     }
   }
 
   public override dispose(): void {
     if (this.sealBody) { this.physics.removeBody(this.sealBody); this.sealBody = null; }
+    this.seal.dispose();
     this.fires?.dispose();
     super.dispose();
   }

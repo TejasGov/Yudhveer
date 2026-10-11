@@ -94,27 +94,45 @@ const { ISLAND_SOUL } = await loadDuelModule('src/entities/characters/IslandDemo
 const { ISLAND_STORY } = await loadDuelModule('src/game/stories/Island.ts', {
   three: THREE, '../../cinematics/CinematicDirector': { ease: {} }, '../../combat/SoundFX': { SoundFX: {} },
   '../Progression': { KITS: { dwarka: {} } },
-  '../../levels/Level5_Island': { ISLAND: { altar: new THREE.Vector3(0, -2.11, -75) } },
+  '../../levels/Level5_Island': { ISLAND: { altar: new THREE.Vector3(0, -2.11, -75), sealMark: new THREE.Vector3(2.6, -2.45, -71.2), inside: new THREE.Vector3(1.7, -2.11, -74.6) } },
   '../IslandExpedition': { ISLAND_FOES: { hall: [], pool: [], poolBehind: [], boss: 'island_demoness' } },
   '../../cinematics/Entrance': { grade() {} }, '../../entities/characters/Village': { GURU: {} },
   '../../entities/characters/IslandDemoness': { ISLAND_SOUL }, '../../entities/Extra': { Extra },
 });
 const release = ISLAND_STORY.beats.find(beat => beat.on.fallen === 'island_demoness').scene;
 
-test('the soul waits for the opening and has time to walk to both marks before settlement', () => {
+test('the soul rises clear of the corpse and has time to walk to both marks before the seal and the settlement need her', () => {
   const soul = ISLAND_STORY.cast.find(actor => actor.id === 'island_soul');
   assert.equal(soul.shade.grounded, true);
-  let from = soul.at;
+  // The walks run across shots, so the scene is laid out on one clock.
+  const stage = { pos: id => id === 'hero' ? new THREE.Vector3(0.3, -2.45, -66.6) : new THREE.Vector3(0, -2.45, -68.5) };
+  let shotStart = 0, from = null, walking = null;
+  const events = [];
   for (const shot of release.shots) {
-    const move = shot.cues?.find(cue => 'moveTo' in cue);
-    if (!move) continue;
-    const settle = shot.cues.find(cue => 'run' in cue && cue.at > move.at);
-    const available = (settle?.at ?? shot.duration) - move.at;
-    assert.ok(available > Math.hypot(move.moveTo.x - from.x, move.moveTo.z - from.z) / ISLAND_SOUL.locomotion.walkSpeed);
-    from = move.moveTo;
-    const open = shot.cues.find(cue => 'run' in cue && cue.at < move.at);
-    if (open) assert.ok(move.at >= open.at + 1.8, 'wall has fully faded before movement');
+    for (const cue of shot.cues ?? []) {
+      const at = shotStart + cue.at;
+      if ('place' in cue) from = typeof cue.place === 'function' ? cue.place(stage) : cue.place;
+      if ('moveTo' in cue) { events.push({ kind: 'walk', at, from, to: cue.moveTo }); from = cue.moveTo; }
+      if ('run' in cue) events.push({ kind: cue.essential ? 'essential' : 'run', at });
+    }
+    shotStart += shot.duration;
   }
+  const sceneLength = shotStart;
+  // She rises beside the body (4 m across, at the boss's mark), not in it.
+  const spawn = events.find(e => e.kind === 'walk').from;
+  assert.ok(Math.hypot(spawn.x - 0, spawn.z + 68.5) > 2.4, 'her soul rises off the corpse, not on it');
+  assert.ok(Math.hypot(spawn.x - 0, spawn.z + 68.5) < 3.4, 'but only a few metres from it');
+  const walks = events.filter(e => e.kind === 'walk');
+  assert.equal(walks.length, 2);
+  const essentials = events.filter(e => e.kind === 'essential');
+  // 0.8 s of ease and turn in a walk, on top of its distance at her speed (the soul's staging eases in and out).
+  const duration = w => Math.hypot(w.to.x - w.from.x, w.to.z - w.from.z) / ISLAND_SOUL.locomotion.walkSpeed + 0.8;
+  // The seal's own cue (the first essential one) waits for her to arrive at the first mark, with a half second to spare.
+  assert.ok(walks[0].at + duration(walks[0]) + 0.5 <= essentials[0].at, 'she is at the seal before its runes ignite');
+  // She does not start for the room until the doors have begun to part, and is there a second before the settlement snaps her.
+  assert.ok(walks[1].at >= essentials[0].at + 1.4, 'she waits for the doors to split');
+  assert.ok(walks[1].at + duration(walks[1]) + 1 <= essentials.at(-1).at, 'a second of slack before the settlement');
+  assert.ok(sceneLength <= 16.3 + 3, `the scene grew by under 3 s: ${sceneLength}`);
 });
 
 async function geometry(path) {
