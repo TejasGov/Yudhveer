@@ -600,7 +600,7 @@ void main() {
   // Brightest at the seam, falling away across the opening: the light pours out of the gap, it does not fill the arch.
   float across = pow(1.0 - smoothstep(0.0, 1.2 + uGap * 0.3, abs(vPos.x)), 1.5);
   float up = 0.5 + 0.5 * smoothstep(-2.5, 3.6, vPos.y);
-  float shimmer = 0.92 + 0.08 * sin(uTime * 6.0 + vPos.y * 3.0 + vPos.x * 2.0);
+  float shimmer = 0.78 + 0.22 * sin(uTime * 7.0 + vPos.y * 3.0 + vPos.x * 2.0) * sin(vPos.x * 21.0 - uTime * 3.0);
   vec3 c = mix(uCyan, uAmber, uWarm);
   gl_FragColor = vec4(c * across * up * shimmer * uIntensity * vNear, 1.0);
 }`,
@@ -624,7 +624,7 @@ function makeShafts(uniforms: Record<string, THREE.IUniform>): THREE.Mesh {
     const x = (t - 0.5) * 6.4 + (rand() - 0.5) * 0.4;
     const a = [x, 0.4 + rand() * 2.2, GATE.zBack + 0.5];
     const e = [x * (1.5 + rand() * 0.6), -2.4, -71.9 + 6.5 + rand() * 4.5];
-    const w0 = 0.5 + rand() * 0.5, w1 = 1.5 + rand() * 1.2;
+    const w0 = 0.35 + rand() * 0.4, w1 = 1.0 + rand() * 1.0;
     const seed = rand();
     for (const [along, side] of [[0, -1], [0, 1], [1, -1], [1, 1]]) {
       aA.push(...a); aB.push(...e); aUV.push(along, side); aW.push(w0, w1); aSeed.push(seed);
@@ -902,7 +902,7 @@ export class ShrineSeal {
   private readonly tmpS = new THREE.Vector3();
   private readonly tmpQ = new THREE.Quaternion();
 
-  constructor(private readonly hooks: SealHooks = {}, ramp: THREE.Texture | null = null, soulMark = new THREE.Vector3(2.6, -2.45, -71.2)) {
+  constructor(private readonly hooks: SealHooks = {}, ramp: THREE.Texture | null = null, soulMark = new THREE.Vector3(2.6, -2.45, -71.2), insideMark = new THREE.Vector3(1.7, -2.11, -74.6)) {
     this.group.name = 'SealedMaceRoom';
     this.runeMap = paintRunes();
     this.uniforms = {
@@ -967,11 +967,14 @@ export class ShrineSeal {
       o.v.set(side * (0.8 + r() * 2.2), 1.2 + r() * 2.2, 0.4 + r() * 1.4);
       o.info.set(SEAL_TIMES.split + r() * 1.0, 0.5 + r() * 0.7, 0.05 + r() * 0.06, r());
     }, 13);
-    // Motes out of the gap, streaming to where the soul stands and gathering round her.
-    const motes = makeCloud({ count: 110, kind: 'motes' }, this.cloudUniforms, (i, r, o) => {
+    // Motes out of the gap, streaming to where the soul stands and gathering round her; the later ones follow her in to the altar.
+    const MOTES = 120, FIRST = 76;
+    const motes = makeCloud({ count: MOTES, kind: 'motes' }, this.cloudUniforms, (i, r, o) => {
+      const to = i < FIRST ? soulMark : insideMark;
       o.p.set((r() - 0.5) * 0.9, GATE.floor + 0.3 + r() * 4.3, GATE.doorBack - 0.1);
-      o.v.set(soulMark.x + (r() - 0.5) * 1.1 - o.p.x, soulMark.y + 0.2 + r() * 1.5 - o.p.y, soulMark.z + (r() - 0.5) * 1.1 - o.p.z);
-      o.info.set(1.7 + (i / 110) * 2.2 + r() * 0.3, 1.6 + r() * 1.3, 0.05 + r() * 0.1, r());
+      o.v.set(to.x + (r() - 0.5) * 1.1 - o.p.x, to.y + 0.2 + r() * 1.5 - o.p.y, to.z + (r() - 0.5) * 1.1 - o.p.z);
+      const start = i < FIRST ? 1.7 + (i / FIRST) * 2.0 : 3.6 + ((i - FIRST) / (MOTES - FIRST)) * 2.0;
+      o.info.set(start + r() * 0.3, 1.6 + r() * 1.3, 0.05 + r() * 0.1, r());
     }, 17);
     this.clouds.push(dust, sparks, motes);
     for (const c of this.clouds) { this.group.add(c); }
@@ -1095,7 +1098,7 @@ export class ShrineSeal {
     // The tremor: a low shaking through the build-up, harder as the doors go.
     if (t >= 0.4 && t < SEAL_TIMES.slideEnd && t - this.lastTremor >= 0.14) {
       this.lastTremor = t;
-      this.hooks.jolt?.(t < SEAL_TIMES.split ? 0.014 + 0.03 * smooth(0.4, SEAL_TIMES.split, t) : 0.03);
+      this.hooks.jolt?.(t < SEAL_TIMES.split ? 0.02 + 0.045 * smooth(0.4, SEAL_TIMES.split, t) : 0.04);
     }
 
     // The runes ignite in order, then burn amber with the flood and settle low.
@@ -1130,9 +1133,9 @@ export class ShrineSeal {
     this.gap.visible = gapShow > 0.002;
     (this.gap.material as THREE.ShaderMaterial).uniforms.uIntensity.value = 2.0 * gapShow;
     (this.gap.material as THREE.ShaderMaterial).uniforms.uGap.value = GATE.slide * eased;
-    const shaft = smooth(2.0, 3.2, t) * (1 - 0.8 * smooth(5.0, SEAL_TIMES.end, t));
-    (this.shafts.material as THREE.ShaderMaterial).uniforms.uIntensity.value = 2.0 * shaft;
-    (this.spill.material as THREE.ShaderMaterial).uniforms.uIntensity.value = 1.5 * shaft;
+    const shaft = smooth(2.0, 3.2, t) * (1 - 0.9 * smooth(3.6, 6.4, t));
+    (this.shafts.material as THREE.ShaderMaterial).uniforms.uIntensity.value = 1.5 * shaft;
+    (this.spill.material as THREE.ShaderMaterial).uniforms.uIntensity.value = 0.8 * shaft;
     this.shafts.visible = shaft > 0.002;
     this.spill.visible = shaft > 0.002;
     const tint = this.cloudUniforms.uTint.value as THREE.Color;

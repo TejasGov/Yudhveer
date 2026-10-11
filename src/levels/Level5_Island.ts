@@ -8,7 +8,7 @@ import { CharacterRig } from '../entities/animation/CharacterRig';
 import { WEAPON_SETS } from '../entities/characters/YodhaWeapons';
 import { ease, joltCamera, type Shot } from '../cinematics/CinematicDirector';
 import { SoundFX } from '../combat/SoundFX';
-import { ShrineSeal, GATE, GATE_COLLIDER, type SealHooks } from './ShrineSeal';
+import { ShrineSeal, GATE_COLLIDER, type SealHooks } from './ShrineSeal';
 import type { IntroContext } from '../cinematics/Intros';
 import { asset } from '../core/Assets';
 import type RAPIER from '@dimforge/rapier3d-compat';
@@ -173,7 +173,7 @@ export class Level5_Island extends GLBLevel {
   constructor() {
     super(LEVEL_URL);
     this.ownedTextures.add(this.ramp);
-    this.seal = new ShrineSeal(sealHooks(), this.ramp, ISLAND.sealMark);
+    this.seal = new ShrineSeal(sealHooks(), this.ramp, ISLAND.sealMark, ISLAND.inside);
     this.shrineSeal = this.seal.group;
     this.sealLight = this.seal.light;
     this.playerSpawn.copy(ISLAND.landing);

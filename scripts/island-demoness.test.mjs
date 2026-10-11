@@ -371,6 +371,8 @@ test('the release scene: the seal opens through an essential cue, the voice in t
   const voice = timeline.find(e => e.line?.voice === 'island_shrine_voice_2');
   assert.ok(voice, 'the shrine voice\'s second line is wired in'); assert.equal(voice.line.speaker, 'Voice in the shrine'); assert.ok(voice.carry, 'and runs on over the shots after it');
   const split = open.at + shrineSeal.SEAL_TIMES.split;
+  const shotStarts = []; let acc = 0; for (const shot of scene.shots) { shotStarts.push(acc); acc += shot.duration; }
+  assert.ok(shotStarts.some(t => Math.abs(t - split) < 0.05), 'the camera cuts on to the next move at the instant the doors split');
   assert.ok(voice.at >= split && voice.at <= split + 1.5, 'it calls as the doors part');
   assert.ok(start - voice.at >= 5.5, 'and the reveal is held for the whole of it');
   assert.ok(readFileSync(new URL('../public/assets/voice/island_shrine_voice_2.mp3', import.meta.url)).length > 1000, 'the recording ships');
