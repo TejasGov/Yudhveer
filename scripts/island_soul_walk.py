@@ -132,7 +132,7 @@ def resample(D, hips, frames):
     n = D.shape[0] - 1
     t = np.arange(frames + 1) / frames * n
     i0 = np.minimum(np.floor(t).astype(int), n - 1); f = (t - i0)[:, None]
-    Dn = qslerp(D[i0], D[i0 + 1], f[:, :, None]) if D.ndim == 3 else None
+    Dn = qslerp(D[i0], D[i0 + 1], f[:, :, None])
     hn = hips[i0] * (1 - f) + hips[i0 + 1] * f
     Dn[-1] = Dn[0]; hn[-1] = hn[0]
     return Dn, hn

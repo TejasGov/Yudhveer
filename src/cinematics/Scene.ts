@@ -318,6 +318,7 @@ export class Staging {
 
   public face(actor: Character, point: THREE.Vector3): void {
     this.moves = this.moves.filter((m) => m.actor !== actor);
+    if (actor instanceof Extra) actor.commandedSpeed = 0;
     this.turns.set(actor, point);
   }
 

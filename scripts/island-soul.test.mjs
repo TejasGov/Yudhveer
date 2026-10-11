@@ -173,7 +173,7 @@ test('a graceful walker turns before it sets off, eases in, brakes onto its mark
   plain.setPosition(0, 0, 0); plain.faceYaw(Math.PI);
   const old = stagedRun(plain, new THREE.Vector3(0, 0, -4), 3).find(step => step.speed > 0.02);
   assert.ok(Math.abs(old.speed - pace) < 0.02, `unchanged staging for everyone else: ${old.speed}`);
-  console.log('Graceful start:', { setsOffAt: first.t, easeIn: full.t - first.t, brake: braking.length / 60, maxHeadingDeg: THREE.MathUtils.radToDeg(Math.max(...run.map(step => step.error))) });
+  console.log('Graceful start:', { arrivesAt: run[stop].t, setsOffAt: first.t, easeIn: full.t - first.t, brake: braking.length / 60, maxHeadingDeg: THREE.MathUtils.radToDeg(Math.max(...run.map(step => step.error))) });
 });
 
 async function geometry(path) {

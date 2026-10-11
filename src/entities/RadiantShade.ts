@@ -109,7 +109,7 @@ export class RadiantShade {
       uSilver: { value: silverColor }, uGold: { value: gold },
       uRim: { value: new THREE.Color(spec.rim ?? 0xcfe4ff).multiplyScalar(spec.rimStrength ?? 0.9) },
       uRimPower: { value: spec.rimPower ?? 2.2 }, uOwn: { value: spec.own ?? 0.3 },
-      uDesat: { value: 0.92 }, uFloor: { value: 0.1 }, uGain: { value: 2.4 }, uOwnGain: { value: 1.0 },
+      uDesat: { value: 0.92 }, uFloor: { value: 0.2 }, uGain: { value: 2.4 }, uOwnGain: { value: 1.0 },
       uEdge: { value: new THREE.Color(1.0, 0.9, 0.68) },
     };
     const lit = spec.light;
@@ -278,7 +278,7 @@ reflectedLight.indirectDiffuse *= uLit;
           while (this.owedTrail[f] >= 1) {
             this.owedTrail[f] -= 1;
             this.spawn(this.scratch.x + (Math.random() - 0.5) * 0.08, this.scratch.y + 0.03, this.scratch.z + (Math.random() - 0.5) * 0.08,
-              0.07 + Math.random() * 0.06, 1.1 + Math.random() * 0.6, 0.075 + Math.random() * 0.04, 0.5);
+              0.07 + Math.random() * 0.06, 1.2 + Math.random() * 0.6, 0.1 + Math.random() * 0.05, 0.7);
           }
           this.owedTrail[f] = Math.min(this.owedTrail[f], 1);
         }
