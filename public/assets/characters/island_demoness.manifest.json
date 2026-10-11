@@ -49,7 +49,64 @@
     "legJoints": 3,
     "skin": "bone heat with nearest-weighted fill",
     "filledVertices": 0,
-    "footIK": "baked"
+    "footIK": "baked",
+    "footLevel": {
+      "floor": 0.0,
+      "targetOffsetsMeters": {
+        "R0": -0.0501,
+        "R1": -0.0271,
+        "R2": -0.0446,
+        "R3": -0.0454,
+        "L0": -0.0387,
+        "L1": -0.0288,
+        "L2": -0.001,
+        "L3": -0.0451
+      },
+      "plantedErrorMaxMeters": 0.0005
+    }
+  },
+  "normals": {
+    "restoredAfterWeld": true,
+    "maxCornerErrorDegrees": 0.063
+  },
+  "textures": {
+    "format": "webp",
+    "quality": 85,
+    "images": {
+      "Image_0": {
+        "role": "base",
+        "from": [
+          8192,
+          8192
+        ],
+        "to": [
+          2048,
+          2048
+        ]
+      },
+      "normal": {
+        "role": "normal",
+        "from": [
+          4096,
+          4096
+        ],
+        "to": [
+          1024,
+          1024
+        ]
+      },
+      "Image_1": {
+        "role": "rough",
+        "from": [
+          512,
+          512
+        ],
+        "to": [
+          512,
+          512
+        ]
+      }
+    }
   },
   "prototype": true
 }

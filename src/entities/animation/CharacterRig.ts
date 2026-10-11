@@ -198,6 +198,11 @@ export interface CharacterDefinition {
   scale?: number;
   /** Multiplies every material's colour (a shared model recoloured for another character). */
   tint?: THREE.ColorRepresentation;
+  /**
+   * The warm rim light's settings where the default (strength 0.14, band from 0.74, 0.5 of the albedo) does not suit the
+   * model: `albedo: 1` keeps the rim of a dark, torn model dark so thin flaps cannot light up as pale slivers.
+   */
+  rim?: { strength?: number; start?: number; albedo?: number };
 }
 
 const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
@@ -446,7 +451,8 @@ export class CharacterRig {
       if (!converted.has(src)) {
         const toon = toToonMaterial(src, this.ramp);
         if (tint) toon.color.multiply(tint);
-        addRimLight(toon, { color: 0xffe6c4, strength: 0.14, start: 0.74 });
+        const rim = this.definition.rim;
+        addRimLight(toon, { color: 0xffe6c4, strength: rim?.strength ?? 0.14, start: rim?.start ?? 0.74, albedo: rim?.albedo });
         installHitFlash(toon);
         converted.set(src, toon);
         src.dispose();

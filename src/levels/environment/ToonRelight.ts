@@ -89,6 +89,12 @@ export interface RimLight {
   strength: number;
   /** Where the rim band starts in 1 - N.V (0 = facing the camera, 1 = grazing); lower is a wider rim. */
   start: number;
+  /**
+   * How much of the rim takes the surface's own colour: 0 is a flat glow of `color`, 1 is `color` times the albedo, so a
+   * dark surface keeps a dark rim. The default (0.5) suits clean, lighter models. A dark, torn model (the island
+   * demoness) needs 1: at 0.5 the rim turns every thin flap of cloth and hair that grazes the view into a pale sliver.
+   */
+  albedo?: number;
 }
 
 /**
@@ -96,17 +102,18 @@ export interface RimLight {
  * traces the big carved forms and silhouette cleanly instead of sparkling on surface grain. Returns the uniforms, so a
  * level can retint the rim as its light changes (`uRimColor` is the colour times the strength).
  */
-export function addRimLight(mat: THREE.MeshToonMaterial, rim: RimLight): { uRimColor: THREE.IUniform<THREE.Color>; uRimStart: THREE.IUniform<number> } {
+export function addRimLight(mat: THREE.MeshToonMaterial, rim: RimLight): { uRimColor: THREE.IUniform<THREE.Color>; uRimStart: THREE.IUniform<number>; uRimAlbedo: THREE.IUniform<number> } {
   const uniforms = {
     uRimColor: { value: new THREE.Color(rim.color).multiplyScalar(rim.strength) },
     uRimStart: { value: rim.start },
+    uRimAlbedo: { value: rim.albedo ?? 0.5 },
   };
   patchShader(mat, 'rim', (shader) => {
     Object.assign(shader.uniforms, uniforms);
     shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', '#include <common>\nuniform vec3 uRimColor;\nuniform float uRimStart;')
+      .replace('#include <common>', '#include <common>\nuniform vec3 uRimColor;\nuniform float uRimStart;\nuniform float uRimAlbedo;')
       .replace('#include <opaque_fragment>', `float rimFacing = 1.0 - saturate(abs(dot(normalize(vNormal), normalize(vViewPosition))));
-outgoingLight += uRimColor * mix(vec3(1.0), diffuseColor.rgb, 0.5) * smoothstep(uRimStart, uRimStart + 0.04, rimFacing);
+outgoingLight += uRimColor * mix(vec3(1.0), diffuseColor.rgb, uRimAlbedo) * smoothstep(uRimStart, uRimStart + 0.04, rimFacing);
 #include <opaque_fragment>`);
   });
   return uniforms;
