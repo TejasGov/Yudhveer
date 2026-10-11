@@ -312,6 +312,8 @@ interface InterpolatedPose {
 /** Bone floats: position (3) and quaternion (4). */
 const BONE_STRIDE = 7;
 const _boneQuat = [0, 0, 0, 1];
+/** Puts a character's own interpolated parts back as the step left them (Character.renderRestore). */
+const restoreRender = (c: Character): void => c.renderRestore();
 
 /** Fighter weight for the separation push: its capsule's volume against the hero's. */
 function capsuleMass(capsule: { halfHeight: number; radius: number }): number {
@@ -1991,6 +1993,20 @@ export class Engine {
         b.quaternion.fromArray(_boneQuat);
       });
     });
+    // Whatever else a character poses each step (a travelling weapon): its own interpolation (Character.renderUpdate).
+    this.renderAlpha = alpha;
+    this.forEachSimulated(this.renderEach);
+  }
+
+  private renderAlpha = 1;
+  private readonly renderEach = (c: Character): void => c.renderUpdate(this.renderAlpha);
+
+  /** `simulatedCharacters` without the array (once per rendered frame). */
+  private forEachSimulated(each: (c: Character) => void): void {
+    for (const e of this.enemies) each(e);
+    for (const c of this.cast) each(c);
+    if (this.duel) each(this.duel.opponent);
+    if (this.player) each(this.player);
   }
 
   private restoreSimulationState(): void {
@@ -2005,6 +2021,7 @@ export class Engine {
         b.quaternion.fromArray(pose.curr, i * BONE_STRIDE + 3);
       });
     });
+    this.forEachSimulated(restoreRender);
   }
 
   /**

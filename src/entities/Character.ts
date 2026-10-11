@@ -1015,6 +1015,16 @@ export class Character extends Entity {
     this.slashRibbon.update(tip, hilt, trailActive(this), dt, trailLookOf(this));
   }
 
+  /**
+   * Render interpolation beyond the root and the skeleton (Engine.applyInterpolation): a part posed in the simulation
+   * step that is neither (a boss's travelling weapon and its chain) is drawn `alpha` of the way from the last step to
+   * this one here, and put back as the step left it by `renderRestore` (hit detection reads the step's pose). None by
+   * default.
+   */
+  public renderUpdate(_alpha: number): void {}
+
+  public renderRestore(): void {}
+
   public override update(dt: number): void {
     super.update(dt);
     const wasBroken = this.stateMachine.currentState === 'POSTURE_BROKEN';

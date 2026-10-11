@@ -2339,3 +2339,86 @@ class Music {
     }
   }
 }
+
+// ---- Island demoness axe ----
+// The Spider Demoness's chained, burning axe (entities/BossIslandDemoness.ts, combat/AxeFX.ts): the whoosh and the
+// flame's roar at the whip-out, the chain's rattle while it pays out or reels in, its crack at full stretch, the blade
+// on stone (and dragged along it), and the snap as it lands back in her hand. Built from the synth's building blocks
+// and the existing recordings, and added to the prototype here so the class above is left as it is.
+
+export interface SoundFX {
+  playAxeWhoosh(power?: number): void;
+  playChainRattle(seconds?: number, power?: number): void;
+  playChainCrack(power?: number): void;
+  playAxeImpact(power?: number): void;
+  playAxeScrape(power?: number): void;
+  playAxeReturn(power?: number): void;
+}
+
+/** SoundFX's private building blocks, as these additions use them. */
+interface AxeSynth {
+  tone(spec: ToneSpec): void;
+  noise(spec: NoiseSpec): void;
+  ring(base: number, ratios: number[], decays: number[], gain: number, p?: Placement): void;
+  thump(freq: number, duration: number, gain: number, p?: Placement): void;
+  sample(id: Sample, o?: Placement & { rate?: number; gain?: number }): boolean;
+}
+const axeSynth = (fx: SoundFX) => fx as unknown as AxeSynth;
+const axeRand = (a: number, b: number) => a + Math.random() * (b - a);
+
+/** The heavy swing torn through the air, and the flame on the blade roaring with it. */
+SoundFX.prototype.playAxeWhoosh = function (this: SoundFX, power = 1): void {
+  const s = axeSynth(this), k = Math.min(1.4, power);
+  if (!s.sample('swing_heavy', { rate: 0.8, gain: 0.85 * k })) {
+    s.noise({ duration: 0.3, gain: 0.24 * k, attack: 0.04, filter: 'bandpass', from: 260, peak: 1100, to: 220, q: 2.5 });
+  }
+  s.noise({ color: 'brown', filter: 'lowpass', from: 180, peak: 1500, to: 140, duration: 0.5, gain: 0.26 * k, attack: 0.03, wet: 0.15 });
+  s.noise({ color: 'pink', filter: 'bandpass', from: 600, peak: 2600, to: 450, q: 1.4, duration: 0.32, gain: 0.1 * k, attack: 0.015, delay: 0.02 });
+};
+
+/** Links running over each other: a scatter of small metal clinks over `seconds`. */
+SoundFX.prototype.playChainRattle = function (this: SoundFX, seconds = 0.3, power = 1): void {
+  const s = axeSynth(this), k = Math.min(1.3, power);
+  const n = Math.max(3, Math.round(seconds * 30));
+  for (let i = 0; i < n; i++) {
+    const at = (i / n) * seconds + axeRand(0, seconds / n);
+    const fade = 1 - (i / n) * 0.5;
+    const pan = axeRand(-0.25, 0.25);
+    s.noise({ color: 'white', filter: 'bandpass', from: axeRand(3200, 5200), to: axeRand(2200, 3000), q: 3, duration: 0.03, gain: 0.07 * k * fade, attack: 0.001, delay: at, pan });
+    if (i % 2 === 0) s.tone({ type: 'sine', freq: axeRand(2600, 4400), gain: 0.022 * k * fade, attack: 0.001, duration: 0.07, delay: at, pan });
+  }
+};
+
+/** The chain snapping taut at full stretch: a whip-crack, a short metal ring and a jolt. */
+SoundFX.prototype.playChainCrack = function (this: SoundFX, power = 1): void {
+  const s = axeSynth(this), k = Math.min(1.4, power);
+  s.noise({ color: 'white', filter: 'highpass', from: 5200, to: 2600, duration: 0.05, gain: 0.34 * k, attack: 0.001 });
+  s.ring(1850, [1, 2.71, 5.2], [0.22, 0.14, 0.08], 0.075 * k, { wet: 0.2 });
+  s.thump(120, 0.14, 0.16 * k);
+};
+
+/** The blade struck into stone: the stone's crack and boom, the fire bursting off it, the axe ringing. */
+SoundFX.prototype.playAxeImpact = function (this: SoundFX, power = 1): void {
+  const s = axeSynth(this), k = Math.min(1.4, power);
+  this.playStoneStrike(power);
+  s.noise({ color: 'brown', filter: 'lowpass', from: 1100, to: 120, duration: 0.75, gain: 0.22 * k, attack: 0.008, wet: 0.3 });
+  s.ring(560, [1, 2.13, 3.94], [0.5, 0.3, 0.16], 0.055 * k, { wet: 0.3 });
+};
+
+/** The edge dragged across rock: a grinding scrape and a crackle of sparks. */
+SoundFX.prototype.playAxeScrape = function (this: SoundFX, power = 1): void {
+  const s = axeSynth(this), k = Math.min(1.3, power);
+  s.noise({ color: 'white', filter: 'bandpass', from: 2400, peak: 3400, to: 1200, q: 2.2, duration: 0.22, gain: 0.11 * k, attack: 0.006 });
+  for (let i = 0; i < 4; i++) {
+    s.noise({ color: 'white', filter: 'highpass', from: 6000, to: 4200, duration: 0.012, gain: 0.05 * k, attack: 0.001, delay: axeRand(0.01, 0.18) });
+  }
+};
+
+/** Caught: the haft smacking into her palm, a clink of iron and the last of the chain settling. */
+SoundFX.prototype.playAxeReturn = function (this: SoundFX, power = 1): void {
+  const s = axeSynth(this), k = Math.min(1.3, power);
+  if (!s.sample('guard_clang_iron', { rate: 1.4, gain: 0.32 * k })) s.ring(980, [1, 2.4, 4.1], [0.25, 0.15, 0.1], 0.06 * k);
+  s.thump(150, 0.09, 0.22 * k);
+  s.noise({ color: 'pink', filter: 'lowpass', from: 2400, to: 500, duration: 0.06, gain: 0.12 * k, attack: 0.001 });
+  this.playChainRattle(0.16, 0.65 * k);
+};

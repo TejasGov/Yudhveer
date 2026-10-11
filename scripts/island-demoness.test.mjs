@@ -49,12 +49,30 @@ class Boss {
 }
 const axePhysics={world:null,RAPIER_INSTANCE:null};
 const axeMotion=await loadDuelModule('src/combat/ChainAxeMotion.ts',{three:THREE});
+// The axe's FX run for real against recording doubles of the engine's singletons (sound, sparks, camera).
+const fxLog=[];
+const record=(kind)=>new Proxy({}, {get:(_,name)=>(...args)=>{fxLog.push(kind+'.'+String(name));return kind==='sound'?undefined:false;}});
+const soundDouble=record('sound'), clashDouble=record('clash'), particleDouble=Object.assign(record('particles'),{scene:null});
+const toonRelight=await loadDuelModule('src/levels/environment/ToonRelight.ts',{three:THREE});
+const axeFX=await loadDuelModule('src/combat/AxeFX.ts',{
+  three:THREE,'./ParticleFX':{ParticleFX:{getInstance:()=>({scene:null,spawnDustPuff:()=>fxLog.push('particles.dust'),spawnEmbers:()=>fxLog.push('particles.embers')})}},
+  './ClashFX':{ClashFX:{getInstance:()=>clashDouble}},'./SoundFX':{SoundFX:{getInstance:()=>soundDouble}},
+  '../core/SceneManager':{SceneManager:{getInstance:()=>({camera:new THREE.PerspectiveCamera(),impact:{impact:(kind)=>fxLog.push('camera.'+kind)},postFX:{keepBloom(){},addBloom(){}}})}},
+  '../core/InputManager':{InputManager:{getInstance:()=>({rumble(){}})}},
+  '../core/ImpactCamera':{IMPACTS:new Proxy({},{get:()=>({rumble:[0,0,0]})})},
+  '../levels/environment/ToonRelight':toonRelight,
+});
+void particleDouble;
 const { BossIslandDemoness } = await loadDuelModule('src/entities/BossIslandDemoness.ts', {
   three: THREE, './Boss': { Boss }, './animation/CharacterRig': { CharacterRig: {} },
   '../core/Assets': { asset: x => x }, '../levels/GLBLevel': { disposeObject() {} },
   '../levels/environment/ToonRelight': { createToonRamp() {}, toonifyModel() {} },
   '../core/PhysicsWorld':{PhysicsWorld:{getInstance:()=>axePhysics}},
   '../combat/ChainAxeMotion':axeMotion,
+  '../combat/AxeChain':await loadDuelModule('src/combat/AxeChain.ts',{three:THREE,'../levels/environment/ToonRelight':toonRelight}),
+  '../combat/AxeBody':await loadDuelModule('src/combat/AxeBody.ts',{three:THREE}),
+  '../combat/AxeFX':axeFX,
+  '../combat/SlashRibbon':await loadDuelModule('src/combat/SlashRibbon.ts',{three:THREE}),
 });
 const { sweepBlade } = await loadDuelModule('src/combat/HitboxManager.ts', { three: THREE, '../entities/Character': { Character: class {} } });
 test('each authored attack sweeps a real capsule in range, never one far away', () => {
@@ -120,6 +138,110 @@ test('axe leaves and returns to the hand continuously; deflection recalls instea
   for(let f=1;f<30;f++){boss.stateMachine.stateTime=f/60;boss.update(1/60);}
   assert.ok(axe.position.distanceTo(hand)<1e-6);
   const chain=boss.group.children.find(o=>o.isInstancedMesh);assert.equal(chain.count,0);
+});
+
+test('each blow winds up, holds coiled at the top, whips out at 22-28 m/s and never slows mid-stroke',()=>{
+  const hand=new THREE.Vector3(-0.65,2.3,1.0),p=new THREE.Vector3(),q=new THREE.Quaternion(),tip=new THREE.Vector3(),last=new THREE.Vector3();
+  for(const [state,reach] of [['ATTACK_1',2.4],['ATTACK_2',2.4],['ATTACK_3',4.2]]) {
+    const motion=new axeMotion.AxeMotion();motion.prepare(state,reach);const cue=motion.cue({});
+    assert.ok(cue.whip>=0.35&&cue.whip<=0.45,`${state} anticipation ${cue.whip}`);
+    assert.ok(cue.whip-cue.apex>=0.08-1e-9&&cue.whip-cue.apex<=0.12+1e-9,`${state} apex hold ${cue.whip-cue.apex}`);
+    const speeds=[];let held=0;
+    for(let f=0;f<=150;f++) {
+      const t=f/60;motion.pose(state,t,hand,p,q);tip.copy(axeMotion.AXE_TIP).applyQuaternion(q).add(p);
+      if(f>0) speeds.push({t,v:tip.distanceTo(last)*60});
+      if(t>cue.apex&&t<=cue.whip) held=Math.max(held,p.distanceTo(motion.position(cue.apex,hand,new THREE.Vector3())));
+      last.copy(tip);
+    }
+    assert.ok(held<0.15,`${state} hold creeps ${held}`);
+    const strike=speeds.filter(s=>s.t>cue.whip&&s.t<=cue.stop);
+    const peak=strike.reduce((a,b)=>b.v>a.v?b:a);
+    assert.ok(peak.v>=22&&peak.v<=29,`${state} peak tip ${peak.v}`);
+    // The whip-out: most of its speed within 0.16 s of leaving the coil (the slam then keeps gathering speed into the floor).
+    const out=strike.filter(s=>s.t<=cue.whip+0.16).reduce((a,b)=>Math.max(a,b.v),0);
+    assert.ok(out>=0.8*peak.v,`${state} whip-out reaches ${out} of ${peak.v} m/s in 0.16 s`);
+    const after=strike.filter(s=>s.t>=peak.t);
+    for(let i=1;i<after.length;i++) assert.ok(after[i].v<=after[i-1].v+2,`${state} speeds up again mid-stroke at ${after[i].t}`);
+    assert.ok(Math.max(...speeds.filter(s=>s.t<cue.apex).map(s=>s.v))<18,`${state} draws back readably`);
+  }
+});
+
+test('the recall snaps through the hand and settles; the chain hangs slack drawn back and goes taut at full stretch',()=>{
+  const boss=new BossIslandDemoness(),axe=boss.group.getObjectByName('TravellingChainAxe'),hand=axe.position.clone();
+  boss.chooseAttack(null,4.2);
+  let passed=false,slackDrawn=1,taut=0;const cue={};
+  for(let f=0;f<=132;f++) {
+    boss.stateMachine.currentState='ATTACK_3';boss.stateMachine.stateTime=f/60;boss.update(1/60);
+    if(f===0) boss.motion.cue(cue);
+    const t=f/60,probe=boss.axeProbe();
+    if(t>0.2&&t<cue.whip) slackDrawn=Math.min(slackDrawn,probe.stretch);
+    if(t>=cue.stop&&t<cue.stop+0.05) taut=Math.max(taut,probe.stretch);
+    if(t>cue.home&&t<cue.settled&&axe.position.distanceTo(hand)>0.02) passed=true;
+  }
+  assert.ok(slackDrawn<0.95,`drawn back the chain hangs slack (${slackDrawn})`);
+  assert.ok(taut>0.97,`at full stretch it is taut (${taut})`);
+  assert.ok(passed,'the axe overshoots the hand before settling');
+  assert.ok(axe.position.distanceTo(hand)<1e-6);
+});
+
+test('the whoosh, crack and catch come at the whip-out, the stop and the return, once each',()=>{
+  for(const [state,distance] of [['ATTACK_1',2.4],['ATTACK_3',4.2]]) {
+    const boss=new BossIslandDemoness();boss.chooseAttack(null,distance);fxLog.length=0;
+    const at={};
+    for(let f=0;f<=132;f++) {
+      boss.stateMachine.currentState=state;boss.stateMachine.stateTime=f/60;const before=fxLog.length;boss.update(1/60);
+      for(const e of fxLog.slice(before)) at[e]??=f/60;
+    }
+    const cue=boss.motion.cue({});
+    assert.ok(Math.abs(at['sound.playAxeWhoosh']-cue.whip)<0.02,`${state} whoosh at the whip-out, not the wind-up`);
+    assert.ok(Math.abs(at['camera.axeWhip']-cue.whip)<0.02);
+    assert.ok(Math.abs(at['sound.playChainCrack']-cue.stop)<0.02,`${state} crack at the stop`);
+    assert.ok(Math.abs(at['sound.playAxeReturn']-cue.home)<0.02,`${state} snap at the catch`);
+    assert.equal(fxLog.filter(e=>e==='sound.playAxeWhoosh').length,1);
+    assert.ok(boss.axeProbe().shed>20,`${state} sheds embers along the blade`);
+  }
+});
+
+test('the slam lands on a real floor without cancelling the blow; its impact fires once',async()=>{
+  await RAPIER.init();axePhysics.RAPIER_INSTANCE=RAPIER;
+  const world=axePhysics.world=new RAPIER.World({x:0,y:0,z:0});
+  try {
+    world.createCollider(RAPIER.ColliderDesc.cuboid(20,0.5,20),world.createRigidBody(RAPIER.RigidBodyDesc.fixed().setTranslation(0,-0.5,0)));world.step();
+    const boss=new BossIslandDemoness();boss.closeAttack=true;assert.equal(boss.chooseAttack(null,2.4),'ATTACK_2');
+    fxLog.length=0;let lowest=9;
+    for(let f=0;f<=132;f++) {
+      boss.stateMachine.currentState='ATTACK_2';boss.stateMachine.stateTime=f/60;boss.update(1/60);
+      assert.ok(boss.hitWindows().length,`floor never cancels the slam (frame ${f})`);
+      lowest=Math.min(lowest,boss.getWeaponPoints().tip.y,boss.getWeaponPoints().hilt.y);
+    }
+    assert.equal(fxLog.filter(e=>e==='camera.axeSlam').length,1);
+    assert.ok(fxLog.includes('sound.playAxeImpact')&&fxLog.includes('clash.sparks')&&fxLog.includes('particles.dust'));
+    assert.ok(lowest>-0.12,`the blade bites the floor, not through it (${lowest})`);
+  } finally {world.free();axePhysics.world=null;axePhysics.RAPIER_INSTANCE=null;}
+});
+
+test('axe and chain are drawn between steps and restored for hit detection; a dead keeper brings it home first',async()=>{
+  const boss=new BossIslandDemoness(),axe=boss.group.getObjectByName('TravellingChainAxe');boss.chooseAttack(null,2.4);
+  let before;
+  for(let f=0;f<=36;f++){boss.stateMachine.currentState='ATTACK_1';boss.stateMachine.stateTime=f/60;before=axe.position.clone();boss.update(1/60);}
+  const now=axe.position.clone();assert.ok(now.distanceTo(before)>0.1);
+  boss.renderUpdate(0.5);assert.ok(axe.position.distanceTo(before.clone().lerp(now,0.5))<1e-6,'drawn half way between the steps');
+  assert.ok(boss.tether.count>0);
+  boss.renderRestore();assert.ok(axe.position.distanceTo(now)<1e-9,'the step pose is back for the blade sweep');
+  // L5: killed mid-swing, the axe stays out and is hauled home, then put away.
+  boss.stateMachine.currentState='DEAD';boss.stateMachine.stateTime=0;boss.update(1/60);
+  assert.equal(axe.visible,true);
+  for(let f=1;f<40;f++){boss.stateMachine.stateTime=f/60;boss.update(1/60);}
+  assert.equal(axe.visible,false);assert.equal(boss.tether.count,0);
+  // L3: held beside rock, the axe is never swept (and never pops off the hand).
+  await RAPIER.init();axePhysics.RAPIER_INSTANCE=RAPIER;
+  const world=axePhysics.world=new RAPIER.World({x:0,y:0,z:0});
+  try {
+    world.createCollider(RAPIER.ColliderDesc.cuboid(0.2,3,3),world.createRigidBody(RAPIER.RigidBodyDesc.fixed().setTranslation(1.0,2,0.3)));world.step();
+    const idle=new BossIslandDemoness(),held=idle.group.getObjectByName('TravellingChainAxe').position.clone();
+    for(let f=0;f<30;f++){idle.stateMachine.currentState='IDLE';idle.stateMachine.stateTime=f/60;idle.update(1/60);}
+    assert.ok(idle.group.getObjectByName('TravellingChainAxe').position.distanceTo(held)<1e-9);
+  } finally {world.free();axePhysics.world=null;axePhysics.RAPIER_INSTANCE=null;}
 });
 
 test('real Rapier cave wall stops axe and cancels damage; fighter and sensor colliders do not',async()=>{
