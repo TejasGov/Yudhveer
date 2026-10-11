@@ -99,16 +99,16 @@
   },
   "outputs": {
     "public/assets/characters/island_demoness.glb": {
-      "bytes": 10881084,
-      "sha256": "736ff07ca29ca9ac09f46a3ee8985d9b372ba4271f27eb12d1ad181fb9f02aa9"
+      "bytes": 2988916,
+      "sha256": "4ba197cd412fcbeb646d14d7f1ae1831e423296a17ccef8766ddb51451afb482"
     },
     "public/assets/characters/island_soul.glb": {
-      "bytes": 4016032,
-      "sha256": "39c87f2831d4a92f41a900379c50e49f0af5e342b0ed0c87446a2d9e131ba1cf"
+      "bytes": 4159260,
+      "sha256": "3d9afc107c467a8b24697b0e0511c9239b96461dd3ebb08113927a3a8b887be9"
     },
     "public/assets/weapons/island_chain_axe.glb": {
-      "bytes": 2560068,
-      "sha256": "bfa48d65cb718ec71d2d4a8922df7dd32f6bf837ab4ec7d18f8bafe55e37ee86"
+      "bytes": 824372,
+      "sha256": "100b968fa388fc61b7b35bb938ee223b160c33b8b789162bac77a95a4426be48"
     }
   },
   "verification": {
@@ -116,7 +116,7 @@
     "humanRoute": {
       "walkingFrames": 232,
       "minimumEffectiveWalkRate": 0.7781838820378648,
-      "maxFloorErrorMeters": 1.9073486329235223e-7,
+      "maxFloorErrorMeters": 1.9073486329235223e-07,
       "arrival": [
         1.6761923995485495,
         -2.1100001692771593,

@@ -1,4 +1,4 @@
-# Island demoness â€” encounter and rig review
+# Island demoness — encounter and rig review
 
 The hall fight is unchanged. The pool contains the former final encounter's two hurlers, four runts and two
 rear reinforcements. Once both waves clear, the final chamber starts the Spider Demoness fight. Her released
@@ -6,7 +6,8 @@ human soul stands calmly, walks to the rock seal, opens it and walks beside the 
 dressing, altar, mace pickup, voice files and chapter ending remain intact. The existing cave GLB is divided by
 a separately owned, removable rock curtain; the cave itself was not rebuilt.
 
-Work is on the `cave-demoness` review branch. This rig pass has not been deployed.
+Work is on the `cave-demoness` review branch and has not been deployed. The 2026-10-11 audit and rework (last section)
+supersedes the sizes, speeds and timings quoted in the older sections; they are kept as history.
 
 ## Asset provenance and current human rig
 
@@ -23,9 +24,9 @@ animation is the source of the soul's walk. The relaxed idle is the game's exist
 root travel and records the authored walking speed. No provider animation job was needed beyond that approved
 rig job. The task record is retained locally; signed download URLs are deliberately absent from repo documentation.
 
-The integrated human GLB is 4,016,032 bytes, 30,658 triangles, with 24 skin joints, an 8.3333 s calm idle and a
+The integrated human GLB was 4,016,032 bytes (now 4,159,260 after the 2026-10-11 rebuild), 30,658 triangles, with 24 skin joints, an 8.3333 s calm idle and a
 1.033333 s walk. It keeps the original mesh appearance; embedded textures range from 1024 to 2048 pixels. The
-manifest records the walk at 1.6184 m/s. `ISLAND_SOUL` maps IDLE/REST to idle and WALK/MOVE/SPRINT to the actual
+manifest recorded the walk at 1.6184 m/s (now 1.2313 m/s, played at 1.0x; see the last section). `ISLAND_SOUL` maps IDLE/REST to idle and WALK/MOVE/SPRINT to the actual
 walk with speed matching; staged movement remains 1.3 m/s.
 
 Only this soul opts into `shade.grounded`. It follows nearby walkable cave floor through
@@ -42,9 +43,10 @@ movement setting is reduced to 1.3 m/s. The move clip is 0.8 s with authored spe
 is approximately 1.878, within the engine's 2.4 speed-matching cap.
 
 The reviewed GLB and manifest from `E:\hindan\cave-demoness-work\rig-rebuild` are now integrated into the public
-assets. The final spider hash is `736ff07ca29ca9ac09f46a3ee8985d9b372ba4271f27eb12d1ad181fb9f02aa9`. Its audit found
+assets. The spider hash at that pass was `736ff07c…02aa9`; the 2026-10-11 rebuild (normals restored, WebP textures, feet
+levelled) is 2,988,916 bytes, `4ba197cd…b482`. Its audit found
 39 joints, 22,076 weighted vertices with at most four influences, exact loop endpoints, and eight feet within
-3 mm of the authored 0.045 m foot target. Stance residual after engine forward motion is 1â€“4 cm. Blender walk,
+3 mm of the authored 0.045 m foot target. Stance residual after engine forward motion is 1–4 cm. Blender walk,
 attack_2 and death previews were reviewed for shape and ground contact. These measurements are not a final
 animation-quality or weapon-choreography verdict.
 
@@ -66,7 +68,7 @@ used to prepare that intermediate from the rigged human at 1.8 m height, with th
 
 `scripts/build-island-demoness.py` is retained as the **legacy prototype builder**, including the original
 simplified spider and floating-human clips. It is not the current human workflow. It remains the preparation
-recipe for the 2,560,068-byte axe export; running it must not replace the reviewed human or spider outputs.
+recipe for the axe export (`--only axe`; 824,372 bytes since 2026-10-11, WebP textures); running it must not replace the reviewed human or spider outputs.
 
 ## Combat and release timing
 
@@ -116,7 +118,7 @@ chamber; test death/retry and skip the soul scene once. `__debug.win()` bypasses
 an encounter-sequence test. Browser access was denied, so a full browser playthrough, camera/collision review,
 defence feel, campaign bot comparison and assessment of final visual quality remain unverified.
 
-## Combat correction â€” 2026-10-10
+## Combat correction — 2026-10-10
 
 The first playtest reported bad axe/combat behaviour. Inspection found discontinuous attack entry/exit poses,
 spin during the entire throw state, a hit segment along the handle instead of the curved cutting head, and
@@ -138,3 +140,46 @@ retry/skip and rig-export checks. These are automated geometry and logic measure
 Choices to review in play: harmless return, 2.1-second attack interval and 4.8 m maximum range. Refresh the game
 and start chapter III again so the existing boss instance is rebuilt. The procedural body rig, cave presentation
 and soul animation still need a visual pass; no model or animation asset was changed in this combat correction.
+
+## Audit and rework — 2026-10-11
+
+A three-batch multi-agent pass (audit, fix, verify) against four goals: a God of War-style chained axe with a fiery trail,
+a cohesive scene, an ethereal soul who walks gracefully, and a cinematic unlock. Reports, proofs, frame captures and the
+reusable capture script are under `E:\hindan\game asset\audit\cave-demoness\` (outside the repo).
+
+**Axe** (`ChainAxeMotion.ts`, `AxeBody.ts`, `AxeChain.ts`, `AxeFX.ts`, `SlashRibbon` `fire` kind, `BossIslandDemoness.ts`):
+continuous curved paths with a 0.42–0.45 s body-carried wind-up (procedural torso twist up to 34°, lean, reared forelegs
+on the slam, lunge on the throw), a 100–110 ms apex hold, and whip-outs peaking at 24–28 m/s with no mid-stroke dip. The
+chain lags, arcs, goes taut and heats toward the blade. A 0.42 s fire ribbon with embers, stone/wall/hero impact bursts,
+`axe*` ImpactCamera kinds, and five timed sounds (whoosh, rattle, crack, stone hit, return snap). Damage windows open
+after the whip-out and close before the recall; the 140 ms parry and the guard remain achievable. The axe and chain are
+interpolated per rendered frame through `Character.renderUpdate/renderRestore` (simulation unchanged).
+
+**Spider asset:** the pale slivers along her silhouette were custom normals scrambled by the build's seam weld; the build
+now restores the supplied normals, and `rim.albedo` keeps dark flaps dark. Textures are WebP (2048/1024/512): 10.88 →
+2.99 MB. Feet are levelled to within 1 cm. The axe is 2.56 → 0.82 MB.
+
+**Soul** (`Extra.ts`, `RadiantShade.ts`, `scripts/prepare-island-soul.py`, `island_soul_skin.py`, `island_soul_walk.py`):
+skirt reweighted (worst hem stretch 37 → 6 cm, no fins), soles grounded, the Meshy walk refined to 109 steps/min with a
+0.82 stride and relaxed arms, at a true 1.23 m/s and 1.0x playback. Opt-in `shade.graceful` staging eases starts and
+stops, turns before walking and damps step-ups; opt-in `shade.radiant` renders her opaque moonlit silver and pale gold
+with a rim, halo, motes and one follow light (created with the chapter at zero intensity, so the light count is constant).
+
+**Unlock and chamber** (`ShrineSeal.ts`, `Level5_Island.ts`, `stories/Island.ts`): the boss chamber is lit by lamp stands,
+diyas and a fill (mean luma about 30/255, was 6). The seal is an arched gate in the cave's own stone, carved with a Sri
+Yantra (bindu with ॐ, interlocking triangles, 8 and 16 lotus petals, a bhupura with four gates) and the bija mantras
+ॐ ह्रीं श्रीं क्लीं ऐं in Devanagari. Opening, about 2.8 s: mantras ignite with chimes, rumble and tremor with dust, a web of
+light cracks, the doors split and slide aside with debris, then a cyan-to-amber flood with shafts and motes and a
+resonant bloom. The soul rises in the chamber clear of the corpse and the hero, is framed throughout, reaches the seal at
+about 7.6 s and the altar mark at about 13.6 s with no settle snap (a 176-case sweep covers far corpses and 180° turns).
+The release scene is 17.7 s. `chapter-start` re-arms the seal, its collider, the debris, the mace and its lamp.
+`island_shrine_voice_2` plays as the doors part.
+
+**Engine-wide fixes found on the way:** `HitReact` compares quaternions with a float32-safe tolerance (a flinch could stick
+on bones a clip never rewrites); the follow camera swings round the hero when its arm collapses into rock (unchanged
+elsewhere); `disposeObject` disposes InstancedMesh; the duel menu disables online play when no relay is configured, and
+duel code is lazy-loaded.
+
+Checks: TypeScript, build, 32 island/soul tests and 38 duel tests pass. Still to judge in real-time play: the
+synthesized sounds, the feel of the faster strikes (first touch now 0.70–0.85 s after the attack starts), and the
+provisional combat values above.
