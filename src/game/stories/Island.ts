@@ -37,6 +37,30 @@ const WAY_OUT = v(0.6, -2.5, -63);
 /** How long `great_sword_power_up` plays (s): the mace is gathered, then he stands at ease. */
 const POWER_UP_SECONDS = 3.03;
 
+/*
+ * The demoness's release scene (below): the soul rises beside the corpse, walks to the rock seal, opens it with a word and
+ * walks into the lit shrine. Its shots, in scene seconds (SEAL_AT is when the seal's own sequence starts, its doors split
+ * `SEAL_SPLIT` later; her walks are timed with a second's slack either side of what the seal needs):
+ *   fall (2.0)  rising (3.4)  at the seal (3.5: SEAL_AT 2.1, then the split)  through it (2.6)  the lit shrine (6.2): 17.7 s
+ */
+const SEAL_AT = 2.1;
+const SEAL_SPLIT = 1.4;
+/** Where she faces while the seal wakes: the middle of its mandala. */
+const SEAL_FACE = v(0.9, -2.45, -72.6);
+
+/**
+ * Where her released soul rises: off the corpse's flank on the side of the way in (the body is four metres across, and she
+ * must not stand in it), a little toward the hero, and on the seal's side of the chamber (her walk to it passes clear of the
+ * body). Pushed farther along if the hero is standing there.
+ */
+const soulSpawn = (s: Stage): THREE.Vector3 => {
+  const boss = s.pos(ISLAND_FOES.boss), hero = s.pos('hero');
+  const p = boss.clone().add(v(2.7, 0, 0.9));
+  p.x = THREE.MathUtils.clamp(p.x, 2.7, 3.5);
+  if (Math.hypot(hero.x - p.x, hero.z - p.z) < 1.5) { p.x = Math.min(3.5, p.x + 0.6); p.z -= 0.9; }
+  return p;
+};
+
 export const ISLAND_STORY: ChapterStory = {
   // The guru, only as a memory at the end (out of sight until then).
   cast: [
@@ -161,36 +185,87 @@ export const ISLAND_STORY: ChapterStory = {
       scene: {
         id: 'island-soul-release',
         shots: [
+          // Her fall, from the way in.
           {
-            duration: 2.2, fadeIn: 0.25,
+            duration: 2.0, fadeIn: 0.25,
             camera: s => [{ pos: s.pos(ISLAND_FOES.boss).add(v(3, 2.3, 4)), look: s.pos(ISLAND_FOES.boss).add(v(0, 1.2, 0)), fov: 46 }],
           },
+          // Her soul rises off the corpse's flank (never out of it), seen low in profile against the cave's gate; "Follow me" and
+          // she walks to the seal. The camera is close, so the body is out of the frame.
           {
-            duration: 3.5, fadeIn: 0.3,
-            cues: [{ at: 0, actor: 'island_soul', appear: true, over: 1.4 }, { at: 0.2, actor: 'island_soul', face: 'hero' }],
-            lines: [{ speaker: 'Released soul', text: 'The binding is broken. Follow me.' }],
-            camera: s => [{ pos: s.at('island_soul', 3, 1.3, 1.6), look: s.head('island_soul'), fov: 38 }],
-          },
-          {
-            duration: 3.5,
-            cues: [{ at: 0, actor: 'island_soul', moveTo: v(0, -2.45, -70.5), face: v(0, -2.45, -76) }],
-            lines: [{ speaker: 'Released soul', text: 'Behind this stone, the lamps still burn.' }],
-            camera: [{ pos: v(3.5, -0.2, -66.5), look: v(0, -0.7, -71), fov: 48 }],
-          },
-          {
-            duration: 6.2, fadeIn: 0.15,
+            duration: 3.4, fadeIn: 0.3,
+            ease: ease.drift,
+            sway: 0.01,
             cues: [
-              // The opening is gameplay, so skipping the scene must also remove the collider.
-              { at: 0.5, essential: true, run: s => s.level.cue?.('open-shrine') },
-              // Wait for the rock's 1.8 s fade to finish before she steps through the opening.
-              { at: 2.4, actor: 'island_soul', moveTo: v(1.7, -2.11, -74.6), face: ISLAND.altar },
-              { at: 5.95, essential: true, run: s => {
+              { at: 0, actor: 'island_soul', place: soulSpawn, face: 'hero' },
+              { at: 0, actor: 'island_soul', appear: true, over: 1.4 },
+              { at: 1.2, actor: 'island_soul', moveTo: ISLAND.sealMark, face: SEAL_FACE },
+            ],
+            linesAt: 0.9,
+            lines: [{ speaker: 'Released soul', text: 'The binding is broken. Follow me.', hold: 2.4 }],
+            camera: (s): CameraKey[] => {
+              // Low and close while she rises, then on past her shoulder as she turns and walks off north to the seal.
+              const p = s.pos('island_soul');
+              return [
+                { pos: p.clone().add(v(0.4, 0.2, 1.8)), look: p.clone().add(v(0, 1.15, 0)), fov: 36 },
+                { pos: p.clone().add(v(0.9, 0.3, 1.0)), look: p.clone().add(v(-0.05, 1.5, -1.0)), fov: 36 },
+                { pos: p.clone().add(v(1.5, 0.45, -0.4)), look: p.clone().add(v(-0.1, 1.5, -2.5)), fov: 40 },
+              ];
+            },
+          },
+          // At the seal, wide, from over her shoulder and above the corpse: the gate and its runes with her small before it, and a
+          // slow push in while its sequence builds (the runes ignite, the rumble, the cracks), to the instant the doors split.
+          {
+            duration: SEAL_AT + SEAL_SPLIT, fadeIn: 0.12,
+            ease: ease.drift,
+            sway: 0.012,
+            linesAt: 0.4,
+            lines: [{ speaker: 'Released soul', text: 'Behind this stone, the lamps still burn.', hold: 2.4 }],
+            cues: [
+              // The opening is gameplay, so skipping the scene must also open the seal (its collider goes at once).
+              { at: SEAL_AT, essential: true, run: s => s.level.cue?.('open-shrine') },
+            ],
+            camera: [
+              { pos: v(4.4, -0.9, -68.0), look: v(1.0, 0.25, -72.0), fov: 52 },
+              { pos: v(4.1, -1.3, -68.9), look: v(0.9, 0.25, -72.0), fov: 50 },
+            ],
+          },
+          // The doors split and slide away into the rock (a shake as they go): the camera, on from where it was, swings round the gate's
+          // edge as the light floods through, to look in at the opening; she walks in. The shrine's voice calls over the shot after this.
+          {
+            duration: 2.6,
+            ease: ease.inOut,
+            sway: 0.008,
+            carryLines: true,
+            linesAt: 1.0,
+            lines: [{ speaker: 'Voice in the shrine', text: 'Come, then. Come and lift it, if you can.', voice: 'island_shrine_voice_2' }],
+            cues: [
+              { at: 0.8, actor: 'island_soul', moveTo: ISLAND.inside, face: ISLAND.altar },
+            ],
+            camera: [
+              { pos: v(4.1, -1.3, -68.9), look: v(0.9, 0.25, -72.0), fov: 50 },
+              { pos: v(4.7, -0.6, -70.8), look: v(0.9, -0.4, -74.2), fov: 50 },
+            ],
+          },
+          // The lit shrine, held: the altar and its torana, the lamps come up, motes drifting; she walks in and stands before it
+          // while the voice finishes, the camera gliding along the gate's face (a lateral move across the opening) to look in squarely
+          // from its threshold. (She is settled on her mark whether or not she got there.)
+          {
+            duration: 6.2,
+            ease: ease.drift,
+            sway: 0.01,
+            cues: [
+              { at: 3.4, essential: true, run: s => {
                 const soul = s.actor('island_soul');
-                soul?.setPosition(1.7, -2.11, -74.6);
+                soul?.setPosition(ISLAND.inside.x, ISLAND.inside.y, ISLAND.inside.z);
                 if (soul instanceof Extra) soul.appear(true, 0);
               } },
             ],
-            camera: [{ pos: v(2.6, -0.7, -69), look: ISLAND.altar.clone().add(v(0, 1.2, 0)), fov: 50 }],
+            camera: [
+              { pos: v(4.7, -0.6, -70.8), look: v(0.9, -0.4, -74.2), fov: 50 },
+              { pos: v(2.4, -0.85, -71.0), look: v(0.8, -0.6, -75.5), fov: 51 },
+              { pos: v(0.1, -1.0, -71.2), look: v(0.7, -0.7, -76.3), fov: 53 },
+            ],
           },
         ],
       },

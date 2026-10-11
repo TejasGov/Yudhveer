@@ -284,17 +284,19 @@ test('both locally built rigs export all declared clips and a skin; manifest dur
 
 const removed=[], physics={createStaticBox:()=>({body:{id:removed.length}}),removeBody:body=>removed.push(body)};
 class GLBLevel {
-  group=new THREE.Group();playerSpawn=new THREE.Vector3();physics=physics;ownedTextures=new Set();
+  group=new THREE.Group();playerSpawn=new THREE.Vector3();physics=physics;ownedTextures=new Set();bloomObjects=[];
   update() {} dispose() {}
 }
-const { Level5_Island, ISLAND }=await loadDuelModule('src/levels/Level5_Island.ts',{
-  three:THREE,'./GLBLevel':{GLBLevel},
+const shrineSeal=await loadDuelModule('src/levels/ShrineSeal.ts',{three:THREE});
+const { Level5_Island, ISLAND, MACE_COLOR }=await loadDuelModule('src/levels/Level5_Island.ts',{
+  three:THREE,'./GLBLevel':{GLBLevel},'./ShrineSeal':shrineSeal,
+  '../combat/SoundFX':{SoundFX:{getInstance:()=>new Proxy({},{get:()=>()=>{}})}},
   './environment/ToonRelight':{createToonRamp:()=>null,toonifyModel(){}},
   './environment/FireField':{FireField:class{},findModelledFlames(){},spotForFlame(){}},
   '../core/PhysicsWorld':{PhysicsWorld:{getInstance:()=>physics}},
   '../entities/animation/CharacterRig':{CharacterRig:{}},
   '../entities/characters/YodhaWeapons':{WEAPON_SETS:{mace:{definition:{}}}},
-  '../cinematics/CinematicDirector':{ease:{}},'../core/Assets':{asset:x=>x},
+  '../cinematics/CinematicDirector':{ease:{},joltCamera(){}},'../core/Assets':{asset:x=>x},
 });
 test('opening the seal removes exactly its own collider, is idempotent and retry starts sealed',async()=>{
   removed.length=0;const level=new Level5_Island();await level.loadEnvironment();
@@ -325,10 +327,10 @@ test('skipping the release scene still opens the wall and puts a visible soul be
   const soul=new Extra(),cues=[],moves=[];
   const scene=ISLAND_STORY.beats.find(b=>b.on.fallen==='island_demoness').scene;
   const stage={actor:id=>id==='island_soul'?soul:null,level:{cue:name=>cues.push(name)},point:p=>p};
-  const staging={moveTo:(actor,p)=>moves.push([actor,p]),face(){},settle(){for(const[a,p]of moves)a.setPosition(p.x,p.y,p.z);}};
+  const staging={moveTo:(actor,p)=>moves.push([actor,p]),place(){},face(){},settle(){for(const[a,p]of moves)a.setPosition(p.x,p.y,p.z);}};
   const run=new SceneRun(scene,stage,{},staging);run.settle();
   assert.deepEqual(cues,['open-shrine']);assert.equal(soul.presence,1);assert.equal(soul.group.visible,true);
-  assert.equal(soul.position.z,-74.6);
+  assert.equal(soul.position.z,ISLAND.inside.z);
 });
 
 const {ISLAND_EXPEDITION}=await loadDuelModule('src/game/IslandExpedition.ts',{
@@ -376,4 +378,124 @@ test('all actual encounter and checkpoint positions have nearby solid cave floor
       }
     }
   } finally {world.free();axePhysics.world=null;axePhysics.RAPIER_INSTANCE=null;}
+});
+
+// ---- Island shrine seal: M1 (the seal re-armed on a restart) and the opening sequence ----------------------------------
+// Added by the scene/unlock pass. These run the real Level5_Island and ShrineSeal code (only the platform is doubled), so they
+// check what the game does: the collider that goes and comes back, the doors that go sideways and never down, the sequence's times.
+const sealCamera = { position: new THREE.Vector3(0, -1, -66) };
+const runLevel = (level, seconds, from = 0) => { for (let i = 0; i < Math.round(seconds * 60); i++) level.update(from + i / 60, 1 / 60, sealCamera); };
+const withCreatedBoxes = async (body) => {
+  const created = [], original = physics.createStaticBox;
+  physics.createStaticBox = (...args) => { created.push(args); return original(...args); };
+  try { await body(created); } finally { physics.createStaticBox = original; }
+};
+
+test('M1: a restart (chapter-start) re-arms an opened seal: shown and shut, the door collider back, the mace and its lamp restored', async () => {
+  removed.length = 0;
+  await withCreatedBoxes(async (created) => {
+    const level = new Level5_Island(); await level.loadEnvironment();
+    assert.equal(created.length, 1, 'the shut seal has its door collider');
+    // The mace on the altar and its lamp, as the cave's export gives them.
+    level.mace = new THREE.Group();
+    const lamp = { color: MACE_COLOR, out: false, pos: new THREE.Vector3(0, -0.5, -76), light: new THREE.Vector3(0, -0.5, -76), power: 0.3, range: 5, group: null };
+    level.lamps.push(lamp);
+    // The story takes the mace, the soul opens the seal; the sequence runs its course.
+    level.cue('take-mace'); level.cue('open-shrine');
+    assert.equal(level.mace.visible, false); assert.equal(lamp.out, true); assert.equal(removed.length, 1);
+    runLevel(level, 9);
+    assert.equal(level.seal.phase, 'open'); assert.equal(level.sealOpen, true); assert.equal(level.sealFade, 0);
+    // Retried or replayed in the same page session: the chapter starts again, and the level is reused.
+    level.cue('chapter-start');
+    assert.equal(level.sealOpen, false); assert.equal(level.sealFade, 0); assert.equal(level.seal.phase, 'closed');
+    assert.equal(level.group.getObjectByName('SealedMaceRoom').visible, true);
+    assert.equal(created.length, 2, 'the door collider is back');
+    assert.deepEqual(level.seal.group.getObjectByName('Seal_DoorR').position.toArray(), [0, 0, 0]);
+    assert.equal(level.seal.group.getObjectByName('Seal_DoorR').visible, true);
+    assert.equal(level.mace.visible, true, 'the mace is on the altar again'); assert.equal(lamp.out, false, 'and its lamp lit');
+    assert.ok(level.sealLight.intensity > 0 && level.sealLight.intensity < 3 && level.sealLight.color.b > level.sealLight.color.r, 'the gate light is back to its cold idle');
+    assert.equal(level.seal.roomGain, 0, 'the altar room is dark behind the shut seal');
+    // Idempotent: a second chapter-start (the first load sends one too) changes nothing and adds no second collider.
+    level.cue('chapter-start'); assert.equal(created.length, 2);
+    // And it opens again, once, with its collider removed again.
+    level.cue('open-shrine'); level.cue('open-shrine'); assert.equal(removed.length, 2);
+    runLevel(level, 9);
+    assert.equal(level.seal.phase, 'open');
+    level.dispose();
+    // The body that was missing at disposal time is not removed twice.
+    assert.equal(removed.length, 2);
+  });
+});
+
+test('the opening: runes, rumble, cracks, a split that slides sideways, then the flood; nothing sinks through the floor', () => {
+  const log = [];
+  let now = 0;
+  const seal = new shrineSeal.ShrineSeal({ jolt: a => log.push(['jolt', a, now]), sound: (cue, n) => log.push([cue, n, now]), dust: (at, n) => log.push(['dust', n, now]) });
+  const T = shrineSeal.SEAL_TIMES, G = shrineSeal.GATE;
+  const doors = [seal.group.getObjectByName('Seal_DoorL'), seal.group.getObjectByName('Seal_DoorR')];
+  // Shut: nothing moves while idle, the runes breathe.
+  for (let i = 0; i < 120; i++) seal.update(1 / 60, i / 60);
+  assert.equal(seal.phase, 'closed'); assert.deepEqual(log, []);
+  assert.ok(doors.every(d => d.position.x === 0 && d.position.y === 0));
+  seal.open(); seal.open();
+  const frames = [];
+  for (now = 0; now < 9; now += 1 / 60) {
+    seal.update(1 / 60, 2 + now);
+    const u = seal.uniforms;
+    frames.push({ t: seal.t, x: doors.map(d => d.position.x), y: doors.map(d => d.position.y), gain: seal.roomGain, phase: seal.phase, ignite: u.uIgnite.value, crack: u.uCrack.value, warm: u.uWarm.value });
+  }
+  // The sequence's own times: runes first, the rumble at 0.4 s, the split at about 1.4 s, the flood at 2.2 s; over by 3 s of doors.
+  const first = (cue) => log.find(e => e[0] === cue)?.[2];
+  assert.equal(log.filter(e => e[0] === 'chime').length, 5, 'a chime for each of five runes, once however many times it is opened');
+  assert.ok(first('chime') < 0.05 && Math.abs(first('rumble') - 0.4) < 0.05, 'runes first, then the rumble');
+  assert.ok(Math.abs(first('split') - (T.split - 0.02)) < 0.05 && first('bloom') >= 2.15 && first('bloom') <= 2.3);
+  assert.ok(T.slideEnd - T.split >= 1 && T.slideEnd <= 3, 'the doors take about a second and a half, done inside three');
+  assert.ok(log.some(e => e[0] === 'jolt' && e[2] < 1.4) && log.some(e => e[0] === 'jolt' && e[1] >= 0.1 && Math.abs(e[2] - (T.split - 0.02)) < 0.05), 'a tremor in the build-up and a shake at the split');
+  // Doors: still until the split, then out sideways (left and right, mirrored), monotonic, never up or down; gone behind the wings.
+  for (const f of frames) {
+    if (f.t < T.split - 0.13) assert.ok(f.x.every(x => x === 0), 'still shut before the split');
+    assert.ok(f.y.every(y => y === 0), 'the doors never drop or rise');
+  }
+  const at = (t) => frames.find(f => f.t >= t);
+  assert.ok(at(2.0).x[1] > 0.5 && at(2.0).x[0] < -0.5, 'sliding sideways, each its own way');
+  assert.ok(Math.abs(at(2.0).x[0] + at(2.0).x[1]) < 1e-6, 'mirrored');
+  for (let i = 1; i < frames.length; i++) if (frames[i].t > T.split + 0.05) assert.ok(Math.abs(frames[i].x[1]) >= Math.abs(frames[i - 1].x[1]) - 0.03, 'only ever outward');
+  const done = at(T.slideEnd + 0.1);
+  assert.ok(done.x[1] >= G.slide - 0.05 && done.x[1] > G.half, 'the door ends deep in the rock beyond the jamb');
+  assert.ok(doors.every(d => d.geometry.boundingBox.min.y >= G.floor - 0.1), 'and no door reaches below the floor');
+  // The altar room's light floods as it opens; the runes ignite, the cracks spread, the flood warms the light.
+  assert.equal(at(1.0).gain, 0); assert.ok(at(2.4).gain > 0.4 && at(4).gain === 1, 'the altar room floods');
+  assert.ok(at(0.2).ignite < at(0.9).ignite && at(0.9).ignite > 0.7, 'runes ignite in order');
+  assert.ok(at(1.0).crack < at(1.6).crack && at(1.6).crack > 0.5, 'cracks of light spread');
+  assert.ok(at(3.6).warm > 0.95 && at(0.5).warm === 0, 'cyan warming to amber');
+  // Over: the doors hidden, the effects off, the debris at rest on the floor (none below it, none left in the air).
+  const end = frames.at(-1);
+  assert.equal(end.phase, 'open'); assert.equal(seal.remaining, 0); assert.ok(doors.every(d => !d.visible));
+  assert.ok(!seal.gap.visible && !seal.shafts.visible && !seal.spill.visible && seal.clouds.every(c => !c.visible));
+  const m = new THREE.Matrix4(), p = new THREE.Vector3();
+  assert.ok(seal.debris.count > 10);
+  for (let i = 0; i < seal.debris.count; i++) { seal.debris.getMatrixAt(i, m); p.setFromMatrixPosition(m); assert.ok(p.y >= G.floor - 0.01 && p.y < G.floor + 0.5, `debris ${i} lies on the floor: ${p.y}`); }
+  // Re-armed, it is the shut seal again with its debris gone.
+  seal.rearm();
+  assert.equal(seal.phase, 'closed'); assert.equal(seal.debris.count, 0); assert.equal(seal.roomGain, 0);
+  assert.ok(doors.every(d => d.visible && d.position.x === 0));
+  const before = log.length; seal.open(); assert.equal(seal.phase, 'opening'); assert.ok(log.length > before, 'and it can open again');
+  seal.dispose();
+});
+
+test('the release scene: the seal opens through an essential cue, the voice in the shrine calls over the reveal, and the scene stays short', () => {
+  const scene = ISLAND_STORY.beats.find(b => b.on.fallen === 'island_demoness').scene;
+  let start = 0; const timeline = [];
+  for (const shot of scene.shots) { for (const cue of shot.cues ?? []) timeline.push({ at: start + cue.at, cue }); for (const l of shot.lines ?? []) timeline.push({ at: start + (shot.linesAt ?? 0.4), line: l, carry: shot.carryLines }); start += shot.duration; }
+  assert.ok(start <= 16.3 + 3, `the scene is ${start} s: at most three seconds longer than before (16.3 s)`);
+  const open = timeline.find(e => e.cue?.run && e.cue.essential && String(e.cue.run).includes('open-shrine'));
+  assert.ok(open, 'the opening is an essential cue (skipping the scene still opens the seal)');
+  const voice = timeline.find(e => e.line?.voice === 'island_shrine_voice_2');
+  assert.ok(voice, 'the shrine voice\'s second line is wired in'); assert.equal(voice.line.speaker, 'Voice in the shrine'); assert.ok(voice.carry, 'and runs on over the shots after it');
+  const split = open.at + shrineSeal.SEAL_TIMES.split;
+  const shotStarts = []; let acc = 0; for (const shot of scene.shots) { shotStarts.push(acc); acc += shot.duration; }
+  assert.ok(shotStarts.some(t => Math.abs(t - split) < 0.05), 'the camera cuts on to the next move at the instant the doors split');
+  assert.ok(voice.at >= split && voice.at <= split + 1.5, 'it calls as the doors part');
+  assert.ok(start - voice.at >= 5.5, 'and the reveal is held for the whole of it');
+  assert.ok(readFileSync(new URL('../public/assets/voice/island_shrine_voice_2.mp3', import.meta.url)).length > 1000, 'the recording ships');
 });
