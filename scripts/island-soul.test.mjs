@@ -337,3 +337,98 @@ test('released soul walks the shipped cave route at normal speed, then rests bes
     console.log('Soul route:', { walkingFrames, median, minRate: Math.min(...rates), maxHeadingDeg: THREE.MathUtils.radToDeg(Math.max(...headingErrors)), sunk, popped, travelled, feet: soul.group.position.toArray() });
   } finally { world.free(); physics.world = null; }
 });
+
+// ---- L3 (code review of f17f7e4..121ed13): the soul rises in the chamber wherever the corpse lies, and reaches her marks -------
+// The keeper has no leash, so her corpse can lie anywhere she chased the hero. This runs the real release scene's cue list on one
+// clock through the real Staging and Extra (grounded on the shipped cave's floor in real Rapier), for corpses all over the chamber
+// and down the corridor, and for heroes behind her (a 180 degree turn before she can set off), in her way, and beside the seal.
+test('the soul rises clear of the body in the chamber and is on her marks in time, whatever the corpse position and the hero', async () => {
+  await RAPIER.init(); physics.RAPIER_INSTANCE = RAPIER;
+  const world = physics.world = new RAPIER.World({ x: 0, y: -9.81, z: 0 });
+  try {
+    const cave = await geometry('levels/island_caves.glb'); cave.scene.updateMatrixWorld(true);
+    const level = Object.assign(Object.create(GLBLevel.prototype), { physics, bodies: [] });
+    level.buildColliders(cave.scene);
+    world.step();
+    const [sealMark, inside] = release.shots.flatMap(shot => (shot.cues ?? []).filter(cue => 'moveTo' in cue).map(cue => cue.moveTo));
+    const floorUnder = p => { const hit = world.castRay(new RAPIER.Ray({ x: p.x, y: p.y + .5, z: p.z }, { x: 0, y: -1, z: 0 }), 1.5, true); return hit ? p.y + .5 - hit.timeOfImpact : null; };
+    const timeline = []; let start = 0;
+    release.shots.forEach(shot => { for (const cue of shot.cues ?? []) timeline.push({ t: start + cue.at, cue }); start += shot.duration; });
+    timeline.sort((p, q) => p.t - q.t);
+    const sceneLength = start;
+    const at = (a, b) => Math.hypot(a.x - b.x, a.z - b.z);
+
+    function play(corpse, hero) {
+      const soul = new Extra('island_soul'); soul.shade = { color: 'white', grounded: true, graceful: true }; soul.graceful = true;
+      soul.walkSpeed = soul.moveSpeed = ISLAND_SOUL.locomotion.walkSpeed;
+      soul.setPosition(0, -2.45, -68.5); soul.appear(true, 0);
+      const stage = { pos: id => (id === 'hero' ? hero : corpse).clone(), actor: () => soul, level: { cue() {} } };
+      const point = m => typeof m === 'function' ? m(stage) : m === 'hero' ? hero : m;
+      const staging = new Staging();
+      const out = { walks: [], essentials: [] };
+      let next = 0, essential = 0;
+      for (let frame = 0; frame < Math.ceil((sceneLength + .5) * 60); frame++) {
+        const t = frame / 60;
+        while (next < timeline.length && timeline[next].t <= t + 1e-9) {
+          const { cue } = timeline[next++];
+          if ('place' in cue) { staging.place(soul, point(cue.place), cue.face !== undefined ? point(cue.face) : null); soul.update(1 / 60); out.spawn = soul.group.position.clone(); }
+          else if ('moveTo' in cue) { staging.moveTo(soul, point(cue.moveTo), 'walk', cue.face !== undefined ? point(cue.face) : null); out.walks.push({ t, to: point(cue.moveTo) }); }
+          else if ('run' in cue && cue.essential) {
+            // the first essential cue opens the seal (the runes ignite); the last settles her on her mark inside
+            if (essential++ === 0) out.ignites = t;
+            else { out.pop = soul.group.position.distanceTo(inside); out.settleAt = t; cue.run(stage); }
+          }
+        }
+        staging.update(1 / 60); soul.update(1 / 60);
+        if (out.walks.length === 1 && out.leg1 === undefined && at(soul.group.position, sealMark) < .02) out.leg1 = t - out.walks[0].t;
+        if (out.walks.length === 2 && out.leg2 === undefined && soul.group.position.distanceTo(inside) < .03) out.leg2 = t - out.walks[1].t;
+      }
+      return out;
+    }
+
+    const failures = [], summary = { runs: 0, worstLeg1: 0, worstLeg2: 0, worstPop: 0, farthestFromSeal: 0 };
+    const chamber = [];
+    for (const x of [-6, -4, -2, 0, 1.5, 3, 4.5, 6]) for (const z of [-71, -69.5, -68.5, -67, -65.5]) chamber.push([x, z]);
+    const corridor = [[0, -64], [3, -62], [3, -58], [-3, -60]];
+    for (const [cx, cz] of [...chamber, ...corridor]) {
+      const corpse = new THREE.Vector3(cx, -2.45, cz);
+      const heroes = {
+        'behind her': null, 'in her way': null, 'beside the seal': new THREE.Vector3(1.2, -2.45, -70.0),
+      };
+      // The heroes that depend on where she rises are placed from her real spawn (found with the hero well out of the way).
+      const probe = play(corpse, new THREE.Vector3(-30, -2.45, -50));
+      heroes['behind her'] = new THREE.Vector3(probe.spawn.x, -2.45, probe.spawn.z + 3);
+      heroes['in her way'] = new THREE.Vector3(probe.spawn.x + .3, -2.45, probe.spawn.z - .4);
+      for (const [name, hero] of Object.entries({ 'far away': new THREE.Vector3(-30, -2.45, -50), ...heroes })) {
+        const label = `corpse (${cx}, ${cz}), hero ${name}`;
+        const r = play(corpse, hero);
+        summary.runs++;
+        const fail = why => failures.push(`${label}: ${why}`);
+        // She rises in the chamber, on solid floor, never in the body or in the hero's arms.
+        const s = r.spawn;
+        if (!(s.x >= -5 && s.x <= 6 && s.z >= -71.5 && s.z <= -66.4)) fail(`rises outside the chamber at (${s.x.toFixed(2)}, ${s.z.toFixed(2)})`);
+        const floor = floorUnder(s);
+        if (floor === null || Math.abs(floor - s.y) > .65) fail(`no floor under her spawn (${floor})`);
+        if (at(s, corpse) < 2.4) fail(`rises ${at(s, corpse).toFixed(2)} m from the corpse's middle, in the body`);
+        if (at(s, hero) < 1.4) fail(`rises ${at(s, hero).toFixed(2)} m from the hero`);
+        summary.farthestFromSeal = Math.max(summary.farthestFromSeal, at(s, sealMark));
+        // On the seal's mark before the runes ignite, and on the mark inside well before the settlement.
+        const ignite = r.ignites - r.walks[0].t;
+        if (r.leg1 === undefined) fail('never reaches the seal mark'); else {
+          summary.worstLeg1 = Math.max(summary.worstLeg1, r.leg1);
+          if (r.leg1 > ignite) fail(`reaches the seal mark ${r.leg1.toFixed(2)} s after setting off, after the runes ignite (${ignite.toFixed(2)} s)`);
+        }
+        if (r.leg2 === undefined) fail('never reaches the mark inside'); else {
+          summary.worstLeg2 = Math.max(summary.worstLeg2, r.leg2);
+          if (r.walks[1].t + r.leg2 + .5 > r.settleAt) fail(`only on the mark inside ${(r.settleAt - r.walks[1].t - r.leg2).toFixed(2)} s before the settlement`);
+        }
+        // The essential settlement is no teleport.
+        summary.worstPop = Math.max(summary.worstPop, r.pop);
+        if (r.pop > .1) fail(`the settlement pops her ${r.pop.toFixed(2)} m`);
+      }
+    }
+    console.log('Soul spawn sweep:', summary);
+    assert.deepEqual(failures, [], failures.slice(0, 12).join('\n'));
+    assert.ok(sceneLength <= 17.7 + 1, `the scene stays within a second of its 17.7 s: ${sceneLength}`);
+  } finally { world.free(); physics.world = null; }
+});
