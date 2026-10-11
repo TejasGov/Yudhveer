@@ -65,8 +65,17 @@ export const ISLAND_STORY: ChapterStory = {
   // The guru, only as a memory at the end (out of sight until then).
   cast: [
     { id: 'guru', rig: GURU, at: v(0, -2.1, -70), hidden: true },
+    // Her released soul: a body of moonlight (silver in shadow, pale gold lit, drawn opaque and dissolved in), walking
+    // gracefully; her light, halo, motes and the trail at her steps come with it (entities/RadiantShade.ts).
     { id: 'island_soul', rig: ISLAND_SOUL, at: v(0, -2.45, -68.5), hidden: true,
-      shade: { color: 0x9adbea, opacity: 0.55, grounded: true } },
+      shade: {
+        color: 0xb4c8ea, grounded: true, graceful: true,
+        radiant: {
+          gold: 0xffe2ae, glow: 0.46, lit: 0.5, rim: 0xd2e6ff, rimStrength: 0.7, own: 0.34, shimmer: 0.08,
+          light: { color: 0xffdcae, cool: 0xa9c9ff, intensity: 2.6, distance: 3.2, height: 0.3 },
+          motes: 26, aura: 0.1, trail: 7,
+        },
+      } },
   ],
 
   // Ashore at the landing: the boatman stays under his canopy in the dark of the boat and will go no further.
