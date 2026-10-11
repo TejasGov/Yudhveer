@@ -1086,11 +1086,24 @@ export class Engine {
         picked.push(o);
       }
     }
+    // Nothing is culled for the frame: the camera is wherever the last fight left it (or the title's), the later foes stand
+    // at the world's origin, and a plain mesh (a weapon in a hand, a glow) outside the view is skipped, not compiled. Then
+    // the first retry of a chapter, with the camera far from the origin, built them mid-fight (skinned bodies never cull).
+    const unculled: THREE.Object3D[] = [];
+    const keepDrawn = (o: THREE.Object3D) => {
+      if (!o.frustumCulled) return;
+      o.frustumCulled = false;
+      unculled.push(o);
+    };
+    if (this.player) this.player.group.traverse(keepDrawn);
+    for (const c of [...this.enemies, ...this.cast, ...this.warmFoes]) c.group.traverse(keepDrawn);
+    flagged.forEach(keepDrawn);
     try {
       this.projectileManager.warm(() => this.sceneManager.render(1 / 60));
     } catch (err) {
       console.warn('[Engine] the warm-up frame failed', err);
     }
+    for (const o of unculled) o.frustumCulled = true;
     for (const o of picked) bloom.delete(o);
     for (let i = shown.length - 1; i >= 0; i--) shown[i][0].visible = shown[i][1];
     for (const f of this.warmFoes) f.group.visible = false;
