@@ -45,24 +45,10 @@ function disposeOnClear(obj: THREE.Object3D, textures: THREE.Texture[] = []): vo
   });
 }
 
-/**
- * Motes of light drifting up from around a point: `rate` per second while it is above 0. They rise, sway and fade.
- * Returns a handle to move the source and change the rate.
- */
-export function motes(
-  parent: THREE.Object3D,
-  options: { at: THREE.Vector3; radius: number; rate: number; rise?: number; life?: number; color?: THREE.Color; size?: number; spin?: number; spread?: number },
-): { at: THREE.Vector3; rate: number; radius: number } {
-  const MAX = 420;
-  const positions = new Float32Array(MAX * 3);
-  const alphas = new Float32Array(MAX);
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-  geo.setAttribute('alpha', new THREE.BufferAttribute(alphas, 1));
-  const map = softDot();
-  const color = options.color ?? new THREE.Color(2.4, 2.0, 1.3);
-  const mat = new THREE.ShaderMaterial({
-    uniforms: { map: { value: map }, color: { value: color }, size: { value: options.size ?? 0.18 }, scale: { value: 600 } },
+/** The motes' material: one shader program serves every stream (each stream makes its own material, for its colour and size). */
+function moteMaterial(map: THREE.Texture, color: THREE.Color, size: number): THREE.ShaderMaterial {
+  return new THREE.ShaderMaterial({
+    uniforms: { map: { value: map }, color: { value: color }, size: { value: size }, scale: { value: 600 } },
     vertexShader: /* glsl */ `
       attribute float alpha;
       varying float vAlpha;
@@ -87,6 +73,47 @@ export function motes(
     depthWrite: false,
     blending: THREE.AdditiveBlending,
   });
+}
+
+let moteAnchor: THREE.Points | null = null;
+
+/**
+ * One hidden, empty stream that is never freed. A stream's material goes with its scene, and the program it drew with went
+ * with the last of them: the next scene's first motes built it again, in the middle of that scene. This one keeps the
+ * program for as long as the game runs, and the loading screen's warm-up frame draws it once (Engine.warmUp).
+ */
+export function keepMotes(scene: THREE.Object3D): void {
+  if (moteAnchor) return;
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(3), 3));
+  geo.setAttribute('alpha', new THREE.BufferAttribute(new Float32Array(1), 1));
+  geo.setDrawRange(0, 0);
+  const points = new THREE.Points(geo, moteMaterial(softDot(), new THREE.Color(1, 1, 1), 0.18));
+  points.name = 'MoteAnchor';
+  points.frustumCulled = false;
+  points.visible = false;
+  points.userData.warm = true;
+  scene.add(points);
+  moteAnchor = points;
+}
+
+/**
+ * Motes of light drifting up from around a point: `rate` per second while it is above 0. They rise, sway and fade.
+ * Returns a handle to move the source and change the rate.
+ */
+export function motes(
+  parent: THREE.Object3D,
+  options: { at: THREE.Vector3; radius: number; rate: number; rise?: number; life?: number; color?: THREE.Color; size?: number; spin?: number; spread?: number },
+): { at: THREE.Vector3; rate: number; radius: number } {
+  const MAX = 420;
+  const positions = new Float32Array(MAX * 3);
+  const alphas = new Float32Array(MAX);
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  geo.setAttribute('alpha', new THREE.BufferAttribute(alphas, 1));
+  const map = softDot();
+  const color = options.color ?? new THREE.Color(2.4, 2.0, 1.3);
+  const mat = moteMaterial(map, color, options.size ?? 0.18);
   const points = new THREE.Points(geo, mat);
   points.frustumCulled = false;
   parent.add(points);

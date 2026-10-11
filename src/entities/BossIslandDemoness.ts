@@ -133,6 +133,10 @@ export class BossIslandDemoness extends Boss {
     this.lungeSpec = { a: 0, b: 0, maxDist: 0, stopDist: 1.5 };
     this.axe.name = 'TravellingChainAxe';
     this.group.add(this.axe, this.tether);
+    // Her fire is ready under the loading screen: the embers and flash join the scene now, and the chain (picked for the
+    // bloom only as she swings) is drawn once with the bloom's depth pass, so neither compiles in the middle of the fight.
+    this.fx.ready();
+    this.tether.userData.warm = 'bloom';
     // Her trail burns, and is stepped after the axe is posed (a trail stepped first would lag the blade a step).
     this.trail = new DrivenRibbon(0xff6a1a, 0.72);
     this.trail.live = (tip, hilt) => this.trailEdgeNow(tip, hilt);

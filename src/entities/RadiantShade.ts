@@ -164,6 +164,8 @@ export class RadiantShade {
     this.particles.frustumCulled = false;
     this.particles.visible = false;
     this.particles.renderOrder = 3;
+    // Hidden until the first mote rises: drawn once under the loading screen (Engine.warmUp), not as she first appears.
+    this.particles.userData.warm = true;
   }
 
   /** Her body's material in place of `source`'s: keeps the texture, takes the moonlight. */
