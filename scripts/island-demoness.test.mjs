@@ -531,4 +531,53 @@ test('HitReact: a flinch is put away completely when the engine rounds the pose 
   assert.ok(HitReact.read(victim).lean < 1e-3, 'the springs have settled');
   bones.forEach((b, i) => assert.ok(turn(b.quaternion, rest[i]) < 1e-6, `${b.name} is back where the clip left it (off by ${turn(b.quaternion, rest[i])} rad after ${rounded} rounded steps)`));
 });
+
+// The follow camera. A fake world with a wall 0.4 m behind the hero (nothing else): the usual arm collapses below its minimum.
+const cameraModule = await loadDuelModule('src/core/SceneManager.ts', {
+  three: THREE, './postfx/PostFX': { PostFX: class {} }, './PhysicsWorld': { PhysicsWorld: { getInstance: () => ({}) } },
+  './ImpactCamera': { ImpactCamera: class {}, IMPACTS: {} }, './InputManager': { InputManager: {} },
+});
+function followCamera(wallAt) {
+  const sm = Object.create(cameraModule.SceneManager.prototype);
+  const world = { wallAt, casts: 0 };
+  Object.assign(sm, {
+    camera: new THREE.PerspectiveCamera(65), gameplayFov: 65, cameraPivot: new THREE.Vector3(0, 1.65, 0), cameraDistance: 3.4, cameraHeight: 1.65,
+    cameraShoulderOffset: 0.55, cameraYaw: 0, cameraPitch: -0.12, viewYaw: 0, armLength: 3.4, armSwing: 0, focusKeyLight() {},
+    // A wall across z = wallAt (x within 3 m of the hero), solid to rays going toward +z.
+    physics: { castCameraRay(origin, dir, max) { world.casts++; if (world.wallAt === null || dir.z < 1e-6) return null; const t = (world.wallAt - origin.z) / dir.z; const x = origin.x + dir.x * t; return t > 0 && t <= max && Math.abs(x) < 3 ? t : null; } },
+  });
+  return { sm, world, step: (n = 1) => { for (let i = 0; i < n; i++) sm.updateCamera(new THREE.Vector3(0, 0, 0), 0, 0, 1 / 60); } };
+}
+
+test('camera: with room behind the hero it is exactly the spring arm it always was', () => {
+  const { sm, world, step } = followCamera(null);
+  step(120);
+  // The old arm: back (sin yaw cos pitch, -sin pitch, cos yaw cos pitch) 3.4 m and the shoulder 0.55 m, from the head.
+  const back = new THREE.Vector3(0, -Math.sin(-0.12), Math.cos(-0.12)).multiplyScalar(3.4).add(new THREE.Vector3(1, 0, 0).multiplyScalar(0.55));
+  assert.ok(sm.camera.position.distanceTo(new THREE.Vector3(0, 1.65, 0).add(back)) < 1e-4, 'the same camera position');
+  assert.equal(sm.armSwing, 0); assert.equal(world.casts, 120, 'one cast a frame, as before');
+  const look = new THREE.Vector3(0.275, 1.65, 0).sub(sm.camera.position);
+  assert.ok(Math.abs(sm.viewYaw - Math.atan2(-look.x, -look.z)) < 1e-12);
+  // A wall at 1.2 m shortens the arm (the old behaviour: pulled in to the wall less the padding, never a swing).
+  const near = followCamera(1.4); near.step(120);
+  assert.equal(near.sm.armSwing, 0); assert.ok(near.sm.arm > 0.9 && near.sm.arm < 1.2, `arm ${near.sm.arm}`);
+});
+
+test('camera: in a pocket where even the shortest arm is inside the stone it swings round to where the hero is in view, and turns back', () => {
+  const { sm, world, step } = followCamera(0.4);
+  step(10);
+  assert.ok(Math.abs(sm.armSwing - Math.PI / 2) < 1e-9, `swung ${sm.armSwing}`);
+  assert.ok(sm.camera.position.z < 0.4, 'the camera is not behind the wall');
+  assert.ok(sm.arm > 3, `with nearly the usual arm (${sm.arm})`);
+  // Movement keeps the view the player steers by: the same view yaw as the unswung camera at this arm length.
+  const nominal = new THREE.Vector3(0, -Math.sin(-0.12), Math.cos(-0.12)).multiplyScalar(3.4).add(new THREE.Vector3(1, 0, 0).multiplyScalar(0.55)).normalize().multiplyScalar(sm.arm);
+  const look = new THREE.Vector3(0.275, 0, 0).sub(nominal);
+  assert.ok(Math.abs(sm.viewYaw - Math.atan2(-look.x, -look.z)) < 1e-9, 'W still runs the way the player is looking');
+  step(300); assert.ok(Math.abs(sm.armSwing - Math.PI / 2) < 1e-9, 'it holds while the pocket is around him');
+  world.wallAt = null; step(240);
+  assert.equal(sm.armSwing, 0, 'and turns back once it clears');
+  assert.ok(Math.abs(sm.arm - Math.hypot(3.4, 0.55)) < 0.01, 'the arm is its full length again');
+  // A reset (a retry, a new fight) drops the swing at once.
+  world.wallAt = 0.4; step(5); assert.notEqual(sm.armSwing, 0); sm.resetFollowCamera(new THREE.Vector3(), 0); assert.equal(sm.armSwing, 0);
+});
 // ======================================================================================= cd-polish: end
