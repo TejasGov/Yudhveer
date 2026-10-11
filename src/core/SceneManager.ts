@@ -8,6 +8,20 @@ import { InputManager } from './InputManager';
 // Spring-arm camera: gap kept in front of whatever blocks the arm, and the shortest the arm may get.
 const CAMERA_PADDING = 0.3;
 const CAMERA_MIN_ARM = 0.6;
+// When the arm collapses below its minimum (a pocket between a pillar and a wall: the clamped arm ends up inside the stone
+// and the hero is hidden for as long as he stays), it swings round his head to where there is room, trying these turns
+// in order (radians, alternating sides). The first that gives nearly the usual arm (CAMERA_SWING_ROOM of it) with the hero in
+// plain view wins, else the roomiest that still has him in view.
+const CAMERA_SWING = [30, -30, 60, -60, 90, -90, 120, -120, 150, -150].map((deg) => THREE.MathUtils.degToRad(deg));
+const CAMERA_SWING_ROOM = 0.9;
+// ... and turns back once the usual arm has this much more than the minimum (so it does not flicker at the edge).
+const CAMERA_SWING_RELEASE = 0.4;
+// In view: a ray from the camera to his head (and a hand's width either side of it), chest and feet reaches 90% of the way.
+const CAMERA_VIEW_REACH = 0.9;
+const CAMERA_VIEW_SIDE = 0.35;
+
+/** The spring arm along one direction: its length, and how far it may reach before geometry or its padding. */
+interface ArmProbe { dir: THREE.Vector3; length: number; target: number }
 
 export class SceneManager {
   private static instance: SceneManager | null = null;
@@ -35,6 +49,8 @@ export class SceneManager {
 
   // Current spring-arm length (shortened when level geometry is in the way)
   private armLength = 3.4;
+  // How far the arm is turned about the head, radians, to get out of a pocket (0 almost always; see CAMERA_SWING)
+  private armSwing = 0;
   private readonly physics = PhysicsWorld.getInstance();
 
   /**
@@ -194,17 +210,27 @@ export class SceneManager {
     const sinYaw = Math.sin(this.cameraYaw);
     const cosYaw = Math.cos(this.cameraYaw);
 
-    const backward = new THREE.Vector3(sinYaw * cosPitch, -sinPitch, cosYaw * cosPitch);
     const right = new THREE.Vector3(cosYaw, 0, -sinYaw);
 
     // Spring arm from the pivot (head height) to the over-the-shoulder spot. If visible level geometry is in the
     // way - the ground when standing on a lower platform, a cliff, a pillar - the arm shortens to just in front of
     // it, so the camera never sinks below the floor or into walls and pitch always responds.
-    const arm = new THREE.Vector3().addScaledVector(backward, this.cameraDistance).addScaledVector(right, this.cameraShoulderOffset);
-    const fullLength = arm.length();
-    const armDir = arm.divideScalar(fullLength);
-    const hit = this.physics.castCameraRay(this.cameraPivot, armDir, fullLength + CAMERA_PADDING);
-    const target = hit === null ? fullLength : Math.max(CAMERA_MIN_ARM, hit - CAMERA_PADDING);
+    const armAt = (swing: number): ArmProbe => {
+      const yaw = this.cameraYaw + swing;
+      const sin = Math.sin(yaw), cos = Math.cos(yaw);
+      const reach = new THREE.Vector3(sin * cosPitch, -sinPitch, cos * cosPitch).multiplyScalar(this.cameraDistance)
+        .addScaledVector(new THREE.Vector3(cos, 0, -sin), this.cameraShoulderOffset);
+      const length = reach.length();
+      const dir = reach.divideScalar(length);
+      const hit = this.physics.castCameraRay(this.cameraPivot, dir, length + CAMERA_PADDING);
+      return { dir, length, target: hit === null ? length : hit - CAMERA_PADDING };
+    };
+    const nominal = armAt(0);
+    // Only when even the shortest arm would sit inside the stone (or after such a swing, until it has turned back) does the
+    // arm look elsewhere; everywhere else this is the one cast and the arm it always was.
+    const probe = nominal.target < CAMERA_MIN_ARM || this.armSwing !== 0 ? this.swingArm(nominal, armAt, targetPos, dt) : nominal;
+    const armDir = probe.dir;
+    const target = Math.max(CAMERA_MIN_ARM, probe.target);
     // Pull in at once (never show the inside of a wall), ease back out when the way clears.
     this.armLength = target < this.armLength ? target : THREE.MathUtils.lerp(this.armLength, target, 1 - Math.exp(-6 * dt));
     this.camera.position.copy(this.cameraPivot).addScaledVector(armDir, this.armLength);
@@ -213,10 +239,62 @@ export class SceneManager {
       .clone()
       .addScaledVector(right, this.cameraShoulderOffset * 0.5);
     this.camera.lookAt(lookAtTarget);
-    const view = lookAtTarget.clone().sub(this.camera.position);
+    // Movement keeps the view the player steers by: a swing to get out of a pocket must not turn W (it comes back as the
+    // pocket is left), so the view yaw is taken from where the usual arm would put the camera.
+    const viewFrom = this.armSwing === 0 ? this.camera.position : this.cameraPivot.clone().addScaledVector(nominal.dir, this.armLength);
+    const view = lookAtTarget.clone().sub(viewFrom);
     this.viewYaw = Math.atan2(-view.x, -view.z);
 
     this.focusKeyLight(targetPos);
+  }
+
+  /**
+   * The usual arm has collapsed below CAMERA_MIN_ARM (or the camera is still turned away from it after that): picks the
+   * arm to use. A swing that still has room and sees the hero is held until the usual arm has clearly cleared, then eased
+   * back to nothing; a new one is the first of CAMERA_SWING that gives nearly the usual arm with him in view, else the roomiest
+   * that has him in view, and the camera cuts straight to it (it was inside the stone anyway). Where nothing fits, the usual
+   * arm and its clamp stay.
+   */
+  private swingArm(nominal: ArmProbe, armAt: (swing: number) => ArmProbe, hero: THREE.Vector3, dt: number): ArmProbe {
+    const usable = (p: ArmProbe) => p.target >= CAMERA_MIN_ARM && this.heroInView(p, hero);
+    if (this.armSwing !== 0) {
+      if (nominal.target >= CAMERA_MIN_ARM + CAMERA_SWING_RELEASE) {
+        const next = Math.abs(this.armSwing) < 0.02 ? 0 : this.armSwing * Math.exp(-5 * dt);
+        const home = next === 0 ? nominal : armAt(next);
+        if (next === 0 || usable(home)) { this.armSwing = next; return home; }
+      }
+      const held = armAt(this.armSwing);
+      if (usable(held)) return held;
+    }
+    const sign = this.armSwing < 0 ? -1 : 1;
+    let best: ArmProbe | null = null;
+    let bestSwing = 0;
+    for (const turn of CAMERA_SWING) {
+      const swing = turn * sign;
+      const p = armAt(swing);
+      if (!usable(p)) continue;
+      if (!best || p.target > best.target) { best = p; bestSwing = swing; }
+      if (p.target >= p.length * CAMERA_SWING_ROOM) break;
+    }
+    if (!best) { this.armSwing = 0; return nominal; }
+    this.armSwing = bestSwing;
+    this.armLength = Math.min(best.target, best.length);
+    return best;
+  }
+
+  /** The camera at the end of this arm has a clear line to the hero's head, chest and feet (physics only: nothing draws here). */
+  private heroInView(p: ArmProbe, feet: THREE.Vector3): boolean {
+    const cam = this.cameraPivot.clone().addScaledVector(p.dir, Math.max(CAMERA_MIN_ARM, Math.min(p.target, p.length)));
+    const across = new THREE.Vector3(feet.z - cam.z, 0, cam.x - feet.x).normalize().multiplyScalar(CAMERA_VIEW_SIDE);
+    const aim = new THREE.Vector3();
+    for (const [lift, side] of [[1.55, -1], [1.55, 1], [1.0, 0], [0.25, 0]] as const) {
+      aim.set(feet.x, feet.y + lift, feet.z).addScaledVector(across, side);
+      const to = aim.clone().sub(cam);
+      const distance = to.length();
+      const hit = this.physics.castCameraRay(cam, to.divideScalar(distance), distance);
+      if (hit !== null && hit < distance * CAMERA_VIEW_REACH) return false;
+    }
+    return true;
   }
 
   /**
@@ -248,6 +326,7 @@ export class SceneManager {
     this.cameraPitch = -0.12;
     this.cameraPivot.set(targetPos.x, targetPos.y + this.cameraHeight, targetPos.z);
     this.armLength = this.cameraDistance;
+    this.armSwing = 0;
   }
 
   private flashBase: { hemi: number; ambient: number } | null = null;

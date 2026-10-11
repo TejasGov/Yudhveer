@@ -370,7 +370,7 @@ export class HitReact {
     s.push.set(0, 0, 0);
     s.active = false;
     for (const slot of s.slots) {
-      if (slot.has && angle(slot.bone.quaternion, slot.applied) < 1e-5) slot.bone.quaternion.copy(slot.base);
+      if (slot.has && sameTurn(slot.bone.quaternion, slot.applied)) slot.bone.quaternion.copy(slot.base);
       slot.has = false;
     }
   }
@@ -390,7 +390,7 @@ export class HitReact {
     for (const slot of s.slots) {
       const bone = slot.bone;
       // What the animation posed: the bone as it is now, unless it still holds what this wrote last time.
-      if (slot.has && angle(bone.quaternion, slot.applied) < 1e-5) bone.quaternion.copy(slot.base);
+      if (slot.has && sameTurn(bone.quaternion, slot.applied)) bone.quaternion.copy(slot.base);
       else slot.base.copy(bone.quaternion);
       const onHead = slot.part === 'head';
       const lean = slot.lean * lm;
@@ -473,9 +473,21 @@ export class HitReact {
   }
 }
 
-/** The angle between two rotations (radians). */
-function angle(a: THREE.Quaternion, b: THREE.Quaternion): number {
-  return 2 * Math.acos(Math.min(1, Math.abs(a.x * b.x + a.y * b.y + a.z * b.z + a.w * b.w)));
+/**
+ * The most each quaternion component may differ for a bone to count as still holding what the flinch wrote. The engine keeps
+ * every step's skeleton in single precision and puts it back after each rendered frame (Engine.capturePose), so a bone no
+ * clip rewrites comes back off by float32 rounding: up to ~6e-8 a component, a hundredth of this and a thousandth of the
+ * smallest flinch (a few hundredths of a degree is 5e-5 a component). The angle between two rotations through `acos` of
+ * their dot product cannot tell them apart: the rounded quaternion is not quite unit, so the dot is off by a first-order
+ * 6e-8, and `acos` turns that into an angle of 3e-4 rad or more (half of all rounded poses failed the old 1e-5 test).
+ */
+const SAME_TURN = 1e-6;
+
+/** Whether two rotations are the same turn to single precision (`q` and `-q` are the same turn). */
+function sameTurn(a: THREE.Quaternion, b: THREE.Quaternion): boolean {
+  const sign = a.x * b.x + a.y * b.y + a.z * b.z + a.w * b.w < 0 ? -1 : 1;
+  return Math.abs(a.x - sign * b.x) < SAME_TURN && Math.abs(a.y - sign * b.y) < SAME_TURN
+    && Math.abs(a.z - sign * b.z) < SAME_TURN && Math.abs(a.w - sign * b.w) < SAME_TURN;
 }
 
 const FLASH_COLOR = new THREE.Color(1, 0.84, 0.58);

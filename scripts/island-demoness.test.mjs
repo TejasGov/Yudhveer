@@ -499,3 +499,36 @@ test('the release scene: the seal opens through an essential cue, the voice in t
   assert.ok(start - voice.at >= 5.5, 'and the reveal is held for the whole of it');
   assert.ok(readFileSync(new URL('../public/assets/voice/island_shrine_voice_2.mp3', import.meta.url)).length > 1000, 'the recording ships');
 });
+
+// ======================================================================================= cd-polish: begin
+// HitReact, the demoness's rim and her new assets. The engine keeps each step's skeleton as Float32 (Engine.capturePose) and
+// puts it back after every rendered frame, so a flinch has to be undone by recognising its own, single-precision-rounded pose.
+const hitReactModule = await loadDuelModule('src/combat/HitReact.ts', { three: THREE, '../levels/environment/ToonRelight': { patchShader() {} } }, { performance });
+
+test('HitReact: a flinch is put away completely when the engine rounds the pose to single precision between steps', () => {
+  const { HitReact } = hitReactModule;
+  const bone = (name, parent, q) => { const b = new THREE.Bone(); b.name = name; b.quaternion.copy(q); parent?.add(b); return b; };
+  // Hips > Spine > Spine1 > Neck > Head, each with an odd rest rotation (a clip never rewrites them here: only the flinch moves them).
+  const rest = [0.3, -0.7, 1.1, 0.2].map((a, i) => new THREE.Quaternion().setFromEuler(new THREE.Euler(a, 0.4 * i - 0.5, -a / 2)));
+  const root = new THREE.Group();
+  const hips = bone('mixamorig:Hips', root, new THREE.Quaternion());
+  const bones = [bone('mixamorig:Spine', hips, rest[0]), null, null, null];
+  bones[1] = bone('mixamorig:Spine1', bones[0], rest[1]);
+  bones[2] = bone('mixamorig:Neck', bones[1], rest[2]);
+  bones[3] = bone('mixamorig:Head', bones[2], rest[3]);
+  root.updateMatrixWorld(true);
+  const victim = { rig: { root }, stateMachine: { currentState: 'IDLE' }, group: new THREE.Group() };
+  const single = (b) => { const f = new Float32Array(4); b.quaternion.toArray(f); b.quaternion.fromArray(f); };
+  const turn = (a, b) => 2 * Math.asin(Math.min(1, Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z, a.w - b.w) / 2));
+  HitReact.trigger(victim, { along: new THREE.Vector3(1, 0, 0.3), kind: 'crush', tier: 'heavy' });
+  bones.forEach(single);
+  assert.ok(bones.some((b, i) => turn(b.quaternion, rest[i]) > 0.01), 'the blow turns the spine, neck and head');
+  let rounded = 0;
+  for (let i = 0; i < 240; i++) {
+    HitReact.step(victim, 1 / 60);
+    bones.forEach(single); rounded++;
+  }
+  assert.ok(HitReact.read(victim).lean < 1e-3, 'the springs have settled');
+  bones.forEach((b, i) => assert.ok(turn(b.quaternion, rest[i]) < 1e-6, `${b.name} is back where the clip left it (off by ${turn(b.quaternion, rest[i])} rad after ${rounded} rounded steps)`));
+});
+// ======================================================================================= cd-polish: end
