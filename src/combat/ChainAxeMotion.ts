@@ -59,8 +59,8 @@ const SPECS: Record<AxeAttack, AttackSpec> = {
   // The sweep: from high behind her right shoulder, diagonally down across her front to knee height, through and
   // round to her left, where the chain stops it.
   ATTACK_1: {
-    c1: [-1.1, 0, 2.5, 0.95, 0], c2: [-1.55, 0, 3.2, 0.35, 0], apex: [-1.3, 0, 3.4, -0.35, 0], tApex: 0.32,
-    coil: [-1.35, 0, 3.46, -0.44, 0], tWhip: 0.42,
+    c1: [-1.15, 0, 2.55, 0.95, 0], c2: [-1.7, 0, 3.4, 0.3, 0], apex: [-1.45, 0, 3.62, -0.5, 0], tApex: 0.32,
+    coil: [-1.5, 0, 3.68, -0.6, 0], tWhip: 0.42,
     path: [
       [-1.85, 0, 2.65, 0.45, 0],
       [-0.6, -0.45, 1.45, 0.05, 0.6],

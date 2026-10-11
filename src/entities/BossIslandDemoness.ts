@@ -213,6 +213,8 @@ export class BossIslandDemoness extends Boss {
       if (attack) {
         this.motion.prepare(state, this.attackReach);
         this.motion.cue(this.cues);
+        this.fx.glow(this.trail.mesh);
+        this.fx.glow(this.tether);
         this.obstructed = false;
         this.recalling = false;
         this.fired = 0;

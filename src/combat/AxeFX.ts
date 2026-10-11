@@ -66,7 +66,7 @@ void main() {
   float d = length(vUv - 0.5) * 2.0;
   float g = pow(max(0.0, 1.0 - d), 2.2);
   float core = pow(max(0.0, 1.0 - d * 2.2), 2.0);
-  gl_FragColor = vec4((vec3(2.6, 1.05, 0.28) * g + vec3(2.4, 1.9, 1.1) * core) * uGain, 1.0);
+  gl_FragColor = vec4((vec3(2.4, 0.78, 0.16) * g + vec3(2.5, 1.45, 0.55) * core) * uGain, 1.0);
 }`;
 
 /** Uploads only the live part of a per-step buffer. */
@@ -153,6 +153,13 @@ export class AxeFX {
     post.keepBloom(this.points);
     post.keepBloom(this.flashMesh);
     this.attached = true;
+  }
+
+  /** `object` glows (the bloom takes its HDR): a demoness's fire trail and hot chain, selected again each attack, since a
+   * level load clears the selection (not kept for good: they go with her). */
+  public glow(object: THREE.Object3D): void {
+    const bloom = SceneManager.getInstance().postFX;
+    bloom.addBloom(object);
   }
 
   /** One simulation step: the embers fly and cool, the flash fades. */
@@ -275,7 +282,7 @@ export class AxeFX {
     this.flashLife = life;
     this.flashUniforms.uGain.value = intensity;
     this.flashMesh.visible = true;
-    ClashFX.getInstance().glow(at, 2.2 + 2.6 * intensity, life);
+    ClashFX.getInstance().glow(at, 1.8 + 2.0 * intensity, life);
   }
 
   private camera(kind: ImpactKind, dir: THREE.Vector3 | undefined, scale: number): void {

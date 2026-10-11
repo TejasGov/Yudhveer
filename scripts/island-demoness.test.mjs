@@ -57,7 +57,7 @@ const toonRelight=await loadDuelModule('src/levels/environment/ToonRelight.ts',{
 const axeFX=await loadDuelModule('src/combat/AxeFX.ts',{
   three:THREE,'./ParticleFX':{ParticleFX:{getInstance:()=>({scene:null,spawnDustPuff:()=>fxLog.push('particles.dust'),spawnEmbers:()=>fxLog.push('particles.embers')})}},
   './ClashFX':{ClashFX:{getInstance:()=>clashDouble}},'./SoundFX':{SoundFX:{getInstance:()=>soundDouble}},
-  '../core/SceneManager':{SceneManager:{getInstance:()=>({camera:new THREE.PerspectiveCamera(),impact:{impact:(kind)=>fxLog.push('camera.'+kind)},postFX:{keepBloom(){}}})}},
+  '../core/SceneManager':{SceneManager:{getInstance:()=>({camera:new THREE.PerspectiveCamera(),impact:{impact:(kind)=>fxLog.push('camera.'+kind)},postFX:{keepBloom(){},addBloom(){}}})}},
   '../core/InputManager':{InputManager:{getInstance:()=>({rumble(){}})}},
   '../core/ImpactCamera':{IMPACTS:new Proxy({},{get:()=>({rumble:[0,0,0]})})},
   '../levels/environment/ToonRelight':toonRelight,
