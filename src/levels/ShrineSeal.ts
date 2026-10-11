@@ -105,8 +105,8 @@ const smooth = (a: number, b: number, x: number) => {
 
 /** The part of the gate's plane the rune map covers, in game x and y. */
 const RUNE_AREA = { x0: -6, x1: 6, y0: -2.7, y1: 5.4 };
-const RUNE_W = 1024;
-const RUNE_H = 691;
+const RUNE_W = 1280;
+const RUNE_H = 864;
 /** Where the mandala sits (the middle of the doors). */
 const HUB = { x: 0, y: 1.1 };
 
@@ -193,24 +193,48 @@ class RuneRaster {
     this.stroke([cx, cx, cy, cy], r * 2, order, (x, y) => Math.sqrt((x - cx) * (x - cx) + (y - cy) * (y - cy)));
   }
 
-  /** One rune: a few straight cuts (a stem with branches, a chevron, a diamond), `h` tall, turned `rot` radians. */
-  public glyph(cx: number, cy: number, h: number, rot: number, order: number, rand: () => number): void {
-    const s = h, c = Math.cos(rot), sn = Math.sin(rot);
-    const P = (u: number, v: number): [number, number] => [cx + (u * c - v * sn) * s, cy + (u * sn + v * c) * s];
-    const seg = (u0: number, v0: number, u1: number, v1: number) => {
-      const a = P(u0, v0), b = P(u1, v1);
-      this.line(a[0], a[1], b[0], b[1], 0.03, order);
-    };
-    const kind = Math.floor(rand() * 8);
-    if (kind === 0) { seg(0, -0.5, 0, 0.5); seg(0, 0.1, -0.3, 0.5); seg(0, 0.1, 0.3, 0.5); }
-    else if (kind === 1) { seg(0, -0.5, 0, 0.5); seg(0, 0.5, 0.32, 0.22); seg(0, 0.12, 0.32, -0.16); }
-    else if (kind === 2) { seg(0, -0.5, 0, 0.5); seg(0, 0.5, 0.3, 0.2); seg(0.3, 0.2, 0, -0.1); }
-    else if (kind === 3) { seg(0, -0.5, 0, 0.5); seg(0, 0.5, -0.3, 0.15); seg(0, 0.5, 0.3, 0.15); }
-    else if (kind === 4) { seg(0, -0.5, 0, 0.5); seg(0, 0.5, 0.3, 0.3); seg(0.3, 0.3, 0, 0.05); seg(0, 0.05, 0.3, -0.2); seg(0.3, -0.2, 0, -0.5); }
-    else if (kind === 5) { seg(-0.22, -0.5, -0.22, 0.5); seg(0.22, -0.5, 0.22, 0.5); seg(-0.22, 0.3, 0.22, -0.1); }
-    else if (kind === 6) { seg(-0.3, -0.5, -0.3, 0.5); seg(-0.3, 0.5, 0, 0.0); seg(0, 0.0, 0.3, 0.5); seg(0.3, 0.5, 0.3, -0.5); }
-    else { seg(0, 0.5, 0.3, 0); seg(0.3, 0, 0, -0.5); seg(0, -0.5, -0.3, 0); seg(-0.3, 0, 0, 0.5); }
-    if (rand() < 0.45) { const d = P(0, rand() < 0.5 ? 0.66 : -0.66); this.dot(d[0], d[1], 0.03, order); }
+  /** Pixels in a metre of the map. */
+  public get pixelsPerMetre(): number { return this.pxPerM; }
+
+  /**
+   * Lays a coverage layer from a scratch canvas (square, `size` px, an even number, centred on the world point (cx, cy)) on the map.
+   * The scratch pixels are the map's own (same scale, aligned on the pixel edge), so nothing is resampled.
+   */
+  public lay(core: Uint8ClampedArray, groove: Uint8ClampedArray, size: number, cx: number, cy: number, order: number): void {
+    const pcx = Math.round((cx - RUNE_AREA.x0) * this.pxPerM), pcy = Math.round((cy - RUNE_AREA.y0) * this.pxPerM);
+    const o = Math.round(Math.min(1, Math.max(0, order)) * 255), d8 = this.data;
+    for (let j = 0; j < size; j++) {
+      const py = pcy + size / 2 - j - 1;
+      if (py < 0 || py >= RUNE_H) continue;
+      for (let i = 0; i < size; i++) {
+        const px = pcx - size / 2 + i;
+        if (px < 0 || px >= RUNE_W) continue;
+        const k = (j * size + i) * 4 + 3;
+        const g = groove[k];
+        if (g < 4) continue;
+        const at = (py * RUNE_W + px) * 4;
+        if (core[k] > d8[at]) d8[at] = core[k];
+        if (g >= d8[at + 2]) { d8[at + 1] = o; d8[at + 2] = g; }
+      }
+    }
+  }
+
+  /**
+   * A syllable in Devanagari: with no canvas to set it in (a test, a platform without one) a stand-in drawn in strokes, a
+   * headline with a stem or two hanging from it and a curl, `h` tall, turned `rot` radians.
+   */
+  public stand(text: string, cx: number, cy: number, h: number, rot: number, order: number): void {
+    const c = Math.cos(rot), sn = Math.sin(rot);
+    const P = (u: number, v: number): [number, number] => [cx + (u * c - v * sn) * h, cy + (u * sn + v * c) * h];
+    const seg = (u0: number, v0: number, u1: number, v1: number) => { const a = P(u0, v0), b = P(u1, v1); this.line(a[0], a[1], b[0], b[1], 0.03, order); };
+    const n = Math.max(1, Math.min(3, Array.from(text).length > 2 ? 3 : 1));
+    const w = 0.32 * n;
+    seg(-w, 0.34, w, 0.34);
+    for (let k = 0; k < n; k++) {
+      const x = -w + (2 * w * (k + 0.5)) / n;
+      seg(x, 0.34, x, -0.4);
+      seg(x - 0.14, -0.05, x, -0.05);
+    }
   }
 
   public texture(): THREE.DataTexture {
@@ -225,61 +249,139 @@ class RuneRaster {
   }
 }
 
-/** Paints the whole gate's runes (see the layout in the comments): a mandala on the doors, columns beside it, a ring round the arch. */
-function paintRunes(): THREE.DataTexture {
+/** The font the seal's text is set in: the game's own Devanagari face (index.html), then the system's. */
+const DEVA_FONT = '"Tiro Devanagari Hindi", "Nirmala UI", "Mangal", "Noto Sans Devanagari", serif';
+/** The bija mantras (ॐ ह्रीं श्रीं क्लीं ऐं) the rings repeat, and the syllables of the columns (ॐ नमः शिवाय; the first vowels). */
+const BIJA = ['ॐ', 'ह्रीं', 'श्रीं', 'क्लीं', 'ऐं'];
+const PANCHAKSHARA = ['न', 'मः', 'शि', 'वा', 'य'];
+const VOWELS = ['अ', 'आ', 'इ', 'उ'];
+
+/** Whether the game's Devanagari face is loaded (true too where there is no font loading to wait for). */
+function fontReady(): boolean {
+  return typeof document === 'undefined' || !document.fonts || document.fonts.check('40px "Tiro Devanagari Hindi"', 'ॐ');
+}
+
+interface TextItem { text: string; x: number; y: number; h: number; rot: number; order: number }
+
+/** Sets each item of text in the canvas (core and a wider, blurred cut round it) and lays it on the map; without a canvas, strokes. */
+function paintText(r: RuneRaster, items: TextItem[]): void {
+  const SIZE = 160;
+  const canvas = typeof document !== 'undefined' ? document.createElement('canvas') : null;
+  const ctx = canvas ? canvas.getContext('2d', { willReadFrequently: true }) : null;
+  if (!canvas || !ctx) {
+    for (const it of items) r.stand(it.text, it.x, it.y, it.h, it.rot, it.order);
+    return;
+  }
+  canvas.width = SIZE; canvas.height = SIZE;
+  const ppm = r.pixelsPerMetre;
+  const set = (it: TextItem, cut: boolean) => {
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, SIZE, SIZE);
+    ctx.translate(SIZE / 2, SIZE / 2);
+    ctx.rotate(-it.rot);
+    ctx.font = `${Math.round(it.h * ppm * 0.92)}px ${DEVA_FONT}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#fff'; ctx.strokeStyle = '#fff'; ctx.lineJoin = 'round';
+    // The cut is the letter fattened by a few millimetres and softened; the glowing stroke the letter a little thickened.
+    ctx.filter = cut ? 'blur(1.3px)' : 'none';
+    ctx.lineWidth = cut ? 0.045 * ppm : 0.007 * ppm;
+    ctx.strokeText(it.text, 0, 0);
+    ctx.fillText(it.text, 0, 0);
+    ctx.filter = 'none';
+    return ctx.getImageData(0, 0, SIZE, SIZE).data;
+  };
+  for (const it of items) r.lay(set(it, false), set(it, true), SIZE, it.x, it.y, it.order);
+}
+
+/**
+ * Paints the whole gate's carving into a map (R the glow of a stroke, G when it ignites, B how deep it is cut): a Sri Yantra
+ * on the doors (nested interlocking triangles round a bindu with ॐ, two rings of lotus petals, a bhupura square with its four
+ * T-shaped gates), the bija mantras round it, Devanagari in the columns beside it and in a ring round the arch, ॐ at its crown;
+ * and the gate's mouldings, cut but not lit. Written into `into` when given (the text repainted once its font has arrived).
+ */
+function paintRunes(into?: THREE.DataTexture): THREE.DataTexture {
   const r = new RuneRaster();
   const rand = rng(31);
   const { half, spring, rise, floor } = GATE;
-  // The order a rune ignites in follows its distance from the hub (the middle first, the arch's crown last), a little jittered.
-  const orderAt = (x: number, y: number) => Math.min(0.9, 0.06 + Math.hypot(x - HUB.x, (y - HUB.y) * 0.9) * 0.1 + rand() * 0.03);
+  const hx = HUB.x, hy = HUB.y;
+  // The order a stroke ignites in follows its distance from the hub (the middle first, the arch's crown last), a little jittered.
+  const orderAt = (x: number, y: number) => Math.min(0.9, 0.06 + Math.hypot(x - hx, (y - hy) * 0.9) * 0.1 + rand() * 0.03);
+  const W = 0.028;
   // The seam: the door's split, first to wake.
   r.line(0, floor + 0.05, 0, spring + rise - 0.1, 0.034, 0.02);
-  // The mandala: rings, a toothed band, a star, small runes between.
-  r.ring(HUB.x, HUB.y, 0.22, 0.034, 0.05);
-  r.ring(HUB.x, HUB.y, 0.62, 0.034, 0.1);
-  for (let i = 0; i < 12; i++) {
-    const a = (i / 12) * Math.PI * 2;
-    r.line(HUB.x + Math.cos(a) * 0.62, HUB.y + Math.sin(a) * 0.62, HUB.x + Math.cos(a) * 1.0, HUB.y + Math.sin(a) * 1.0, 0.03, 0.14 + i * 0.006);
+  const text: TextItem[] = [];
+
+  // The bindu: a ring with ॐ in it.
+  r.ring(hx, hy, 0.27, W, 0.03);
+  text.push({ text: 'ॐ', x: hx, y: hy, h: 0.3, rot: 0, order: 0.03 });
+  // Nine triangles, four upward and five downward, interlocked round it (apex and base heights from the hub).
+  const tri = (apex: number, base: number, width: number, order: number) => {
+    r.line(hx, hy + apex, hx - width, hy + base, W, order);
+    r.line(hx, hy + apex, hx + width, hy + base, W, order);
+    r.line(hx - width, hy + base, hx + width, hy + base, W, order);
+  };
+  // (apex, base, half-width of the base): the upward ones and the downward ones differ in size and stand at staggered heights, so
+  // that each pierces the others' sides and no two lie alike.
+  [[0.98, -0.42, 0.86], [0.8, -0.6, 0.66], [0.64, -0.34, 0.5], [0.5, -0.5, 0.36]].forEach(([a, b, w], k) => tri(a, b, w, 0.08 + k * 0.025));
+  [[-0.98, 0.5, 0.84], [-0.84, 0.64, 0.62], [-0.7, 0.36, 0.52], [-0.58, 0.54, 0.4], [-0.64, 0.4, 0.6]].forEach(([a, b, w], k) => tri(a, b, w, 0.1 + k * 0.025));
+  // The rings and the lotus: eight petals, then sixteen.
+  r.ring(hx, hy, 1.05, W, 0.24);
+  const petals = (n: number, r0: number, r1: number, phase: number, order: number) => {
+    for (let i = 0; i < n; i++) {
+      const a = phase + (i / n) * Math.PI * 2, wide = (Math.PI / n) * 0.84;
+      for (const side of [-1, 1]) {
+        let prev: [number, number] | null = null;
+        for (let k = 0; k <= 9; k++) {
+          const t = k / 9, rad = r0 + (r1 - r0) * t;
+          const ang = a + side * wide * Math.pow(1 - t, 0.8) * (1 + 0.28 * Math.sin(Math.PI * t));
+          const pt: [number, number] = [hx + Math.cos(ang) * rad, hy + Math.sin(ang) * rad];
+          if (prev) r.line(prev[0], prev[1], pt[0], pt[1], W, order + i * 0.002);
+          prev = pt;
+        }
+      }
+    }
+  };
+  petals(8, 1.07, 1.45, Math.PI / 8, 0.27);
+  r.ring(hx, hy, 1.47, W, 0.32);
+  petals(16, 1.49, 1.83, 0, 0.35);
+  r.ring(hx, hy, 1.86, W, 0.44);
+  r.ring(hx, hy, 1.92, W, 0.45);
+  // The bija mantras round it (thirty, round the outer ring, their tops outward).
+  for (let i = 0; i < 30; i++) {
+    const a = Math.PI / 2 - (i / 30) * Math.PI * 2;
+    text.push({ text: BIJA[i % BIJA.length], x: hx + Math.cos(a) * 2.06, y: hy + Math.sin(a) * 2.06, h: 0.25, rot: a - Math.PI / 2, order: 0.5 + (i / 30) * 0.1 });
   }
-  r.ring(HUB.x, HUB.y, 1.05, 0.034, 0.2);
-  for (let i = 0; i < 12; i++) {
-    const a0 = (i / 12) * Math.PI * 2, a1 = ((i + 0.5) / 12) * Math.PI * 2, a2 = ((i + 1) / 12) * Math.PI * 2;
-    const tip = (a: number, rad: number) => [HUB.x + Math.cos(a) * rad, HUB.y + Math.sin(a) * rad] as const;
-    const p0 = tip(a0, 1.05), p1 = tip(a1, 1.62), p2 = tip(a2, 1.05);
-    r.line(p0[0], p0[1], p1[0], p1[1], 0.03, 0.26 + i * 0.004);
-    r.line(p1[0], p1[1], p2[0], p2[1], 0.03, 0.26 + i * 0.004);
+  // The bhupura: a square frame with a T-shaped gate in the middle of each side.
+  const S = 2.22;
+  for (let q = 0; q < 4; q++) {
+    const nx = Math.round(Math.cos((q * Math.PI) / 2)), ny = Math.round(Math.sin((q * Math.PI) / 2));
+    const P = (a: number, b: number): [number, number] => [hx + nx * (S + b) - ny * a, hy + ny * (S + b) + nx * a];
+    const seg = (a0: number, b0: number, a1: number, b1: number, order: number) => { const p = P(a0, b0), t = P(a1, b1); r.line(p[0], p[1], t[0], t[1], W, order); };
+    seg(-S, 0, -0.34, 0, 0.62); seg(0.34, 0, S, 0, 0.62);
+    seg(-0.34, 0, -0.34, 0.24, 0.64); seg(-0.34, 0.24, 0.34, 0.24, 0.64); seg(0.34, 0.24, 0.34, 0, 0.64);
+    seg(-0.16, 0.24, -0.16, 0.09, 0.66); seg(-0.16, 0.09, 0.16, 0.09, 0.66); seg(0.16, 0.09, 0.16, 0.24, 0.66);
   }
-  r.ring(HUB.x, HUB.y, 1.7, 0.034, 0.32);
-  r.ring(HUB.x, HUB.y, 2.3, 0.038, 0.38);
-  for (let i = 0; i < 24; i++) {
-    const a = (i / 24) * Math.PI * 2 + 0.1;
-    r.glyph(HUB.x + Math.cos(a) * 2.0, HUB.y + Math.sin(a) * 2.0, 0.34, a - Math.PI / 2, 0.42 + (i % 8) * 0.02, rand);
-  }
-  r.ring(HUB.x, HUB.y, 2.46, 0.034, 0.6);
-  // Columns of runes either side of the mandala, a second column nearer the jamb.
+  // Columns beside the yantra (the bijas, then the vowels), and on each wing beyond the jamb ॐ नमः शिवाय, read from the top down.
   for (const side of [-1, 1]) {
     for (let k = 0; k < 6; k++) {
       const y = -1.75 + k * 0.7;
-      r.glyph(side * 3.05, y, 0.5, 0, orderAt(side * 3.05, y) + 0.1, rand);
+      text.push({ text: BIJA[(5 - k) % BIJA.length], x: side * 3.05, y, h: 0.4, rot: 0, order: orderAt(side * 3.05, y) + 0.1 });
     }
     for (let k = 0; k < 4; k++) {
       const y = -1.5 + k * 0.7;
-      r.glyph(side * 3.8, y, 0.42, 0, orderAt(side * 3.8, y) + 0.1, rand);
+      text.push({ text: VOWELS[3 - k], x: side * 3.8, y, h: 0.4, rot: 0, order: orderAt(side * 3.8, y) + 0.1 });
     }
-    // On the wing of the gate beyond the jamb.
-    for (let k = 0; k < 5; k++) {
-      const y = -1.9 + k * 0.7;
-      r.glyph(side * 5.1, y, 0.5, 0, 0.78 + k * 0.015, rand);
-    }
+    for (let k = 0; k < 5; k++) text.push({ text: PANCHAKSHARA[4 - k], x: side * 5.1, y: -1.9 + k * 0.7, h: 0.5, rot: 0, order: 0.78 + k * 0.015 });
   }
   // The gate's mouldings, cut into the stone (they darken the rock, they do not glow): a sill, rails and panels on each door, the
   // arch's edge and the joints of its voussoirs.
   r.cut(-half + 0.1, floor + 0.12, half - 0.1, floor + 0.12, 0.05);
-  const arch = (hx: number, sy: number, ry: number, from: number, to: number, w: number) => {
+  const arch = (ax: number, sy: number, ry: number, from: number, to: number, w: number) => {
     const n = 40;
     for (let i = 0; i < n; i++) {
       const a0 = from + ((to - from) * i) / n, a1 = from + ((to - from) * (i + 1)) / n;
-      r.cut(hx * Math.cos(a0), sy + ry * Math.sin(a0), hx * Math.cos(a1), sy + ry * Math.sin(a1), w);
+      r.cut(ax * Math.cos(a0), sy + ry * Math.sin(a0), ax * Math.cos(a1), sy + ry * Math.sin(a1), w);
     }
   };
   arch(half + 0.18, spring, rise + 0.18, 0, Math.PI, 0.06);
@@ -297,18 +399,23 @@ function paintRunes(): THREE.DataTexture {
     const c = Math.cos(phi), sn = Math.sin(phi);
     r.cut((half + 0.18) * c, spring + (rise + 0.18) * sn, (half + 1.05) * c * 1.0, spring + (rise + 1.05) * sn, 0.035);
   }
-  // The ring of runes round the arch, set on the stone above it (turned so each stands out from the arch).
+  // The ring of syllables round the arch, set on the stone above it (turned so each stands out from the arch).
   for (let i = 0; i < 22; i++) {
     const phi = Math.PI * (0.06 + (i / 21) * 0.88);
     const nx = Math.cos(phi) / half, ny = Math.sin(phi) / rise;
     const nl = Math.hypot(nx, ny);
     const ax = half * Math.cos(phi), ay = spring + rise * Math.sin(phi);
-    const gx = ax + (nx / nl) * 0.55, gy = ay + (ny / nl) * 0.55;
-    r.glyph(gx, gy, 0.46, Math.atan2(ny, nx) - Math.PI / 2, 0.84 + (i % 5) * 0.012, rand);
+    text.push({ text: BIJA[i % BIJA.length], x: ax + (nx / nl) * 0.55, y: ay + (ny / nl) * 0.55, h: 0.36, rot: Math.atan2(ny, nx) - Math.PI / 2, order: 0.84 + (i % 5) * 0.012 });
   }
-  // The crown: a ring and a bindu above the arch's apex.
-  r.ring(0, 4.85, 0.34, 0.034, 0.9);
-  r.dot(0, 4.85, 0.07, 0.9);
+  // The crown: ॐ in a ring above the arch's apex.
+  r.ring(0, 4.85, 0.36, W, 0.9);
+  text.push({ text: 'ॐ', x: 0, y: 4.85, h: 0.4, rot: 0, order: 0.9 });
+  paintText(r, text);
+  if (into) {
+    (into.image.data as Uint8Array).set(r.data);
+    into.needsUpdate = true;
+    return into;
+  }
   return r.texture();
 }
 
@@ -518,7 +625,7 @@ const ROCK_GLOW = /* glsl */ `
   float flare = 1.0 + 0.22 * sin(uTime * 5.0 + order * 37.0);
   float level = mix(uBase * breath, flare, lit);
   vec3 runeColour = mix(uRuneCyan, uRuneAmber, uWarm);
-  vec3 glow = runeColour * sealRune.r * level * uRuneGain;
+  vec3 glow = runeColour * smoothstep(0.4, 0.95, sealRune.r) * level * uRuneGain;
   if (uCrack > 0.001) {
     vec2 pm = (vRune - vec2(0.5, 0.469)) * vec2(12.0, 8.1);
     float rr = length(pm);
@@ -548,7 +655,7 @@ function makeRockMaterial(source: THREE.Material | null, ramp: THREE.Texture | n
       .replace('#include <begin_vertex>', '#include <begin_vertex>\nvRune = aRune;');
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <common>', '#include <common>\n' + ROCK_COMMON)
-      .replace('#include <map_fragment>', '#include <map_fragment>\nvec3 sealRune = texture2D(uRuneMap, vRune).rgb;\ndiffuseColor.rgb *= 1.0 - 0.62 * sealRune.b;')
+      .replace('#include <map_fragment>', '#include <map_fragment>\nvec3 sealRune = texture2D(uRuneMap, vRune).rgb;\nfloat sealLip = texture2D(uRuneMap, vRune + vec2(0.0016, -0.0023)).r - sealRune.r;\ndiffuseColor.rgb *= (1.0 - 0.7 * sealRune.b) * (1.0 - 0.55 * clamp(sealLip, 0.0, 1.0) + 0.32 * clamp(-sealLip, 0.0, 1.0));')
       .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n' + ROCK_GLOW);
     mat.userData.shader = shader;
   };
@@ -895,6 +1002,7 @@ export class ShrineSeal {
   private fired = 0;
   private lastTremor = 0;
   private clock = 0;
+  private disposed = false;
   private readonly events: { at: number; run: () => void }[];
   /** How far up the altar room's own lamps are (dark while shut, full once the light has flooded), for the level to scale them. */
   public roomGain = 0;
@@ -905,11 +1013,15 @@ export class ShrineSeal {
   constructor(private readonly hooks: SealHooks = {}, ramp: THREE.Texture | null = null, soulMark = new THREE.Vector3(2.6, -2.45, -71.2), insideMark = new THREE.Vector3(1.7, -2.11, -74.6)) {
     this.group.name = 'SealedMaceRoom';
     this.runeMap = paintRunes();
+    // The game's Devanagari face may still be on its way: the text is painted again once it is here.
+    if (!fontReady()) {
+      void document.fonts.load('48px "Tiro Devanagari Hindi"', 'ॐह्रीं').then(() => { if (!this.disposed) paintRunes(this.runeMap); }).catch(() => undefined);
+    }
     this.uniforms = {
       uRuneMap: { value: this.runeMap },
       uTime: { value: 0 },
       uIgnite: { value: 0 },
-      uBase: { value: 0.13 },
+      uBase: { value: 0.085 },
       uRuneGain: { value: 1 },
       uCrack: { value: 0 },
       uCrackGain: { value: 1 },
@@ -1064,7 +1176,7 @@ export class ShrineSeal {
   /** The gate is a closed wall, runes dim: the idle look (and what `rearm` leaves). */
   private applyClosed(): void {
     const u = this.uniforms;
-    u.uIgnite.value = 0; u.uBase.value = 0.13; u.uRuneGain.value = 1; u.uCrack.value = 0; u.uCrackGain.value = 1; u.uWarm.value = 0;
+    u.uIgnite.value = 0; u.uBase.value = 0.085; u.uRuneGain.value = 1; u.uCrack.value = 0; u.uCrackGain.value = 1; u.uWarm.value = 0;
     this.cloudUniforms.uSealTime.value = -10;
     this.lightUniforms.uIntensity.value = 0;
     this.light.color.setRGB(0.45, 0.85, 1.0);
@@ -1217,6 +1329,7 @@ export class ShrineSeal {
   public get remaining(): number { return this.phase === 'opening' ? Math.max(0, SEAL_TIMES.end - this.t) : 0; }
 
   public dispose(): void {
+    this.disposed = true;
     this.group.traverse((o) => {
       const mesh = o as THREE.Mesh;
       mesh.geometry?.dispose?.();
