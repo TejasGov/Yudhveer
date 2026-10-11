@@ -46,18 +46,19 @@ test('killing the rear wave first cannot checkpoint past surviving parent enemie
 class Boss {
   constructor() { this.group=new THREE.Group();this.stateMachine={currentState:'IDLE',stateTime:0};this.soundFX={playHitImpact(){}}; }
   update() {}
+  retire() { this.retired=true; } // (Character.retire)
 }
 const axePhysics={world:null,RAPIER_INSTANCE:null};
 const axeMotion=await loadDuelModule('src/combat/ChainAxeMotion.ts',{three:THREE});
 // The axe's FX run for real against recording doubles of the engine's singletons (sound, sparks, camera).
-const fxLog=[];
+const fxLog=[], bloomSelection=new Set(); // (the bloom selection the fight's postFX holds)
 const record=(kind)=>new Proxy({}, {get:(_,name)=>(...args)=>{fxLog.push(kind+'.'+String(name));return kind==='sound'?undefined:false;}});
 const soundDouble=record('sound'), clashDouble=record('clash'), particleDouble=Object.assign(record('particles'),{scene:null});
 const toonRelight=await loadDuelModule('src/levels/environment/ToonRelight.ts',{three:THREE});
 const axeFX=await loadDuelModule('src/combat/AxeFX.ts',{
   three:THREE,'./ParticleFX':{ParticleFX:{getInstance:()=>({scene:null,spawnDustPuff:()=>fxLog.push('particles.dust'),spawnEmbers:()=>fxLog.push('particles.embers')})}},
   './ClashFX':{ClashFX:{getInstance:()=>clashDouble}},'./SoundFX':{SoundFX:{getInstance:()=>soundDouble}},
-  '../core/SceneManager':{SceneManager:{getInstance:()=>({camera:new THREE.PerspectiveCamera(),impact:{impact:(kind)=>fxLog.push('camera.'+kind)},postFX:{keepBloom(){},addBloom(){}}})}},
+  '../core/SceneManager':{SceneManager:{getInstance:()=>({camera:new THREE.PerspectiveCamera(),impact:{impact:(kind)=>fxLog.push('camera.'+kind)},postFX:{keepBloom(){},addBloom:o=>bloomSelection.add(o),removeBloom:o=>bloomSelection.delete(o)}})}},
   '../core/InputManager':{InputManager:{getInstance:()=>({rumble(){}})}},
   '../core/ImpactCamera':{IMPACTS:new Proxy({},{get:()=>({rumble:[0,0,0]})})},
   '../levels/environment/ToonRelight':toonRelight,
@@ -498,4 +499,160 @@ test('the release scene: the seal opens through an essential cue, the voice in t
   assert.ok(voice.at >= split && voice.at <= split + 1.5, 'it calls as the doors part');
   assert.ok(start - voice.at >= 5.5, 'and the reveal is held for the whole of it');
   assert.ok(readFileSync(new URL('../public/assets/voice/island_shrine_voice_2.mp3', import.meta.url)).length > 1000, 'the recording ships');
+});
+
+// ---- Review fixes L1, L2, L4, L5, L6 (code review of f17f7e4..121ed13) --------------------------------------------------------------
+// Added by the review-fix pass. The first four run the real BossIslandDemoness, AxeFX, AxeBody and ShrineSeal; L6 gives the real
+// ShrineSeal a recording document (canvas, fonts) and a manual timer queue, to check the text pass is spread, kept and repeated.
+
+test('L1: a retired demoness takes her embers, her flash and her bloom selection with her', () => {
+  const fx = axeFX.AxeFX.get();
+  const boss = new BossIslandDemoness(); boss.chooseAttack(null, 4.2);
+  for (let f = 0; f <= 40; f++) { boss.stateMachine.currentState = 'ATTACK_3'; boss.stateMachine.stateTime = f / 60; boss.update(1 / 60); }
+  assert.ok(bloomSelection.has(boss.trail.mesh) && bloomSelection.has(boss.tether), 'her trail and chain glow while she fights');
+  fx.burst(new THREE.Vector3(1, 1, -70), 40, null, 5);
+  fx.flash(new THREE.Vector3(1, 1, -70), 1.2, 1.6, 0.13);
+  fx.step(1 / 60);
+  assert.ok(fx.live > 0 && fx.points.visible && fx.flashMesh.visible, 'embers and a flash are in the air');
+  boss.retire();
+  assert.equal(boss.retired, true, 'the base class is still told');
+  assert.equal(fx.live, 0); assert.equal(fx.points.visible, false); assert.equal(fx.flashMesh.visible, false);
+  assert.equal(fx.points.geometry.drawRange.count, 0);
+  assert.ok(!bloomSelection.has(boss.trail.mesh) && !bloomSelection.has(boss.tether), 'and nothing of hers is left in the bloom');
+  // The pool is for the next demoness as it was: it sheds again.
+  fx.step(1 / 60); fx.burst(new THREE.Vector3(0, 1, -70), 10, null, 3); fx.step(1 / 60);
+  assert.equal(fx.live, 10); assert.equal(fx.points.visible, true);
+  fx.clear();
+});
+
+test('L2: a re-armed seal throws the same rocks again, the same way, as a fresh one', () => {
+  const inFlight = seal => seal.chunks.filter(c => !c.rest).length;
+  const play = (seal, seconds, from = 0) => { for (let f = 0; f < Math.round(seconds * 60); f++) seal.update(1 / 60, from + f / 60); };
+  const state = seal => seal.chunks.map(c => [...c.p.toArray(), ...c.v.toArray(), ...c.q.toArray(), ...c.w.toArray(), c.rest, c.bounces]);
+  const fresh = new shrineSeal.ShrineSeal({}, new THREE.Texture());
+  const start = state(fresh);
+  fresh.open(); play(fresh, 2.2);
+  const reference = inFlight(fresh), referenceState = state(fresh);
+  assert.equal(reference, 28, 'a fresh seal has 28 rocks in flight at 2.2 s');
+  const seal = new shrineSeal.ShrineSeal({}, new THREE.Texture());
+  seal.open(); play(seal, 10);
+  assert.equal(seal.phase, 'open'); assert.equal(inFlight(seal), 0, 'after the first opening every rock lies on the floor');
+  seal.rearm();
+  assert.deepEqual(state(seal), start, 'rearm puts every rock back where it is thrown from: position, velocity, turn and spin');
+  seal.open(); play(seal, 2.2);
+  assert.equal(inFlight(seal), reference, 'the replay throws the same 28 at 2.2 s');
+  assert.deepEqual(state(seal), referenceState, 'and every rock is where the first opening had it');
+  // And a third time.
+  play(seal, 8, 2.2); seal.rearm(); seal.open(); play(seal, 2.2);
+  assert.equal(inFlight(seal), reference);
+  fresh.dispose(); seal.dispose();
+});
+
+test('L4: a paused frame shows the chain on the haft: renderRestore draws it as the step left it', () => {
+  const boss = new BossIslandDemoness(); boss.chooseAttack(null, 4.2);
+  const chain = boss.tether;
+  const drawn = () => Float32Array.from(chain.instanceMatrix.array.subarray(0, chain.count * 16));
+  let compared = 0, moved = 0;
+  for (let f = 0; f <= 80; f++) {
+    boss.stateMachine.currentState = 'ATTACK_3'; boss.stateMachine.stateTime = f / 60; boss.update(1 / 60);
+    const step = drawn(), count = chain.count;
+    boss.renderUpdate(0.1);                       // a rendered frame between two steps...
+    const between = drawn();
+    boss.renderRestore();                         // ...and the pose put back after it (what a paused frame then draws)
+    const restored = drawn();
+    if (count > 0) {
+      compared++;
+      assert.equal(chain.count, count, `frame ${f}: the same links`);
+      assert.deepEqual(restored, step, `frame ${f}: the chain is as the step drew it, on the haft`);
+      if (between.some((value, i) => Math.abs(value - step[i]) > 1e-4)) moved++;
+    }
+  }
+  assert.ok(compared > 40 && moved > 10, `the interpolated frames did differ from the step's (${moved} of ${compared}), so the restore does something`);
+});
+
+test('L5: a keeper killed mid-swing eases her body layers out over 0.3 s instead of dropping them in one frame', () => {
+  // A skeleton with the island rig's bones (only the names matter), held still: no mixer rewrites them, as in the cave clips' constant tracks.
+  const root = new THREE.Group();
+  const bone = (name, parent, x, y, z) => { const b = new THREE.Bone(); b.name = name; b.position.set(x, y, z); parent.add(b); return b; };
+  const base = bone('Root', root, 0, 0.8, 0), pelvis = bone('Pelvis', base, 0, 0.4, 0.2), spine = bone('Spine', pelvis, 0, 0.3, 0), chest = bone('Chest', spine, 0, 0.35, 0);
+  const upper = bone('UpperArm_R', chest, -0.3, 0.15, 0), fore = bone('Forearm_R', upper, 0, -0.3, 0); bone('Hand_R', fore, 0, -0.3, 0);
+  bone('Leg_L0_0', base, 0.3, 0, 0.3); bone('Leg_R0_0', base, -0.3, 0, 0.3);
+  const boss = new BossIslandDemoness(); boss.group.add(root);
+  const socket = new THREE.Object3D(); socket.position.set(0.8, 2.1, 0.3); boss.group.add(socket);
+  boss.rig = { root, socket: () => socket };
+  boss.group.updateMatrixWorld(true);
+  boss.chooseAttack(null, 4.2);
+  const rest = chest.quaternion.clone(), p = chest.quaternion;
+  // Swing until the layers are well on her body (the wind-up), then she dies.
+  for (let f = 0; f < 120; f++) {
+    boss.stateMachine.currentState = 'ATTACK_3'; boss.stateMachine.stateTime = f / 60; boss.update(1 / 60);
+    if (f > 8 && p.angleTo(rest) > 0.1) break;
+  }
+  const full = p.angleTo(rest);
+  assert.ok(full > 0.1, `the wind-up lays a real layer on her chest (${full.toFixed(3)} rad)`);
+  let previous = p.clone(), worstStep = 0, firstStep = 0, atEase = 0;
+  for (let k = 1; k <= 30; k++) {
+    boss.stateMachine.currentState = 'DEAD'; boss.stateMachine.stateTime = k / 60; boss.update(1 / 60);
+    const step = p.angleTo(previous); if (k === 1) firstStep = step; worstStep = Math.max(worstStep, step);
+    if (k === 18) atEase = p.angleTo(rest);                // 0.3 s in
+    previous = p.clone();
+  }
+  assert.ok(firstStep < 0.25 * full, `the first frame of death moves her chest ${firstStep.toFixed(3)} of ${full.toFixed(3)} rad, not all of it`);
+  assert.ok(worstStep < 0.25 * full, `no frame of the death throws more than a quarter of the layer: ${worstStep.toFixed(3)} of ${full.toFixed(3)}`);
+  assert.ok(atEase < 0.06 * full, `by 0.3 s the layers are all but gone (${atEase.toFixed(4)} rad left)`);
+  assert.ok(p.angleTo(rest) < 1e-6, 'and then the chest is the clip\'s own');
+});
+
+test('L6: the rune text is laid a few milliseconds at a time, once for the page, and again only if its face arrives late', async () => {
+  const timers = []; let now = 0;
+  const calls = { canvas: 0, text: 0 };
+  // Every syllable lays the same square patch, so the finished map differs from the bare strokes.
+  const pixels = new Uint8ClampedArray(160 * 160 * 4);
+  for (let y = 60; y < 100; y++) for (let x = 60; x < 100; x++) pixels.fill(255, (y * 160 + x) * 4, (y * 160 + x) * 4 + 3), pixels[(y * 160 + x) * 4 + 3] = 200;
+  const ctx = { setTransform() {}, clearRect() {}, translate() {}, rotate() {}, strokeText() {}, fillText() { calls.text++; }, getImageData: () => ({ data: pixels }) };
+  const world = (faceReady) => {
+    let arrive; const loaded = new Promise((resolve) => { arrive = resolve; });
+    const document = { createElement: () => { calls.canvas++; return { width: 0, height: 0, getContext: () => ctx }; }, fonts: { check: () => faceReady, load: () => loaded } };
+    const globals = { document, performance: { now: () => ++now }, setTimeout: (fn) => timers.push(fn), clearTimeout: (id) => { timers[id - 1] = null; } };
+    return { arrive, load: () => loadDuelModule('src/levels/ShrineSeal.ts', { three: THREE }, globals) };
+  };
+  const drain = () => { let turns = 0; for (let i = 0; i < timers.length; i++) { const fn = timers[i]; timers[i] = null; if (fn) { fn(); turns++; } } timers.length = 0; return turns; };
+  const hash = (a) => { let h = 2166136261 >>> 0; for (let i = 0; i < a.length; i++) { h ^= a[i]; h = Math.imul(h, 16777619) >>> 0; } return h; };
+
+  // The face is ready: the constructor lays no text (it is queued), the queue spreads it over turns, a rebuilt seal paints nothing.
+  const ready = await world(true).load();
+  const a = new ready.ShrineSeal({}, new THREE.Texture());
+  assert.equal(calls.text, 0, 'the constructor sets no text'); assert.equal(timers.length, 1, 'it is queued for the next turn');
+  const bare = hash(a.runeMap.image.data);
+  const turns = drain();
+  assert.equal(calls.text, 168, 'two cuts of each of the 84 syllables'); assert.ok(turns >= 10, `spread over ${turns} turns, not one`);
+  const finished = hash(a.runeMap.image.data);
+  assert.notEqual(finished, bare, 'the text is on the map');
+  const canvases = calls.canvas;
+  const b = new ready.ShrineSeal({}, new THREE.Texture());
+  assert.equal(calls.canvas, canvases, 'a rebuilt seal opens no canvas'); assert.equal(timers.length, 0, 'queues nothing'); assert.equal(calls.text, 168, 'and sets no text');
+  assert.equal(hash(b.runeMap.image.data), finished, 'yet has the same finished map');
+  a.dispose(); b.dispose();
+
+  // The face is late: the text is set in what there is, then laid again over the same strokes when it arrives, and that is kept.
+  const late = world(false), lateModule = await late.load();
+  calls.text = 0;
+  const d = new lateModule.ShrineSeal({}, new THREE.Texture());
+  drain(); assert.equal(calls.text, 168);
+  const early = new lateModule.ShrineSeal({}, new THREE.Texture());   // built before the face arrives: sets text of its own
+  drain(); assert.equal(calls.text, 336, 'a seal built before the face arrives still sets text of its own');
+  late.arrive(); await new Promise((resolve) => setImmediate(resolve));
+  assert.ok(timers.length >= 1, 'the face has come: the text is laid again');
+  const before = calls.text; drain();
+  assert.ok(calls.text - before >= 168, 'in full');
+  assert.equal(hash(d.runeMap.image.data), finished, 'laid again over the strokes, it is exactly the map of a seal built with the face ready');
+  const canvasesNow = calls.canvas;
+  const e = new lateModule.ShrineSeal({}, new THREE.Texture());
+  assert.equal(calls.canvas, canvasesNow, 'and kept for the page: the next seal paints nothing'); assert.equal(hash(e.runeMap.image.data), finished);
+  d.dispose(); early.dispose(); e.dispose();
+
+  // A seal gone before its turn comes lays nothing.
+  const gone = await world(true).load();
+  calls.text = 0; const f = new gone.ShrineSeal({}, new THREE.Texture()); f.dispose(); drain();
+  assert.equal(calls.text, 0, 'a disposed seal sets no text');
 });

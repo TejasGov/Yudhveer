@@ -40,6 +40,8 @@ const EMBERS_COILED = 16;
 const SCRAPE_EVERY = 0.07;
 /** The interrupted recall's arc (boss-local direction, metres per metre). */
 const RECALL_BULGE = [0.2, 0.8, 0] as const;
+/** After her death the body's layers go on easing out for this long (s) before they are let go. */
+const DEAD_EASE = 0.3;
 /** The catch's recoil of the right hand (boss-local metres at its peak) and how long it lasts (s). */
 const CATCH_RECOIL = new THREE.Vector3(0.02, 0.06, -0.17);
 const CATCH_SPAN = 0.28;
@@ -203,6 +205,17 @@ export class BossIslandDemoness extends Boss {
   public override renderRestore(): void {
     this.axe.position.copy(this.axeCurr);
     this.axe.quaternion.copy(this.quatCurr);
+    // The chain too, or a paused frame (no renderUpdate) would show it where the last drawn frame left it, short of the
+    // haft the axe is back on (audit L4).
+    this.chain.draw(1);
+  }
+
+  /** Where she is no more: her fire (embers, flash) and the glow of her trail and chain go with her (audit L1). */
+  public override retire(): void {
+    super.retire();
+    this.fx.clear();
+    this.fx.unglow(this.trail.mesh);
+    this.fx.unglow(this.tether);
   }
 
   private poseAxe(dt: number): void {
@@ -290,7 +303,9 @@ export class BossIslandDemoness extends Boss {
       this.armWeight *= k;
       this.heat = Math.max(0, this.heat - dt * (state === 'DEAD' ? 2.5 : 1.2));
     }
-    if (!this.rig || state === 'DEAD') return;
+    // A killing blow mid-swing: the layers (already easing out above) stay on for DEAD_EASE seconds, not dropped in one frame
+    // from the keyed pose to the fall (audit L5).
+    if (!this.rig || (state === 'DEAD' && t > DEAD_EASE)) return;
     if (!this.body.bind(this.rig.root)) return;
     this.body.apply(this.group, this.layer, this.armTarget, this.armWeight);
   }
