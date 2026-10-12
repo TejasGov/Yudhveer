@@ -1,11 +1,13 @@
 import * as THREE from 'three';
 import { SceneFX } from './SceneFX';
 import type { Character } from '../entities/Character';
+import type { Extra } from '../entities/Extra';
 import { SceneManager } from '../core/SceneManager';
 
 /*
  * The summit's last light (docs/STORY.md, "Milestone 9"): the guru turning to light, the statue of Shiva waking, the
- * eclipse giving way. Each effect is started by a scene cue, runs on SceneFX's clock and is undone with the chapter.
+ * eclipse giving way; and the island's apsara set free (`soulRelease`). Each effect is started by a scene cue, runs on
+ * SceneFX's clock and is undone with the chapter.
  */
 
 /** A soft round dot, for the motes and the halo's glow. */
@@ -483,4 +485,208 @@ export function kavachLight(parent: THREE.Object3D, who: Character): KavachLight
       });
     },
   };
+}
+
+/** The apsara's release (`soulRelease`). */
+export interface SoulRelease {
+  /** False once the chapter has been left (its pieces are freed): make another. */
+  readonly alive: boolean;
+  /**
+   * Starts it: gold light seeps up out of `body` (the fallen demoness) and spirals slowly into a column of light at `soul`'s
+   * feet; from `formAt` seconds, as she appears in it, the column goes into her and her own light takes over. Meanwhile
+   * the picture darkens and drains a little round the light, and `body` goes dark as ash (it never vanishes). Over by
+   * `formAt + RELEASE_TAIL` seconds.
+   */
+  start(body: Character, soul: Extra, formAt: number): void;
+  /** Over at once, as if it had played out (the scene skipped). */
+  end(): void;
+}
+
+const RELEASE_MOTES = 256;
+/** Seconds after she forms that the darkened picture has come back. */
+const RELEASE_TAIL = 7;
+/** The motes' whirl about the column (rad): one way for all of them, so it reads as one current of light. */
+const WHIRL = 1.3;
+
+/**
+ * The apsara's soul leaving the demoness (docs/ISLAND_DEMONESS.md, "The apsara"). Built now, dark, and its shaders compiled
+ * (so her death does not stall on them); `start` plays it. Nothing is allocated per step.
+ */
+export function soulRelease(parent: THREE.Object3D): SoulRelease {
+  const sm = SceneManager.getInstance();
+  const column = new THREE.Group();
+  const shaft = lightShaft(0.4, 3.6, new THREE.Color(1.4, 0.92, 0.38));
+  const core = lightShaft(0.16, 3.6, new THREE.Color(1.8, 1.32, 0.7));
+  const poolTex = softDot();
+  const poolMat = new THREE.MeshBasicMaterial({ map: poolTex, color: new THREE.Color(1.3, 0.82, 0.3), transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, fog: false });
+  const pool = new THREE.Mesh(new THREE.PlaneGeometry(1.8, 1.8), poolMat);
+  pool.rotation.x = -Math.PI / 2;
+  pool.position.y = 0.03;
+  column.add(shaft.mesh, core.mesh, pool);
+  column.visible = false;
+
+  // The motes, in world space: each on a path worked out afresh every step from where it began (no integration, no drift).
+  const n = RELEASE_MOTES;
+  const position = new Float32Array(n * 3), alpha = new Float32Array(n), size = new Float32Array(n);
+  const age = new Float32Array(n), life = new Float32Array(n), peak = new Float32Array(n);
+  const r0 = new Float32Array(n), th0 = new Float32Array(n), y0 = new Float32Array(n), r1 = new Float32Array(n), y1 = new Float32Array(n);
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(position, 3).setUsage(THREE.DynamicDrawUsage));
+  geo.setAttribute('aAlpha', new THREE.BufferAttribute(alpha, 1).setUsage(THREE.DynamicDrawUsage));
+  geo.setAttribute('aSize', new THREE.BufferAttribute(size, 1).setUsage(THREE.DynamicDrawUsage));
+  geo.setDrawRange(0, 0);
+  const moteMat = new THREE.ShaderMaterial({
+    uniforms: { uColor: { value: new THREE.Color(2.0, 1.3, 0.5) }, uScale: { value: 600 } },
+    vertexShader: /* glsl */ `
+      attribute float aAlpha; attribute float aSize; varying float vA; uniform float uScale;
+      void main() {
+        vA = aAlpha;
+        vec4 mv = modelViewMatrix * vec4(position, 1.0);
+        gl_PointSize = aSize * uScale / -mv.z;
+        gl_Position = projectionMatrix * mv;
+      }`,
+    fragmentShader: /* glsl */ `
+      uniform vec3 uColor; varying float vA;
+      void main() {
+        float d = length(gl_PointCoord - 0.5) * 2.0;
+        float a = pow(max(1.0 - d, 0.0), 2.0) * vA;
+        if (a < 0.01) discard;
+        gl_FragColor = vec4(uColor * a, a);
+      }`,
+    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending,
+  });
+  const motes = new THREE.Points(geo, moteMat);
+  motes.frustumCulled = false;
+  motes.visible = false;
+  parent.add(column, motes);
+  bloom(column);
+  bloom(motes);
+  disposeOnClear(column, [poolTex]);
+  disposeOnClear(motes);
+  sm.renderer.compile(column, sm.camera, sm.scene);
+  sm.renderer.compile(motes, sm.camera, sm.scene);
+
+  const fx = sm.postFX.concussion;
+  const grading = { blur: 0, ghost: new THREE.Vector2(), chroma: 0, dark: 0, lid: 0, desat: 0, flash: 0 };
+  // Set when it is cut short: the next step finishes it.
+  let ending = false;
+  const handle = { alive: true, start, end: () => { ending = true; } };
+  SceneFX.onClear(() => {
+    handle.alive = false;
+    fx.reset();
+  });
+  return handle;
+
+  function start(body: Character, soul: Extra, formAt: number): void {
+    if (!handle.alive) return;
+    const at = soul.getPosition();
+    const from = body.getPosition();
+    const tall = soul.visualHeight();
+    column.position.copy(at);
+    // Her body darkens to ash: every colour toward a cold near-black, any glow out.
+    const ash: { m: THREE.MeshStandardMaterial; color: THREE.Color; emissive: THREE.Color | null }[] = [];
+    body.rig?.root.traverse((o) => {
+      const mesh = o as THREE.Mesh;
+      if (!mesh.isMesh) return;
+      for (const m of ([] as THREE.Material[]).concat(mesh.material) as THREE.MeshStandardMaterial[]) {
+        if (m.color && !ash.some((a) => a.m === m)) ash.push({ m, color: m.color.clone(), emissive: m.emissive?.clone() ?? null });
+      }
+    });
+    SceneFX.onClear(() => ash.forEach((a) => {
+      a.m.color.copy(a.color);
+      if (a.emissive) a.m.emissive.copy(a.emissive);
+    }));
+
+    let count = 0;
+    let owed = 0;
+    let t = 0;
+    let ashen = false;
+    const S = THREE.MathUtils.smoothstep;
+    const spawn = () => {
+      if (count >= n) return;
+      const i = count++;
+      // From anywhere over her body: the spread of the legs, low, and up through the fallen torso...
+      const a = Math.random() * Math.PI * 2;
+      const r = Math.sqrt(Math.random()) * 1.3;
+      const x = from.x + Math.cos(a) * r - at.x;
+      const z = from.z + Math.sin(a) * r - at.z;
+      r0[i] = Math.hypot(x, z);
+      th0[i] = Math.atan2(z, x);
+      // (a third from the woman's body the spider wears, higher up)
+      y0[i] = from.y + (Math.random() < 0.35 ? 1.1 + Math.random() * 0.8 : 0.25 + Math.random() * 0.9);
+      // ...into the column, anywhere from her feet to her crown (she forms where they end).
+      r1[i] = 0.05 + Math.random() * 0.28;
+      y1[i] = at.y + (0.06 + Math.random() * 0.92) * tall;
+      age[i] = 0;
+      life[i] = 2.2 + Math.random() * 0.8;
+      peak[i] = 0.55 + Math.random() * 0.45;
+      size[i] = 0.1 + Math.random() * 0.11;
+    };
+
+    ending = false;
+    SceneFX.every((dt) => {
+      if (!handle.alive) return false;
+      t += dt;
+      if (ending) {
+        t = Math.max(t, formAt + RELEASE_TAIL);
+        count = 0;
+      }
+      // The column kindles while the light gathers, then goes into her as she forms.
+      const gather = S(t, 1.0, formAt);
+      const lit = gather * (1 - S(t, formAt + 0.4, formAt + 2.2));
+      shaft.uniforms.opacity.value = 0.38 * lit;
+      core.uniforms.opacity.value = 0.6 * lit;
+      poolMat.opacity = 0.28 * lit;
+      shaft.uniforms.time.value = core.uniforms.time.value = t;
+      column.visible = lit > 1e-3;
+      soul.kindle = gather * (1 - S(t, formAt, formAt + 1.2));
+
+      owed += 150 * S(t, 0.7, 1.4) * (1 - S(t, formAt - 0.6, formAt + 0.6)) * dt;
+      for (; owed >= 1; owed--) spawn();
+      let w = 0;
+      for (let i = 0; i < count; i++) {
+        const k = (age[i] += dt);
+        if (k >= life[i]) continue;
+        if (w !== i) {
+          age[w] = age[i]; life[w] = life[i]; peak[w] = peak[i]; size[w] = size[i];
+          r0[w] = r0[i]; th0[w] = th0[i]; y0[w] = y0[i]; r1[w] = r1[i]; y1[w] = y1[i];
+        }
+        // seeping up off the body at first, then drawn round and in
+        const u = k / life[w];
+        const e = S(u, 0.2, 0.95);
+        const r = r0[w] + (r1[w] - r0[w]) * e;
+        const th = th0[w] + WHIRL * (e + 1.5 * u * u);
+        const rise = y0[w] + 0.7 * u;
+        position[w * 3] = at.x + r * Math.cos(th);
+        position[w * 3 + 1] = rise + (y1[w] - rise) * e;
+        position[w * 3 + 2] = at.z + r * Math.sin(th);
+        alpha[w] = peak[w] * Math.min(1, u * 10) * (1 - S(u, 0.8, 1));
+        w++;
+      }
+      count = w;
+      motes.visible = count > 0;
+      geo.setDrawRange(0, count);
+      geo.attributes.position.needsUpdate = true;
+      geo.attributes.aAlpha.needsUpdate = true;
+      geo.attributes.aSize.needsUpdate = true;
+
+      // The cave dims and cools round the light until she has set off.
+      const dim = S(t, 0.4, 2.6) * (1 - S(t, formAt + RELEASE_TAIL - 2.2, formAt + RELEASE_TAIL));
+      grading.dark = 0.42 * dim;
+      grading.desat = 0.2 * dim;
+      fx.set(grading);
+      if (!ashen) {
+        const k = S(t, 0.6, formAt);
+        for (const a of ash) {
+          a.m.color.setRGB(a.color.r * (1 - 0.64 * k), a.color.g * (1 - 0.62 * k), a.color.b * (1 - 0.52 * k));
+          if (a.emissive) a.m.emissive.copy(a.emissive).multiplyScalar(1 - 0.7 * k);
+        }
+        ashen = k >= 1;
+      }
+      if (t < formAt + RELEASE_TAIL || count > 0) return true;
+      soul.kindle = 0;
+      fx.reset();
+      return false;
+    });
+  }
 }

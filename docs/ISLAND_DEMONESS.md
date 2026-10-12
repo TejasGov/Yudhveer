@@ -173,7 +173,8 @@ light cracks, the doors split and slide aside with debris, then a cyan-to-amber 
 resonant bloom. The soul rises in the chamber clear of the corpse and the hero, is framed throughout, reaches the seal at
 about 7.6 s and the altar mark at about 13.6 s with no settle snap (a 176-case sweep covers far corpses and 180° turns).
 The release scene is 17.7 s. `chapter-start` re-arms the seal, its collider, the debris, the mace and its lamp.
-`island_shrine_voice_2` plays as the doors part.
+`island_shrine_voice_2` plays as the doors part. *(2026-10-12: the scene is now 24.5 s and voiced by the apsara; see the
+last section.)*
 
 **Engine-wide fixes found on the way:** `HitReact` compares quaternions with a float32-safe tolerance (a flinch could stick
 on bones a clip never rewrites); the follow camera swings round the hero when its arm collapses into rock (unchanged
@@ -272,3 +273,59 @@ The 41 island tests pass.
 
 Still the case: in flight, the strike itself (the slam's overhead arc) and the haul home pass in front of her for a few
 frames. Only the held axe and the catch are kept clear.
+
+## The apsara — 2026-10-12
+
+The released soul is the **apsara queen** bound inside the demoness (whose human body the spider wears). She is voiced
+(ElevenLabs "Aakancha", unOLncGEZHyisV6yF1a5, flow YsZ801z0kT6TtHcbava6; lines `island_soul_0..5`, texts in STORY.md,
+"Chapter III lines") and replaces the old man's "voice in the shrine", whose four files went to
+`game asset/voice/retired/`. Her entry is scored by `apsara`, an 8 s one-shot (`music/apsara.mp3`, `ONE_SHOT`,
+`TRACK_GAIN` 1.25).
+
+**The reveal** (`island-demoness-reveal`): her whisper from inside the demoness, "Free me", echoing, over the existing
+3 s push and a second, closer 3.6 s shot on the demoness's face (it was a beat at `z < -63`, which the reveal cut off within
+a step). The reveal also builds the release's light (dark, its shaders compiled) and fetches `apsara`.
+
+**The release** (`island-soul-release`, 24.5 s; scene seconds):
+- **Her fall, 0-1.6.** The boss music is let go over 0.7 s (`Music.play` `fadeOut`) as `apsara` starts; `then('island')`
+  hands over to the island loop when it ends (8 s). The soul is placed, out of sight, beside the corpse (`soulSpawn`),
+  facing away from the body and turned up to 57° toward the hero (`formFacing`), head bowed (`Extra.bow`).
+- **The light leaves her, 1.6-3.4.** Gold motes seep up off the body (a third from the woman's torso) and spiral slowly
+  into a column of soft light where she will stand; her own follow light is lit there first (`Extra.kindle`, so the
+  light count never changes). The picture darkens at the edges and drains a little (the concussion pass: `dark` 0.42,
+  `desat` 0.2), and the corpse darkens to ash over 2.8 s (colours only; it never vanishes). Camera: square to the light on
+  the chamber's open side, the column in the middle and the body coming in from the side.
+- **She forms, 3.4-5.8.** She dissolves in from her feet over 1.6 s as the motes go into her and the column fades into
+  her; a crane from her knees to her face, three-quarters from the front on the side away from the hero. She lifts her
+  head (4.6-5.5) and turns to him (5.3).
+- **She speaks, 5.8-9.1.** Over his shoulder (the one away from the body): "The binding is broken... Follow me,
+  Yudhveer." (5.95-9.71), as the music decays. The music dims under the rest of the scene from 8.2.
+- **She sets off, 9.1-10.8.** On "Follow me" she turns from him and walks toward a low camera on her way to the seal,
+  him behind her.
+- **At the seal, 10.8-15.7** (SEAL_AT 3.5, then the split): "Behind this stone... the lamps still burn." (11.0-15.2);
+  `open-shrine` at 14.3 (essential). **Through it, 15.7-18.3**: "Come. It has waited a long time for you." (16.7-20.1,
+  carried). **The lit shrine, 18.3-24.5**, as before (an essential cue there ends the light of her release at once if the
+  scene was skipped; her settlement at 21.7).
+
+In the ending she turns from the altar to the hero as he comes ("Lift it... if you do not lift it for yourself."), and
+sends him on to Dwarka in her voice.
+
+Code: `src/game/stories/Island.ts` (the scene, `formFacing`, `clearOf`: every new camera is pulled in short of rock along
+the line to its subject), `src/cinematics/DivineLight.ts` (`soulRelease`: column, pool, 256 motes on closed-form spiral
+paths in preallocated arrays, the grade, the ash), `src/entities/Extra.ts` (`bow`: head, neck and upper chest turned
+about the line of her shoulders over the clip's pose, kept from the clip's own pose because the mixer does not rewrite
+a bone whose value has not changed; `kindle`), `src/entities/RadiantShade.ts` (the kindled light), `src/combat/SoundFX.ts`
+(`apsara`, `fadeOut`, and `then` waiting for a one-shot still loading).
+
+Tests (`scripts/island-soul.test.mjs`, 44 island tests): every voiced line of the reveal and the release ends inside its
+shot or the shots it is carried over and never runs into the next (durations by ffprobe); her six lines are hers and no old
+voice is left; the bow goes forward the way she faces, holds without building up and lifts back exactly, on the shipped
+rig; the music hands over (the boss let go in 0.7 s, the piece once, then the island loop; `then` waits for a piece still
+loading; a skip crossfades); and the 176-case spawn sweep now also checks that the new shots' cameras see their subject
+through no rock.
+
+Checked in-game with the capture slot (`slots/apsara`, runs `v1`..`final`, shots `S1a_reveal_cutscene` and
+`S7_release_full`). Known limits: the demoness's death clip leaves her slumped but upright, so the corpse is a dark husk
+beside the soul rather than a heap; the capture has no audio, so the music and voices were laid in afterwards from the
+logged scene clock (`video/S7_release_full_audio.mp4`) without the ambience or effects; the music only stays in step
+with the picture if it was fetched before her death (it is, at the reveal).

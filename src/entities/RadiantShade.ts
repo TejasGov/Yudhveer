@@ -39,6 +39,8 @@ export interface Radiance {
 }
 
 const MAX_PARTICLES = 192;
+/** Her light kindled before she forms, as a multiple of her own. */
+const KINDLED = 1.3;
 const FEET = ['LeftToeBase', 'RightToeBase'] as const;
 
 /** The uniforms every radiant material of one shade shares (one object, so a step sets them once). */
@@ -235,8 +237,11 @@ reflectedLight.indirectDiffuse *= uLit;
     if (this.aura && !this.aura.parent) body.add(this.aura);
   }
 
-  /** `k`: her presence, 0 gone to 1 wholly there; `body`: her group (its feet are where she stands). */
-  public update(dt: number, k: number, body: THREE.Object3D, visible: boolean, rig: THREE.Object3D | null): void {
+  /**
+   * `k`: her presence, 0 gone to 1 wholly there; `body`: her group (its feet are where she stands); `kindle`: her light lit
+   * where she stands before she is there (0..1, see `Extra.kindle`).
+   */
+  public update(dt: number, k: number, body: THREE.Object3D, visible: boolean, rig: THREE.Object3D | null, kindle = 0): void {
     this.time += dt;
     const u = this.uniforms;
     u.uTime.value = this.time;
@@ -251,7 +256,8 @@ reflectedLight.indirectDiffuse *= uLit;
     if (this.light) {
       if (!this.light.parent && this.parent) this.parent.add(this.light);
       this.light.position.set(x, body.position.y + this.lightHeight * this.height, z);
-      this.light.intensity = on ? this.lightBase * k * (0.93 + 0.07 * Math.sin(this.time * 2.3)) : 0;
+      // kindled, it burns brighter than her own: a column of light, not yet a figure
+      this.light.intensity = this.lightBase * Math.max(on ? k : 0, KINDLED * kindle) * (0.93 + 0.07 * Math.sin(this.time * 2.3));
       this.light.color.lerpColors(this.warm, this.cool, 0.5 + 0.5 * Math.sin(this.time * 0.55));
     }
     if (this.aura) (this.aura.material as THREE.SpriteMaterial).opacity = on ? this.auraOpacity * k * (0.9 + 0.1 * Math.sin(this.time * 1.4)) : 0;

@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import { stripTypeScriptTypes } from 'node:module';
 import vm from 'node:vm';
 import * as THREE from 'three';
@@ -94,6 +96,7 @@ const { Staging } = sceneModule.namespace;
 const { ISLAND_SOUL } = await loadDuelModule('src/entities/characters/IslandDemoness.ts', {
   '../../core/Assets': { asset: x => x },
 });
+let cameraRay = () => null;
 const { ISLAND_STORY } = await loadDuelModule('src/game/stories/Island.ts', {
   three: THREE, '../../cinematics/CinematicDirector': { ease: {} }, '../../combat/SoundFX': { SoundFX: {} },
   '../Progression': { KITS: { dwarka: {} } },
@@ -101,7 +104,14 @@ const { ISLAND_STORY } = await loadDuelModule('src/game/stories/Island.ts', {
   '../IslandExpedition': { ISLAND_FOES: { hall: [], pool: [], poolBehind: [], boss: 'island_demoness' } },
   '../../cinematics/Entrance': { grade() {} }, '../../entities/characters/Village': { GURU: {} },
   '../../entities/characters/IslandDemoness': { ISLAND_SOUL }, '../../entities/Extra': { Extra },
+  '../../cinematics/DivineLight': { soulRelease: () => ({ alive: true, start() {}, end() {} }) },
+  '../../cinematics/SceneFX': { SceneFX: { tween() {} } },
+  // the cutscene cameras' rock test: no rock unless a test puts the shipped cave behind it (`cameraRay`)
+  '../../core/PhysicsWorld': { PhysicsWorld: { getInstance: () => ({ castCameraRay: (...a) => cameraRay(...a) }) } },
 });
+/** What an essential cue does: opens the seal, or settles her on her mark inside (the others put the picture right). */
+const opensSeal = cue => String(cue.run).includes('open-shrine');
+const settlesHer = cue => String(cue.run).includes('setPosition');
 const release = ISLAND_STORY.beats.find(beat => beat.on.fallen === 'island_demoness').scene;
 
 test('the soul rises clear of the corpse and has time to walk to both marks before the seal and the settlement need her', () => {
@@ -117,7 +127,7 @@ test('the soul rises clear of the corpse and has time to walk to both marks befo
       const at = shotStart + cue.at;
       if ('place' in cue) from = typeof cue.place === 'function' ? cue.place(stage) : cue.place;
       if ('moveTo' in cue) { events.push({ kind: 'walk', at, from, to: cue.moveTo }); from = cue.moveTo; }
-      if ('run' in cue) events.push({ kind: cue.essential ? 'essential' : 'run', at });
+      if ('run' in cue) events.push({ kind: cue.essential ? 'essential' : 'run', at, cue });
     }
     shotStart += shot.duration;
   }
@@ -129,14 +139,17 @@ test('the soul rises clear of the corpse and has time to walk to both marks befo
   const walks = events.filter(e => e.kind === 'walk');
   assert.equal(walks.length, 2);
   const essentials = events.filter(e => e.kind === 'essential');
+  const ignite = events.find(e => e.kind === 'essential' && opensSeal(e.cue)).at;
+  const settle = events.find(e => e.kind === 'essential' && settlesHer(e.cue)).at;
   // 0.8 s of ease and turn in a walk, on top of its distance at her speed (the soul's staging eases in and out).
   const duration = w => Math.hypot(w.to.x - w.from.x, w.to.z - w.from.z) / ISLAND_SOUL.locomotion.walkSpeed + 0.8;
   // The seal's own cue (the first essential one) waits for her to arrive at the first mark, with a half second to spare.
-  assert.ok(walks[0].at + duration(walks[0]) + 0.5 <= essentials[0].at, 'she is at the seal before its runes ignite');
+  assert.ok(walks[0].at + duration(walks[0]) + 0.5 <= ignite, 'she is at the seal before its runes ignite');
   // She does not start for the room until the doors have begun to part, and is there a second before the settlement snaps her.
-  assert.ok(walks[1].at >= essentials[0].at + 1.4, 'she waits for the doors to split');
-  assert.ok(walks[1].at + duration(walks[1]) + 1 <= essentials.at(-1).at, 'a second of slack before the settlement');
-  assert.ok(sceneLength <= 16.3 + 3, `the scene grew by under 3 s: ${sceneLength}`);
+  assert.ok(walks[1].at >= ignite + 1.4, 'she waits for the doors to split');
+  assert.ok(walks[1].at + duration(walks[1]) + 1 <= settle, 'a second of slack before the settlement');
+  assert.equal(essentials.at(-1).at, settle, 'the settlement is the last thing the scene does to her');
+  assert.ok(sceneLength <= 24.5 + 0.5, `the scene stays near its 24.5 s: ${sceneLength}`);
 });
 
 /** Stages `actor` to `to` and records, per step, its speed (m/s), its heading error (rad) and its state. */
@@ -366,17 +379,17 @@ test('the soul rises clear of the body in the chamber and is on her marks in tim
       const point = m => typeof m === 'function' ? m(stage) : m === 'hero' ? hero : m;
       const staging = new Staging();
       const out = { walks: [], essentials: [] };
-      let next = 0, essential = 0;
+      let next = 0;
       for (let frame = 0; frame < Math.ceil((sceneLength + .5) * 60); frame++) {
         const t = frame / 60;
         while (next < timeline.length && timeline[next].t <= t + 1e-9) {
           const { cue } = timeline[next++];
-          if ('place' in cue) { staging.place(soul, point(cue.place), cue.face !== undefined ? point(cue.face) : null); soul.update(1 / 60); out.spawn = soul.group.position.clone(); }
+          if ('place' in cue) { staging.place(soul, point(cue.place), cue.face !== undefined ? point(cue.face) : null); soul.update(1 / 60); out.spawn = soul.group.position.clone(); out.yaw = soul.group.rotation.y; }
           else if ('moveTo' in cue) { staging.moveTo(soul, point(cue.moveTo), 'walk', cue.face !== undefined ? point(cue.face) : null); out.walks.push({ t, to: point(cue.moveTo) }); }
           else if ('run' in cue && cue.essential) {
-            // the first essential cue opens the seal (the runes ignite); the last settles her on her mark inside
-            if (essential++ === 0) out.ignites = t;
-            else { out.pop = soul.group.position.distanceTo(inside); out.settleAt = t; cue.run(stage); }
+            // one essential cue opens the seal (the runes ignite); one settles her on her mark inside
+            if (opensSeal(cue)) out.ignites = t;
+            else if (settlesHer(cue)) { out.pop = soul.group.position.distanceTo(inside); out.settleAt = t; cue.run(stage); }
           }
         }
         staging.update(1 / 60); soul.update(1 / 60);
@@ -386,7 +399,18 @@ test('the soul rises clear of the body in the chamber and is on her marks in tim
       return out;
     }
 
-    const failures = [], summary = { runs: 0, worstLeg1: 0, worstLeg2: 0, worstPop: 0, farthestFromSeal: 0 };
+    const failures = [], summary = { runs: 0, worstLeg1: 0, worstLeg2: 0, worstPop: 0, farthestFromSeal: 0, closestCamera: Infinity };
+    cameraRay = (o, d, max) => world.castRay(new RAPIER.Ray(o, d), max, true)?.timeOfImpact ?? null;
+    /** Where everyone is for the cameras: her on her spawn, turned as she forms; heads 1.6 m up. */
+    const cameraStage = (corpse, hero, spawn, yaw) => {
+      const where = id => (id === 'island_soul' ? spawn : id === 'hero' ? hero : corpse).clone();
+      return {
+        pos: where,
+        at: (id, f, side, up) => where(id).add(new THREE.Vector3(Math.sin(yaw) * f + Math.cos(yaw) * side, up, Math.cos(yaw) * f - Math.sin(yaw) * side)),
+        head: id => where(id).add(new THREE.Vector3(0, 1.62, 0)), height: () => 1.8,
+        actor: () => ({ group: { rotation: { y: yaw } } }),
+      };
+    };
     const chamber = [];
     for (const x of [-6, -4, -2, 0, 1.5, 3, 4.5, 6]) for (const z of [-71, -69.5, -68.5, -67, -65.5]) chamber.push([x, z]);
     const corridor = [[0, -64], [3, -62], [3, -58], [-3, -60]];
@@ -422,13 +446,149 @@ test('the soul rises clear of the body in the chamber and is on her marks in tim
           summary.worstLeg2 = Math.max(summary.worstLeg2, r.leg2);
           if (r.walks[1].t + r.leg2 + .5 > r.settleAt) fail(`only on the mark inside ${(r.settleAt - r.walks[1].t - r.leg2).toFixed(2)} s before the settlement`);
         }
+        // Her entry's cameras (the light gathering, her forming, over his shoulder) see their subject through no rock.
+        const stage = cameraStage(corpse, hero, r.spawn, r.yaw);
+        release.shots.slice(1, 5).forEach((shot, n) => {
+          const from = n === 2 ? stage.head('hero') : r.spawn.clone().add(new THREE.Vector3(0, 1.1, 0));
+          for (const key of shot.camera(stage)) {
+            const to = key.pos.clone().sub(from), dist = to.length();
+            const hit = world.castRay(new RAPIER.Ray(from, to.divideScalar(dist)), dist, true);
+            if (hit) fail(`shot ${n + 1}'s camera at (${key.pos.toArray().map(x => x.toFixed(2))}) is behind rock`);
+            summary.closestCamera = Math.min(summary.closestCamera, dist);
+          }
+        });
         // The essential settlement is no teleport.
         summary.worstPop = Math.max(summary.worstPop, r.pop);
         if (r.pop > .1) fail(`the settlement pops her ${r.pop.toFixed(2)} m`);
       }
     }
+    cameraRay = () => null;
     console.log('Soul spawn sweep:', summary);
     assert.deepEqual(failures, [], failures.slice(0, 12).join('\n'));
-    assert.ok(sceneLength <= 17.7 + 1, `the scene stays within a second of its 17.7 s: ${sceneLength}`);
+    assert.ok(sceneLength <= 24.5 + 0.5, `the scene stays near its 24.5 s: ${sceneLength}`);
   } finally { world.free(); physics.world = null; }
+});
+
+test('her head bows forward the way she faces (chest a little, head most), and lifts back with nothing left over', async () => {
+  const model = await geometry('characters/island_soul.glb');
+  const manifest = JSON.parse(readFileSync(new URL('../public/assets/characters/island_soul.manifest.json', import.meta.url)));
+  const rig = new rigModule.CharacterRig(model, manifest, ISLAND_SOUL);
+  const soul = new Extra('island_soul');
+  soul.rig = rig; soul.modelGroup.add(rig.root);
+  const yaw = 2.1;
+  soul.group.rotation.y = yaw;
+  for (let i = 0; i < 5; i++) soul.update(1 / 60);
+  // the crown (the head bone's own origin is at the top of the neck)
+  const head = rig.root.getObjectByName('head_end');
+  const at = () => { soul.group.updateMatrixWorld(true); return head.getWorldPosition(new THREE.Vector3()); };
+  // the same instant of the clip each time (a zero step re-poses it)
+  soul.update(0); const upright = at();
+  soul.bow = 1; soul.update(0); const bowed = at();
+  soul.update(0); const again = at();
+  soul.bow = 0; soul.update(0); const lifted = at();
+  const forward = new THREE.Vector3(Math.sin(yaw), 0, Math.cos(yaw));
+  const moved = bowed.clone().sub(upright);
+  assert.ok(moved.dot(forward) > 0.05, `the head goes forward: ${moved.dot(forward).toFixed(3)} m`);
+  assert.ok(moved.y < -0.01, `and down: ${moved.y.toFixed(3)} m`);
+  assert.ok(Math.abs(moved.clone().sub(forward.clone().multiplyScalar(moved.dot(forward))).setY(0).length()) < 0.02, 'not to the side');
+  assert.ok(again.distanceTo(bowed) < 1e-6, 'held, it does not build up step by step');
+  assert.ok(lifted.distanceTo(upright) < 1e-6, 'lifted, the clip has her as it would');
+});
+
+// ---- The apsara (2026-10-12): her voiced lines, timed to their recordings, and her 8 s piece handing over to the island's music --
+/** A recording's length (s), by ffprobe; null where ffprobe is not installed. */
+function recordingSeconds(id) {
+  const r = spawnSync('ffprobe', ['-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0',
+    fileURLToPath(new URL(`../public/assets/voice/${id}.mp3`, import.meta.url))], { encoding: 'utf8' });
+  return r.status === 0 ? Number(r.stdout.trim()) : null;
+}
+
+test('her voiced lines each end inside their shot (or the shots they are carried over) and never run into the next', t => {
+  if (recordingSeconds('island_soul_1') === null) return t.skip('no ffprobe');
+  const TAIL = 0.45; // Dialogue.ts VOICE_TAIL: a voiced line stays this long after its recording
+  const reveal = ISLAND_STORY.beats.find(b => b.scene?.id === 'island-demoness-reveal').scene;
+  for (const scene of [reveal, release]) {
+    let shotStart = 0, lastEnd = 0, carriedUntil = 0;
+    const length = scene.shots.reduce((sum, shot) => sum + shot.duration, 0);
+    scene.shots.forEach((shot, i) => {
+      if (shot.lines?.length) {
+        assert.ok(shotStart >= carriedUntil - 1e-6, `${scene.id} shot ${i}: its lines would cut off the ones carried into it`);
+        let at = shotStart + (shot.linesAt ?? 0.4);
+        for (const line of shot.lines) {
+          assert.ok(line.voice && !line.hold, `${scene.id} shot ${i}: "${line.text}" is voiced and lasts as long as its recording`);
+          assert.ok(at >= lastEnd - 1e-6, `${scene.id}: "${line.text}" starts before the line before it is done`);
+          const end = at + recordingSeconds(line.voice) + TAIL;
+          if (shot.carryLines) carriedUntil = end;
+          else assert.ok(end <= shotStart + shot.duration + 0.02, `${scene.id} shot ${i}: "${line.text}" runs ${(end - shotStart - shot.duration).toFixed(2)} s past its shot`);
+          assert.ok(end <= length + 1e-6, `${scene.id}: "${line.text}" is still being said when the scene ends`);
+          lastEnd = at = end;
+        }
+      }
+      shotStart += shot.duration;
+    });
+  }
+  // Her six lines, in her voice: the old man's shrine voice is gone from the chapter.
+  const voices = storyLines(ISLAND_STORY).filter(l => l.voice?.startsWith('island_soul_'));
+  assert.deepEqual(voices.map(l => l.voice).sort(), [0, 1, 2, 3, 4, 5].map(n => `island_soul_${n}`));
+  assert.deepEqual([...new Set(voices.filter(l => l.voice !== 'island_soul_0').map(l => l.speaker))], ['The apsara']);
+  assert.ok(!storyLines(ISLAND_STORY).some(l => /island_(shrine|end)_voice/.test(l.voice ?? '') || /Voice in the shrine|Released soul/.test(l.speaker ?? '')));
+});
+
+/** Every line the story says (its scenes' and its beats'). */
+function storyLines(story) {
+  const scenes = [story.opening, story.ending, ...story.beats.map(b => b.scene)].filter(Boolean);
+  return [...scenes.flatMap(s => s.shots.flatMap(shot => shot.lines ?? [])), ...story.beats.flatMap(b => b.lines ?? [])];
+}
+
+test('the apsara piece plays once over the boss music (let go quickly), then hands over to the island loop; a skip crossfades', async () => {
+  const fetched = [];
+  const { SoundFX } = await loadDuelModule('src/combat/SoundFX.ts', {
+    '../core/Settings': { Settings: { onChange() {} } }, 'virtual:sfx-samples': { default: [] },
+    'virtual:music-tracks': { default: ['boss', 'island', 'apsara'] }, '../core/Assets': { asset: x => x },
+  }, {
+    fetch: async url => { fetched.push(url); return { ok: true, arrayBuffer: async () => url }; },
+  });
+  const param = () => ({ value: 1, ramps: [], setValueAtTime() {}, cancelScheduledValues() {}, setTargetAtTime() {},
+    linearRampToValueAtTime(v, at) { this.ramps.push([v, at]); } });
+  const sources = [];
+  const ctx = {
+    currentTime: 10, state: 'running',
+    createGain: () => ({ gain: param(), connect() {} }),
+    createBufferSource: () => { const s = { connect() {}, start() {}, stop(at) { s.stopped = at; }, onended: null }; sources.push(s); return s; },
+    decodeAudioData: async url => ({ url, sampleRate: 1000, length: 8000, numberOfChannels: 0, duration: 8 }),
+  };
+  const settle = () => new Promise(r => setTimeout(r, 0));
+  const music = SoundFX.getInstance().music;
+  music.connect(ctx, { connect() {} });
+  music.play('boss'); await settle(); await settle();
+  const boss = sources.at(-1);
+  // Her death: the piece was fetched ahead (at the reveal); the boss music goes in 0.7 s, not the usual 1.5.
+  music.prefetch('apsara'); await settle(); await settle();
+  music.play('apsara', { fadeIn: 0.05, fadeOut: 0.7 });
+  music.then('island');
+  const piece = sources.at(-1);
+  assert.equal(piece.buffer.url, 'music/apsara.mp3');
+  assert.equal(piece.loop, false, 'it plays once');
+  assert.ok(Math.abs(boss.stopped - (10 + 0.7 + 0.05)) < 1e-9, `the boss music is let go over 0.7 s: ${boss.stopped}`);
+  assert.equal(music.track, 'apsara');
+  // Played out: the island's loop comes in.
+  piece.onended(); await settle(); await settle();
+  assert.equal(music.track, 'island');
+  assert.equal(sources.at(-1).buffer.url, 'music/island.mp3');
+  assert.equal(sources.at(-1).loop, true);
+
+  // Asked for before it has loaded (no reveal to fetch it ahead): `then` still waits for it, not cutting it off unheard.
+  const late = (await loadDuelModule('src/combat/SoundFX.ts', {
+    '../core/Settings': { Settings: { onChange() {} } }, 'virtual:sfx-samples': { default: [] },
+    'virtual:music-tracks': { default: ['boss', 'island', 'apsara'] }, '../core/Assets': { asset: x => x },
+  }, { fetch: async url => ({ ok: true, arrayBuffer: async () => url }) })).SoundFX.getInstance().music;
+  late.connect(ctx, { connect() {} });
+  late.play('boss'); await settle(); await settle();
+  late.play('apsara'); late.then('island');
+  assert.equal(late.track, 'apsara', 'still waiting for the piece');
+  await settle(); await settle();
+  assert.equal(sources.at(-1).buffer.url, 'music/apsara.mp3', 'and it plays once loaded');
+  // The scene skipped while it plays: the fight's own music crossfades in at once.
+  late.play('island');
+  assert.equal(late.track, 'island');
 });

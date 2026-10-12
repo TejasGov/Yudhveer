@@ -51,6 +51,20 @@ export class Extra extends Character {
   /** Her light, halo and motes (a radiant shade only). */
   private radiance: RadiantShade | null = null;
   /**
+   * A radiant shade's light kindled where she stands before she is there (0..1): the light gathering that she forms in.
+   * Her own light takes over as she appears.
+   */
+  public kindle = 0;
+  /** Her head bowed (0 upright .. 1 bowed), on top of whatever clip plays: a soul forming, then lifting her head. */
+  public bow = 0;
+  /** The bones a bow turns, each with the clip's own pose of it and the bowed pose last written over that. */
+  private bowBones: { bone: THREE.Object3D; turn: number; clip: THREE.Quaternion; wrote: THREE.Quaternion }[] | null = null;
+  private bowed = false;
+  private readonly bowAxis = new THREE.Vector3();
+  private readonly bowTurn = new THREE.Quaternion();
+  private readonly bowParent = new THREE.Quaternion();
+  private readonly bowInverse = new THREE.Quaternion();
+  /**
    * A shade's presence: 0 gone, 1 wholly there. It eases toward its target (`appear`); as it comes the shade rises out
    * of the ground to hover a hand's breadth up, and its see-through materials fade in with it.
    */
@@ -115,6 +129,7 @@ export class Extra extends Character {
     // A graceful walker's stride follows the speed it is commanded, not the filtered speed it has covered.
     if (this.graceful) this.visSpeed = this.commandedSpeed;
     super.update(dt);
+    if (this.bow > 1e-3 || this.bowed) this.bowHead();
     if (!this.shade) return;
     this.haunting += dt;
     if (this.presence !== this.presenceTarget) {
@@ -127,8 +142,42 @@ export class Extra extends Character {
     if (this.radiance) {
       const k = this.presence * this.presence * (3 - 2 * this.presence);
       this.radiance.attach(this.group.parent, this.group);
-      this.radiance.update(dt, k, this.group, this.group.visible, this.rig?.root ?? null);
+      this.radiance.update(dt, k, this.group, this.group.visible, this.rig?.root ?? null, this.kindle);
     }
+  }
+
+  /**
+   * Bows the head, the neck and the upper chest forward by `bow`, over the pose the clip gave them. The mixer only writes a
+   * bone when its clip's value changes, so a bone it left alone still holds last step's bow: that one is bowed again from
+   * the clip pose kept for it, not from itself (it would go on bending). The turn is about the line of her shoulders, in the
+   * world, so it needs no knowledge of the bones' axes. At 0 the clip's pose is put back.
+   */
+  private bowHead(): void {
+    const root = this.rig?.root;
+    if (!root) return;
+    this.bowBones ??= ([['Spine', 0.14], ['neck', 0.26], ['Head', 0.3]] as const).flatMap(([name, turn]) => {
+      const bone = root.getObjectByName(name);
+      return bone ? [{ bone, turn, clip: bone.quaternion.clone(), wrote: new THREE.Quaternion(0, 0, 0, 0) }] : [];
+    });
+    const yaw = this.group.rotation.y;
+    this.bowAxis.set(Math.cos(yaw), 0, -Math.sin(yaw));
+    for (const b of this.bowBones) {
+      // Ours from last step (the engine rounds it to single precision between steps): the clip did not move it.
+      const q = b.bone.quaternion, w = b.wrote;
+      if (Math.abs(q.x - w.x) + Math.abs(q.y - w.y) + Math.abs(q.z - w.z) + Math.abs(q.w - w.w) > 1e-5) b.clip.copy(q);
+      if (this.bow <= 1e-3) {
+        q.copy(b.clip);
+        continue;
+      }
+      this.bowTurn.setFromAxisAngle(this.bowAxis, this.bow * b.turn);
+      b.bone.parent!.getWorldQuaternion(this.bowParent);
+      // into the bone's parent space (parent^-1 * turn * parent), before the clip's own rotation of it
+      this.bowInverse.copy(this.bowParent).invert();
+      q.copy(b.clip).premultiply(this.bowTurn.premultiply(this.bowInverse).multiply(this.bowParent)).normalize();
+      w.copy(q);
+    }
+    this.bowed = this.bow > 1e-3;
+    if (!this.bowed) for (const b of this.bowBones) b.wrote.set(0, 0, 0, 0);
   }
 
   /**
