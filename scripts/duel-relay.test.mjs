@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { DuelRoom, validSnapshot } from '../server/DuelRoom.mjs';
+import { DuelRoom, DUEL_IDLE_MS, validSnapshot } from '../server/DuelRoom.mjs';
 import { DUEL_ROUND_KITS, DUEL_ROUNDS_TO_WIN, duelLoadoutId } from '../src/duel/Rules.ts';
 
 /** The actual shared core, with a controllable server clock: no waiting, fake scoring or duplicated kit table. */
@@ -216,4 +216,14 @@ test('an empty retained room can be recreated after disconnect with fresh epochs
   assert.deepEqual(p.room.score, [0, 0]); assert.equal(p.room.seats.size, 2);
   // Events from detached old sockets cannot touch the replacement session.
   p.room.leave(p.b); send(p.room, p.a, hit(1, 0)); assert.equal(p.room.active, true);
+});
+test('a room without play closes after the idle limit; any message keeps it open', () => {
+  const time = clock(), room = new DuelRoom('ABC123', time), a = socket(), b = socket();
+  room.join(a, true); time.advance(DUEL_IDLE_MS / 1000 - 30);
+  send(room, a, { type: 'hello', name: 'A' }); time.advance(DUEL_IDLE_MS / 1000 - 30);
+  assert.equal(room.seats.size, 1); assert.equal(a.closed, false);
+  room.join(b, false); time.advance(DUEL_IDLE_MS / 1000 + 60);
+  assert.equal(room.seats.size, 0); assert.equal(a.closed, true); assert.equal(b.closed, true);
+  assert.match(b.messages.find(m => m.type === 'error').message, /without play/);
+  assert.equal(room.idleTimer, null);
 });

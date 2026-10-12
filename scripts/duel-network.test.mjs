@@ -13,6 +13,11 @@ import * as rules from '../src/duel/Rules.ts';
  * Timers advance a scripted sender clock; eligible contacts report a fixture KO. This deliberately measures the
  * protocol and its latency simulator, not Rapier geometry, human reactions or whether parrying feels responsive.
  */
+// DUEL_RELAY_URL plays the same matches through another relay, e.g. the local Worker (`npm run dev` in server/), as a
+// page at DUEL_RELAY_ORIGIN would: browsers always send Origin, and the Worker refuses pages it does not know.
+const relay = process.env.DUEL_RELAY_URL;
+const origin = process.env.DUEL_RELAY_ORIGIN ?? 'http://localhost:5173';
+class PageSocket extends WebSocket { constructor(url) { super(url, { origin }); } }
 const until = async (predicate, label) => {
   const deadline = performance.now() + 8000;
   while (!predicate()) {
@@ -31,7 +36,7 @@ for (const ping of [40, 80, 150]) test('real WebSockets: three rounds, verdicts 
     socket.on('close', () => room.leave(socket));
   });
   const { DuelTransport } = await loadDuelModule('src/duel/Transport.ts', { './Rules': rules }, {
-    WebSocket, URL, crypto: globalThis.crypto, performance, setTimeout, clearTimeout,
+    WebSocket: PageSocket, URL, crypto: globalThis.crypto, performance, setTimeout, clearTimeout,
   });
   const clients = [];
   function client() {
@@ -83,7 +88,7 @@ for (const ping of [40, 80, 150]) test('real WebSockets: three rounds, verdicts 
   }
   const a = client(), b = client();
   try {
-    const endpoint = 'ws://127.0.0.1:' + server.address().port;
+    const endpoint = relay ?? 'ws://127.0.0.1:' + server.address().port;
     await a.transport.connect(endpoint, undefined, 'A'); await b.transport.connect(endpoint, a.transport.room, 'B');
     for (const c of clients) c.transport.send({ type: 'ready', round: 0, loadout: rules.duelLoadoutId(1) });
     for (const [i, attacker] of [a, b, a].entries()) {
@@ -95,7 +100,8 @@ for (const ping of [40, 80, 150]) test('real WebSockets: three rounds, verdicts 
     assert.deepEqual(Array.from(a.finishes.at(-1).score), [2, 1]); assert.deepEqual(Array.from(b.finishes.at(-1).score), [2, 1]);
     for (const c of clients) c.transport.rematch();
     await until(() => clients.every(c => c.active && c.transport.round === 4), 'rematch');
-    assert.deepEqual(room.score, [0, 0]); assert.equal(a.health, 100); assert.equal(b.health, 100);
+    if (!relay) assert.deepEqual(room.score, [0, 0]);
+    assert.equal(a.health, 100); assert.equal(b.health, 100);
     a.transport.close(); await until(() => b.disconnected, 'disconnect');
     t.diagnostic(JSON.stringify({ presetPing: ping, jitter: 10, loss: 0.5,
       peerRttMeans: clients.map(c => +c.transport.metrics.peerRttMean.toFixed(1)),

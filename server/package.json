@@ -1,0 +1,16 @@
+{
+  "name": "yudhveer-duel-relay",
+  "private": true,
+  "type": "module",
+  "description": "The online duel relay as a Cloudflare Worker + Durable Object (cf CLI project; see docs/DEPLOY.md, Duel relay).",
+  "scripts": {
+    "dev": "cf dev",
+    "build": "cf build",
+    "deploy": "cf deploy"
+  },
+  "devDependencies": {
+    "@cloudflare/vite-plugin": "2.0.0-beta.sha-91c870c02",
+    "cf": "^1.0.0-beta.12",
+    "vite": "^8.3.0"
+  }
+}

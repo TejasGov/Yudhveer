@@ -12,6 +12,7 @@ const STATES = new Set(['IDLE', 'REST', 'WALK', 'MOVE', 'SPRINT', 'STRAFE_LEFT',
 const RESULTS = new Set(['player-hit', 'blocked', 'deflected', 'evaded']);
 const finite = (n, min, max) => typeof n === 'number' && Number.isFinite(n) && n >= min && n <= max;
 const vector = v => Array.isArray(v) && v.length === 3 && v.every(n => finite(n, -1000, 1000));
+export const DUEL_IDLE_MS = 10 * 60 * 1000;
 export const roomCode = code => typeof code === 'string' && /^[A-Z0-9]{6}$/.test(code);
 export const playerName = name => typeof name === 'string' ? name.replace(/[\x00-\x1f\x7f]/g, '').trim().slice(0, 16) || 'Yodha' : 'Yodha';
 export function validSnapshot(s, number = 1) {
@@ -30,8 +31,23 @@ export class DuelRoom {
   constructor(code, clock = {}) {
     this.code = code; this.seats = new Map(); this.round = 0; this.roundNumber = 0; this.nextRound = 1;
     this.score = [0, 0]; this.active = false; this.phase = 'lobby'; this.timer = null;
-    this.progressTimer = null;
+    this.progressTimer = null; this.idleTimer = null; this.activeAt = 0;
     this.now = clock.now ?? Date.now; this.schedule = clock.schedule ?? setTimeout; this.cancel = clock.cancel ?? clearTimeout;
+  }
+  /**
+   * A room nobody plays in closes after DUEL_IDLE_MS. On the Durable Object every open socket is billed duration, so a
+   * forgotten lobby or results tab must not hold one open for hours (in a fight the two-second stall check rules).
+   */
+  watchIdle() {
+    this.cancel(this.idleTimer);
+    this.idleTimer = this.schedule(() => {
+      this.idleTimer = null;
+      if (!this.seats.size) return;
+      if (this.now() - this.activeAt < DUEL_IDLE_MS) { this.watchIdle(); return; }
+      this.broadcast({ type: 'error', message: 'Room closed after ' + DUEL_IDLE_MS / 60000 + ' minutes without play.' });
+      const [socket] = this.seats.keys(); this.leave(socket); socket.close(1000, 'Room idle');
+    }, 60000);
+    this.idleTimer?.unref?.();
   }
   send(socket, message) {
     const seat = this.seats.get(socket);
@@ -68,12 +84,14 @@ export class DuelRoom {
       hits: new Set(), rateAt: this.now(), rate: 0, tick: -1, progressedAt: this.now(),
       outgoing: new Map(), outBytes: 0, delivery: 0 });
     this.send(socket, { type: 'joined', room: this.code, seat });
+    this.activeAt = this.now(); if (this.idleTimer === null) this.watchIdle();
     this.broadcast({ type: 'waiting', players: this.seats.size }); return true;
   }
   leave(socket) {
     if (!this.seats.delete(socket)) return;
     this.cancel(this.timer); this.timer = null; this.active = false; this.phase = 'closed';
     this.cancel(this.progressTimer); this.progressTimer = null;
+    this.cancel(this.idleTimer); this.idleTimer = null;
     this.broadcast({ type: 'disconnected' });
     const peers = [...this.seats.keys()]; this.seats.clear();
     for (const peer of peers) peer.close(1000, 'Opponent disconnected');
@@ -117,6 +135,7 @@ export class DuelRoom {
   message(socket, raw) {
     const sender = this.seats.get(socket);
     if (!sender || typeof raw !== 'string' || raw.length > 4096) return;
+    this.activeAt = this.now();
     if (this.now() - sender.rateAt >= 1000) { sender.rateAt = this.now(); sender.rate = 0; }
     if (++sender.rate > 120) { socket.close(1008, 'Message limit'); this.leave(socket); return; }
     let m; try { m = JSON.parse(raw); } catch { return; }
