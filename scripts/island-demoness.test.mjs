@@ -71,7 +71,7 @@ const { BossIslandDemoness } = await loadDuelModule('src/entities/BossIslandDemo
   '../core/PhysicsWorld':{PhysicsWorld:{getInstance:()=>axePhysics}},
   '../combat/ChainAxeMotion':axeMotion,
   '../combat/AxeChain':await loadDuelModule('src/combat/AxeChain.ts',{three:THREE,'../levels/environment/ToonRelight':toonRelight}),
-  '../combat/AxeBody':await loadDuelModule('src/combat/AxeBody.ts',{three:THREE}),
+  '../combat/AxeBody':await loadDuelModule('src/combat/AxeBody.ts',{three:THREE,'./ChainAxeMotion':axeMotion}),
   '../combat/AxeFX':axeFX,
   '../combat/SlashRibbon':await loadDuelModule('src/combat/SlashRibbon.ts',{three:THREE}),
 });
@@ -137,51 +137,58 @@ test('axe leaves and returns to the hand continuously; deflection recalls instea
   boss.stateMachine.currentState='DEFLECTED';boss.stateMachine.stateTime=0;boss.update(1/60);
   assert.ok(axe.position.distanceTo(released)<.05);assert.equal(boss.hitWindows().length,0);
   for(let f=1;f<30;f++){boss.stateMachine.stateTime=f/60;boss.update(1/60);}
-  assert.ok(axe.position.distanceTo(hand)<1e-6);
+  assert.ok(axe.position.distanceTo(boss.hand)<1e-6,'hauled home into her fist');
   const chain=boss.group.children.find(o=>o.isInstancedMesh);assert.equal(chain.count,0);
 });
 
-test('each blow winds up, holds coiled at the top, whips out at 22-28 m/s and never slows mid-stroke',()=>{
-  const hand=new THREE.Vector3(-0.65,2.3,1.0),p=new THREE.Vector3(),q=new THREE.Quaternion(),tip=new THREE.Vector3(),last=new THREE.Vector3();
+test('each blow winds up, holds coiled at the top, whips out at 22-31 m/s and never slows mid-stroke',()=>{
+  // Her hand where the arm keys put it (the rig's IK reaches it within millimetres: see the rig tests below).
+  const rest=new THREE.Vector3(...axeMotion.REST_HOLD.p),grip=new THREE.Vector3(),wrist=new THREE.Vector3(),hand=new THREE.Vector3();
+  const p=new THREE.Vector3(),q=new THREE.Quaternion(),tip=new THREE.Vector3(),last=new THREE.Vector3(),apex=new THREE.Vector3(),lastP=new THREE.Vector3();
   for(const [state,reach] of [['ATTACK_1',2.4],['ATTACK_2',2.4],['ATTACK_3',4.2]]) {
     const motion=new axeMotion.AxeMotion();motion.prepare(state,reach);const cue=motion.cue({});
     assert.ok(cue.whip>=0.35&&cue.whip<=0.45,`${state} anticipation ${cue.whip}`);
     assert.ok(cue.whip-cue.apex>=0.08-1e-9&&cue.whip-cue.apex<=0.12+1e-9,`${state} apex hold ${cue.whip-cue.apex}`);
     const speeds=[];let held=0;
     for(let f=0;f<=150;f++) {
-      const t=f/60;motion.pose(state,t,hand,p,q);tip.copy(axeMotion.AXE_TIP).applyQuaternion(q).add(p);
-      if(f>0) speeds.push({t,v:tip.distanceTo(last)*60});
-      if(t>cue.apex&&t<=cue.whip) held=Math.max(held,p.distanceTo(motion.position(cue.apex,hand,new THREE.Vector3())));
-      last.copy(tip);
+      const t=f/60;hand.lerpVectors(rest,grip,motion.arm(t,grip,wrist));
+      motion.pose(state,t,hand,axeMotion.HOLD_ROTATION,p,q);tip.copy(axeMotion.AXE_TIP).applyQuaternion(q).add(p);
+      if(f>0) speeds.push({t,v:tip.distanceTo(last)*60,travel:p.distanceTo(lastP)*60});
+      if(t<=cue.apex) apex.copy(p);
+      else if(t<=cue.whip) held=Math.max(held,p.distanceTo(apex));
+      last.copy(tip);lastP.copy(p);
     }
     assert.ok(held<0.15,`${state} hold creeps ${held}`);
     const strike=speeds.filter(s=>s.t>cue.whip&&s.t<=cue.stop);
     const peak=strike.reduce((a,b)=>b.v>a.v?b:a);
-    assert.ok(peak.v>=22&&peak.v<=29,`${state} peak tip ${peak.v}`);
-    // The whip-out: most of its speed within 0.16 s of leaving the coil (the slam then keeps gathering speed into the floor).
-    const out=strike.filter(s=>s.t<=cue.whip+0.16).reduce((a,b)=>Math.max(a,b.v),0);
-    assert.ok(out>=0.8*peak.v,`${state} whip-out reaches ${out} of ${peak.v} m/s in 0.16 s`);
+    // The tip turns about her driving hand as the chain carries the blade round (her hand no longer stands still): up to 31.
+    assert.ok(peak.v>=22&&peak.v<=31,`${state} peak tip ${peak.v}`);
+    // The whip-out: the axe's travel has most of its speed within 0.16 s of leaving her fist (the blade's turn about her hand
+    // as the chain carries it round comes on top of that later, most of all as the slam comes down in front of her).
+    const top=strike.reduce((a,b)=>Math.max(a,b.travel),0);
+    const out=strike.filter(s=>s.t<=cue.whip+0.16).reduce((a,b)=>Math.max(a,b.travel),0);
+    assert.ok(out>=0.8*top,`${state} whip-out reaches ${out} of ${top} m/s in 0.16 s`);
     const after=strike.filter(s=>s.t>=peak.t);
     for(let i=1;i<after.length;i++) assert.ok(after[i].v<=after[i-1].v+2,`${state} speeds up again mid-stroke at ${after[i].t}`);
     assert.ok(Math.max(...speeds.filter(s=>s.t<cue.apex).map(s=>s.v))<18,`${state} draws back readably`);
   }
 });
 
-test('the recall snaps through the hand and settles; the chain hangs slack drawn back and goes taut at full stretch',()=>{
+test('the axe stays in her fist through the draw, the chain goes taut at full stretch, and the recall lands in her fist and stays',()=>{
   const boss=new BossIslandDemoness(),axe=boss.group.getObjectByName('TravellingChainAxe'),hand=axe.position.clone();
   boss.chooseAttack(null,4.2);
-  let passed=false,slackDrawn=1,taut=0;const cue={};
+  let drawn=0,taut=0,afterCatch=0;const cue={};
   for(let f=0;f<=132;f++) {
     boss.stateMachine.currentState='ATTACK_3';boss.stateMachine.stateTime=f/60;boss.update(1/60);
     if(f===0) boss.motion.cue(cue);
     const t=f/60,probe=boss.axeProbe();
-    if(t>0.2&&t<cue.whip) slackDrawn=Math.min(slackDrawn,probe.stretch);
+    if(t<cue.whip) drawn=Math.max(drawn,axe.position.distanceTo(boss.hand));
     if(t>=cue.stop&&t<cue.stop+0.05) taut=Math.max(taut,probe.stretch);
-    if(t>cue.home&&t<cue.settled&&axe.position.distanceTo(hand)>0.02) passed=true;
+    if(t>=cue.home) afterCatch=Math.max(afterCatch,axe.position.distanceTo(boss.hand));
   }
-  assert.ok(slackDrawn<0.95,`drawn back the chain hangs slack (${slackDrawn})`);
+  assert.ok(drawn<1e-6,`drawn back, the axe is in her fist (${drawn} m off it)`);
   assert.ok(taut>0.97,`at full stretch it is taut (${taut})`);
-  assert.ok(passed,'the axe overshoots the hand before settling');
+  assert.ok(afterCatch<1e-6,`caught, it stays in her fist (${afterCatch} m off it)`);
   assert.ok(axe.position.distanceTo(hand)<1e-6);
 });
 
