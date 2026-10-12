@@ -84,8 +84,8 @@ export const HIP_LEAD = 0.06;
 const REST_OFF: V3 = [0.98, 1.83, 0.67];
 /** Her rest hold (the grip, boss-local, as the idle clip has her), where the right-hand keys start and end: out at her
  * right side, the haft up and out, the blade forward, so her face and chest stay clear from the front. */
-const REST_GRIP: V3 = [-0.74, 1.95, 0.85];
-const REST_WRIST: V3 = [10, 0, 0];
+const REST_GRIP: V3 = [-0.78, 1.92, 0.76];
+const REST_WRIST: V3 = [0, -10, 25];
 /** The rest hold, for AxeBody: it carries it with her chest, measured from where the idle clip has the chest. */
 export const REST_HOLD = { p: REST_GRIP, wrist: REST_WRIST } as const;
 /** The chest bone (boss-local) at the idle clip's first frame (island_demoness.glb; a test checks it against the file). */
@@ -119,12 +119,12 @@ const SPECS: Record<AxeAttack, AttackSpec> = {
     heat: { t: [0, 0.24, 0.36, 0.9, 1.2, 1.7], v: [0.1, 0.55, 1, 1, 0.55, 0.12] },
     arm: {
       t: [0, 0.16, 0.28, 0.34, 0.44, 0.5, 0.56, 0.68, 0.84, 1, 1.14, 1.28, 1.42, 1.58, 1.76],
-      p: [REST_GRIP, [-0.72, 2.3, 0.78], [-0.7, 2.62, 0.42], [-0.68, 2.78, 0.18], [-0.69, 2.79, 0.17],
+      p: [REST_GRIP, [-0.76, 2.2, 0.72], [-0.7, 2.62, 0.42], [-0.68, 2.78, 0.18], [-0.69, 2.79, 0.17],
         [-0.98, 2.62, 0.45], [-0.8, 2.38, 1.05], [-0.32, 2.22, 1.45], [0.08, 2.15, 1.4], [0.2, 2.14, 1.3],
-        [0.05, 2.12, 1.22], [-0.4, 2, 1.12], [-0.7, 1.93, 1.02], [-0.73, 1.93, 0.9], REST_GRIP],
-      wrist: [REST_WRIST, [18, -8, 20], [17.5, -7.5, 55], [-7.5, 5, 75], [-12, 2, 75],
+        [0.05, 2.12, 1.22], [-0.4, 2, 1.12], [-0.72, 1.93, 0.98], [-0.77, 1.92, 0.84], REST_GRIP],
+      wrist: [REST_WRIST, [10, -10, 22], [17.5, -7.5, 55], [-7.5, 5, 75], [-12, 2, 75],
         [-4, 10, 68], [16, 24, 40], [20, 24, 12], [15, 18, 0], [10, 10, 0],
-        [5, 5, 0], [15, 15, 20], [15, 10, 15], [12, -5, 5], REST_WRIST],
+        [5, 5, 0], [5, 0, 22], [0, -8, 25], [0, -10, 25], REST_WRIST],
       w: [0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0.5, 0],
     },
     off: {
@@ -158,12 +158,12 @@ const SPECS: Record<AxeAttack, AttackSpec> = {
     heat: { t: [0, 0.24, 0.38, 0.9, 1.25, 1.8], v: [0.1, 0.55, 1, 1, 0.6, 0.12] },
     arm: {
       t: [0, 0.14, 0.26, 0.36, 0.46, 0.52, 0.58, 0.66, 0.8, 0.96, 1.16, 1.3, 1.44, 1.6, 1.8],
-      p: [REST_GRIP, [-0.72, 2.2, 0.88], [-0.62, 2.58, 0.68], [-0.43, 2.96, 0.5], [-0.42, 3.01, 0.44],
+      p: [REST_GRIP, [-0.76, 2.16, 0.82], [-0.62, 2.58, 0.68], [-0.55, 2.95, 0.48], [-0.55, 3, 0.42],
         [-0.4, 3.1, 0.66], [-0.36, 2.9, 1.15], [-0.32, 2.25, 1.32], [-0.32, 2.02, 1.3], [-0.32, 1.98, 1.28],
-        [-0.4, 2, 1.25], [-0.55, 2.05, 1.15], [-0.66, 2.06, 1.02], [-0.72, 2, 0.92], REST_GRIP],
-      wrist: [REST_WRIST, [18, -20, 15], [25, -45, 35], [-15, -58, -8], [-20, -62, -10],
+        [-0.4, 2, 1.25], [-0.55, 2.05, 1.15], [-0.7, 2.02, 0.98], [-0.76, 1.95, 0.84], REST_GRIP],
+      wrist: [REST_WRIST, [10, -15, 20], [25, -45, 35], [-15, -58, -8], [-20, -62, -10],
         [-15, -50, -8], [-5, -25, -5], [18, 18, 0], [22, 26, 0], [15, 18, 0],
-        [12, 15, 0], [10, 8, 0], [12, 0, 0], [12, -6, 0], REST_WRIST],
+        [12, 15, 0], [5, 0, 15], [0, -8, 22], [0, -10, 25], REST_WRIST],
       w: [0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0.5, 0],
     },
     off: {
@@ -197,13 +197,13 @@ const SPECS: Record<AxeAttack, AttackSpec> = {
     heat: { t: [0, 0.24, 0.36, 1.0, 1.35, 1.9], v: [0.1, 0.55, 1, 1, 0.55, 0.12] },
     arm: {
       t: [0, 0.16, 0.28, 0.35, 0.45, 0.53, 0.62, 0.7, 0.84, 0.96, 1.1, 1.22, 1.34, 1.5, 1.66, 1.82],
-      p: [REST_GRIP, [-0.62, 2.12, 0.85], [-0.76, 2.05, 0.48], [-0.8, 2, 0.27], [-0.81, 2, 0.25],
+      p: [REST_GRIP, [-0.74, 2.02, 0.72], [-0.76, 2.05, 0.48], [-0.8, 2, 0.27], [-0.81, 2, 0.25],
         [-0.92, 2.12, 1], [-0.6, 2.21, 1.62], [-0.42, 2.24, 1.72], [-0.3, 2.24, 1.68], [-0.26, 2.22, 1.64],
-        [-0.35, 2.2, 1.55], [-0.5, 2.15, 1.35], [-0.62, 2.1, 1.15], [-0.7, 2.02, 0.98], [-0.73, 1.97, 0.88],
+        [-0.35, 2.2, 1.55], [-0.62, 2.15, 1.35], [-0.76, 2.02, 1.05], [-0.74, 1.98, 0.92], [-0.77, 1.93, 0.82],
         REST_GRIP],
-      wrist: [REST_WRIST, [15, 15, 25], [8, 26, 50], [10, 28, 62], [12, 28, 66],
+      wrist: [REST_WRIST, [10, 8, 25], [8, 26, 50], [10, 28, 62], [12, 28, 66],
         [12, 28, 62], [12, 30, 58], [32, 25, 5], [18, 16, 0], [10, 10, 0],
-        [8, 8, 0], [12, 10, 12], [15, 10, 15], [12, -5, 5], [12, -8, 0],
+        [8, 8, 0], [3, -6, 25], [0, -10, 28], [0, -8, 25], [0, -10, 25],
         REST_WRIST],
       w: [0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0.5, 0],
     },
@@ -302,9 +302,10 @@ export function strikeProgress(u: number, a: number, p: number): number {
 }
 
 /**
- * The recall's share of the way home at `u` (0..1): hauled in faster and faster, then braked over the last third so it
- * reaches her fist at the fist's own speed (her hand gives with the catch: the boss's recoil), and held there.
- * x^p (1 + p (1 - x)), p = RECALL_EASE: no speed at either end, fastest (p-1)/p of the way (the last 40% a brake).
+ * The recall's share of the way home at `u` (0..1): hauled in, then braked so it
+ * reaches her fist at the fist's own speed (her hand gives with the catch: the boss's give), and held there.
+ * x^p (1 + p (1 - x)), p = RECALL_EASE (2: smoothstep): no speed at either end, fastest half way, braked over the
+ * second half, which on a quarter-second recall is the last few frames.
  */
 export function recallProgress(u: number): number {
   const x = THREE.MathUtils.clamp(u / RECALL_CROSS, 0, 1);
@@ -598,7 +599,7 @@ export class AxeMotion {
     orient(position, _q, hand, this.edgeNow, CHORD, travel, held, grip, rotation);
   }
 
-  /** The way the axe comes into her fist at the catch (boss-local, unit), her hand at `hand`. */
+  /** The way the axe comes into her fist at the catch (boss-local, unit), her hand at `hand`: her hand gives along it. */
   public arrival(hand: THREE.Vector3, out: THREE.Vector3): THREE.Vector3 {
     const s = this.spec;
     recallPath(this.rest, hand, RECALL_CROSS * 0.8, s.bulge, s.bulgeSize, out);

@@ -205,7 +205,7 @@ hand is where the arm keys put it.
 **The arm** (`AxeBody.ts`). Per attack, keyed in boss-local metres: the grip, the wrist (deviation, flexion, roll, in
 degrees from the rig's relaxed hand: cocked back with radial deviation and extension on the draw, snapped through with
 ulnar deviation and flexion on the throw, the dart-thrower's path a hammer swing takes), and the left wrist. At rest she
-holds the axe beside her face, carried with her chest through idle, walk and flinches. The solve each step:
+holds the axe out at her right side (see the fix round below), carried with her chest through idle, walk and flinches. The solve each step:
 - the clavicle (`Shoulder_R`) shrugs toward a target above the shoulder or past the arm's length (up to 24°);
 - a two-bone IK that bends the elbow about its own hinge, swings the arm onto the target, then turns it about the reach
   until the elbow faces its pole (fixed in the chest): no arc-to-arc rotation, so no flips. It eases short of a straight
@@ -238,3 +238,37 @@ chest calibration the rest hold uses matches the GLB.
 Known limits: the hand has no finger bones (one skinned `Hand_R`), so her fist cannot close round the haft or open at the
 release; the haft sits across the palm of the modelled claw. A rebuild of the spider GLB with finger chains would allow both
 (`CharacterRig` already drives `hand_*` finger poses). The parry and death flinches carry the clip crossfade's own kink.
+
+### Fix round — 2026-10-12
+
+The independent tester and the orchestrator, looking at the captures, found what the metrics did not:
+- **The blade covered her face from the front**: the hero's view, at every catch, at rest, and in the slam's raise.
+  - The rest hold and every catch are now out at her right side and a little back: the haft up and out, the blade forward. The
+    slam is raised by her side, and its overhead coil sits over her right shoulder rather than over her head.
+  - The sweep's recall comes home low across her front (under her chest). The throw's comes round her right.
+  - The returning blade turns into her grip only over the last part of the recall, so it is not swung across her on the way in.
+- **The throw's catch snapped**: the axe arrived at about 16 m/s and stopped in one step (11 m/s).
+  - The recall is now braked into her fist: `x^2 (1 + 2 (1 - x))`, with no speed at either end. Its arc off the line has no
+    speed at either end either, and the sweep's recall is 60 ms longer.
+  - Her hand gives 0.15 m along the way the axe comes in, starting 0.1 s before it lands, and the keys carry her on to her rest
+    hold from there.
+  - The throw's recall is lifted off the floor (less drop, an arc up and out to her right, and a tauter hauled chain).
+- **Sitting on limits**: the wrist keys now keep it under about 57° off the forearm (the 68° clamp was reached for 23 frames).
+  The sweep's torso clearance went from 0.08 m to about 0.2 m.
+- **The flinch cross-fade**: a swing that ends or breaks off has its bones (the ones the layers move) ride a critically damped
+  spring (35/s) over the clip's linear cross-fade. They are let go between 0.2 and 0.45 s. In death the arm lets the axe go over
+  0.42 s, and the layers are dropped at 0.47 s.
+- **Spider back**: checked by a mesh test against the ellipsoid through her abdomen skin. The axe stays more than 1.2 radii out.
+  There was no overlap: the earlier frames showed the blade in front of the spider body, not through it.
+
+New tests:
+- In her fist, no blade point falls inside her head (0.3 m) or chest (0.24 m) outline from the tester's front arm camera or the
+  game camera. In or coming into her fist, the blade stays at least 0.35 m out from the line through her face and chest.
+- The recall changes speed by less than 5 m/s per step, lands under 4 m/s, and her hand is giving as it lands.
+- The axe stays outside the spider back's ellipsoid.
+- The wrist stays at or under 60°.
+
+The 41 island tests pass.
+
+Still the case: in flight, the strike itself (the slam's overhead arc) and the haul home pass in front of her for a few
+frames. Only the held axe and the catch are kept clear.

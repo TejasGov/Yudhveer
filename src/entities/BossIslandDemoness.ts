@@ -43,13 +43,13 @@ const RECALL_BULGE = [0.2, 0.8, 0] as const;
 /** After her death the body's layers go on easing out for this long (s) before they are let go. */
 const DEAD_EASE = 0.47;
 /**
- * The catch: her hand gives along the way the axe comes in, starting a moment before it lands (a catcher's give: the axe
- * is braked onto her moving hand, not stopped dead) and coming back. CATCH_GIVE metres at most, over CATCH_SPAN seconds
- * from CATCH_LEAD before the catch.
+ * The catch: her hand gives CATCH_GIVE metres along the way the axe comes in, over CATCH_SPAN seconds from CATCH_LEAD
+ * before it lands (a catcher's give: the axe is braked onto her moving hand, not stopped dead). It does not spring back:
+ * the keys carry her on to her rest hold from there.
  */
 const CATCH_GIVE = 0.15;
-const CATCH_LEAD = 0.08;
-const CATCH_SPAN = 0.4;
+const CATCH_LEAD = 0.1;
+const CATCH_SPAN = 0.24;
 /** Once an attack ends or breaks off: how long its layers take to fade out (s), and how fast the speed they carry on
  * with dies away (1/s). */
 const EXIT_SPAN = 0.25;
@@ -362,13 +362,11 @@ export class BossIslandDemoness extends Boss {
     // The catch: the axe's momentum carries her hand back, and she takes it (a quick give, a slower return).
     if (attack && !this.obstructed) {
       const k = (t - this.cues.home + CATCH_LEAD) / CATCH_SPAN;
-      if (k > 0 && k < 1) {
+      if (k > 0) {
         // The way it comes in, fixed as the give begins (from the hand where it was last step).
         if (this.catchDir.lengthSq() === 0) this.motion.arrival(this.hand, this.catchDir);
-        // 64 x^3 (1 - x)^3: out and back, no jolt at either end; fastest just as the axe lands.
-        const b = k * (1 - k);
-        arms.grip.addScaledVector(this.catchDir, CATCH_GIVE * 64 * b * b * b);
-      } else if (k <= 0) this.catchDir.set(0, 0, 0);
+        arms.grip.addScaledVector(this.catchDir, CATCH_GIVE * smootherstep(k));
+      } else this.catchDir.set(0, 0, 0);
     }
     // Her fist keeps its hold on the axe in every state but death, where the arm goes back to the clip with the rest.
     arms.hold = state === 'DEAD' ? 1 - smootherstep(t / DEAD_HOLD) : 1;

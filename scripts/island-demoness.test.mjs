@@ -797,7 +797,7 @@ async function rigBoss() {
         shoulder: w('UpperArm_R'), elbow: w('Forearm_R'), wrist: w('Hand_R'), socket: w('Socket_Hand_R'), axe: boss.axe.getWorldPosition(new THREE.Vector3()),
         upperQ: q('UpperArm_R'), foreQ: q('Forearm_R'), handQ: q('Hand_R'), socketQ: q('Socket_Hand_R'), axeQ: boss.axe.getWorldQuaternion(new THREE.Quaternion()),
         pelvisQ: q('Pelvis'), chestQ: q('Chest'), target: boss.armTarget.clone(), weight: boss.armWeight,
-        head: w('Head'), chest: w('Chest'), abdomenP: w('Abdomen'), abdomenQ: q('Abdomen'), hand: boss.hand.clone(),
+        head: w('Head'), chest: w('Chest'), headQ: q('Head'), abdomenP: w('Abdomen'), abdomenQ: q('Abdomen'), hand: boss.hand.clone(),
         blade: BLADE.map((v) => boss.axe.localToWorld(new THREE.Vector3(...v))),
       });
       t += 1 / 60;
@@ -807,15 +807,20 @@ async function rigBoss() {
   // Her spider back as the swing tester measures it: the ellipsoid through the middle 80% of the Abdomen-owned skin (rest pose).
   let skinned; root.traverse((o) => { if (o.isSkinnedMesh && !skinned) skinned = o; });
   root.updateMatrixWorld(true); skinned.skeleton.update();
-  const abdomen = get('Abdomen'), si = skinned.geometry.getAttribute('skinIndex'), sw = skinned.geometry.getAttribute('skinWeight'), own = [];
+  const abdomen = get('Abdomen'), headBone = get('Head'), si = skinned.geometry.getAttribute('skinIndex'), sw = skinned.geometry.getAttribute('skinWeight'), own = [];
+  const headCentre = new THREE.Vector3(); let headVerts = 0;
   for (let v = 0; v < si.count; v++) {
     let best = -1, bw = 0;
     for (let k = 0; k < 4; k++) { const wt = sw.getComponent(v, k); if (wt > bw) { bw = wt; best = si.getComponent(v, k); } }
-    if (bw >= 0.5 && skinned.skeleton.bones[best] === abdomen) own.push(abdomen.worldToLocal(skinned.getVertexPosition(v, new THREE.Vector3()).applyMatrix4(skinned.matrixWorld)));
+    if (bw < 0.5) continue;
+    const bone = skinned.skeleton.bones[best], at = skinned.getVertexPosition(v, new THREE.Vector3()).applyMatrix4(skinned.matrixWorld);
+    if (bone === abdomen) own.push(abdomen.worldToLocal(at));
+    else if (bone === headBone) { headCentre.add(headBone.worldToLocal(at)); headVerts++; }
   }
+  headCentre.divideScalar(headVerts);
   const pct = (xs, k) => { const sorted = [...xs].sort((a, b) => a - b); return sorted[Math.floor((sorted.length - 1) * k)]; };
   const shell = ['x', 'y', 'z'].map((c) => { const lo = pct(own.map((v) => v[c]), 0.1), hi = pct(own.map((v) => v[c]), 0.9); return [(lo + hi) / 2, (hi - lo) / 2]; });
-  return { run, shell };
+  return { run, shell, headCentre };
 }
 /** Points on the axe (axe-local): the head, its point, its heel, the middle and the beard of the blade, and the haft's top. */
 const BLADE = [[-0.32, 0.5, 0], [-0.35, 0.66, 0], [-0.44, 0.14, 0], [-0.38, 0.4, 0], [-0.3, 0.25, 0], [0, 0.2, 0]];
@@ -949,21 +954,36 @@ test("her rest hold is measured from the shipped rig: the chest at the idle clip
   assert.ok(chest.getWorldQuaternion(new THREE.Quaternion()).angleTo(new THREE.Quaternion(...axeMotion.CHEST_IDLE.q)) < 0.002);
 });
 
-test('her real rig: the axe in her fist (and coming into it) never covers her face or chest as he sees her, from the front', async () => {
-  const { run } = await rigBoss();
+test('her real rig: the axe in her fist never covers her face or chest as he sees her, nor comes near her face line as it lands', async () => {
+  const { run, headCentre } = await rigBoss();
+  // The cameras that face her (boss-local, she faces +z): the swing tester's arm close-up from ahead and to her right, and the game
+  // camera behind the hero.
+  const cameras = { ATTACK_1: [[-1.7, 3.0, 3.3], [0, 2.4, 5.9]], ATTACK_2: [[-1.9, 3.3, 3.4], [0, 2.4, 5.9]], ATTACK_3: [[-2.0, 2.9, 3.2], [0, 2.4, 7.7]] };
   for (const [state, reach] of [['ATTACK_1', 2.4], ['ATTACK_2', 2.4], ['ATTACK_3', 4.2]]) {
-    let worst = Infinity, at = '';
+    let view = Infinity, viewAt = '', side = Infinity, sideAt = '';
     for (const f of run(state, reach)) {
-      // In her fist or within half a metre of it (the catch); she faces +z, so his view from the front is along -z.
-      if (f.axe.distanceTo(f.socket) > 0.5) continue;
+      if (f.axe.distanceTo(f.socket) > 0.5) continue; // in flight: the strike and the haul home are allowed past her
+      const head = headCentre.clone().applyQuaternion(f.headQ).add(f.head), chest = f.chest.clone().add(new THREE.Vector3(0, 0.25, 0.1));
       for (const p of f.blade) {
-        if (p.y < f.chest.y - 0.05 || p.y > f.head.y + 0.45 || p.z < f.head.z - 0.1) continue; // below her chest, above her head, or behind her
-        const off = Math.abs(p.x - f.head.x);
-        if (off < worst) { worst = off; at = `${f.s}@${f.t.toFixed(3)}`; }
+        // Lateral: out to her side of the line through her face and chest, while it is in or coming into her fist.
+        if (p.y > f.chest.y - 0.05 && p.y < f.head.y + 0.45 && p.z > f.head.z - 0.1) {
+          const off = Math.abs(p.x - f.head.x);
+          if (off < side) { side = off; sideAt = `${f.s}@${f.t.toFixed(3)}`; }
+        }
+        // In view: outside her head's (0.3 m) and chest's (0.24 m) outlines from each camera, when nearer the camera than they are.
+        if (!f.held) continue;
+        for (const c of cameras[state].map((a) => new THREE.Vector3(...a))) {
+          for (const [centre, r] of [[head, 0.3], [chest, 0.24]]) {
+            const pc = p.clone().sub(c), hc = centre.clone().sub(c);
+            if (pc.length() > hc.length()) continue;
+            const margin = (pc.angleTo(hc) - Math.asin(r / hc.length())) * 180 / Math.PI;
+            if (margin < view) { view = margin; viewAt = `${f.s}@${f.t.toFixed(3)}`; }
+          }
+        }
       }
     }
-    // Her head is 0.255 m round: the blade stays clear of it and of the chest below it, out to her side.
-    assert.ok(worst >= 0.35, `${state}: the blade comes ${worst.toFixed(2)} m from her face-and-chest line at ${at}`);
+    assert.ok(view > 1, `${state}: in her fist, the blade comes ${view.toFixed(1)} deg inside her face or chest from a camera ahead, at ${viewAt}`);
+    assert.ok(side >= 0.35, `${state}: the blade comes ${side.toFixed(2)} m from her face-and-chest line at ${sideAt}`);
   }
 });
 
