@@ -68,8 +68,8 @@ const FOLD = 0.33;
 const CLAV_LIFT = 0.28;
 const CLAV_REACH = 0.3;
 const CLAV_MAX = 24 * DEG;
-/** The spring a broken-off swing's bones ride on (1/s): critically damped, about 30 ms behind. */
-const SMOOTH_RATE = 35;
+/** The spring a broken-off swing's bones ride on (1/s): critically damped, about 35 ms behind. */
+const SMOOTH_RATE = 28;
 /** Which way each elbow bends (chest frame: out to her side, down, back). */
 const POLE_R = new THREE.Vector3(-0.7, -0.6, -0.25).normalize();
 const POLE_L = new THREE.Vector3(0.7, -0.6, -0.25).normalize();

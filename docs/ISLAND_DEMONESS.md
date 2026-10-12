@@ -256,7 +256,7 @@ The independent tester and the orchestrator, looking at the captures, found what
 - **Sitting on limits**: the wrist keys now keep it under about 57° off the forearm (the 68° clamp was reached for 23 frames).
   The sweep's torso clearance went from 0.08 m to about 0.2 m.
 - **The flinch cross-fade**: a swing that ends or breaks off has its bones (the ones the layers move) ride a critically damped
-  spring (35/s) over the clip's linear cross-fade. They are let go between 0.2 and 0.45 s. In death the arm lets the axe go over
+  spring (28/s) over the clip's linear cross-fade. They are let go between 0.2 and 0.45 s. In death the arm lets the axe go over
   0.42 s, and the layers are dropped at 0.47 s.
 - **Spider back**: checked by a mesh test against the ellipsoid through her abdomen skin. The axe stays more than 1.2 radii out.
   There was no overlap: the earlier frames showed the blade in front of the spider body, not through it.
