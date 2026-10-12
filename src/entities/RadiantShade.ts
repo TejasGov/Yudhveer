@@ -6,7 +6,8 @@ import { createToonRamp } from '../levels/environment/ToonRelight';
  * ghost wash makes a pale see-through figure, this is a body of moonlight: silver in its shadows, pale gold where it
  * is lit, a soft rim at its edges and a gentle glow from within, drawn OPAQUE (so no hair, saree or back face ever
  * shows through another, as it does through a translucent body) and faded in or out by dissolving from the feet up,
- * with a bright edge. The saree's red is drawn down to its brightness (no stains); the face keeps its own detail.
+ * through a soft, glinting gold front. The saree's red is drawn down to its brightness (no stains); the face keeps its
+ * own detail.
  *
  * It also brings what a glowing figure gives off: ONE point light that follows her (made with the chapter and kept
  * switched on at no intensity, so it never changes the scene's light count and recompiles every shader as she
@@ -112,7 +113,8 @@ export class RadiantShade {
       uRim: { value: new THREE.Color(spec.rim ?? 0xcfe4ff).multiplyScalar(spec.rimStrength ?? 0.9) },
       uRimPower: { value: spec.rimPower ?? 2.2 }, uOwn: { value: spec.own ?? 0.3 },
       uDesat: { value: 0.92 }, uFloor: { value: 0.2 }, uGain: { value: 2.4 }, uOwnGain: { value: 1.0 },
-      uEdge: { value: new THREE.Color(1.0, 0.9, 0.68) },
+      // the dissolve's front: warm gold, soft, never white (it passes her face as she forms)
+      uEdge: { value: new THREE.Color(1.0, 0.68, 0.3) },
     };
     const lit = spec.light;
     this.lightBase = lit?.intensity ?? 0;
@@ -204,8 +206,11 @@ float radEdge = 0.0;
   if (uReveal < 1.3) {
     float radH = (vRadWorld.y - uBaseY) / uHeight;
     float radD = radH + (radNoise(vRadWorld * 9.0 + vec3(0.0, uTime * 0.6, 0.0)) - 0.5) * 0.35;
-    if (radD > uReveal) discard;
-    radEdge = 1.0 - smoothstep(0.0, 0.06, uReveal - radD);
+    // a soft front, not a cut: near it fewer and fewer of her pixels are drawn (a stipple re-rolled every frame), so she
+    // gathers out of glinting light instead of growing a hard, flat edge
+    float radKeep = smoothstep(0.0, 0.2, uReveal - radD);
+    if (radHash(vec3(floor(gl_FragCoord.xy), floor(uTime * 30.0))) > radKeep) discard;
+    radEdge = 1.0 - radKeep;
   }
 }`)
         .replace('#include <aomap_fragment>', `reflectedLight.directDiffuse *= uLit;
@@ -221,7 +226,7 @@ reflectedLight.indirectDiffuse *= uLit;
   totalEmissiveRadiance = diffuseColor.rgb * (uGlow + uShimmer * radSheen)
     + uRim * radRim * (0.65 + 0.35 * radSheen)
     + uGold * radSpark * uShimmer * 3.0
-    + uEdge * radEdge * 1.3;
+    + uEdge * radEdge * 0.5;
 }`);
     };
     mat.customProgramCacheKey = () => 'yudhveer-radiant-shade-1';

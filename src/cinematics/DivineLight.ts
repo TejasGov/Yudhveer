@@ -494,10 +494,12 @@ export interface SoulRelease {
   /**
    * Starts it: gold light seeps up out of `body` (the fallen demoness) and spirals slowly into a column of light at `soul`'s
    * feet; from `formAt` seconds, as she appears in it, the column goes into her and her own light takes over. Meanwhile
-   * the picture darkens and drains a little round the light, and `body` goes dark as ash (it never vanishes). Over by
+   * the picture darkens and drains a little round the light, and `body` goes dark as ash (it never vanishes). While she
+   * forms (`forming` seconds) the ink lines are lifted: drawn on the soft front of her dissolve, they made it a paper
+   * cut-out. Over by
    * `formAt + RELEASE_TAIL` seconds.
    */
-  start(body: Character, soul: Extra, formAt: number): void;
+  start(body: Character, soul: Extra, formAt: number, forming: number): void;
   /** Over at once, as if it had played out (the scene skipped). */
   end(): void;
 }
@@ -571,13 +573,15 @@ export function soulRelease(parent: THREE.Object3D): SoulRelease {
   // Set when it is cut short: the next step finishes it.
   let ending = false;
   const handle = { alive: true, start, end: () => { ending = true; } };
+  const ink = sm.postFX.ink;
   SceneFX.onClear(() => {
     handle.alive = false;
     fx.reset();
+    ink.strength = 1;
   });
   return handle;
 
-  function start(body: Character, soul: Extra, formAt: number): void {
+  function start(body: Character, soul: Extra, formAt: number, forming: number): void {
     if (!handle.alive) return;
     const at = soul.getPosition();
     const from = body.getPosition();
@@ -639,7 +643,8 @@ export function soulRelease(parent: THREE.Object3D): SoulRelease {
       poolMat.opacity = 0.28 * lit;
       shaft.uniforms.time.value = core.uniforms.time.value = t;
       column.visible = lit > 1e-3;
-      soul.kindle = gather * (1 - S(t, formAt, formAt + 1.2));
+      // ...and her light, lit there first, gives way to her own as she forms (close to her, it would burn her white)
+      soul.kindle = gather * (1 - S(t, formAt - 0.3, formAt + 0.4));
 
       owed += 150 * S(t, 0.7, 1.4) * (1 - S(t, formAt - 0.6, formAt + 0.6)) * dt;
       for (; owed >= 1; owed--) spawn();
@@ -683,9 +688,11 @@ export function soulRelease(parent: THREE.Object3D): SoulRelease {
         }
         ashen = k >= 1;
       }
+      ink.strength = 1 - S(t, formAt - 0.4, formAt) * (1 - S(t, formAt + forming, formAt + forming + 0.5));
       if (t < formAt + RELEASE_TAIL || count > 0) return true;
       soul.kindle = 0;
       fx.reset();
+      ink.strength = 1;
       return false;
     });
   }

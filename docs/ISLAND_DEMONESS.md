@@ -296,8 +296,11 @@ a step). The reveal also builds the release's light (dark, its shaders compiled)
   `desat` 0.2), and the corpse darkens to ash over 2.8 s (colours only; it never vanishes). Camera: square to the light on
   the chamber's open side, the column in the middle and the body coming in from the side.
 - **She forms, 3.4-5.8.** She dissolves in from her feet over 1.6 s as the motes go into her and the column fades into
-  her; a crane from her knees to her face, three-quarters from the front on the side away from the hero. She lifts her
-  head (4.6-5.5) and turns to him (5.3).
+  her; a crane from her knees to her face, three-quarters from the front on the body's side, so that looking back across
+  her it looks away from the body. She lifts her head (4.6-5.5) and turns to him (5.3). Her dissolve has a soft front:
+  near it a re-rolled stipple of her pixels is drawn, tinted gold, so she gathers out of glinting light (a hard cut,
+  outlined in ink, read as white paper cut-outs); the ink lines are lifted while she forms (`InkOutlineEffect.strength`),
+  and her kindled light gives way to her own as she starts to form (close to her, it burned her white).
 - **She speaks, 5.8-9.1.** Over his shoulder (the one away from the body): "The binding is broken... Follow me,
   Yudhveer." (5.95-9.71), as the music decays. The music dims under the rest of the scene from 8.2.
 - **She sets off, 9.1-10.8.** On "Follow me" she turns from him and walks toward a low camera on her way to the seal,
@@ -312,9 +315,10 @@ sends him on to Dwarka in her voice.
 
 Code: `src/game/stories/Island.ts` (the scene, `formFacing`, `clearOf`: every new camera is pulled in short of rock along
 the line to its subject), `src/cinematics/DivineLight.ts` (`soulRelease`: column, pool, 256 motes on closed-form spiral
-paths in preallocated arrays, the grade, the ash), `src/entities/Extra.ts` (`bow`: head, neck and upper chest turned
+paths in preallocated arrays, the grade, the ash, the ink lifted while she forms), `src/core/postfx/InkOutlineEffect.ts`
+(`strength`), `src/entities/Extra.ts` (`bow`: head, neck and upper chest turned
 about the line of her shoulders over the clip's pose, kept from the clip's own pose because the mixer does not rewrite
-a bone whose value has not changed; `kindle`), `src/entities/RadiantShade.ts` (the kindled light), `src/combat/SoundFX.ts`
+a bone whose value has not changed; `kindle`), `src/entities/RadiantShade.ts` (the kindled light, the stippled gold front of the dissolve), `src/combat/SoundFX.ts`
 (`apsara`, `fadeOut`, and `then` waiting for a one-shot still loading).
 
 Tests (`scripts/island-soul.test.mjs`, 44 island tests): every voiced line of the reveal and the release ends inside its

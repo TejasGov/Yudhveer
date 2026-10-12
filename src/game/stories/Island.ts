@@ -304,7 +304,7 @@ export const ISLAND_STORY: ChapterStory = {
                 const soul = soulOf(s), body = s.actor(ISLAND_FOES.boss);
                 if (!soul || !body) return;
                 soul.bow = 1;
-                releaseOf(s).start(body, soul, FORM_AT);
+                releaseOf(s).start(body, soul, FORM_AT, FORMING);
               } },
             ],
             camera: s => [{ pos: s.pos(ISLAND_FOES.boss).add(v(3, 2.3, 4)), look: s.pos(ISLAND_FOES.boss).add(v(0, 1.2, 0)), fov: 46 }],
@@ -331,7 +331,7 @@ export const ISLAND_STORY: ChapterStory = {
             },
           },
           // She forms in the light, head bowed (dissolving in from her feet as the motes go into her): a crane up from her feet
-          // to her face, three-quarters from the front on the side away from him. She lifts her head, and turns to him.
+          // to her face, three-quarters from the front, looking away from the body. She lifts her head, and turns to him.
           {
             duration: 2.4, fadeIn: 0.35,
             ease: (t) => 1 - Math.pow(1 - t, 2.2),
@@ -346,10 +346,11 @@ export const ISLAND_STORY: ChapterStory = {
               { at: 1.9, actor: 'island_soul', face: 'hero' },
             ],
             camera: (s): CameraKey[] => {
-              const p = s.pos('island_soul'), h = s.pos('hero');
+              const p = s.pos('island_soul'), c = s.pos(ISLAND_FOES.boss);
               const yaw = s.actor('island_soul')?.group.rotation.y ?? 0;
-              // `at`'s side is her left; the camera goes on the side he is not
-              const k = Math.cos(yaw) * (h.x - p.x) - Math.sin(yaw) * (h.z - p.z) < 0 ? 1 : -1;
+              // Before her on the body's side (`at`'s side is her left): looking back across her, the camera looks away
+              // from the body, whose dark legs would otherwise lie behind her in the light.
+              const k = Math.cos(yaw) * (c.x - p.x) - Math.sin(yaw) * (c.z - p.z) > 0 ? 1 : -1;
               const chest = p.clone().add(v(0, 1.1, 0));
               // where her face will be (she is still down in the ground as the shot starts: not her head bone's now)
               const face = p.clone().add(v(0, 0.9 * s.height('island_soul'), 0));

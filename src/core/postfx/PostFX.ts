@@ -25,7 +25,8 @@ import type { LevelAtmosphere } from '../../levels/LevelTypes';
 export class PostFX {
   public readonly composer: EffectComposer;
   public readonly bloom: SelectiveBloomEffect;
-  private readonly ink = new InkOutlineEffect();
+  /** The ink lines (on levels that have them); a scene may lift them for a moment (`ink.strength`). */
+  public readonly ink = new InkOutlineEffect();
   private readonly vignette = new VignetteEffect({ offset: 0.3, darkness: 0.55 });
   private readonly toneMapping = new ToneMappingEffect({ mode: ToneMappingMode.ACES_FILMIC });
   /** The silver storm grade a scene can fade in over the finished picture (cinematics/Entrance.ts `grade`). */

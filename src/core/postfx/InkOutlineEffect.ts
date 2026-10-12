@@ -7,6 +7,7 @@ uniform vec3 inkColor;
 uniform float thickness;
 uniform float threshold;
 uniform vec2 fade;
+uniform float strength;
 
 float linearDepth(const in vec2 uv) {
   return -getViewZ(readDepth(uv));
@@ -22,7 +23,7 @@ void mainImage(const in vec4 inputColor, const in vec2 uv, const in float depth,
   // Relative second derivative: silhouettes and creases, independent of distance, ignores flat slopes.
   float edge = abs(dl + dr + dd + du - 4.0 * d) / max(d, 0.1);
   float ink = smoothstep(threshold, threshold * 2.5, edge);
-  ink *= 1.0 - smoothstep(fade.x, fade.y, d);
+  ink *= (1.0 - smoothstep(fade.x, fade.y, d)) * strength;
   outputColor = vec4(mix(inputColor.rgb, inkColor, ink), inputColor.a);
 }`;
 
@@ -37,8 +38,14 @@ export class InkOutlineEffect extends Effect {
         ['thickness', new THREE.Uniform(1.0)],
         ['threshold', new THREE.Uniform(0.02)],
         ['fade', new THREE.Uniform(new THREE.Vector2(30, 70))],
+        ['strength', new THREE.Uniform(1)],
       ]),
     });
+  }
+
+  /** How much of the ink is drawn, 0..1 (a scene can lift it for a moment). */
+  public set strength(value: number) {
+    this.uniforms.get('strength')!.value = value;
   }
 
   public configure(s: InkOutlineSettings): void {
