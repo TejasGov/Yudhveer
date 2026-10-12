@@ -83,7 +83,7 @@ export const HIP_LEAD = 0.06;
 /** Her left hand at rest (the clip's): where the off-hand keys start and end. */
 const REST_OFF: V3 = [0.98, 1.83, 0.67];
 /** Her rest hold (the grip, boss-local, as the idle clip has her), where the right-hand keys start and end. */
-const REST_GRIP: V3 = [-0.52, 2.1, 1.05];
+const REST_GRIP: V3 = [-0.62, 1.98, 1.0];
 const REST_WRIST: V3 = [10, 0, 0];
 /** The rest hold, for AxeBody: it carries it with her chest, measured from where the idle clip has the chest. */
 export const REST_HOLD = { p: REST_GRIP, wrist: REST_WRIST } as const;
