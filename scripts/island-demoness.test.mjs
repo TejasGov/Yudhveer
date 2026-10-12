@@ -325,6 +325,8 @@ const {ISLAND_STORY}=await loadDuelModule('src/game/stories/Island.ts',{
   '../IslandExpedition':{ISLAND_FOES:{hall:[],pool:[],poolBehind:[],boss:'island_demoness'}},
   '../../cinematics/Entrance':{grade(){}},'../../entities/characters/Village':{GURU:{}},
   '../../entities/characters/IslandDemoness':{ISLAND_SOUL:{}},'../../entities/Extra':{Extra},
+  '../../cinematics/DivineLight':{soulRelease:()=>({alive:true,start(){},end(){}})},'../../cinematics/SceneFX':{SceneFX:{tween(){}}},
+  '../../core/PhysicsWorld':{PhysicsWorld:{getInstance:()=>({castCameraRay:()=>null})}},
 });
 const {SceneRun}=await loadDuelModule('src/cinematics/Scene.ts',{
   three:THREE,'./Intros':{frame(){},offset(){}},'../entities/Enemy':{Enemy:class{}},
@@ -491,21 +493,21 @@ test('the opening: runes, rumble, cracks, a split that slides sideways, then the
   seal.dispose();
 });
 
-test('the release scene: the seal opens through an essential cue, the voice in the shrine calls over the reveal, and the scene stays short', () => {
+test('the release scene: the seal opens through an essential cue, the apsara calls him in as the doors part, and the scene stays near its length', () => {
   const scene = ISLAND_STORY.beats.find(b => b.on.fallen === 'island_demoness').scene;
   let start = 0; const timeline = [];
   for (const shot of scene.shots) { for (const cue of shot.cues ?? []) timeline.push({ at: start + cue.at, cue }); for (const l of shot.lines ?? []) timeline.push({ at: start + (shot.linesAt ?? 0.4), line: l, carry: shot.carryLines }); start += shot.duration; }
-  assert.ok(start <= 16.3 + 3, `the scene is ${start} s: at most three seconds longer than before (16.3 s)`);
+  assert.ok(start <= 24.5 + 0.5, `the scene is ${start} s: near its 24.5 s (the apsara's entry, timed to her music, made it longer)`);
   const open = timeline.find(e => e.cue?.run && e.cue.essential && String(e.cue.run).includes('open-shrine'));
   assert.ok(open, 'the opening is an essential cue (skipping the scene still opens the seal)');
-  const voice = timeline.find(e => e.line?.voice === 'island_shrine_voice_2');
-  assert.ok(voice, 'the shrine voice\'s second line is wired in'); assert.equal(voice.line.speaker, 'Voice in the shrine'); assert.ok(voice.carry, 'and runs on over the shots after it');
+  const voice = timeline.find(e => e.line?.voice === 'island_soul_3');
+  assert.ok(voice, 'her call into the shrine is wired in'); assert.equal(voice.line.speaker, 'The apsara'); assert.ok(voice.carry, 'and runs on over the shots after it');
   const split = open.at + shrineSeal.SEAL_TIMES.split;
   const shotStarts = []; let acc = 0; for (const shot of scene.shots) { shotStarts.push(acc); acc += shot.duration; }
   assert.ok(shotStarts.some(t => Math.abs(t - split) < 0.05), 'the camera cuts on to the next move at the instant the doors split');
   assert.ok(voice.at >= split && voice.at <= split + 1.5, 'it calls as the doors part');
   assert.ok(start - voice.at >= 5.5, 'and the reveal is held for the whole of it');
-  assert.ok(readFileSync(new URL('../public/assets/voice/island_shrine_voice_2.mp3', import.meta.url)).length > 1000, 'the recording ships');
+  assert.ok(readFileSync(new URL('../public/assets/voice/island_soul_3.mp3', import.meta.url)).length > 1000, 'the recording ships');
 });
 
 // ======================================================================================= cd-polish: begin

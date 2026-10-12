@@ -2041,15 +2041,16 @@ export const MOODS = {
 } satisfies Record<string, MusicMood>;
 
 /**
- * The soundtrack (public/assets/music, ElevenLabs, 60 s each): loops, and `shiva`, the summit reveal's piece (a conch,
- * then damru, dhol and a "Har Har Mahadev" chorus), which plays once (`ONE_SHOT`).
+ * The soundtrack (public/assets/music, ElevenLabs, 60 s each): loops, and two pieces that play once (`ONE_SHOT`): `shiva`,
+ * the summit reveal's (a conch, then damru, dhol and a "Har Har Mahadev" chorus), and `apsara`, the island demoness's
+ * freed soul rising (8 s: tanpura and santoor, a bansuri phrase in Yaman, a wordless alaap, fading out).
  */
-export type Track = 'title' | 'village' | 'baoli' | 'akhada' | 'island' | 'dwarka' | 'summit' | 'boss' | 'andhaka_final' | 'shiva';
+export type Track = 'title' | 'village' | 'baoli' | 'akhada' | 'island' | 'dwarka' | 'summit' | 'boss' | 'andhaka_final' | 'shiva' | 'apsara';
 /** Pieces that play through once instead of looping (and hand over to whatever `then` names when they end). */
-const ONE_SHOT: ReadonlySet<Track> = new Set<Track>(['shiva']);
+const ONE_SHOT: ReadonlySet<Track> = new Set<Track>(['shiva', 'apsara']);
 const TRACKS = new Set(trackIds);
 /** Each loop's level, evening out how loud they came out (the akhada's was made quiet). */
-const TRACK_GAIN: Partial<Record<Track, number>> = { akhada: 1.5, baoli: 1.15, title: 1.1, boss: 0.85, andhaka_final: 0.9 };
+const TRACK_GAIN: Partial<Record<Track, number>> = { akhada: 1.5, baoli: 1.15, title: 1.1, boss: 0.85, andhaka_final: 0.9, apsara: 1.25 };
 
 /** Where a track repeats: it plays through from its start once, then `start` to `end` (s) for good. */
 interface LoopSeam {
@@ -2128,6 +2129,7 @@ const FALLBACK: Record<Track, MusicMood> = {
   boss: { ...MOODS.baoli, pulse: 84 },
   andhaka_final: { ...MOODS.summit, pulse: 84 },
   shiva: { ...MOODS.summit, pulse: 96 },
+  apsara: MOODS.dwarka,
 };
 /** Seconds one loop takes to hand over to the next. */
 const CROSSFADE = 1.5;
@@ -2159,6 +2161,7 @@ class Music {
   /** What a one-shot piece hands over to when it ends (`then`), and how soon the next `play` may come in (`fadeIn`). */
   private after: Track | null = null;
   private nextFadeIn = CROSSFADE;
+  private nextFadeOut = CROSSFADE;
 
   public connect(ctx: AudioContext, bus: GainNode): void {
     this.ctx = ctx;
@@ -2175,10 +2178,11 @@ class Music {
 
   /**
    * Crossfades to `track` (null fades out). Asking for the one already playing changes nothing. `fadeIn` (s) is how fast
-   * it comes in (a piece that opens on a strike wants it near 0); the one playing still fades out over the crossfade.
+   * it comes in (a piece that opens on a strike wants it near 0), `fadeOut` how fast the one playing goes (the crossfade).
    */
-  public play(track: Track | null, o: { fadeIn?: number } = {}): void {
+  public play(track: Track | null, o: { fadeIn?: number; fadeOut?: number } = {}): void {
     this.nextFadeIn = o.fadeIn ?? CROSSFADE;
+    this.nextFadeOut = o.fadeOut ?? CROSSFADE;
     if (track !== this.wanted) this.after = null;
     this.wanted = track;
     if (!this.ctx) return;
@@ -2209,8 +2213,10 @@ class Music {
    */
   public then(track: Track): void {
     const p = this.playing;
-    const oneShot = this.wanted && ONE_SHOT.has(this.wanted);
-    if (oneShot && (!p || p.track === this.wanted)) this.after = track;
+    const w = this.wanted;
+    // A one-shot still being fetched counts as playing: the one it replaces is only fading out.
+    const oneShot = w && ONE_SHOT.has(w) && !this.failed.has(w);
+    if (oneShot && (!p || p.track === w || this.pending.has(w))) this.after = track;
     else this.play(track);
   }
 
@@ -2294,14 +2300,16 @@ class Music {
 
   private fadeOut(): void {
     const p = this.playing;
+    const out = Math.max(0.02, this.nextFadeOut);
+    this.nextFadeOut = CROSSFADE;
     if (!p || !this.ctx) return;
     this.playing = null;
     const t = this.ctx.currentTime;
     const g = p.gain.gain;
     g.cancelScheduledValues(t);
     g.setValueAtTime(g.value, t);
-    g.linearRampToValueAtTime(0, t + CROSSFADE);
-    p.src.stop(t + CROSSFADE + 0.05);
+    g.linearRampToValueAtTime(0, t + out);
+    p.src.stop(t + out + 0.05);
   }
 
   private load(track: Track): Promise<AudioBuffer | null> {

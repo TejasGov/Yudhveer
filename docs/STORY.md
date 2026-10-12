@@ -628,10 +628,11 @@ docs/ASSET_CREDITS.md).
   only with a clear line to him (a ray against the rock), otherwise they come round; cornered (under 2.4 m), they
   claw. A hit during the draw cancels the throw.
 - **Story:** the opening on the landing (the boatman, unseen under his boat's canopy, will go no further); his own
-  thoughts over the walk; the voice in the shrine as he enters and when the keepers are down; the extraction: he
-  steps up to the altar, the voice, the picture goes dark as he lifts it, then he stands with the mace in both fists,
-  gathering its power (the Great Sword Pack's "Power Up": see "The weapons pass"), the voice sends him to Dwarka, and
-  he walks back up the way he came. Yudhveer is subtitles only.
+  thoughts over the walk; the extraction: he steps up to the altar, the voice, the picture goes dark as he lifts it,
+  then he stands with the mace in both fists, gathering its power (the Great Sword Pack's "Power Up": see "The weapons
+  pass"), the voice sends him to Dwarka, and he walks back up the way he came. Yudhveer is subtitles only.
+  *(Since 2026-10-12 the voice is the apsara's: the Spider Demoness's bound soul, freed when she falls; it was an old
+  man's, "the voice in the shrine". See "The apsara" below and docs/ISLAND_DEMONESS.md.)*
 - **Left for later:** (the creatures' real models: done in milestone 11; there is still no bow clip, so the archers
   are hurlers who throw with Mayavi's cast); a clip for lifting
   the mace (the reach is the crouch idle, the lift is hidden in the dark); no map or compass (the way is linear);
@@ -653,12 +654,25 @@ reading time.
 | (no id) | Yudhveer (walking) | Small, and many. So this is where the others ended. | the hall's runts all down | subtitle only |
 | (no id) | Yudhveer (walking) | Something moves in the water. Keep to the stone. | near the black pool | subtitle only |
 | (no id) | Yudhveer (walking) | Warm air, and ghee burning. The shrine is close. | the last tunnel, pool cleared | subtitle only |
-| `island_shrine_voice_1` | Voice in the shrine | Many have come down for it. None has carried it up. | the shrine's door | yes |
-| `island_shrine_voice_2` | Voice in the shrine | Come, then. Come and lift it, if you can. | the shrine's keepers all down | yes |
-| `island_end_voice_1` | Voice in the shrine | Lift it, if you do not lift it for yourself. | ending, before the altar | yes |
+| `island_soul_0` | A woman's voice (the apsara, bound in the demoness) | Many have come down for it... none has carried it up. Free me. | the demoness's reveal, echoing | yes |
+| `island_soul_1` | The apsara | The binding is broken... Follow me, Yudhveer. | the release: her first words, as she turns to him | yes |
+| `island_soul_2` | The apsara | Behind this stone... the lamps still burn. | the release: at the rock seal | yes |
+| `island_soul_3` | The apsara | Come. It has waited a long time for you. | the release: as the seal's doors part | yes |
+| `island_soul_4` | The apsara | Lift it... if you do not lift it for yourself. | ending, before the altar | yes |
 | (no id) | Yudhveer | Not for myself. For my guru, and against the ones who took him. | ending | subtitle only |
-| `island_end_voice_2` | Voice in the shrine | Then it will not grow heavy in your hands. Go to Dwarka. The one who holds it fights with a mace, and has not met its equal. | ending, mace in hand | yes |
+| `island_soul_5` | The apsara | Then it will not grow heavy in your hands. Go to Dwarka. The one who holds it fights with a mace... and has not met its equal. | ending, mace in hand | yes |
 | (no id) | Yudhveer | He will meet it now. | ending | subtitle only |
+
+**The apsara (2026-10-12).** The old man's voice in the shrine (Shardul K: `island_shrine_voice_1..2`,
+`island_end_voice_1..2`) is retired from Chapter III; its files were moved out of the game to
+`game asset/voice/retired/`. Every line it had is now the apsara's: the queen of the apsaras bound inside the Spider
+Demoness, whose human body the spider wears. Before the fight she is only a whisper from inside the demoness ("Free
+me"); when the demoness falls, her soul leaves the body as light, forms beside it, lifts her head to Yudhveer, leads him to
+the rock seal and opens it, and stands by the altar to send him on to Dwarka. Voice: ElevenLabs "Aakancha"
+(unOLncGEZHyisV6yF1a5), flow YsZ801z0kT6TtHcbava6; the v3 direction tags shaped the performance and are left out of the
+subtitles. Her soul's rising is scored by `apsara`, an 8 s piece (tanpura and santoor, a bansuri phrase in Yaman, a
+wordless alaap, fading out). Her whisper was a beat at the chamber's mouth (`z < -63`), but the demoness's reveal follows
+within a step and cut it off, so it is the reveal's own line now, over a second, closer shot of her.
 
 ## Milestone 8: Chapter IV, Dwarka (landed)
 
@@ -2266,5 +2280,7 @@ Each milestone is one chat. Start it with: "Read docs/STORY.md, let's do milesto
 The user's revised Chapter III flow: keep the first cave fight; move the former final mob pack and rear wave to
 the second fight; make the last encounter a spider demoness wielding one chained axe. After her death her human
 soul leads the hero to a cave wall and magically opens it. The ghee/fire room, altar and blessed mace remain intact.
+Since 2026-10-12 the soul is the apsara, voiced, with her own entry and music (see "The apsara" under "Chapter III
+lines").
 The first implementation uses locally authored prototype rigs, a removable seal in the existing chamber and
 subtitle-only soul dialogue. Details and unverified browser checks: [ISLAND_DEMONESS.md](ISLAND_DEMONESS.md).
