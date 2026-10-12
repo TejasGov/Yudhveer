@@ -2,7 +2,7 @@
 
 ## Audit fixes — 8 October 2026
 
-Current verification: 38 automated tests pass, including production transport/room/timeline over real local WebSockets, and animation-window measurements on both shipped duel GLBs. TypeScript, Vite build and asset URL validation pass. The campaign Engine.ts is unchanged from the audited baseline a633db4; campaign combat resolver bodies are unchanged. Required before/after browser campaign playtests and interactive duel checks remain unverified because browser access was denied. Earlier browser measurements below predate these fixes and are retained as history. No cloud deployment or human latency-feel validation was performed.
+Current verification: 38 automated tests pass, including production transport/room/timeline over real local WebSockets, and animation-window measurements on both shipped duel GLBs. TypeScript, Vite build and asset URL validation pass. The campaign Engine.ts is unchanged from the audited baseline a633db4; campaign combat resolver bodies are unchanged. Required before/after browser campaign playtests and interactive duel checks remain unverified because browser access was denied. Earlier browser measurements below predate these fixes and are retained as history. No cloud deployment or human latency-feel validation was performed. (Update 2026-10-12: the Cloudflare relay now has a `cf` project in `server/` and has run locally in workerd; see "Cloud relay" below.)
 
 The real-socket fixtures use 10 ms jitter and 50% replaceable movement-snapshot loss. They complete alternating wins across all three rounds, reset scores/health on rematch and notify the peer on disconnect. Contacts are scripted verdicts after the production timeline reaches an eligible window; they do not exercise physics or a human's 140 ms parry timing. One run measured:
 
@@ -32,8 +32,8 @@ Open tuning choices introduced by the fixes: two seconds for simulation/delivery
 
 Stage 2 adds best-of-three matches to practice and room play. Campaign still uses
 its existing fixed-update block, defence numbers, weapons, scenes and enemy AI.
-No deployment, PR, merge, public matchmaking, Wrangler configuration or cloud
-resource creation is included.
+No deployment, PR, merge or public matchmaking is included. The Cloudflare relay is
+prepared but not deployed ("Cloud relay" below; docs/DEPLOY.md, "Duel relay").
 
 ## Design and match rules
 
@@ -55,8 +55,8 @@ rematch. Old state, hit and ready messages are rejected. Rematch is accepted onl
 at match end, and both players must request it.
 
 The single table is src/duel/Rules.ts; the room imports it too. Development relay
-and tests now require Node 22.18+ (verified on 24.11.0). The Worker will need to
-bundle this TypeScript import; the cloud runtime is still untested.
+and tests now require Node 22.18+ (verified on 24.11.0). The Worker's build (cf build,
+Vite) bundles this TypeScript import; it has run in local workerd, not yet on Cloudflare.
 
 | Round | Attire | Weapon | Earned abilities | Health | Duel damage multiplier |
 | --- | --- | --- | --- | --- | --- |
@@ -290,16 +290,38 @@ New and edited source retains CRLF.
 - Receipt-time interpolation, five seconds without state ending the session,
   snapshot-only simulated loss, trusted defender health, first lethal verdict
   winning a racing KO, and limited validation remain spike constraints.
-- The Worker/Durable Object adapter has not been run or deployed in Cloudflare.
-  Use cf for that future step; no wrangler.toml was added.
+- The Worker/Durable Object relay has run locally under cf dev (workerd), not on
+  Cloudflare: no deploy has been made. cf config is server/cloudflare.config.ts;
+  there is no Wrangler file.
+
+## Cloud relay — 12 October 2026
+
+server/ is a cf project for the Worker yudhveer-duel: server/cloudflare.config.ts
+binds DUEL_ROOMS to a SQLite-backed DuelRoomObject (the Free plan's only kind) and
+lists the pages allowed to connect in ALLOWED_ORIGINS. cf deploy --dry-run builds it
+(19 KiB) and lists both bindings; nothing has been uploaded. The Worker now refuses
+unknown origins (403) before a room is touched and disconnects a player sending a
+message over 4 KiB or a binary frame (1009). The shared room closes after ten
+minutes without any message, so a forgotten lobby cannot hold a billed Durable
+Object open; hibernation was not used because the room's seats and timers are
+in memory and fights never idle.
+
+Under cf dev (local workerd) the three real-socket matches (40/80/150 ms presets,
+production Transport) passed through the Worker and Durable Object, and five new
+Worker tests (scripts/duel-worker.test.mjs) passed: the 426/403/400 gate, missing
+room and full room, oversize message, a non-acknowledging player dropped for
+stalled delivery (receipts standing in for bufferedAmount) and the two-second
+simulation stall firing on the object's timers. All 44 tests passed five runs in a
+row; without DUEL_RELAY_URL the Worker tests skip and 39 pass. Not yet verified:
+a real deploy, the workers.dev address, WAN latency and two human browsers.
 
 ## Run locally
 
 Run npm run dev and, in another terminal, npm run duel:relay. Both clients open
 Duel, choose names, use the same relay URL, and create/join the six-character
-code. Remote hosting will need an approved Cloudflare relay deployment and a
-Vite build with VITE_DUEL_RELAY=wss://the-relay-endpoint, alongside the existing
-static-site hosting. This branch has not been deployed.
+code. Remote hosting needs the Cloudflare relay deployed (cf deploy in server/) and a
+Vite build with VITE_DUEL_RELAY=wss://yudhveer-duel.socra.workers.dev, set on the
+Pages project; docs/DEPLOY.md, "Duel relay", has the steps. Nothing is deployed yet.
 
 For browser QA, node scripts/make-pvp-check.mjs generates a temporary
 pvp-check.html with visible dev controls. It is not shipped. Use the 80 ms preset
@@ -479,5 +501,4 @@ in the production bundle; campaign playtests still use its existing controller.
 The Worker delegates by room code to a `DUEL_ROOMS` binding of
 `DuelRoomObject`. Its source follows the
 [Cloudflare WebSocket Durable Object API](https://developers.cloudflare.com/durable-objects/examples/websocket-server/).
-The `cf` CLI is present. No Worker binding, migration, deployment or Wrangler
-configuration was created; cloud execution remains unverified.
+(Superseded 2026-10-12: see "Cloud relay" above.)
