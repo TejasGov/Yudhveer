@@ -797,13 +797,28 @@ async function rigBoss() {
         shoulder: w('UpperArm_R'), elbow: w('Forearm_R'), wrist: w('Hand_R'), socket: w('Socket_Hand_R'), axe: boss.axe.getWorldPosition(new THREE.Vector3()),
         upperQ: q('UpperArm_R'), foreQ: q('Forearm_R'), handQ: q('Hand_R'), socketQ: q('Socket_Hand_R'), axeQ: boss.axe.getWorldQuaternion(new THREE.Quaternion()),
         pelvisQ: q('Pelvis'), chestQ: q('Chest'), target: boss.armTarget.clone(), weight: boss.armWeight,
+        head: w('Head'), chest: w('Chest'), abdomenP: w('Abdomen'), abdomenQ: q('Abdomen'), hand: boss.hand.clone(),
+        blade: BLADE.map((v) => boss.axe.localToWorld(new THREE.Vector3(...v))),
       });
       t += 1 / 60;
     }
     return frames;
   };
-  return { run };
+  // Her spider back as the swing tester measures it: the ellipsoid through the middle 80% of the Abdomen-owned skin (rest pose).
+  let skinned; root.traverse((o) => { if (o.isSkinnedMesh && !skinned) skinned = o; });
+  root.updateMatrixWorld(true); skinned.skeleton.update();
+  const abdomen = get('Abdomen'), si = skinned.geometry.getAttribute('skinIndex'), sw = skinned.geometry.getAttribute('skinWeight'), own = [];
+  for (let v = 0; v < si.count; v++) {
+    let best = -1, bw = 0;
+    for (let k = 0; k < 4; k++) { const wt = sw.getComponent(v, k); if (wt > bw) { bw = wt; best = si.getComponent(v, k); } }
+    if (bw >= 0.5 && skinned.skeleton.bones[best] === abdomen) own.push(abdomen.worldToLocal(skinned.getVertexPosition(v, new THREE.Vector3()).applyMatrix4(skinned.matrixWorld)));
+  }
+  const pct = (xs, k) => { const sorted = [...xs].sort((a, b) => a - b); return sorted[Math.floor((sorted.length - 1) * k)]; };
+  const shell = ['x', 'y', 'z'].map((c) => { const lo = pct(own.map((v) => v[c]), 0.1), hi = pct(own.map((v) => v[c]), 0.9); return [(lo + hi) / 2, (hi - lo) / 2]; });
+  return { run, shell };
 }
+/** Points on the axe (axe-local): the head, its point, its heel, the middle and the beard of the blade, and the haft's top. */
+const BLADE = [[-0.32, 0.5, 0], [-0.35, 0.66, 0], [-0.44, 0.14, 0], [-0.38, 0.4, 0], [-0.3, 0.25, 0], [0, 0.2, 0]];
 const thirdDiff = (P, i) => P[i].clone().sub(P[i - 1].clone().multiplyScalar(3)).add(P[i - 2].clone().multiplyScalar(3)).sub(P[i - 3]).length();
 const UP_Y = new THREE.Vector3(0, 1, 0);
 const cuesOf = (state, reach) => { const m = new axeMotion.AxeMotion(); m.prepare(state, reach); return m.cue({}); };
@@ -854,7 +869,8 @@ test('her real rig: the elbow never bends backwards, flips or folds shut, the wr
     assert.equal(back, 0, `${name}: the elbow never bends backwards`);
     assert.equal(flips, 0, `${name}: the elbow never flips to its other side`);
     assert.ok(minInterior >= 30, `${name}: the elbow never folds shut (${minInterior.toFixed(1)} deg)`);
-    assert.ok(worstWrist <= 70, `${name}: the wrist bends at most 70 deg off the forearm (${worstWrist.toFixed(1)})`);
+    // 70 is the joint's limit; in play it keeps well inside it.
+    assert.ok(worstWrist <= 60, `${name}: the wrist bends at most 60 deg off the forearm (${worstWrist.toFixed(1)})`);
     assert.equal(unreach, 0, `${name}: every wrist target is within the arm's reach`);
   }
 });
@@ -931,4 +947,58 @@ test("her rest hold is measured from the shipped rig: the chest at the idle clip
   const chest = gltf.scene.getObjectByName('Chest');
   assert.ok(chest.getWorldPosition(new THREE.Vector3()).distanceTo(new THREE.Vector3(...axeMotion.CHEST_IDLE.p)) < 0.001);
   assert.ok(chest.getWorldQuaternion(new THREE.Quaternion()).angleTo(new THREE.Quaternion(...axeMotion.CHEST_IDLE.q)) < 0.002);
+});
+
+test('her real rig: the axe in her fist (and coming into it) never covers her face or chest as he sees her, from the front', async () => {
+  const { run } = await rigBoss();
+  for (const [state, reach] of [['ATTACK_1', 2.4], ['ATTACK_2', 2.4], ['ATTACK_3', 4.2]]) {
+    let worst = Infinity, at = '';
+    for (const f of run(state, reach)) {
+      // In her fist or within half a metre of it (the catch); she faces +z, so his view from the front is along -z.
+      if (f.axe.distanceTo(f.socket) > 0.5) continue;
+      for (const p of f.blade) {
+        if (p.y < f.chest.y - 0.05 || p.y > f.head.y + 0.45 || p.z < f.head.z - 0.1) continue; // below her chest, above her head, or behind her
+        const off = Math.abs(p.x - f.head.x);
+        if (off < worst) { worst = off; at = `${f.s}@${f.t.toFixed(3)}`; }
+      }
+    }
+    // Her head is 0.255 m round: the blade stays clear of it and of the chest below it, out to her side.
+    assert.ok(worst >= 0.35, `${state}: the blade comes ${worst.toFixed(2)} m from her face-and-chest line at ${at}`);
+  }
+});
+
+test('her real rig: the recall is braked into her fist, which gives with the catch; it is not stopped dead', async () => {
+  const { run } = await rigBoss();
+  for (const [state, reach] of [['ATTACK_1', 2.4], ['ATTACK_2', 2.4], ['ATTACK_3', 4.2]]) {
+    const frames = run(state, reach).filter((f) => f.s === state), cue = cuesOf(state, reach);
+    const speed = (i, key) => frames[i][key].distanceTo(frames[i - 1][key]) * 60;
+    let worstStep = 0, peak = 0, home = -1;
+    for (let i = 2; i < frames.length; i++) {
+      if (frames[i].t < cue.recall || frames[i].t > cue.settled + 0.1) continue;
+      worstStep = Math.max(worstStep, Math.abs(speed(i, 'axe') - speed(i - 1, 'axe')));
+      peak = Math.max(peak, speed(i, 'axe'));
+      if (home < 0 && frames[i].t >= cue.home) home = i;
+    }
+    assert.ok(peak > 10, `${state}: hauled home fast (${peak.toFixed(1)} m/s)`);
+    // The old catch dropped 11 m/s in one step; braked, no step changes its speed by more than 5 m/s.
+    assert.ok(worstStep < 5, `${state}: the axe's speed changes by ${worstStep.toFixed(1)} m/s in one step on its way home`);
+    assert.ok(speed(home, 'axe') < 4, `${state}: it lands at ${speed(home, 'axe').toFixed(1)} m/s`);
+    assert.ok(speed(home, 'hand') > 0.8, `${state}: her fist is giving as it lands (${speed(home, 'hand').toFixed(2)} m/s)`);
+  }
+});
+
+test("her real rig: the axe never cuts into her spider back (the abdomen's skin, as an ellipsoid)", async () => {
+  const { run, shell } = await rigBoss();
+  for (const [state, reach] of [['ATTACK_1', 2.4], ['ATTACK_2', 2.4], ['ATTACK_3', 4.2]]) {
+    let worst = Infinity, at = '';
+    for (const f of run(state, reach)) {
+      const inv = f.abdomenQ.clone().invert();
+      for (const p of [...f.blade, f.axe, f.socket]) {
+        const l = p.clone().sub(f.abdomenP).applyQuaternion(inv).toArray();
+        const r = Math.hypot(...l.map((x, k) => (x - shell[k][0]) / shell[k][1]));
+        if (r < worst) { worst = r; at = `${f.s}@${f.t.toFixed(3)}`; }
+      }
+    }
+    assert.ok(worst > 1.2, `${state}: the axe reaches ${worst.toFixed(2)} of the way into her back at ${at}`);
+  }
 });

@@ -82,8 +82,9 @@ const RELEASE = 0.05;
 export const HIP_LEAD = 0.06;
 /** Her left hand at rest (the clip's): where the off-hand keys start and end. */
 const REST_OFF: V3 = [0.98, 1.83, 0.67];
-/** Her rest hold (the grip, boss-local, as the idle clip has her), where the right-hand keys start and end. */
-const REST_GRIP: V3 = [-0.62, 1.98, 1.0];
+/** Her rest hold (the grip, boss-local, as the idle clip has her), where the right-hand keys start and end: out at her
+ * right side, the haft up and out, the blade forward, so her face and chest stay clear from the front. */
+const REST_GRIP: V3 = [-0.74, 1.95, 0.85];
 const REST_WRIST: V3 = [10, 0, 0];
 /** The rest hold, for AxeBody: it carries it with her chest, measured from where the idle clip has the chest. */
 export const REST_HOLD = { p: REST_GRIP, wrist: REST_WRIST } as const;
@@ -92,7 +93,8 @@ export const CHEST_IDLE = { p: [0.04, 1.91, 0.64], q: [-0.01682, -0.05445, -0.05
 
 const SPECS: Record<AxeAttack, AttackSpec> = {
   // The sweep: drawn up behind her right shoulder with the head cocked down her back, flung out wide to her right, then
-  // diagonally down across her front to knee height, through and round to her left, where the chain stops it.
+  // diagonally down across her front to knee height, through and round to her left, where the chain stops it; it comes
+  // home low across her front (under her chest) into her fist at her side.
   ATTACK_1: {
     tApex: 0.34, tWhip: 0.42,
     path: [
@@ -105,7 +107,7 @@ const SPECS: Record<AxeAttack, AttackSpec> = {
     ],
     tStop: 1.05, whip: 0.12, brake: 4,
     recoil: 0.22, drop: 0.12, tRecall: 1.1,
-    recallBase: 0.2, recallPerMetre: 0.05, bulge: [0.1, 0.75, 0.0], bulgeSize: 0.12,
+    recallBase: 0.26, recallPerMetre: 0.05, bulge: [0.0, -0.5, 1.0], bulgeSize: 0.4,
     nominalLength: 7.8,
     windows: [{ t0: 0.52, t1: 0.9 }],
     plants: false,
@@ -117,11 +119,11 @@ const SPECS: Record<AxeAttack, AttackSpec> = {
     heat: { t: [0, 0.24, 0.36, 0.9, 1.2, 1.7], v: [0.1, 0.55, 1, 1, 0.55, 0.12] },
     arm: {
       t: [0, 0.16, 0.28, 0.34, 0.44, 0.5, 0.56, 0.68, 0.84, 1, 1.14, 1.28, 1.42, 1.58, 1.76],
-      p: [REST_GRIP, [-0.57, 2.27, 0.92], [-0.66, 2.6, 0.48], [-0.68, 2.78, 0.18], [-0.69, 2.79, 0.17],
+      p: [REST_GRIP, [-0.72, 2.3, 0.78], [-0.7, 2.62, 0.42], [-0.68, 2.78, 0.18], [-0.69, 2.79, 0.17],
         [-0.98, 2.62, 0.45], [-0.8, 2.38, 1.05], [-0.32, 2.22, 1.45], [0.08, 2.15, 1.4], [0.2, 2.14, 1.3],
-        [0.1, 2.12, 1.22], [-0.12, 2.15, 1.18], [-0.3, 2.16, 1.13], [-0.46, 2.13, 1.08], REST_GRIP],
+        [0.05, 2.12, 1.22], [-0.4, 2, 1.12], [-0.7, 1.93, 1.02], [-0.73, 1.93, 0.9], REST_GRIP],
       wrist: [REST_WRIST, [18, -8, 20], [17.5, -7.5, 55], [-7.5, 5, 75], [-12, 2, 75],
-        [-4, 10, 68], [20, 32, 40], [25, 33, 12], [15, 20, 0], [10, 10, 0],
+        [-4, 10, 68], [16, 24, 40], [20, 24, 12], [15, 18, 0], [10, 10, 0],
         [5, 5, 0], [15, 15, 20], [15, 10, 15], [12, -5, 5], REST_WRIST],
       w: [0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0.5, 0],
     },
@@ -156,11 +158,11 @@ const SPECS: Record<AxeAttack, AttackSpec> = {
     heat: { t: [0, 0.24, 0.38, 0.9, 1.25, 1.8], v: [0.1, 0.55, 1, 1, 0.6, 0.12] },
     arm: {
       t: [0, 0.14, 0.26, 0.36, 0.46, 0.52, 0.58, 0.66, 0.8, 0.96, 1.16, 1.3, 1.44, 1.6, 1.8],
-      p: [REST_GRIP, [-0.54, 2.32, 0.98], [-0.5, 2.68, 0.75], [-0.43, 2.96, 0.5], [-0.42, 3.01, 0.44],
+      p: [REST_GRIP, [-0.72, 2.2, 0.88], [-0.62, 2.58, 0.68], [-0.43, 2.96, 0.5], [-0.42, 3.01, 0.44],
         [-0.4, 3.1, 0.66], [-0.36, 2.9, 1.15], [-0.32, 2.25, 1.32], [-0.32, 2.02, 1.3], [-0.32, 1.98, 1.28],
-        [-0.33, 2, 1.26], [-0.36, 2.12, 1.36], [-0.42, 2.16, 1.22], [-0.48, 2.13, 1.1], REST_GRIP],
+        [-0.4, 2, 1.25], [-0.55, 2.05, 1.15], [-0.66, 2.06, 1.02], [-0.72, 2, 0.92], REST_GRIP],
       wrist: [REST_WRIST, [18, -20, 15], [25, -45, 35], [-15, -58, -8], [-20, -62, -10],
-        [-15, -50, -8], [-5, -25, -5], [18, 18, 0], [30, 38, 0], [18, 25, 0],
+        [-15, -50, -8], [-5, -25, -5], [18, 18, 0], [22, 26, 0], [15, 18, 0],
         [12, 15, 0], [10, 8, 0], [12, 0, 0], [12, -6, 0], REST_WRIST],
       w: [0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0.5, 0],
     },
@@ -172,7 +174,7 @@ const SPECS: Record<AxeAttack, AttackSpec> = {
     },
   },
   // The throw: drawn back low past her right hip with the head trailing behind her, flung out on a curve that bends in
-  // onto him, stopped hard by the chain at full stretch, and hauled back round her left on the other side of the loop.
+  // onto him, stopped hard by the chain at full stretch, and hauled back round her right, clear of her face, into her fist.
   ATTACK_3: {
     tApex: 0.35, tWhip: 0.43,
     path: [
@@ -182,8 +184,8 @@ const SPECS: Record<AxeAttack, AttackSpec> = {
       [0.15, 0, 1.2, 0.15, 1.0],
     ],
     tStop: 0.88, whip: 0.12, brake: 7,
-    recoil: 0.35, drop: 0.15, tRecall: 1.0,
-    recallBase: 0.2, recallPerMetre: 0.06, bulge: [1.0, 0.25, 0.0], bulgeSize: 0.16,
+    recoil: 0.35, drop: 0.05, tRecall: 1.0,
+    recallBase: 0.2, recallPerMetre: 0.06, bulge: [-1.0, 0.45, 0.0], bulgeSize: 0.22,
     nominalLength: 5.64,
     windows: [{ t0: 0.52, t1: 0.98 }],
     plants: false,
@@ -197,10 +199,10 @@ const SPECS: Record<AxeAttack, AttackSpec> = {
       t: [0, 0.16, 0.28, 0.35, 0.45, 0.53, 0.62, 0.7, 0.84, 0.96, 1.1, 1.22, 1.34, 1.5, 1.66, 1.82],
       p: [REST_GRIP, [-0.62, 2.12, 0.85], [-0.76, 2.05, 0.48], [-0.8, 2, 0.27], [-0.81, 2, 0.25],
         [-0.92, 2.12, 1], [-0.6, 2.21, 1.62], [-0.42, 2.24, 1.72], [-0.3, 2.24, 1.68], [-0.26, 2.22, 1.64],
-        [-0.26, 2.2, 1.6], [-0.33, 2.18, 1.45], [-0.4, 2.17, 1.3], [-0.46, 2.14, 1.13], [-0.5, 2.11, 1.07],
+        [-0.35, 2.2, 1.55], [-0.5, 2.15, 1.35], [-0.62, 2.1, 1.15], [-0.7, 2.02, 0.98], [-0.73, 1.97, 0.88],
         REST_GRIP],
-      wrist: [REST_WRIST, [15, 15, 25], [8, 40, 52], [10, 47, 64], [12, 47.5, 68],
-        [12, 46, 64], [12, 48, 60], [32, 25, 5], [18, 16, 0], [10, 10, 0],
+      wrist: [REST_WRIST, [15, 15, 25], [8, 26, 50], [10, 28, 62], [12, 28, 66],
+        [12, 28, 62], [12, 30, 58], [32, 25, 5], [18, 16, 0], [10, 10, 0],
         [8, 8, 0], [12, 10, 12], [15, 10, 15], [12, -5, 5], [12, -8, 0],
         REST_WRIST],
       w: [0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0.5, 0],
@@ -254,7 +256,7 @@ export interface AxeCues {
 }
 
 const RECALL_CROSS = 0.76;
-const RECALL_POW = 1.5;
+const RECALL_EASE = 2;
 const STRIKE_SAMPLES = 40;
 const MAX_POINTS = 10;
 const LUT = (MAX_POINTS - 1) * STRIKE_SAMPLES + 1;
@@ -299,9 +301,14 @@ export function strikeProgress(u: number, a: number, p: number): number {
   return done / total;
 }
 
-/** The recall's share of the way home at `u` (0..1): accelerating into her fist by RECALL_CROSS, then held there. */
+/**
+ * The recall's share of the way home at `u` (0..1): hauled in faster and faster, then braked over the last third so it
+ * reaches her fist at the fist's own speed (her hand gives with the catch: the boss's recoil), and held there.
+ * x^p (1 + p (1 - x)), p = RECALL_EASE: no speed at either end, fastest (p-1)/p of the way (the last 40% a brake).
+ */
 export function recallProgress(u: number): number {
-  return Math.min(1, Math.pow(THREE.MathUtils.clamp(u, 0, 1) / RECALL_CROSS, RECALL_POW));
+  const x = THREE.MathUtils.clamp(u / RECALL_CROSS, 0, 1);
+  return Math.pow(x, RECALL_EASE) * (1 + RECALL_EASE * (1 - x));
 }
 
 /** Its flight time for `distance` metres (s). */
@@ -582,13 +589,21 @@ export class AxeMotion {
     // Held: eased out of the grip as the fist opens, and back into it over the end of the recall, by time (by distance,
     // a blade arriving at 20 m/s would whip round in a frame or two).
     const held = t < this.recallAt ? 1 - THREE.MathUtils.smoothstep(t, let_, let_ + TURN)
-      : THREE.MathUtils.smoothstep((t - this.recallAt) / this.recallSpan, 0.22, RECALL_CROSS * 0.97);
+      : THREE.MathUtils.smoothstep((t - this.recallAt) / this.recallSpan, RECALL_CROSS * 0.55, RECALL_CROSS * 0.97);
     // The edge: set for the strike's first span from the start (the draw carries it cocked, so nothing flips at the
     // top), led by the travel through the strike, and left along its last span once the chain has stopped it.
     const k = THREE.MathUtils.smoothstep(t, s.tWhip, this.stop);
     this.edgeNow.lerpVectors(this.edgeStart, this.edgeEnd, k);
     const travel = THREE.MathUtils.smoothstep(t, let_, let_ + 0.06) * (1 - THREE.MathUtils.smoothstep(t, this.stop - 0.08, this.stop + 0.05));
     orient(position, _q, hand, this.edgeNow, CHORD, travel, held, grip, rotation);
+  }
+
+  /** The way the axe comes into her fist at the catch (boss-local, unit), her hand at `hand`. */
+  public arrival(hand: THREE.Vector3, out: THREE.Vector3): THREE.Vector3 {
+    const s = this.spec;
+    recallPath(this.rest, hand, RECALL_CROSS * 0.8, s.bulge, s.bulgeSize, out);
+    out.subVectors(hand, out);
+    return out.lengthSq() > 1e-8 ? out.normalize() : out.set(0, 0, -1);
   }
 
   /** Whether the strike's blade has reached its stop and is now slack, recoiling or coming home. */
@@ -614,14 +629,16 @@ export class AxeMotion {
 }
 
 /**
- * From `from` to the live `hand` at progress `u` (0..1 of the recall's time): accelerating home into her fist, and an
- * arc off the straight line (`bulge`, metres per metre) on the way.
+ * From `from` to the live `hand` at progress `u` (0..1 of the recall's time): hauled home and braked into her fist, and
+ * an arc off the straight line (`bulge`, metres per metre) on the way.
  */
 export function recallPath(from: THREE.Vector3, hand: THREE.Vector3, u: number, bulge: V3, size: number, out: THREE.Vector3): THREE.Vector3 {
   if (u >= RECALL_CROSS) return out.copy(hand);
   const distance = from.distanceTo(hand);
   out.lerpVectors(from, hand, recallProgress(u));
-  const arc = Math.sin(Math.PI * Math.max(0, u) / RECALL_CROSS) * size * distance;
+  // 16 x^2 (1 - x)^2: off the line and back onto it with no speed of its own at either end (it neither kicks the axe
+  // off its rest nor throws it past her fist).
+  const x = THREE.MathUtils.clamp(u / RECALL_CROSS, 0, 1), arc = 16 * x * x * (1 - x) * (1 - x) * size * distance;
   return out.set(out.x + bulge[0] * arc, out.y + bulge[1] * arc, out.z + bulge[2] * arc);
 }
 

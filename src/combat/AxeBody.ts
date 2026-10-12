@@ -68,6 +68,8 @@ const FOLD = 0.33;
 const CLAV_LIFT = 0.28;
 const CLAV_REACH = 0.3;
 const CLAV_MAX = 24 * DEG;
+/** The spring a broken-off swing's bones ride on (1/s): critically damped, about 30 ms behind. */
+const SMOOTH_RATE = 35;
 /** Which way each elbow bends (chest frame: out to her side, down, back). */
 const POLE_R = new THREE.Vector3(-0.7, -0.6, -0.25).normalize();
 const POLE_L = new THREE.Vector3(0.7, -0.6, -0.25).normalize();
@@ -87,6 +89,9 @@ interface Slot {
   doneQ: THREE.Quaternion;
   doneP: THREE.Vector3;
   has: boolean;
+  /** Its turning (rotation vector per second, in its parent's frame) over the last step, and whether that is known. */
+  vel: THREE.Vector3;
+  moving: boolean;
 }
 
 interface Bones {
@@ -255,6 +260,14 @@ function bendOf(relaxed: THREE.Quaternion, dev: number, flex: number, k: number,
   return _wv.copy(Y).applyQuaternion(out).angleTo(Y);
 }
 
+/** The rotation vector (axis times angle, the short way) of `q` into `out`. */
+function rotationVector(q: THREE.Quaternion, out: THREE.Vector3): THREE.Vector3 {
+  const sign = q.w < 0 ? -1 : 1, s = Math.hypot(q.x, q.y, q.z);
+  if (s < 1e-9) return out.set(0, 0, 0);
+  const k = (2 * Math.atan2(s, Math.abs(q.w))) / s * sign;
+  return out.set(q.x * k, q.y * k, q.z * k);
+}
+
 /** The shoulder-to-wrist distance the IK aims for: eased in short of the straight arm, never folded tighter than FOLD. */
 export function softReach(d: number, l1: number, l2: number): number {
   const L = l1 + l2, soft = SOFT * L, max = STRAIGHT * L;
@@ -285,6 +298,7 @@ export class AxeBody {
     this.slots = b ? [b.pelvis, b.spine, b.chest, b.neck, b.head, b.clav, b.upper, b.fore, b.hand, b.upperL, b.foreL, ...b.legs]
       .filter((bone): bone is THREE.Object3D => bone !== null).map((bone) => ({
         bone, baseQ: new THREE.Quaternion(), baseP: new THREE.Vector3(), doneQ: new THREE.Quaternion(), doneP: new THREE.Vector3(), has: false,
+        vel: new THREE.Vector3(), moving: false,
       })) : [];
     return b !== null;
   }
@@ -300,9 +314,13 @@ export class AxeBody {
     }
   }
 
-  /** Lays the layers over the pose the mixer left: `layer` (zero is the clip as it is) and the arms' `pose`. `group` is
-   * the boss's root. */
-  public apply(group: THREE.Object3D, layer: BodyLayer, pose: ArmPose): void {
+  /**
+   * Lays the layers over the pose the mixer left: `layer` (zero is the clip as it is) and the arms' `pose`. `group` is
+   * the boss's root. `smooth` (0..1): how far each bone the layers move follows its new pose on a critically damped
+   * spring from the way it was turning, rather than straight (a swing broken off: the clip's cross-fade into the flinch
+   * starts and stops its blend linearly, and those kinks would show in the arm; the spring rides over them).
+   */
+  public apply(group: THREE.Object3D, layer: BodyLayer, pose: ArmPose, dt = 1 / 60, smooth = 0): void {
     const b = this.bones;
     if (!b) return;
     for (const s of this.slots) {
@@ -354,10 +372,28 @@ export class AxeBody {
     if (pose.hold > 1e-3) this.hold(group, pose);
     if (pose.offWeight > 1e-3 && b.upperL && b.foreL && b.handL) this.offHand(group, pose);
     for (const s of this.slots) {
-      s.doneQ.copy(s.bone.quaternion);
+      const q = s.bone.quaternion;
+      if (s.moving && dt > 0) {
+        if (smooth > 0) {
+          // The spring (exact, critically damped): where it was (doneQ) off the new pose, turning as it was (vel).
+          rotationVector(_qt.copy(s.doneQ).multiply(_q1.copy(q).invert()), _a);
+          const e = Math.exp(-SMOOTH_RATE * dt);
+          _b.copy(s.vel).addScaledVector(_a, SMOOTH_RATE);
+          _a.addScaledVector(_b, dt).multiplyScalar(e);
+          s.vel.addScaledVector(_b, -SMOOTH_RATE * dt).multiplyScalar(e);
+          const angle = _a.length();
+          _q2.copy(q);
+          if (angle > 1e-9) _q2.premultiply(_q1.setFromAxisAngle(_a.divideScalar(angle), angle));
+          q.slerp(_q2, Math.min(1, smooth));
+        }
+        if (smooth < 1) rotationVector(_qt.copy(q).multiply(_q1.copy(s.doneQ).invert()), s.vel).multiplyScalar(1 / dt);
+      }
+      s.moving = dt > 0;
+      s.doneQ.copy(q);
       s.doneP.copy(s.bone.position);
       s.has = true;
     }
+    if (smooth > 0) b.pelvis.parent?.updateWorldMatrix(false, true);
   }
 
   /**
