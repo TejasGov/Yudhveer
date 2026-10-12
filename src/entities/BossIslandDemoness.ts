@@ -46,8 +46,10 @@ const DEAD_EASE = 0.3;
  * taken into her arm. */
 const CATCH_RECOIL = new THREE.Vector3(0.02, 0.05, -0.14);
 const CATCH_SPAN = 0.4;
-/** How fast the layers settle once an attack ends or breaks off (1/s; a critically damped spring: all but gone in a quarter of a second). */
-const EASE_RATE = 20;
+/** Once an attack ends or breaks off: how long its layers take to fade out (s), and how fast the speed they carry on
+ * with dies away (1/s). */
+const EXIT_SPAN = 0.25;
+const EXIT_DECAY = 12;
 const EASED = 9;
 /** Her hand at rest (boss-local), until the rig's socket says where it is. */
 const REST_HAND = new THREE.Vector3(...REST_HOLD.p);
@@ -126,7 +128,11 @@ export class BossIslandDemoness extends Boss {
   private armsLive = false;
   /** The eased scalars: the body's seven layers, the right and left arms' weights (and, last, the hold), with velocities. */
   private readonly eased = new Float64Array(EASED);
-  private readonly easedVel = new Float64Array(EASED + 1);
+  private readonly easedVel = new Float64Array(EASED);
+  /** The exit's start (the eased values and their speeds then) and how long ago it was (-1: in an attack). */
+  private readonly exitFrom = new Float64Array(EASED);
+  private readonly exitVel = new Float64Array(EASED);
+  private exitClock = -1;
   private heat = 0;
   private socket: THREE.Object3D | null = null;
   private socketRig: CharacterRig | null = null;
@@ -321,12 +327,21 @@ export class BossIslandDemoness extends Boss {
       this.track(3, keyed.hipLean, rate); this.track(4, keyed.lunge, rate); this.track(5, keyed.rise, rate);
       this.track(6, keyed.legs, rate); this.track(7, weight, rate); this.track(8, offWeight, rate);
       this.armsLive = true;
+      this.exitClock = -1;
       this.heat = keyed.heat;
     } else {
-      // Broken off or over: every layer and both hands' weights go home on a critically damped spring from the speed
-      // they had (no velocity jump at the switch), the keyed hands coasting on meanwhile (inertialization, not a freeze).
-      for (let i = 0; i < EASED; i++) eased[i] = this.ease(i, eased[i], 0, dt);
-      const k = Math.exp(-EASE_RATE * dt);
+      // Broken off or over (dead blending): every layer and both hands' weights carry on at the speed they had, that
+      // speed dying away, while the whole is faded out over EXIT_SPAN: no jump in the pose, its speed or its
+      // acceleration at the switch. The keyed hands coast on the same way.
+      if (this.exitClock < 0) {
+        this.exitClock = 0;
+        this.exitFrom.set(eased);
+        this.exitVel.set(this.easedVel.subarray(0, EASED));
+      }
+      this.exitClock += dt;
+      const c = this.exitClock, carried = (1 - Math.exp(-EXIT_DECAY * c)) / EXIT_DECAY, fade = 1 - smootherstep(c / EXIT_SPAN);
+      for (let i = 0; i < EASED; i++) eased[i] = (this.exitFrom[i] + this.exitVel[i] * carried) * fade;
+      const k = Math.exp(-EXIT_DECAY * dt);
       arms.grip.addScaledVector(this.gripVel, dt); this.gripVel.multiplyScalar(k);
       arms.wrist.addScaledVector(this.wristVel, dt); this.wristVel.multiplyScalar(k);
       arms.off.addScaledVector(this.offVel, dt); this.offVel.multiplyScalar(k);
@@ -342,8 +357,7 @@ export class BossIslandDemoness extends Boss {
       if (k < 1) arms.grip.addScaledVector(CATCH_RECOIL, k < 0.35 ? smootherstep(k / 0.35) : 1 - smootherstep((k - 0.35) / 0.65));
     }
     // Her fist keeps its hold on the axe in every state but death, where the arm goes back to the clip with the rest.
-    arms.hold = state === 'DEAD' ? this.ease(EASED, arms.hold, 0, dt) : 1;
-    if (state !== 'DEAD') this.easedVel[EASED] = 0;
+    arms.hold = state === 'DEAD' ? 1 - smootherstep(t / EXIT_SPAN) : 1;
     // A killing blow mid-swing: the layers (already easing out above) stay on for DEAD_EASE seconds, not dropped in one frame
     // from the keyed pose to the fall (audit L5).
     if (!this.rig || (state === 'DEAD' && t > DEAD_EASE)) return;
@@ -355,13 +369,6 @@ export class BossIslandDemoness extends Boss {
   private track(i: number, value: number, rate: number): void {
     this.easedVel[i] = (value - this.eased[i]) * rate;
     this.eased[i] = value;
-  }
-
-  /** One step of value `x` (eased slot `i`) toward `to` on a critically damped spring of rate EASE_RATE (exact). */
-  private ease(i: number, x: number, to: number, dt: number): number {
-    const v = this.easedVel[i], d = x - to, e = Math.exp(-EASE_RATE * dt), c = v + EASE_RATE * d;
-    this.easedVel[i] = (v - EASE_RATE * c * dt) * e;
-    return to + (d + c * dt) * e;
   }
 
   /** The right hand's socket, boss-local (after the body's layers): where the axe sits in her fist, and how it lies there. */
