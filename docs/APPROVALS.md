@@ -1,8 +1,12 @@
 # Waiting for approval
 
 Things that need the user's say-so before they go further: credit spends, downloads, new voice lines, and choices
-between options. Each entry says what it is, what it costs, and what happens on a yes. Nothing here has been spent or
-downloaded yet.
+between options. Each entry says what it is, what it costs, and what happens on a yes. Entries marked DONE or APPROVED were
+settled and are kept as a record; the ones still marked waiting have not been spent or downloaded.
+
+**Status on 2026-10-12:** the game is published (Cloudflare Pages, yudhveer.pages.dev, and Render; both rebuild on every push to
+`main`). Milestone 13's host choice below was settled that way, and its "nothing published" lines describe 2026-10-06. What the
+newest release changes is in docs/RELEASE_NOTES.md.
 
 ## Entrances (2026-10-06): waiting
 

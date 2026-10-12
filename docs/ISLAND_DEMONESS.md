@@ -6,7 +6,7 @@ human soul stands calmly, walks to the rock seal, opens it and walks beside the 
 dressing, altar, mace pickup, voice files and chapter ending remain intact. The existing cave GLB is divided by
 a separately owned, removable rock curtain; the cave itself was not rebuilt.
 
-Work is on the `cave-demoness` review branch and has not been deployed. The 2026-10-11 audit and rework (last section)
+This work ships in the 2026-10-12 release (docs/RELEASE_NOTES.md); before that it lived on the `cave-demoness` review branch. The 2026-10-11 audit and rework (last section)
 supersedes the sizes, speeds and timings quoted in the older sections; they are kept as history.
 
 ## Asset provenance and current human rig

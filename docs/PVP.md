@@ -1,5 +1,11 @@
 # PvP duel — Stage 2
 
+## Release check — 12 October 2026
+
+The duel ships in the 2026-10-12 release (docs/RELEASE_NOTES.md). The browser campaign playtests that the notes below list as
+pending were run on the release branch against `main`: see "Verification" in the release notes. The relay is not deployed: a
+production build with no `VITE_DUEL_RELAY` switches Create and Join off and says so, and practice against HeroBot needs no relay.
+
 ## Audit fixes — 8 October 2026
 
 Current verification: 38 automated tests pass, including production transport/room/timeline over real local WebSockets, and animation-window measurements on both shipped duel GLBs. TypeScript, Vite build and asset URL validation pass. The campaign Engine.ts is unchanged from the audited baseline a633db4; campaign combat resolver bodies are unchanged. Required before/after browser campaign playtests and interactive duel checks remain unverified because browser access was denied. Earlier browser measurements below predate these fixes and are retained as history. No cloud deployment or human latency-feel validation was performed.

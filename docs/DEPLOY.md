@@ -1,15 +1,26 @@
-# Deploying Yudhveer (milestone 13)
+# Deploying Yudhveer
 
-Prepared 2026-10-06. **Nothing is published**: publishing is outward-facing, so it waits for your yes and a chosen host
-(docs/APPROVALS.md, "Milestone 13"). What exists is a build that works from any address, a manual workflow, a headers
-file, a zip recipe for itch.io, and a test server. The game is static files: no server code, no database, no cookies
-(progress and settings are in the browser's `localStorage`).
+Written for milestone 13 (2026-10-06) and checked against the release build on 2026-10-12. **The game is live**: Cloudflare
+Pages (`https://yudhveer.pages.dev/`) and Render (`https://yudhveer.onrender.com/`) both rebuild on every push to `main`, so
+a push is a deploy (docs/RELEASE_NOTES.md lists what the latest one changed). The campaign is static files: no server code,
+no database, no cookies (progress and settings are in the browser's `localStorage`). The one exception is the optional online
+duel, which meets through a relay; a build with no `VITE_DUEL_RELAY` has online rooms switched off and everything else works.
+The sections below that describe milestone 13's measurements are kept as they were measured (the sizes have grown since:
+see "The bundle today").
+
+## The bundle today (2026-10-12, release build)
+
+`npm run build` (Node 24.11 here; Cloudflare's `NODE_VERSION=22` meets Vite 8's `^20.19 || >=22.12`): `dist/` holds 227
+files, 149.7 MB of them from `public/assets` (215 files; the largest is `charnel_ridge.glb`, 12.6 MB, against Cloudflare
+Pages' 25 MiB per file and 20,000 files). The bundle is eight hashed files: `rapier` 4,333 kB, `index` 764, `three` 733,
+`vendor` 150, `DuelSession` 29, `Transport` 3, `Rules` 0.6 and the stylesheet 19; the duel's three small chunks load
+only when the Duel menu is used.
 
 ## What a build is
 
-- `npm run build` (the default, base `/`): `dist/` holds `index.html`, the bundle in `dist/assets/` (five hashed files,
-  5.77 MB: `rapier` 4.33, `three` 0.72, `index` 0.55, `vendor` 0.15, css 0.02) and a copy of `public/` (the models,
-  sounds and skies in `dist/assets/<folder>/`, 138.6 MB in 174 files) plus `_headers`.
+- `npm run build` (the default, base `/`): `dist/` holds `index.html`, the bundle in `dist/assets/` (hashed files, listed above;
+  milestone 13 measured five, 5.77 MB) and a copy of `public/` (the models, sounds and skies in `dist/assets/<folder>/`;
+  138.6 MB in 174 files at milestone 13) plus `_headers`.
 - **Every address the game asks for goes through `asset()`** (`src/core/Assets.ts`), built from Vite's `base`. The base is
   the one thing that changes between hosts: `/` (a host with a domain of its own, and `npm run dev`), `/Yudhveer/`
   (GitHub Pages: a project site lives under its repository's name) or `./` (the itch.io zip, which can be unpacked
@@ -109,7 +120,7 @@ in `game asset/README.md` too.
 | Address | `https://tejasgov.github.io/Yudhveer/` | its own domain (or yours) | `<you>.itch.io/<game>` | `yudhveer.onrender.com` |
 | Build | `build:pages` (base `/Yudhveer/`), by the manual workflow | `npm run build` (base `/`) | `npm run build:itch` (base `./`, a zip) | `npm ci && npm run build`, publish `dist` |
 | Cache headers | none to set (`max-age=600`); `?v=` keeps what is cached correct | `public/_headers`: a year, immutable, for `/assets/*`; `index.html` always asked | not yours to set | add the `_headers` rules in the dashboard |
-| Limits to check | 1 GB site, a soft 100 GB a month of bandwidth (about 700 complete first visits of 143 MB) | Cloudflare: 25 MiB a file (the largest is 13.6 MB), bandwidth free; Netlify: its bandwidth allowance | 1000 files, a zip of up to 1 GB, 240 characters of path (this one: 180 files, 140 MB zipped, 46 characters) | the plan's bandwidth |
+| Limits to check | 1 GB site, a soft 100 GB a month of bandwidth (about 650 complete first visits of 150 MB) | Cloudflare: 25 MiB a file (the largest is 12.6 MB), bandwidth free; Netlify: its bandwidth allowance | 1000 files, a zip of up to 1 GB, 240 characters of path (this one: 226 files, 151 MB zipped, 46 characters) | the plan's bandwidth |
 | Good for | free, in the repository, nothing else to sign up for | the best second visit (cached for a year), global CDN | people who find games there | already running |
 
 ### GitHub Pages (a manual workflow, never on push)
@@ -124,7 +135,7 @@ in `game asset/README.md` too.
 4. The address is on the run's summary: `https://tejasgov.github.io/Yudhveer/`.
 
 Caveats: if the repository is renamed, change `/Yudhveer/` in `package.json` (`build:pages`). `public/_headers` is
-published as a plain file there and does nothing. The deploy uploads about 140 MB each time.
+published as a plain file there and does nothing. The deploy uploads about 150 MB each time.
 
 ### Netlify or Cloudflare Pages
 

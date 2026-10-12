@@ -109,7 +109,8 @@ Real gameplay, captured in the engine at 1080p. Nothing here gives the story awa
 - **Bosses that block and parry.** A boss turns on you if you slide behind it, raises its weapon across its front to ring your blows aside, and answers with a backhand or a kick. It never guards mid-swing, so timing beats mashing.
 - **Keyboard, mouse or gamepad.** Prompts follow whichever device you touched last, and a controller rumbles on impact. Pointer lock for the mouse, deadzones and walk-by-stick for the pad.
 - **A story told in the engine.** Cutscenes, subtitles and recorded voices run on the same renderer as the fights, so there are no pre-rendered videos and no loading between a scene and a battle.
-- **Runs in a tab.** Static files, no server code, no accounts, no cookies. Progress and settings live in the browser. The whole campaign is about 140 MB of models, sounds and skies, streamed as each chapter loads (the title screen needs about 29 MB).
+- **A duel, one on one.** Next to the campaign the title has a Duel mode: best-of-three bouts, fists in the first round and the khanda and dhal after, on the campaign's guard, deflect and posture rules. Practise against HeroBot, the same bot that playtests the campaign, in the browser alone. Online rooms (create or join with a code, two browsers meeting through a small relay) need a relay address: a build without one keeps online play switched off and practice works as usual. Notes and limits in [docs/PVP.md](docs/PVP.md).
+- **Runs in a tab.** The campaign is static files: no server code, no accounts, no cookies. Progress and settings live in the browser. The whole campaign is about 150 MB of models, sounds and skies, streamed as each chapter loads (the title screen needs about 29 MB). Only the optional online duel talks to a server.
 
 ### The road
 
@@ -257,7 +258,7 @@ Every speaking character is voiced. The cast's voices are generated with ElevenL
 
 ## Run it locally
 
-You need [Node.js](https://nodejs.org/) 22 or newer.
+You need [Node.js](https://nodejs.org/) 22 or newer (22.18+ to run the duel relay and its tests).
 
 ```bash
 git clone https://github.com/TejasGov/Yudhveer.git
@@ -275,6 +276,7 @@ npm run dev        # http://localhost:5199
 | `npm run build:itch` | A zip for itch.io with relative addresses: `yudhveer-itch.zip` |
 | `npm run serve` | A small static server that mimics a host, for testing builds |
 | `npm run pack:glb` | Losslessly repacks `.glb` models (smaller, same pixels) |
+| `npm run duel:relay` | A local relay for online duel rooms (Node; see [docs/PVP.md](docs/PVP.md)) |
 
 Hosting, base paths, download sizes and the test server are in [docs/DEPLOY.md](docs/DEPLOY.md). Every file the game asks for goes through `asset()` in `src/core/Assets.ts`; never write an `/assets/...` address in code (`npm run build` refuses it).
 
@@ -299,7 +301,7 @@ Hosting, base paths, download sizes and the test server are in [docs/DEPLOY.md](
 | Language and build | TypeScript 7, [Vite](https://vite.dev/) 8 |
 | Animation | glTF models with Mixamo-style rigs, retargeted and packed by Blender scripts; meshopt-compressed geometry and WebP textures |
 | Audio | Recorded voices, effects and music, plus a small synthesizer for the rest, through the Web Audio API |
-| Hosting | Static files only. The live build is on [Cloudflare Pages](https://yudhveer.pages.dev/) and redeploys from `main`; GitHub Pages, Netlify, Cloudflare Pages, itch.io or any web server also work |
+| Hosting | Static files only for the campaign (online duel rooms also need a relay, off by default). The live build is on [Cloudflare Pages](https://yudhveer.pages.dev/) and redeploys from `main`; GitHub Pages, Netlify, Cloudflare Pages, itch.io or any web server also work |
 
 ## Project structure
 
