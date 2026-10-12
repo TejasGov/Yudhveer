@@ -109,7 +109,9 @@ interface Lamp {
   behind?: boolean;
 }
 interface Eyes { mesh: THREE.Object3D; seed: number; next: number; shut: number; gone: number }
-interface Ripple { mesh: THREE.Mesh; t: number; life: number }
+interface Ripple { mesh: THREE.Mesh; t: number; life: number; live: boolean }
+/** Rings on the pool at once, at most: one every 1.8 s at the soonest, each living 4.1 s at the longest. */
+const RIPPLES = 4;
 
 /**
  * Chapter III: the island's caves (STORY.md, "Chapter III"), the one explorable map. Dark rock lit only by the oil
@@ -196,6 +198,7 @@ export class Level5_Island extends GLBLevel {
 
   protected async loadEnvironment(): Promise<void> {
     this.buildShrineSeal();
+    this.buildRipples();
     // The mace on the altar: the hero's own (the blessed mace of his next kit), laid on its side across the cloth.
     const weapon = WEAPON_SETS.mace.definition.weapon;
     if (!weapon?.model) return;
@@ -617,33 +620,60 @@ export class Level5_Island extends GLBLevel {
     }
   }
 
+  /**
+   * The rings on the water, made once and used again: a ring made and freed per ripple freed its shader program with the
+   * last of them (nothing else uses it), and the next ring built it again, in the middle of the fight. Each is hidden
+   * while it is not rippling; the loading screen's warm-up frame draws them (Engine.warmUp), so the program is there first.
+   */
+  private buildRipples(): void {
+    if (this.ripples.length) return;
+    const geometry = new THREE.RingGeometry(0.9, 1, 40);
+    for (let i = 0; i < RIPPLES; i++) {
+      const ring = new THREE.Mesh(
+        geometry,
+        new THREE.MeshBasicMaterial({ color: 0x8a96a0, transparent: true, opacity: 0.3, depthWrite: false, side: THREE.DoubleSide }),
+      );
+      ring.name = 'PoolRipple';
+      ring.rotation.x = -Math.PI / 2;
+      // Idle: hidden, tiny and far below the pool (the warm-up frame draws it, and nothing of it could show).
+      ring.position.y = -500;
+      ring.scale.setScalar(0.001);
+      ring.visible = false;
+      ring.userData.warm = true;
+      this.group.add(ring);
+      this.ripples.push({ mesh: ring, t: 0, life: 1, live: false });
+    }
+  }
+
   /** Rings spreading on the black water: something moving under it. */
   private updatePool(dt: number): void {
     if (dt <= 0) return;
     this.rippleTimer -= dt;
     if (this.rippleTimer <= 0) {
       this.rippleTimer = 1.8 + Math.random() * 4;
-      const ring = new THREE.Mesh(
-        new THREE.RingGeometry(0.9, 1, 40),
-        new THREE.MeshBasicMaterial({ color: 0x8a96a0, transparent: true, opacity: 0.3, depthWrite: false, side: THREE.DoubleSide }),
-      );
-      ring.rotation.x = -Math.PI / 2;
       const a = Math.random() * Math.PI * 2;
       const r = Math.random() * 1.6;
-      ring.position.set(this.poolCentre.x + Math.cos(a) * r, this.poolCentre.y + 0.02, this.poolCentre.z + Math.sin(a) * r);
-      this.group.add(ring);
-      this.ripples.push({ mesh: ring, t: 0, life: 2.6 + Math.random() * 1.5 });
+      const life = 2.6 + Math.random() * 1.5;
+      const rp = this.ripples.find((x) => !x.live);
+      if (rp) {
+        rp.mesh.position.set(this.poolCentre.x + Math.cos(a) * r, this.poolCentre.y + 0.02, this.poolCentre.z + Math.sin(a) * r);
+        rp.t = 0;
+        rp.life = life;
+        rp.live = true;
+        rp.mesh.visible = true;
+      }
     }
-    for (const rp of [...this.ripples]) {
+    for (const rp of this.ripples) {
+      if (!rp.live) continue;
       rp.t += dt;
       const k = rp.t / rp.life;
       rp.mesh.scale.setScalar(0.15 + k * 1.3);
       (rp.mesh.material as THREE.MeshBasicMaterial).opacity = 0.3 * (1 - k);
       if (k >= 1) {
-        rp.mesh.removeFromParent();
-        rp.mesh.geometry.dispose();
-        (rp.mesh.material as THREE.Material).dispose();
-        this.ripples.splice(this.ripples.indexOf(rp), 1);
+        rp.live = false;
+        rp.mesh.visible = false;
+        rp.mesh.position.y = -500;
+        rp.mesh.scale.setScalar(0.001);
       }
     }
   }

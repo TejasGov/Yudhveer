@@ -216,6 +216,9 @@ export class SlashRibbon {
     this.mesh.frustumCulled = false;
     this.mesh.renderOrder = 4;
     this.mesh.visible = false;
+    // Hidden between swings, and one program serves every ribbon (fire included): the loading screen's warm-up frame
+    // draws the hero's once (Engine.warmUp), so the first swing of a game compiles nothing.
+    this.mesh.userData.warm = true;
     this.mesh.onBeforeRender = () => this.pullHead();
   }
 

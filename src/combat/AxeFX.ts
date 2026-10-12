@@ -141,6 +141,14 @@ export class AxeFX {
       this.flashMesh.quaternion.copy(camera.quaternion);
       this.flashMesh.updateMatrixWorld();
     };
+    // Both hidden until she strikes: the loading screen's warm-up frame draws them once (Engine.warmUp, after `ready`).
+    this.points.userData.warm = true;
+    this.flashMesh.userData.warm = true;
+  }
+
+  /** In the scene, hidden, from the moment she is made (the first step would do it, in the middle of the fight she is in). */
+  public ready(): void {
+    this.attach();
   }
 
   /** Into the fight's scene once, with the bloom (it outlives level loads, as the sparks do). */

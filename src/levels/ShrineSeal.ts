@@ -1186,6 +1186,9 @@ export class ShrineSeal {
     this.clouds.push(dust, sparks, motes);
     for (const c of this.clouds) { this.group.add(c); }
     this.glowing.push(sparks, motes);
+    // All of the light and the clouds are hidden while the seal is shut: the loading screen's warm-up frame draws each once
+    // (Engine.warmUp), so none of their programs is built as the doors open.
+    for (const o of [this.gap, this.shafts, this.spill, ...this.clouds]) o.userData.warm = true;
 
     // Debris: a pool of chunks, each with its own hand-off time; positions are CPU (they bounce on the floor).
     const CHUNKS = 30;

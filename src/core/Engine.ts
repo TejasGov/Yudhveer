@@ -58,6 +58,7 @@ import { CinematicDirector } from '../cinematics/CinematicDirector';
 import { buildIntro, buildArrival, ATTRACT, type IntroContext } from '../cinematics/Intros';
 import { SceneRun, Stage, Staging, storyVoices, triggered, type StoryBeat, type StoryScene } from '../cinematics/Scene';
 import { SceneFX } from '../cinematics/SceneFX';
+import { keepMotes } from '../cinematics/DivineLight';
 import { Hud } from '../ui/Hud';
 import { Cinema } from '../ui/Cinema';
 import { Dialogue } from '../ui/Dialogue';
@@ -458,6 +459,7 @@ export class Engine {
       return;
     }
     this.particleFX.init(this.sceneManager.scene);
+    keepMotes(this.sceneManager.scene);
     this.projectileManager.init(this.sceneManager.scene);
     this.levelManager.init(this.sceneManager.scene);
 
@@ -1068,17 +1070,42 @@ export class Engine {
       o.visible = true;
     };
     if (this.player) show(this.player.group);
-    for (const c of [...this.enemies, ...this.cast, ...this.warmFoes]) {
-      show(c.group);
-      // What a character shows only now and then (a hurler's glow, Shalva's pool: `userData.warm`) is drawn once too.
-      c.group.traverse((o) => { if (o.userData.warm) show(o); });
+    for (const c of [...this.enemies, ...this.cast, ...this.warmFoes]) show(c.group);
+    // What is drawn only now and then (a hurler's glow, Shalva's pool, a weapon's trail, the sparks, a seal's light) is
+    // flagged `userData.warm`, wherever it hangs (under a character or in the scene), and is drawn once too. A flag of
+    // 'bloom' means the bloom picks it only while it is in use (a chain's glow is chosen as she swings): it is picked
+    // here as well, or the bloom's depth pass first meets it, and builds its program, in the middle of a fight.
+    const bloom = this.sceneManager.postFX.bloom.selection;
+    const picked: THREE.Object3D[] = [];
+    const flagged: THREE.Object3D[] = [];
+    this.sceneManager.scene.traverse((o) => { if (o.userData.warm) flagged.push(o); });
+    for (const o of flagged) {
+      show(o);
+      if (o.userData.warm === 'bloom' && !bloom.has(o)) {
+        bloom.add(o);
+        picked.push(o);
+      }
     }
+    // Nothing is culled for the frame: the camera is wherever the last fight left it (or the title's), the later foes stand
+    // at the world's origin, and a plain mesh (a weapon in a hand, a glow) outside the view is skipped, not compiled. Then
+    // the first retry of a chapter, with the camera far from the origin, built them mid-fight (skinned bodies never cull).
+    const unculled: THREE.Object3D[] = [];
+    const keepDrawn = (o: THREE.Object3D) => {
+      if (!o.frustumCulled) return;
+      o.frustumCulled = false;
+      unculled.push(o);
+    };
+    if (this.player) this.player.group.traverse(keepDrawn);
+    for (const c of [...this.enemies, ...this.cast, ...this.warmFoes]) c.group.traverse(keepDrawn);
+    flagged.forEach(keepDrawn);
     try {
       this.projectileManager.warm(() => this.sceneManager.render(1 / 60));
     } catch (err) {
       console.warn('[Engine] the warm-up frame failed', err);
     }
-    for (const [o, v] of shown) o.visible = v;
+    for (const o of unculled) o.frustumCulled = true;
+    for (const o of picked) bloom.delete(o);
+    for (let i = shown.length - 1; i >= 0; i--) shown[i][0].visible = shown[i][1];
     for (const f of this.warmFoes) f.group.visible = false;
   }
 
