@@ -2041,15 +2041,16 @@ export const MOODS = {
 } satisfies Record<string, MusicMood>;
 
 /**
- * The soundtrack (public/assets/music, ElevenLabs, 60 s each): loops, and `shiva`, the summit reveal's piece (a conch,
- * then damru, dhol and a "Har Har Mahadev" chorus), which plays once (`ONE_SHOT`).
+ * The soundtrack (public/assets/music, ElevenLabs, 60 s each): loops, and two pieces that play once (`ONE_SHOT`): `shiva`,
+ * the summit reveal's (a conch, then damru, dhol and a "Har Har Mahadev" chorus), and `apsara`, the island demoness's
+ * freed soul rising (8 s: tanpura and santoor, a bansuri phrase in Yaman, a wordless alaap, fading out).
  */
-export type Track = 'title' | 'village' | 'baoli' | 'akhada' | 'island' | 'dwarka' | 'summit' | 'boss' | 'andhaka_final' | 'shiva';
+export type Track = 'title' | 'village' | 'baoli' | 'akhada' | 'island' | 'dwarka' | 'summit' | 'boss' | 'andhaka_final' | 'shiva' | 'apsara';
 /** Pieces that play through once instead of looping (and hand over to whatever `then` names when they end). */
-const ONE_SHOT: ReadonlySet<Track> = new Set<Track>(['shiva']);
+const ONE_SHOT: ReadonlySet<Track> = new Set<Track>(['shiva', 'apsara']);
 const TRACKS = new Set(trackIds);
 /** Each loop's level, evening out how loud they came out (the akhada's was made quiet). */
-const TRACK_GAIN: Partial<Record<Track, number>> = { akhada: 1.5, baoli: 1.15, title: 1.1, boss: 0.85, andhaka_final: 0.9 };
+const TRACK_GAIN: Partial<Record<Track, number>> = { akhada: 1.5, baoli: 1.15, title: 1.1, boss: 0.85, andhaka_final: 0.9, apsara: 1.25 };
 
 /** Where a track repeats: it plays through from its start once, then `start` to `end` (s) for good. */
 interface LoopSeam {
@@ -2128,6 +2129,7 @@ const FALLBACK: Record<Track, MusicMood> = {
   boss: { ...MOODS.baoli, pulse: 84 },
   andhaka_final: { ...MOODS.summit, pulse: 84 },
   shiva: { ...MOODS.summit, pulse: 96 },
+  apsara: MOODS.dwarka,
 };
 /** Seconds one loop takes to hand over to the next. */
 const CROSSFADE = 1.5;
@@ -2159,6 +2161,7 @@ class Music {
   /** What a one-shot piece hands over to when it ends (`then`), and how soon the next `play` may come in (`fadeIn`). */
   private after: Track | null = null;
   private nextFadeIn = CROSSFADE;
+  private nextFadeOut = CROSSFADE;
 
   public connect(ctx: AudioContext, bus: GainNode): void {
     this.ctx = ctx;
@@ -2175,10 +2178,11 @@ class Music {
 
   /**
    * Crossfades to `track` (null fades out). Asking for the one already playing changes nothing. `fadeIn` (s) is how fast
-   * it comes in (a piece that opens on a strike wants it near 0); the one playing still fades out over the crossfade.
+   * it comes in (a piece that opens on a strike wants it near 0), `fadeOut` how fast the one playing goes (the crossfade).
    */
-  public play(track: Track | null, o: { fadeIn?: number } = {}): void {
+  public play(track: Track | null, o: { fadeIn?: number; fadeOut?: number } = {}): void {
     this.nextFadeIn = o.fadeIn ?? CROSSFADE;
+    this.nextFadeOut = o.fadeOut ?? CROSSFADE;
     if (track !== this.wanted) this.after = null;
     this.wanted = track;
     if (!this.ctx) return;
@@ -2209,8 +2213,10 @@ class Music {
    */
   public then(track: Track): void {
     const p = this.playing;
-    const oneShot = this.wanted && ONE_SHOT.has(this.wanted);
-    if (oneShot && (!p || p.track === this.wanted)) this.after = track;
+    const w = this.wanted;
+    // A one-shot still being fetched counts as playing: the one it replaces is only fading out.
+    const oneShot = w && ONE_SHOT.has(w) && !this.failed.has(w);
+    if (oneShot && (!p || p.track === w || this.pending.has(w))) this.after = track;
     else this.play(track);
   }
 
@@ -2294,14 +2300,16 @@ class Music {
 
   private fadeOut(): void {
     const p = this.playing;
+    const out = Math.max(0.02, this.nextFadeOut);
+    this.nextFadeOut = CROSSFADE;
     if (!p || !this.ctx) return;
     this.playing = null;
     const t = this.ctx.currentTime;
     const g = p.gain.gain;
     g.cancelScheduledValues(t);
     g.setValueAtTime(g.value, t);
-    g.linearRampToValueAtTime(0, t + CROSSFADE);
-    p.src.stop(t + CROSSFADE + 0.05);
+    g.linearRampToValueAtTime(0, t + out);
+    p.src.stop(t + out + 0.05);
   }
 
   private load(track: Track): Promise<AudioBuffer | null> {
@@ -2339,3 +2347,86 @@ class Music {
     }
   }
 }
+
+// ---- Island demoness axe ----
+// The Spider Demoness's chained, burning axe (entities/BossIslandDemoness.ts, combat/AxeFX.ts): the whoosh and the
+// flame's roar at the whip-out, the chain's rattle while it pays out or reels in, its crack at full stretch, the blade
+// on stone (and dragged along it), and the snap as it lands back in her hand. Built from the synth's building blocks
+// and the existing recordings, and added to the prototype here so the class above is left as it is.
+
+export interface SoundFX {
+  playAxeWhoosh(power?: number): void;
+  playChainRattle(seconds?: number, power?: number): void;
+  playChainCrack(power?: number): void;
+  playAxeImpact(power?: number): void;
+  playAxeScrape(power?: number): void;
+  playAxeReturn(power?: number): void;
+}
+
+/** SoundFX's private building blocks, as these additions use them. */
+interface AxeSynth {
+  tone(spec: ToneSpec): void;
+  noise(spec: NoiseSpec): void;
+  ring(base: number, ratios: number[], decays: number[], gain: number, p?: Placement): void;
+  thump(freq: number, duration: number, gain: number, p?: Placement): void;
+  sample(id: Sample, o?: Placement & { rate?: number; gain?: number }): boolean;
+}
+const axeSynth = (fx: SoundFX) => fx as unknown as AxeSynth;
+const axeRand = (a: number, b: number) => a + Math.random() * (b - a);
+
+/** The heavy swing torn through the air, and the flame on the blade roaring with it. */
+SoundFX.prototype.playAxeWhoosh = function (this: SoundFX, power = 1): void {
+  const s = axeSynth(this), k = Math.min(1.4, power);
+  if (!s.sample('swing_heavy', { rate: 0.8, gain: 0.85 * k })) {
+    s.noise({ duration: 0.3, gain: 0.24 * k, attack: 0.04, filter: 'bandpass', from: 260, peak: 1100, to: 220, q: 2.5 });
+  }
+  s.noise({ color: 'brown', filter: 'lowpass', from: 180, peak: 1500, to: 140, duration: 0.5, gain: 0.26 * k, attack: 0.03, wet: 0.15 });
+  s.noise({ color: 'pink', filter: 'bandpass', from: 600, peak: 2600, to: 450, q: 1.4, duration: 0.32, gain: 0.1 * k, attack: 0.015, delay: 0.02 });
+};
+
+/** Links running over each other: a scatter of small metal clinks over `seconds`. */
+SoundFX.prototype.playChainRattle = function (this: SoundFX, seconds = 0.3, power = 1): void {
+  const s = axeSynth(this), k = Math.min(1.3, power);
+  const n = Math.max(3, Math.round(seconds * 30));
+  for (let i = 0; i < n; i++) {
+    const at = (i / n) * seconds + axeRand(0, seconds / n);
+    const fade = 1 - (i / n) * 0.5;
+    const pan = axeRand(-0.25, 0.25);
+    s.noise({ color: 'white', filter: 'bandpass', from: axeRand(3200, 5200), to: axeRand(2200, 3000), q: 3, duration: 0.03, gain: 0.07 * k * fade, attack: 0.001, delay: at, pan });
+    if (i % 2 === 0) s.tone({ type: 'sine', freq: axeRand(2600, 4400), gain: 0.022 * k * fade, attack: 0.001, duration: 0.07, delay: at, pan });
+  }
+};
+
+/** The chain snapping taut at full stretch: a whip-crack, a short metal ring and a jolt. */
+SoundFX.prototype.playChainCrack = function (this: SoundFX, power = 1): void {
+  const s = axeSynth(this), k = Math.min(1.4, power);
+  s.noise({ color: 'white', filter: 'highpass', from: 5200, to: 2600, duration: 0.05, gain: 0.34 * k, attack: 0.001 });
+  s.ring(1850, [1, 2.71, 5.2], [0.22, 0.14, 0.08], 0.075 * k, { wet: 0.2 });
+  s.thump(120, 0.14, 0.16 * k);
+};
+
+/** The blade struck into stone: the stone's crack and boom, the fire bursting off it, the axe ringing. */
+SoundFX.prototype.playAxeImpact = function (this: SoundFX, power = 1): void {
+  const s = axeSynth(this), k = Math.min(1.4, power);
+  this.playStoneStrike(power);
+  s.noise({ color: 'brown', filter: 'lowpass', from: 1100, to: 120, duration: 0.75, gain: 0.22 * k, attack: 0.008, wet: 0.3 });
+  s.ring(560, [1, 2.13, 3.94], [0.5, 0.3, 0.16], 0.055 * k, { wet: 0.3 });
+};
+
+/** The edge dragged across rock: a grinding scrape and a crackle of sparks. */
+SoundFX.prototype.playAxeScrape = function (this: SoundFX, power = 1): void {
+  const s = axeSynth(this), k = Math.min(1.3, power);
+  s.noise({ color: 'white', filter: 'bandpass', from: 2400, peak: 3400, to: 1200, q: 2.2, duration: 0.22, gain: 0.11 * k, attack: 0.006 });
+  for (let i = 0; i < 4; i++) {
+    s.noise({ color: 'white', filter: 'highpass', from: 6000, to: 4200, duration: 0.012, gain: 0.05 * k, attack: 0.001, delay: axeRand(0.01, 0.18) });
+  }
+};
+
+/** Caught: the haft smacking into her palm, a clink of iron and the last of the chain settling. */
+SoundFX.prototype.playAxeReturn = function (this: SoundFX, power = 1): void {
+  const s = axeSynth(this), k = Math.min(1.3, power);
+  if (!s.sample('guard_clang_iron', { rate: 1.4, gain: 0.32 * k })) s.ring(980, [1, 2.4, 4.1], [0.25, 0.15, 0.1], 0.06 * k);
+  s.thump(150, 0.09, 0.22 * k);
+  s.noise({ color: 'pink', filter: 'lowpass', from: 2400, to: 500, duration: 0.06, gain: 0.12 * k, attack: 0.001 });
+  this.playChainRattle(0.16, 0.65 * k);
+};

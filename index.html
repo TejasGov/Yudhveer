@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="Yudhveer: a three-chapter sword-and-shield duel through a moonlit stepwell, a Hanuman akhada and the Kailasha summit." />
+  <meta name="description" content="Yudhveer: a sword-and-shield action game of Indian myth, a prologue and five chapters from a moonlit stepwell to a snow summit, with a one-on-one duel mode." />
   <meta name="theme-color" content="#0c0b0a" />
   <title>Yudhveer</title>
 
@@ -37,6 +37,9 @@
   <!-- In-play HUD -->
   <div id="hud" class="layer" hidden>
     <div id="enemy-plates"></div>
+    <div id="duel-network" hidden></div>
+    <div id="duel-match" hidden></div><div id="duel-tags" hidden></div>
+    <div id="duel-card" hidden aria-live="polite"></div>
 
     <div id="callout" aria-live="polite">
       <div id="callout-text"></div>
@@ -99,14 +102,50 @@
       <p class="title-tagline">Echoes of the sacred ghat</p>
       <nav class="menu" id="title-menu">
         <button data-action="continue" id="title-continue">Continue<small id="continue-detail"></small></button>
-        <button data-action="new">New game</button>
-        <button data-action="chapters">Chapters</button>
+        <button data-action="campaign">Campaign</button>
+        <button data-action="duel">Duel</button>
         <button data-action="settings">Settings</button>
         <button data-action="controls">Controls</button>
         <button data-action="about">About the author</button>
       </nav>
     </div>
     <div class="title-foot">Keyboard and mouse, or a controller</div>
+  </section>
+
+  <section id="campaign-menu" class="screen scrim" hidden>
+    <div class="panel"><h2>Campaign</h2><nav class="menu">
+      <button data-action="continue">Continue</button>
+      <button data-action="new">New game</button>
+      <button data-action="chapters">Chapters</button>
+      <button data-action="back">Back</button>
+    </nav></div>
+  </section>
+  <section id="duel-menu" class="screen scrim" hidden>
+    <div class="panel duel-panel"><h2>Duel</h2><p class="panel-sub">Best of three · Akhada</p>
+      <label>Name <input id="duel-name" maxlength="16" value="Yodha" aria-label="Duel name"></label>
+      <label>Relay <input id="duel-relay" type="url" placeholder="wss://your-relay.example" aria-label="Relay address"></label>
+      <label>Room <input id="duel-room" maxlength="6" placeholder="ABC123" aria-label="Room code"></label>
+      <details><summary>Latency simulator</summary>
+        <label>One-way delay (ms) <input id="duel-delay" type="number" value="0" min="0" max="500"></label>
+        <label>Jitter (±ms) <input id="duel-jitter" type="number" value="0" min="0" max="250"></label>
+        <label>Snapshot loss (%) <input id="duel-loss" type="number" value="0" min="0" max="50"></label>
+        <p>Set the same preset on both heroes. Room results stay reliable.</p>
+      </details>
+      <p id="duel-status" aria-live="polite"></p><nav class="menu">
+      <button data-action="create">Create room</button>
+      <button data-action="join">Join room</button>
+      <button data-action="latency" data-ping="40">40 ms ping</button>
+      <button data-action="latency" data-ping="80">80 ms ping</button>
+      <button data-action="latency" data-ping="150">150 ms ping</button>
+      <button data-action="bot">Practice against HeroBot</button>
+      <button data-action="back">Back</button>
+    </nav></div>
+  </section>
+  <section id="duel-result" class="screen scrim" hidden>
+    <div class="panel"><h2 id="duel-outcome">Match over</h2><p class="panel-sub" id="duel-room-label">Duel · Akhada</p><nav class="menu">
+      <button data-action="rematch">Rematch</button>
+      <button data-action="quit">Quit to title</button>
+    </nav></div>
   </section>
 
   <section id="pause" class="screen scrim" hidden>

@@ -1,15 +1,26 @@
-# Deploying Yudhveer (milestone 13)
+# Deploying Yudhveer
 
-Prepared 2026-10-06. **Nothing is published**: publishing is outward-facing, so it waits for your yes and a chosen host
-(docs/APPROVALS.md, "Milestone 13"). What exists is a build that works from any address, a manual workflow, a headers
-file, a zip recipe for itch.io, and a test server. The game is static files: no server code, no database, no cookies
-(progress and settings are in the browser's `localStorage`).
+Written for milestone 13 (2026-10-06) and checked against the release build on 2026-10-12. **The game is live**: Cloudflare
+Pages (`https://yudhveer.pages.dev/`) and Render (`https://yudhveer.onrender.com/`) both rebuild on every push to `main`, so
+a push is a deploy (docs/RELEASE_NOTES.md lists what the latest one changed). The campaign is static files: no server code,
+no database, no cookies (progress and settings are in the browser's `localStorage`). The one exception is the optional online
+duel, which meets through a relay; a build with no `VITE_DUEL_RELAY` has online rooms switched off and everything else works.
+The sections below that describe milestone 13's measurements are kept as they were measured (the sizes have grown since:
+see "The bundle today").
+
+## The bundle today (2026-10-12, release build)
+
+`npm run build` (Node 24.11 here; Cloudflare's `NODE_VERSION=22` meets Vite 8's `^20.19 || >=22.12`): `dist/` holds 227
+files, 149.7 MB of them from `public/assets` (215 files; the largest is `charnel_ridge.glb`, 12.6 MB, against Cloudflare
+Pages' 25 MiB per file and 20,000 files). The bundle is eight hashed files: `rapier` 4,333 kB, `index` 764, `three` 733,
+`vendor` 150, `DuelSession` 29, `Transport` 3, `Rules` 0.6 and the stylesheet 19; the duel's three small chunks load
+only when the Duel menu is used.
 
 ## What a build is
 
-- `npm run build` (the default, base `/`): `dist/` holds `index.html`, the bundle in `dist/assets/` (five hashed files,
-  5.77 MB: `rapier` 4.33, `three` 0.72, `index` 0.55, `vendor` 0.15, css 0.02) and a copy of `public/` (the models,
-  sounds and skies in `dist/assets/<folder>/`, 138.6 MB in 174 files) plus `_headers`.
+- `npm run build` (the default, base `/`): `dist/` holds `index.html`, the bundle in `dist/assets/` (hashed files, listed above;
+  milestone 13 measured five, 5.77 MB) and a copy of `public/` (the models, sounds and skies in `dist/assets/<folder>/`;
+  138.6 MB in 174 files at milestone 13) plus `_headers`.
 - **Every address the game asks for goes through `asset()`** (`src/core/Assets.ts`), built from Vite's `base`. The base is
   the one thing that changes between hosts: `/` (a host with a domain of its own, and `npm run dev`), `/Yudhveer/`
   (GitHub Pages: a project site lives under its repository's name) or `./` (the itch.io zip, which can be unpacked
@@ -109,7 +120,7 @@ in `game asset/README.md` too.
 | Address | `https://tejasgov.github.io/Yudhveer/` | its own domain (or yours) | `<you>.itch.io/<game>` | `yudhveer.onrender.com` |
 | Build | `build:pages` (base `/Yudhveer/`), by the manual workflow | `npm run build` (base `/`) | `npm run build:itch` (base `./`, a zip) | `npm ci && npm run build`, publish `dist` |
 | Cache headers | none to set (`max-age=600`); `?v=` keeps what is cached correct | `public/_headers`: a year, immutable, for `/assets/*`; `index.html` always asked | not yours to set | add the `_headers` rules in the dashboard |
-| Limits to check | 1 GB site, a soft 100 GB a month of bandwidth (about 700 complete first visits of 143 MB) | Cloudflare: 25 MiB a file (the largest is 13.6 MB), bandwidth free; Netlify: its bandwidth allowance | 1000 files, a zip of up to 1 GB, 240 characters of path (this one: 180 files, 140 MB zipped, 46 characters) | the plan's bandwidth |
+| Limits to check | 1 GB site, a soft 100 GB a month of bandwidth (about 650 complete first visits of 150 MB) | Cloudflare: 25 MiB a file (the largest is 12.6 MB), bandwidth free; Netlify: its bandwidth allowance | 1000 files, a zip of up to 1 GB, 240 characters of path (this one: 226 files, 151 MB zipped, 46 characters) | the plan's bandwidth |
 | Good for | free, in the repository, nothing else to sign up for | the best second visit (cached for a year), global CDN | people who find games there | already running |
 
 ### GitHub Pages (a manual workflow, never on push)
@@ -124,7 +135,7 @@ in `game asset/README.md` too.
 4. The address is on the run's summary: `https://tejasgov.github.io/Yudhveer/`.
 
 Caveats: if the repository is renamed, change `/Yudhveer/` in `package.json` (`build:pages`). `public/_headers` is
-published as a plain file there and does nothing. The deploy uploads about 140 MB each time.
+published as a plain file there and does nothing. The deploy uploads about 150 MB each time.
 
 ### Netlify or Cloudflare Pages
 
@@ -172,3 +183,118 @@ served from `/games/yudhveer-test/` and went through all six chapters in one ses
   compressed).
 - [ ] The four boss models have had `npm run pack:glb` run on them once the boss work has landed.
 - [ ] Nothing from `docs/` is meant to be public: `dist/` holds `public/` and the bundle only.
+
+## Duel relay (Cloudflare Worker + Durable Object)
+
+Prepared 2026-10-12 on branch `duel-cloud`; **not deployed**. Online duels meet through a relay; the static site cannot
+be one. The relay is the Worker `yudhveer-duel` (`server/duel-worker.mjs`) with one `DuelRoomObject` Durable Object per
+six-character room code. It runs the same room code as the Node dev relay (`server/DuelRoom.mjs`). `server/` is its own
+small `cf` project: `server/cloudflare.config.ts` (cf's config format, no Wrangler file), `server/vite.config.ts` (the
+Cloudflare Vite plugin, which `cf build`/`cf dev` drive) and `server/package.json`. The game's own build at the repository
+root never looks at it, and Pages and Render do not install it.
+
+| What | Value |
+| --- | --- |
+| Worker | `yudhveer-duel`, compatibility date 2026-10-01, no flags needed |
+| Durable Object | binding `DUEL_ROOMS` → class `DuelRoomObject`, SQLite-backed (the only kind the Free plan has). cf has no migrations list: the live `exports.durableObject({ storage: "sqlite" })` entry is what creates the class on the first deploy (Wrangler's `new_sqlite_classes`). The room stores nothing. |
+| Allowed pages | `ALLOWED_ORIGINS` in `server/cloudflare.config.ts`: `https://yudhveer.pages.dev`, `https://*.yudhveer.pages.dev` (preview builds), `https://yudhveer.onrender.com`, `http://localhost:*`, `http://127.0.0.1:*`. `*` is one host label or a port. Change it there and `cf deploy` again. |
+| Address | `https://yudhveer-duel.socra.workers.dev`; the game wants **`wss://yudhveer-duel.socra.workers.dev`** (`socra` is this account's workers.dev subdomain; `cf deploy` prints the address) |
+| Refuses | not a WebSocket upgrade: 426; a page not on the list or no `Origin`: 403; a room code that is not six of A-Z/0-9: 400; joining a code nobody created: "Room not found"; a third player: "Room is full"; a message over 4 KiB or binary: that player is disconnected (1009) |
+| Ends a room | a player leaving (the other is told), two seconds without simulation progress or without delivery receipts in a fight, more than 120 messages a second, and **10 minutes without a message** (a lobby nobody joins, a results screen left open) |
+
+### Deploying it
+
+Run these from the repository root of a checkout that has `server/cloudflare.config.ts` (Git Bash; in PowerShell the
+quoting of the `--body` JSON differs: use `--body (Get-Content body.json -Raw)`).
+
+1. **Tools and login.** `cf --version` (1.0.0-beta.12 or newer; `npm install -g cf` if missing), then `cf auth whoami`:
+   it must say `"authenticated": true` with your one account (if not, `cf auth login`). Then `cd server && npm ci`
+   (Vite and the Cloudflare plugin for this folder only; about 55 packages).
+2. **Optional, locally first.** In `server/`: `npm run dev` (that is `cf dev`: the Worker and its Durable Object in
+   local workerd at `http://localhost:5173`, no account involved). In another terminal at the repository root:
+
+   ```bash
+   DUEL_RELAY_URL=ws://localhost:5173 node --experimental-vm-modules --test scripts/duel-*.test.mjs
+   ```
+
+   44 tests should pass (without `DUEL_RELAY_URL` the 5 Worker tests are skipped and 39 pass).
+3. **Check, then deploy.** In `server/`:
+
+   ```bash
+   cf deploy --dry-run   # builds and lists env.DUEL_ROOMS (Durable Object) and env.ALLOWED_ORIGINS; uploads nothing
+   cf deploy             # creates yudhveer-duel and its DuelRoomObject namespace, prints the workers.dev address
+   ```
+4. **Verify it answers.**
+
+   ```bash
+   curl -i https://yudhveer-duel.socra.workers.dev/                      # HTTP 426, "WebSocket required"
+   curl -i -H "Upgrade: websocket" -H "Origin: https://evil.example" "https://yudhveer-duel.socra.workers.dev/?room=ABC123"   # 403
+   DUEL_RELAY_URL=wss://yudhveer-duel.socra.workers.dev DUEL_RELAY_ORIGIN=https://yudhveer.pages.dev \
+     node --experimental-vm-modules --test scripts/duel-network.test.mjs scripts/duel-worker.test.mjs
+   ```
+
+   The last line plays three short scripted matches and the Worker checks through the live relay (8 tests; a few hundred
+   of the day's 100,000 free Durable Object requests). If only the gate test fails, with 426 where it expects 403 or 400,
+   Cloudflare's edge did not pass its bare `Upgrade` header on; browsers are unaffected (the curl lines above check the
+   same thing).
+5. **Point the game at it.** `VITE_DUEL_RELAY` is read when Vite **builds**, so it is a build variable of the Pages
+   project, not of the Worker:
+
+   ```bash
+   cf pages edit yudhveer --body '{"deployment_configs":{"production":{"env_vars":{"VITE_DUEL_RELAY":{"type":"plain_text","value":"wss://yudhveer-duel.socra.workers.dev"}}}}}'
+   cf pages get yudhveer    # deployment_configs.production.env_vars now lists NODE_VERSION and VITE_DUEL_RELAY
+   ```
+
+   Existing variables are kept (a key set to `null` is deleted). Add `--dry-run` to see the request first. In the
+   dashboard: **Workers & Pages > yudhveer > Settings > Variables and Secrets > Production > Add**, type Text, name
+   `VITE_DUEL_RELAY`, value `wss://yudhveer-duel.socra.workers.dev`, Save. Do the same under Preview if preview builds
+   should play online too (their `*.yudhveer.pages.dev` origins are already allowed).
+6. **Rebuild the site.** The variable applies to the next build only. If the duel mode is not on `main` yet, the push
+   that brings it there builds with the variable (and also deploys Render). If it is already there, rebuild `main`:
+   `cf pages deployments create yudhveer --branch main`, or the dashboard's **Deployments > (latest) > Retry deployment**.
+7. **Two browsers.** Open `https://yudhveer.pages.dev` in two browsers (best on two machines or networks). Duel: the
+   Relay field shows `wss://yudhveer-duel.socra.workers.dev` and Create/Join are enabled. Create in one, join the code in
+   the other, play the three rounds and a rematch, then close one tab: the other says Opponent disconnected. The Worker's
+   logs are in the dashboard (**Workers & Pages > yudhveer-duel > Logs**; observability is on).
+8. **Render** builds without the variable, so there the duel menu says no relay is set and Create/Join stay off;
+   Practice works. To turn it on there, add `VITE_DUEL_RELAY` with the same value in Render's Environment settings and
+   redeploy; `https://yudhveer.onrender.com` is already an allowed origin. Anyone can also paste the address into the Relay
+   field on either site.
+
+### Rolling back
+
+- **The game only:** remove the variable and rebuild:
+  `cf pages edit yudhveer --body '{"deployment_configs":{"production":{"env_vars":{"VITE_DUEL_RELAY":null}}}}'` then
+  `cf pages deployments create yudhveer --branch main`. Or put production back on an earlier build:
+  `cf pages deployments list --project-name yudhveer --env production`, then
+  `cf pages deployments rollback <deployment-id> --project-name yudhveer` (dashboard: Deployments > ... > Rollback).
+- **The relay:** a later bad version is rolled back in the dashboard (**yudhveer-duel > Deployments > Rollback**). To take
+  it down entirely, `cf workers delete yudhveer-duel`: rooms hold no stored data, so nothing is lost beyond matches in
+  progress. Builds that still name the relay then show "Cannot reach the duel relay" on Create/Join.
+
+### What it costs (Workers Free plan)
+
+From Cloudflare's Durable Object pricing and limits pages (read 2026-10-12): 100,000 Durable Object requests a day,
+13,000 GB-s of Durable Object duration a day, SQLite-backed objects only, 5 GB of storage; incoming WebSocket messages
+count 20 to a request, outgoing messages are free; opening a socket is one request. An object that has `accept()`ed a
+WebSocket is billed duration (128 MB) the whole time the socket is open. Worker requests (100,000 a day) are only the
+two upgrades per match. When a daily allowance is used up, further requests fail until 00:00 UTC; the Free plan never
+bills.
+
+An estimate, not a measurement on Cloudflare: in a fight each browser sends about 30 snapshots, one probe and one echo a
+second, and acknowledges each of the ~32 messages it receives, so the room receives about 128 messages a second, 6.4
+billed requests a second. A match with about three minutes of fighting is roughly 1,150 requests (a 3 x 90-second
+worst case, 1,730) and, with a five-minute lobby-to-results stay, 37.5 GB-s. So **requests are the limit: about 85
+typical matches a day** (duration alone would allow about 345). A lobby left open costs at most 11 minutes, 83 GB-s.
+Ways up if that is too few, none done: acknowledge deliveries in batches (receipts are cumulative, so one ack per ~100
+ms would cut about a third), or the Workers Paid plan.
+
+### Limits that remain
+
+- The origin check stops other websites' pages from using the relay; it does not stop a script, which can send any
+  `Origin`. There is no per-address rate limit, so someone opening rooms in a loop could use up the day's free requests
+  (the relay then stops until 00:00 UTC; nothing is billed).
+- No WebSocket hibernation: a room's seats, timers and receipts live in the object's memory, and a fight never pauses
+  long enough to hibernate. The 10-minute idle close bounds the idle cost instead.
+- Not verified on Cloudflare itself: `cf deploy` (only `--dry-run` has run), the workers.dev address answering, real
+  latency to the nearest Cloudflare location and the two-browser match. Locally the same code ran in workerd.

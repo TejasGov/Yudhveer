@@ -1,0 +1,120 @@
+import * as THREE from 'three';
+import type { Engine } from '../core/Engine';
+import { DUEL_ROUND_KITS, DUEL_ROUNDS_TO_WIN, DUEL_ATTACKS, duelLoadoutId } from '../duel/Rules';
+
+/**
+ * Dev-only defence regression checks for the third melee case. They use two equipped heroes and the actual
+ * CombatSystem resolver, not a second rules implementation. The tests include the boundary of the existing
+ * 140 ms parry, guard chip and posture, the slide's invulnerable span, charged weapon data and a lethal blow.
+ * Boxing checks also exercise each actual animated hand sweep at contact and spacing distances. Full matches and
+ * network scenarios are separate browser checks, described in docs/PVP.md.
+ */
+export async function checkDuelDefence(engine: Engine): Promise<Record<string, boolean>> {
+  await engine.startDuel();
+  const duel = engine.duel!;
+  duel.reset(2);
+  const attacker = engine.duel!.opponent;
+  const defender = engine.player!;
+  const combat = engine.combatSystem;
+  const point = new THREE.Vector3(0, 1, 0);
+  const result: Record<string, boolean> = {};
+  for (const round of [1, 2]) {
+    duel.reset(round);
+    result['wireWindowsRound' + round] = Object.entries(DUEL_ATTACKS[duelLoadoutId(round)]).every(([state, rule]) => {
+      const windows = defender.hitWindows(state as Parameters<typeof defender.hitWindows>[0]);
+      return windows.length === rule.windows.length && windows.every((w, i) =>
+        Math.abs(w.t0 - rule.windows[i][0]) < 0.002 && Math.abs(w.t1 - rule.windows[i][1]) < 0.002);
+    });
+  }
+  const reset = () => {
+    engine.duel!.reset();
+    combat.resetStats();
+    attacker.setPosition(0, 0, -1);
+    defender.setPosition(0, 0, 1);
+    defender.faceYaw(Math.PI);
+    attacker.stateMachine.changeState('ATTACK_1');
+  };
+  reset();
+  defender.stateMachine.changeState('PARRY');
+  defender.stateMachine.update(0.13);
+  combat.resolveHeroHitOnHero(attacker, defender, point);
+  result.parryAt130ms = defender.currentHealth === 100 && attacker.currentMarma === 50 && combat.log.at(-1)?.result === 'deflected';
+  reset();
+  defender.stateMachine.changeState('PARRY');
+  defender.stateMachine.update(0.15);
+  combat.resolveHeroHitOnHero(attacker, defender, point);
+  const blow = attacker.weapon.blows.ATTACK_1!;
+  const damage = blow.damage * attacker.duelBlowScale;
+  result.expiredParryGuards = defender.currentHealth === 100 - damage * 0.2 && defender.currentMarma === blow.posture * 1.25;
+  reset();
+  defender.stateMachine.changeState('BLOCK'); defender.faceYaw(0);
+  combat.resolveHeroHitOnHero(attacker, defender, point);
+  result.guardRearHit = defender.currentHealth === 100 - damage;
+  reset();
+  defender.stateMachine.changeState('DODGE'); defender.stateMachine.stateTime = 0.3;
+  combat.resolveHeroHitOnHero(attacker, defender, point);
+  result.slideInvulnerable = defender.currentHealth === 100 && combat.log.at(-1)?.result === 'evaded';
+  reset(); attacker.chargedHits = 3;
+  combat.resolveHeroHitOnHero(attacker, defender, point);
+  result.chargedBlow = Math.abs(defender.currentHealth - (100 - damage * 1.6)) < 1e-6 && attacker.chargedHits === 2;
+  reset(); defender.currentHealth = 1;
+  combat.resolveHeroHitOnHero(attacker, defender, point);
+  result.lethalStaysDead = defender.isDown() && defender.currentHealth === 0;
+  reset(); defender.addMarmaDamage(100); defender.update(2.6);
+  result.duelPostureRenews = defender.currentMarma === 0;
+  duel.reset(1);
+  result.roundTable = DUEL_ROUNDS_TO_WIN === 2 && DUEL_ROUND_KITS.map(r => r.health).join(',') === '100,100,130';
+  result.unarmedKit = defender.weapon.id === 'fists' && defender.attire === 'training' && defender.can('dodge') && defender.can('combo');
+  engine.inputManager.keys.Mouse2 = true; (engine.inputManager as unknown as { press(action: 'parry'): void }).press('parry');
+  defender.handleInput(1 / 60, 0, [attacker]);
+  result.unarmedCannotGuard = !defender.can('block') && !defender.can('parry') && !defender.isGuarding();
+  result.handHitbox = defender.swordMesh.children.length === 0 && defender.weapon.reach! < 1.2;
+  // Every punch has one measured hand window, on both rigs. A returning jab used to measure as a second strike.
+  const punches = ['ATTACK_1', 'ATTACK_2', 'ATTACK_3'] as const;
+  result.boxingPunchWindows = [defender, attacker].every(hero => punches.every(state => {
+    const windows = hero.hitWindows(state);
+    return windows.length === 1 && windows[0].t0 > 0 && windows[0].t1 < hero.stateMachine.attackDuration(state);
+  }));
+  result.boxingRig = [defender, attacker].every(hero => hero.rig!.manifest.model === 'yodha_duel_boxing.glb'
+    && punches.every(state => hero.rig!.clipInfo(hero.rig!.definition.states[state]!.clip)?.hands === 'fist'));
+  // Run the actual animated hand sweep, without bot controls, through a stationary defender and then empty space.
+  for (const state of punches) {
+    const sweep = (gap: number) => {
+      duel.reset(1); combat.resetStats();
+      attacker.setPosition(0, 0, -gap / 2); attacker.faceYaw(0);
+      defender.setPosition(0, 0, gap / 2); defender.faceYaw(Math.PI);
+      attacker.update(1 / 60); defender.update(1 / 60);
+      attacker.stateMachine.changeState(state);
+      const steps = Math.ceil(attacker.stateMachine.attackDuration(state) * 60) + 3;
+      for (let n = 0; n < steps; n++) {
+        attacker.update(1 / 60); defender.update(1 / 60);
+        combat.updateDuel(defender, attacker, 1 / 60);
+      }
+      return defender.currentHealth;
+    };
+    result[state + 'SingleContact'] = Math.abs(sweep(0.9) - (100 - attacker.weapon.blows[state]!.damage)) < 1e-6;
+    result[state + 'Spacing'] = sweep(3) === 100;
+  }
+  duel.reset(1);
+  const winRound = (winner: 0 | 1) => {
+    duel.active = true; (winner === 0 ? attacker : defender).takeDamage(999);
+    duel.step(1 / 60);
+  };
+  duel.score = [0, 0]; winRound(0);
+  result.secondRoundIsSummit = duel.roundNumber === 2 && defender.weapon.id === 'khanda' && defender.can('parry');
+  winRound(0); result.sweepEndsEarly = duel.finished && duel.score.join(',') === '2,0' && duel.roundNumber === 2;
+  duel.finished = false; duel.score = [0, 0]; duel.reset(1); winRound(0); winRound(1);
+  result.splitOpensFinal = !duel.finished && duel.roundNumber === 3 && duel.score.join(',') === '1,1';
+  result.finalHealth130 = defender.maxHealth === 130 && defender.currentHealth === 130 && attacker.currentHealth === 130;
+  duel.reset(2); defender.stateMachine.changeState('BLOCK'); defender.stateMachine.guardHeld = true;
+  duel.suspend();
+  result.suspensionDropsGuard = defender.stateMachine.currentState === 'IDLE' && !defender.isGuarding() && defender.speed === 0;
+  duel.suspended = false;
+  const controls = engine as unknown as { paused: boolean; pause(): void; simulating(): boolean };
+  controls.paused = false; controls.pause();
+  result.practicePauseFreezes = !controls.simulating();
+  controls.paused = false;
+  duel.finished = false; duel.score = [0, 0]; duel.rounds.length = 0; duel.reset(1); duel.beginPractice(); duel.onStart?.();
+  if (Object.values(result).some(ok => !ok)) throw new Error('Duel defence regression: ' + JSON.stringify(result));
+  return result;
+}

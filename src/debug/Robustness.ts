@@ -698,18 +698,41 @@ async function menuCases(r: Run): Promise<void> {
     r.quit();
     await r.step(0.5);
     r.expectTitle('menus: the title to begin with');
-    for (const [button, screen] of [['chapters', 'chapters'], ['settings', 'settings'], ['controls', 'controls']] as const) {
-      click(`#title [data-action="${button}"]`);
-      r.check(I.screens.top === screen, `menus: ${button} did not open (top: ${I.screens.top})`);
-      click(`#${screen} [data-action="back"]`);
-      r.check(I.screens.top === 'title', `menus: Back from ${screen} did not return to the title (top: ${I.screens.top})`);
+    // The screens are a stack (ui/Menus.ts ScreenStack): a button opens one above, Back lands on the one below, and only
+    // the top one is drawn. `open` and `back` press the real buttons.
+    const shown = (id: string) => !($(`#${id}`) as HTMLElement | null)?.hidden;
+    const open = (from: string, button: string, screen: string) => {
+      r.check(click(`#${from} [data-action="${button}"]`), `menus: ${from} has no usable ${button} button`);
+      r.check(I.screens.top === screen, `menus: ${button} on ${from} did not open ${screen} (top: ${I.screens.top})`);
+      r.check(shown(screen) && !shown(from), `menus: ${screen} is not the only one drawn after ${button} on ${from}`);
+    };
+    const back = (from: string, to: string) => {
+      r.check(click(`#${from} [data-action="back"]`), `menus: ${from} has no usable Back button`);
+      r.check(I.screens.top === to, `menus: Back from ${from} did not return to ${to} (top: ${I.screens.top})`);
+      r.check(shown(to) && !shown(from), `menus: ${to} is not the only one drawn after Back from ${from}`);
+    };
+    // The title has Campaign, Duel, Settings and Controls; New game and Chapters live in the Campaign menu.
+    for (const action of ['campaign', 'duel', 'settings', 'controls']) r.check(!!$(`#title [data-action="${action}"]`), `menus: the title has no ${action} button`);
+    for (const action of ['continue', 'new', 'chapters', 'back']) r.check(!!$(`#campaign-menu [data-action="${action}"]`), `menus: the Campaign menu has no ${action} button`);
+    // Title -> Campaign -> Chapters, and out the way it came: Chapters -> Campaign -> Title.
+    open('title', 'campaign', 'campaign-menu');
+    open('campaign-menu', 'chapters', 'chapters');
+    back('chapters', 'campaign-menu');
+    back('campaign-menu', 'title');
+    // Title -> Duel -> Back.
+    open('title', 'duel', 'duel-menu');
+    back('duel-menu', 'title');
+    for (const screen of ['settings', 'controls']) {
+      open('title', screen, screen);
+      back(screen, 'title');
     }
     // Every setting button pressed (they cycle), then Back.
-    click('#title [data-action="settings"]');
+    open('title', 'settings', 'settings');
     for (const b of Array.from(document.querySelectorAll<HTMLButtonElement>('#settings [data-setting]'))) if (!b.hidden) b.click();
-    click('#settings [data-action="back"]');
-    // The Chapters screen: its first button starts that chapter.
-    click('#title [data-action="chapters"]');
+    back('settings', 'title');
+    // The Chapters screen (Title -> Campaign -> Chapters): its first button starts that chapter.
+    open('title', 'campaign', 'campaign-menu');
+    open('campaign-menu', 'chapters', 'chapters');
     const buttons = Array.from(document.querySelectorAll<HTMLButtonElement>('#chapters [data-action="chapter"]'));
     r.check(buttons.length > 0, 'menus: the Chapters screen lists no chapters');
     buttons[0]?.click();
@@ -731,11 +754,12 @@ async function menuCases(r: Run): Promise<void> {
     for (let i = 0; i < 40 && I.paused; i++) await yieldNow();
     r.check(!I.paused, 'menus: still paused after Resume');
     await r.frames(30, 1 / 60);
-    // New game from the title, then out again.
+    // New game from the Campaign menu, then out again.
     r.quit();
     await r.step(0.5);
     r.expectTitle('menus: back at the title');
-    click('#title [data-action="new"]');
+    open('title', 'campaign', 'campaign-menu');
+    r.check(click('#campaign-menu [data-action="new"]'), 'menus: the Campaign menu has no usable New game button');
     r.check(await r.loaded(), 'menus: New game never loaded');
     r.I.isRunning = false;
     await r.step(1);

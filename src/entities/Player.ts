@@ -75,6 +75,8 @@ export class Player extends Character {
   public attire: Attire = KITS.baoli.attire;
   /** His rig in another attire, loaded ahead so the story's change of clothes is instant (`ready`, `wear`). */
   private wardrobe: { attire: Attire; weapon: WeaponSet; rig: Promise<PreparedRig>; ready: PreparedRig | null } | null = null;
+  /** Prepared duel wardrobes: round changes do not fetch, rebuild or measure a rig during a match. */
+  private readonly duelRigs = new Map<string, PreparedRig>();
   /** Called when the fight teaches him a move (the engine shows the banner). */
   public onLearned: ((ability: Ability) => void) | null = null;
 
@@ -85,6 +87,8 @@ export class Player extends Character {
   public mortal = true;
   /** Blows still empowered by a completed charge. */
   public chargedHits = 0;
+  /** Duel-only damage pacing, set from the round table; campaign resolvers never read it. */
+  public duelBlowScale = 1;
   /** Called when a charge completes (the engine shows the banner). */
   public onCharged: (() => void) | null = null;
   /** Current ground speed along his facing (m/s): built up and bled off, never set outright. */
@@ -105,14 +109,14 @@ export class Player extends Character {
   private clock = 0;
   private readonly doings: Record<keyof Habits, number[]> = { slides: [], blocks: [], attacks: [], parries: [] };
 
-  constructor() {
-    super('player_hero', 0xd4af37); // Royal Gold
+  constructor(id = 'player_hero', input = InputManager.getInstance()) {
+    super(id, 0xd4af37); // Royal Gold
     this.chainsEarly = true;
     this.turnAccel = LOCOMOTION.turnAccel;
     // His gait follows the stick at once: the clip dwell that steadies the AI's would only make him feel late.
     this.visualDwell = 0;
 
-    this.inputManager = InputManager.getInstance();
+    this.inputManager = input;
     this.soundFX = SoundFX.getInstance();
     this.particleFX = ParticleFX.getInstance();
 
@@ -131,6 +135,12 @@ export class Player extends Character {
       }
     };
   }
+
+  /** Attack serial sent with duel snapshots (a chained blow is a new swing). */
+  public get attackId(): number { return this.swingSerial; }
+
+  /** Hero-versus-hero contacts spend once; a received hero also retains its pending acknowledgement. */
+  public spendCharge(): void { this.chargedHits = Math.max(0, this.chargedHits - 1); }
 
   /**
    * Whether `ability` is his in this chapter. The guard and the parry are the dhal's, so they need the shield as well
@@ -168,6 +178,34 @@ export class Player extends Character {
       this.attire = kit.attire;
     }
     await later.catch((err) => console.error(`[Player] his ${kit.becomes} rig failed to load`, err));
+  }
+
+  /** Loads every distinct duel kit before either peer reports ready; campaign equip never uses this cache. */
+  public async prepareDuelKits(kits: readonly HeroKit[]): Promise<void> {
+    for (const kit of kits) {
+      const key = kit.attire + ':' + kit.weapon;
+      if (!this.duelRigs.has(key)) this.duelRigs.set(key, await this.prepareRig(dressed(WEAPON_SETS[kit.weapon], kit.attire)));
+    }
+  }
+
+  /** Switches to a fully readied round rig synchronously, preserving the other round's rig and its props. */
+  public equipDuelKit(kit: HeroKit): void {
+    const prepared = this.duelRigs.get(kit.attire + ':' + kit.weapon);
+    if (!prepared) throw new Error('Duel kit was not preloaded');
+    const cached = [...this.duelRigs.values()].some(p => p.rig === this.rig);
+    this.skills.setKit(kit);
+    this.stowSword(false);
+    this.swordSheathed = false;
+    if (prepared.prop && prepared.definition.weapon) prepared.rig.attach(prepared.prop, prepared.definition.weapon);
+    if (this.rig !== prepared.rig) this.mountRig(prepared, false, cached);
+    this.weapon = WEAPON_SETS[kit.weapon];
+    this.attire = kit.attire;
+  }
+
+  /** The worn rig belongs to Character until the next equip; only detached cached rigs are freed here. */
+  public clearDuelKits(): void {
+    for (const p of this.duelRigs.values()) if (p.rig !== this.rig) p.rig.dispose();
+    this.duelRigs.clear();
   }
 
   /** Loads his rig in `attire` (with `weapon`, by default the one in hand) for a later `wear`. */
@@ -470,7 +508,9 @@ export class Player extends Character {
       if (aiming) this.aimYaw = aim;
       return;
     }
-    const gap = Math.hypot(best.group.position.x - pos.x, best.group.position.z - pos.z) - ASSIST.reach - (best.motor?.radius ?? 0.4);
+    const reach = this.weapon.blows[state]?.reach ?? this.weapon.reach;
+    const radius = best.motor?.radius ?? 0.4;
+    const gap = Math.hypot(best.group.position.x - pos.x, best.group.position.z - pos.z) - (reach === undefined ? ASSIST.reach : reach - radius) - radius;
     const travel = this.rootTravel(state, strike?.t0 ?? 0);
     if (travel > 0.2) {
       // A clip that carries him (the leaping strike) is stretched or shortened to land on the target.

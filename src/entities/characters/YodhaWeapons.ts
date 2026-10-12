@@ -10,6 +10,8 @@ import { asset } from '../../core/Assets';
 /** What one blow of a weapon does to whoever it lands on. `heavy` blows break through a committed attack. */
 export interface Blow {
   damage: number;
+  /** Metres of useful centre-to-centre reach for a short hand blow (absent keeps campaign aim). */
+  reach?: number;
   posture: number;
   heavy?: boolean;
 }
@@ -39,6 +41,8 @@ export interface WeaponSet {
   /** Can go in the scabbard (X). A staff or a mace is carried, not sheathed. */
   stowable: boolean;
   sound: WeaponSound;
+  /** Centre-to-centre engagement distance; absent keeps campaign bot behaviour. */
+  reach?: number;
 }
 
 /** A weapon set's rig on the model of what he wears (the same clips and sockets either way). */
@@ -46,7 +50,13 @@ export function dressed(set: WeaponSet, attire: Attire): CharacterDefinition {
   // The same definition each time (his strike windows are measured once for it, `Character.fitProps`).
   const key = `${set.id}:${attire}`;
   let definition = DRESSED.get(key);
-  if (!definition) DRESSED.set(key, (definition = { ...set.definition, ...ATTIRE_MODELS[attire] }));
+  if (!definition) {
+    // Only the duel's unarmed training kit uses the boxing build; campaign attire keeps its original assets.
+    const model = set.id === 'fists' && attire === 'training'
+      ? { model: asset('characters/yodha_duel_boxing.glb'), manifest: asset('characters/yodha_duel_boxing.manifest.json') }
+      : ATTIRE_MODELS[attire];
+    DRESSED.set(key, (definition = { ...set.definition, ...model }));
+  }
   return definition;
 }
 const DRESSED = new Map<string, CharacterDefinition>();
@@ -219,6 +229,29 @@ const LATHI_STATES: Partial<Record<CharacterState, StateAnimation>> = {
 };
 
 /**
+ * Duel boxing motion, in one state-to-clip table, retargeted from Mixamo onto the training hero's own rig. The jab
+ * is mirrored at download so all three punches strike with the right hand. The hand socket carries an empty group,
+ * like Yatudhana's hand attack, so measured windows and swept hit detection follow the fist rather than a blade.
+ * Each attack is cropped around its forward stroke: the return to guard must not become a second hit window.
+ * Jump, slide and posture recovery still use the existing hero clips; the armed and campaign sets keep theirs.
+ */
+export const FISTS_STATES: Partial<Record<CharacterState, StateAnimation>> = {
+  IDLE: { clip: 'boxing_idle', fade: 0.2 },
+  REST: { clip: 'boxing_idle', fade: 0.3 },
+  WALK: { clip: 'boxing_walk', matchSpeed: true },
+  MOVE: { clip: 'boxing_run', matchSpeed: true, fade: 0.22 },
+  SPRINT: { clip: 'boxing_run', matchSpeed: true, fade: 0.25 },
+  ATTACK_1: { clip: 'boxing_jab_right', startAt: 0.1, endAt: 0.5, timeScale: 0.8, timesState: true, fade: 0.06 },
+  ATTACK_2: { clip: 'boxing_cross', startAt: 0.25, endAt: 1, timesState: true, fade: 0.06 },
+  ATTACK_3: { clip: 'boxing_hook', startAt: 0.2, endAt: 1.1, timesState: true, fade: 0.06 },
+  ATTACK_JUMP: undefined,
+  CHARGE: undefined,
+  STAGGER: { clip: 'boxing_body_hit', timeScale: 1.3, timesState: true, fade: 0.05 },
+  DEFLECTED: { clip: 'boxing_recoil', timeScale: 1.3, fade: 0.05 },
+  DEAD: { clip: 'boxing_knockout', fade: 0.1 },
+};
+
+/**
  * The basic sword's grip on its model: none to speak of. `hero_sword.glb` is the hero's own talwar (Meshy 7.1, made for
  * the game and prepared with `prepare_weapon.py`), so its grip is at the origin and its blade runs up +Y like the
  * khanda's, and the fist closes on it with no offset. (It used to be the Vetala's notched blade, whose model was
@@ -264,6 +297,22 @@ const MACE_STATES: Partial<Record<CharacterState, StateAnimation>> = {
  * and the khanda hang in code-built scabbards (Scabbard.ts) when sheathed.
  */
 export const WEAPON_SETS: Record<WeaponId, WeaponSet> = {
+  fists: {
+    id: 'fists', name: 'Fists', reach: 1.05,
+    definition: heroWith({
+      offhand: false, states: FISTS_STATES,
+      weapon: { socket: 'Socket_Hand_R', socketFrame: true, restWorldRotation: [0, 0, 0], grip: [0, 0, 0],
+        build: () => new THREE.Group(), blade: [0, 0.12] },
+    }),
+    // Starting guesses; bot measurements and human play determine the final numbers.
+    blows: {
+      ATTACK_1: { damage: 2.5, posture: 7, reach: 1.05 },
+      ATTACK_2: { damage: 3, posture: 9, reach: 1.05 },
+      ATTACK_3: { damage: 2.5, posture: 8, reach: 1.05 },
+    },
+    shield: false, stowable: false,
+    sound: { swing: [1.25, 1.4, 1.1], whoosh: 'lathi', impact: 'crush' },
+  },
   lathi: {
     id: 'lathi',
     name: 'Lathi',

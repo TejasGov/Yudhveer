@@ -77,13 +77,18 @@ export class InputManager {
   /** Any key, click or button: used to reveal "hold to skip" during cutscenes. */
   public onAnyInput: (() => void) | null = null;
 
-  private constructor() {
-    this.setupEventListeners();
+  private constructor(listen = true) {
+    if (listen) this.setupEventListeners();
   }
 
   public static getInstance(): InputManager {
     if (!InputManager.instance) InputManager.instance = new InputManager();
     return InputManager.instance;
+  }
+
+  /** A second local hero's buffered input, without keyboard, mouse or gamepad listeners. */
+  public static isolated(): InputManager {
+    return new InputManager(false);
   }
 
   private setupEventListeners(): void {

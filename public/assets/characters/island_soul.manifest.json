@@ -1,0 +1,28 @@
+{
+  "model": "island_soul.glb",
+  "source": "soul-walking.glb",
+  "height": 1.8,
+  "triangles": 33792,
+  "sockets": [
+    "Socket_Hand_R",
+    "Socket_Hand_L"
+  ],
+  "clips": {
+    "idle": {
+      "source": "Stance-Calm Idle.fbx",
+      "duration": 8.3333,
+      "loop": true,
+      "speed": 0.0,
+      "direction": [
+        0.0,
+        0.0
+      ]
+    },
+    "walk": {
+      "duration": 1.1,
+      "loop": true,
+      "speed": 1.2313,
+      "source": "Meshy bundled walking, task 01a12465-28fb-744f-9461-3f645036c8e5, refined by scripts/island_soul_walk.py (109 steps/min, speed measured from the planted feet)"
+    }
+  }
+}

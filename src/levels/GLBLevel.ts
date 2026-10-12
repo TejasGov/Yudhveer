@@ -33,6 +33,8 @@ export function disposeObject(root: THREE.Object3D): void {
     if (mesh.material) (Array.isArray(mesh.material) ? mesh.material : [mesh.material]).forEach((m) => materials.add(m));
     (obj as THREE.PointLight).shadow?.dispose();
     (obj as THREE.SkinnedMesh).skeleton?.dispose();
+    // An instanced mesh's per-instance buffers (matrices, colours) belong to the mesh, not its geometry.
+    if ((obj as THREE.InstancedMesh).isInstancedMesh) (obj as THREE.InstancedMesh).dispose();
   });
   const textures = new Set<THREE.Texture>();
   materials.forEach((mat) => {

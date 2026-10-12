@@ -95,6 +95,8 @@ export class Character extends Entity {
    */
   public renewsPosture = false;
 
+  /** Received swing identity, only for a network hero; local and campaign fighters use their state clock. */
+  public receivedAttackId: number | null = null;
   public stateMachine: CharacterStateMachine;
   public walkSpeed = 1.8;
   public moveSpeed = 5.5;
@@ -161,7 +163,7 @@ export class Character extends Entity {
   private actualSpeed = 0;
   private stillFor = 0;
   /** `actualSpeed` smoothed: what speed-matched walks and runs pace their stride to (JITTER.md, fix 5). */
-  private visSpeed = 0;
+  protected visSpeed = 0;
   /**
    * How fast the heading is turning (rad/s). Turning has momentum: it winds up at no more than `turnAccel` and settles
    * the same way, so a heavy body never snaps from still to full turn in one step (JITTER.md, fix 2).
@@ -477,8 +479,9 @@ export class Character extends Entity {
   /**
    * Wears a prepared rig (once: it is the character's from then on), disposing the one it had. `keepPose`: a clip a
    * cue was playing carries on in the new rig from the same moment (a change of clothes under a flash of light).
+   * Duel-only retainPrevious detaches the whole old rig with its props intact for another round; its cache owns it.
    */
-  public mountRig(p: PreparedRig, keepPose = false): CharacterRig {
+  public mountRig(p: PreparedRig, keepPose = false, retainPrevious = false): CharacterRig {
     const { definition, rig } = p;
     const was = keepPose && this.rig && this.scripted ? { clip: this.rig.clip, time: this.rig.time } : null;
     // Modelled weapons replace the greybox ones everywhere (sockets, sheathing, hit detection). The ones they replace
@@ -486,21 +489,20 @@ export class Character extends Entity {
     // the old rig's dispose below never reaches a prop, and every change of chapter left one on the GPU (audit W-08).
     if (p.prop) {
       const old = this.swordMesh;
-      old.removeFromParent();
-      if (old !== p.prop) disposeObject(old);
+      if (!retainPrevious) { old.removeFromParent(); if (old !== p.prop) disposeObject(old); }
       this.swordMesh = p.prop;
     }
     if (p.shield) {
       const old = this.shieldMesh;
-      old.removeFromParent();
-      if (old !== p.shield) disposeObject(old);
+      if (!retainPrevious) { old.removeFromParent(); if (old !== p.shield) disposeObject(old); }
       this.shieldMesh = p.shield;
     }
     if (definition.weapon?.blade) this.bladeSpan = definition.weapon.blade;
     if (!p.strikes) this.fitProps(p);
     this.primitiveRoot.visible = false;
     this.modelGroup.add(rig.root);
-    this.rig?.dispose();
+    if (retainPrevious) this.rig?.root.removeFromParent();
+    else this.rig?.dispose();
     this.walkSpeed = definition.locomotion.walkSpeed;
     this.moveSpeed = definition.locomotion.moveSpeed;
     this.sprintSpeed = definition.locomotion.sprintSpeed;
@@ -1012,6 +1014,16 @@ export class Character extends Entity {
     const { tip, hilt } = this.getWeaponPoints();
     this.slashRibbon.update(tip, hilt, trailActive(this), dt, trailLookOf(this));
   }
+
+  /**
+   * Render interpolation beyond the root and the skeleton (Engine.applyInterpolation): a part posed in the simulation
+   * step that is neither (a boss's travelling weapon and its chain) is drawn `alpha` of the way from the last step to
+   * this one here, and put back as the step left it by `renderRestore` (hit detection reads the step's pose). None by
+   * default.
+   */
+  public renderUpdate(_alpha: number): void {}
+
+  public renderRestore(): void {}
 
   public override update(dt: number): void {
     super.update(dt);

@@ -15,6 +15,10 @@ import { ProjectileManager } from '../combat/ProjectileManager';
 import { Voices } from '../combat/Voices';
 import { HitboxManager } from '../combat/HitboxManager';
 import { Player } from '../entities/Player';
+import type { DuelSession } from '../duel/DuelSession';
+import type { GameMode } from '../duel/Rules';
+import type { DuelTransport } from '../duel/Transport';
+import { readDuelName } from '../duel/NameTags';
 import { Enemy } from '../entities/Enemy';
 import { Boss } from '../entities/Boss';
 import { Vetala } from '../entities/Vetala';
@@ -54,6 +58,7 @@ import { CinematicDirector } from '../cinematics/CinematicDirector';
 import { buildIntro, buildArrival, ATTRACT, type IntroContext } from '../cinematics/Intros';
 import { SceneRun, Stage, Staging, storyVoices, triggered, type StoryBeat, type StoryScene } from '../cinematics/Scene';
 import { SceneFX } from '../cinematics/SceneFX';
+import { keepMotes } from '../cinematics/DivineLight';
 import { Hud } from '../ui/Hud';
 import { Cinema } from '../ui/Cinema';
 import { Dialogue } from '../ui/Dialogue';
@@ -162,6 +167,9 @@ const HERO_HEALTH = 100;
 
 /** The project's source, linked from the About the author screen. */
 const PROJECT_URL = 'https://github.com/TejasGov/Yudhveer';
+
+/** The duel menu's line while no relay is set (Create and Join are off). */
+const NO_RELAY_NOTE = 'Online duels aren’t available yet. Practice against HeroBot works.';
 
 const v3 = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
 /**
@@ -308,6 +316,8 @@ interface InterpolatedPose {
 /** Bone floats: position (3) and quaternion (4). */
 const BONE_STRIDE = 7;
 const _boneQuat = [0, 0, 0, 1];
+/** Puts a character's own interpolated parts back as the step left them (Character.renderRestore). */
+const restoreRender = (c: Character): void => c.renderRestore();
 
 /** Fighter weight for the separation push: its capsule's volume against the hero's. */
 function capsuleMass(capsule: { halfHeight: number; radius: number }): number {
@@ -335,6 +345,9 @@ export class Engine {
 
   public player: Player | null = null;
   public enemies: Enemy[] = [];
+  /** Campaign or duel is separate from the existing screen-flow mode. */
+  public gameMode: GameMode = 'campaign';
+  public duel: DuelSession | null = null;
   /** The chapter story's characters who do not fight (the guru), spawned with it. */
   public cast: Extra[] = [];
 
@@ -446,6 +459,7 @@ export class Engine {
       return;
     }
     this.particleFX.init(this.sceneManager.scene);
+    keepMotes(this.sceneManager.scene);
     this.projectileManager.init(this.sceneManager.scene);
     this.levelManager.init(this.sceneManager.scene);
 
@@ -569,6 +583,8 @@ export class Engine {
     };
 
     click('title', (action) => {
+      if (action === 'duel') { this.screens.push('duel-menu'); return; }
+      if (action === 'campaign') { this.screens.push('campaign-menu'); return; }
       if (action === 'continue') void this.beginCampaign(Math.min(Progress.unlocked(), LAST_CHAPTER));
       else if (action === 'new') {
         this.newCampaign();
@@ -578,6 +594,28 @@ export class Engine {
       else if (action === 'settings') this.openSettings();
       else if (action === 'controls') this.screens.push('controls');
       else if (action === 'about') this.screens.push('about');
+    });
+    click('campaign-menu', (action) => {
+      if (action === 'new') { this.newCampaign(); void this.beginCampaign(CHAPTERS[0].id); }
+      else if (action === 'continue') void this.beginCampaign(Math.min(Progress.unlocked(), LAST_CHAPTER));
+      else if (action === 'chapters') this.openChapters();
+      else if (action === 'back') this.screens.pop();
+    });
+    click('duel-menu', (action, button) => {
+      if (action === 'bot') void this.startDuel();
+      else if (action === 'create' || action === 'join') void this.joinDuel(action === 'create');
+      else if (action === 'latency') {
+        const ping = Number(button.dataset.ping);
+        ($('duel-delay') as HTMLInputElement).value = String(ping / 2);
+      }
+      else if (action === 'back') this.screens.pop();
+    });
+    click('duel-result', (action) => {
+      if (action === 'rematch') {
+        if (this.duel?.transport) { this.duel.transport.rematch(); $('duel-outcome').textContent = 'Waiting for rematch'; }
+        else void this.startDuel();
+      }
+      else if (action === 'quit') this.enterTitle();
     });
     click('pause', (action) => {
       if (action === 'resume') void this.resume();
@@ -639,12 +677,26 @@ export class Engine {
       if (id === 'credits') this.credits.finish();
     };
     this.credits.onDone = () => this.enterTitle();
+    const name = $('duel-name') as HTMLInputElement;
+    name.value = readDuelName();
+    name.addEventListener('input', () => {
+      try { localStorage.setItem('yudhveer.duel.name', name.value.trim().slice(0, 16) || 'Yodha'); }
+      catch { /* Storage blocked: this lobby's name still travels in hello. */ }
+    });
+    const relay = $('duel-relay') as HTMLInputElement;
+    relay.value = import.meta.env.VITE_DUEL_RELAY ?? (import.meta.env.DEV ? 'ws://' + location.hostname + ':8787' : '');
+    relay.addEventListener('input', () => this.updateDuelRelay());
+    this.updateDuelRelay();
+    const updateLatency = () => {
+      if (this.duel?.transport) this.duel.transport.latency = this.duelLatency();
+    };
+    for (const id of ['duel-delay', 'duel-jitter', 'duel-loss']) $(id).addEventListener('change', updateLatency);
     this.renderSettings();
     Settings.onChange(() => {
       this.renderSettings();
       // Pro mode turned on or off mid-chapter: his health scales with it, keeping its share.
       const p = this.player;
-      if (p && p.maxHealth !== this.heroHealth()) {
+      if (this.gameMode === 'campaign' && p && p.maxHealth !== this.heroHealth()) {
         const share = p.maxHealth > 0 ? p.currentHealth / p.maxHealth : 1;
         p.maxHealth = this.heroHealth();
         p.currentHealth = Math.round(share * p.maxHealth);
@@ -829,6 +881,7 @@ export class Engine {
 
   /** The title screen over a slow orbit of whatever arena is loaded. */
   private enterTitle(): void {
+    this.clearDuel();
     this.loadToken++;
     this.paused = false;
     this.credits.stop();
@@ -854,6 +907,7 @@ export class Engine {
     const resume = unlocked > CHAPTERS[0].id;
     const cont = $('title-continue') as HTMLButtonElement;
     cont.hidden = !resume;
+    document.querySelector<HTMLButtonElement>('#campaign-menu [data-action=continue]')!.hidden = !resume;
     $('continue-detail').textContent = resume ? `${chapterTitle(chapterById(unlocked))}, ${chapterById(unlocked).name}` : '';
     this.screens.only('title', resume ? cont : null);
     refreshGlyphs(document, this.inputManager.device);
@@ -868,6 +922,7 @@ export class Engine {
    */
   public async startChapter(id: number, options: { intro: boolean }): Promise<void> {
     if (!this.player) return;
+    this.clearDuel();
     const chapter = chapterById(id);
     const token = ++this.loadToken;
     this.chapter = chapter;
@@ -1015,17 +1070,42 @@ export class Engine {
       o.visible = true;
     };
     if (this.player) show(this.player.group);
-    for (const c of [...this.enemies, ...this.cast, ...this.warmFoes]) {
-      show(c.group);
-      // What a character shows only now and then (a hurler's glow, Shalva's pool: `userData.warm`) is drawn once too.
-      c.group.traverse((o) => { if (o.userData.warm) show(o); });
+    for (const c of [...this.enemies, ...this.cast, ...this.warmFoes]) show(c.group);
+    // What is drawn only now and then (a hurler's glow, Shalva's pool, a weapon's trail, the sparks, a seal's light) is
+    // flagged `userData.warm`, wherever it hangs (under a character or in the scene), and is drawn once too. A flag of
+    // 'bloom' means the bloom picks it only while it is in use (a chain's glow is chosen as she swings): it is picked
+    // here as well, or the bloom's depth pass first meets it, and builds its program, in the middle of a fight.
+    const bloom = this.sceneManager.postFX.bloom.selection;
+    const picked: THREE.Object3D[] = [];
+    const flagged: THREE.Object3D[] = [];
+    this.sceneManager.scene.traverse((o) => { if (o.userData.warm) flagged.push(o); });
+    for (const o of flagged) {
+      show(o);
+      if (o.userData.warm === 'bloom' && !bloom.has(o)) {
+        bloom.add(o);
+        picked.push(o);
+      }
     }
+    // Nothing is culled for the frame: the camera is wherever the last fight left it (or the title's), the later foes stand
+    // at the world's origin, and a plain mesh (a weapon in a hand, a glow) outside the view is skipped, not compiled. Then
+    // the first retry of a chapter, with the camera far from the origin, built them mid-fight (skinned bodies never cull).
+    const unculled: THREE.Object3D[] = [];
+    const keepDrawn = (o: THREE.Object3D) => {
+      if (!o.frustumCulled) return;
+      o.frustumCulled = false;
+      unculled.push(o);
+    };
+    if (this.player) this.player.group.traverse(keepDrawn);
+    for (const c of [...this.enemies, ...this.cast, ...this.warmFoes]) c.group.traverse(keepDrawn);
+    flagged.forEach(keepDrawn);
     try {
       this.projectileManager.warm(() => this.sceneManager.render(1 / 60));
     } catch (err) {
       console.warn('[Engine] the warm-up frame failed', err);
     }
-    for (const [o, v] of shown) o.visible = v;
+    for (const o of unculled) o.frustumCulled = true;
+    for (const o of picked) bloom.delete(o);
+    for (let i = shown.length - 1; i >= 0; i--) shown[i][0].visible = shown[i][1];
     for (const f of this.warmFoes) f.group.visible = false;
   }
 
@@ -1459,10 +1539,12 @@ export class Engine {
   private pause(): void {
     if (this.paused) return;
     this.paused = true;
+    if (this.duel?.transport) this.duel.suspend();
     this.dialogue.setPaused(true);
     this.inputManager.releaseAll();
     this.inputManager.exitPointerLock();
-    $('pause-chapter').textContent = this.chapter ? `${chapterTitle(this.chapter)}, ${this.chapter.name}` : '';
+    document.querySelector<HTMLButtonElement>('#pause-menu [data-action=restart]')!.hidden = this.gameMode === 'duel';
+    $('pause-chapter').textContent = this.gameMode === 'duel' ? (this.duel?.transport ? 'Duel — the match continues online' : 'Duel — Akhada') : this.chapter ? `${chapterTitle(this.chapter)}, ${this.chapter.name}` : '';
     this.screens.only('pause');
     this.updateCaptureHint();
   }
@@ -1476,6 +1558,7 @@ export class Engine {
     }
     this.screens.clear();
     this.paused = false;
+    if (this.duel) { this.duel.suspended = false; this.duel.updatePresentation(); }
     this.dialogue.setPaused(false);
     this.inputManager.releaseAll();
     this.inputManager.discardLook();
@@ -1627,6 +1710,157 @@ export class Engine {
     this.sceneManager.scene.add(fighter.slashRibbon.mesh);
   }
 
+  /** Duel cleanup runs only when a duel exists: the campaign's simulation paths stay as they were. */
+  private clearDuel(): void {
+    const duel = this.duel;
+    if (!duel) return;
+    duel.dispose();
+    const foe = duel.opponent;
+    this.sceneManager.scene.remove(foe.group, foe.slashRibbon.mesh);
+    foe.detachPhysics();
+    if (foe.rigidBody) this.physicsWorld.removeBody(foe.rigidBody);
+    foe.rig?.dispose();
+    disposeObject(foe.group);
+    disposeObject(foe.slashRibbon.mesh);
+    HitboxManager.getInstance().forget(foe.id);
+    this.duel = null;
+    this.gameMode = 'campaign';
+    if (this.player) this.player.renewsPosture = false;
+    $('duel-network').hidden = true;
+  }
+
+  /** Simulator values read from the duel lobby; the same controls can be adjusted from the dev console. */
+  private duelLatency(): { delayMs: number; jitterMs: number; loss: number } {
+    const number = (id: string, max: number) => Math.max(0, Math.min(max, Number(($(id) as HTMLInputElement).value) || 0));
+    return { delayMs: number('duel-delay', 500), jitterMs: number('duel-jitter', 250), loss: number('duel-loss', 50) / 100 };
+  }
+
+  /**
+   * Online rooms need a relay to meet through. A build with none (the default: `VITE_DUEL_RELAY` unset, nothing typed in the
+   * Relay field) turns Create and Join off and says so, instead of letting the connection fail on a raw "Invalid URL".
+   * Practice against HeroBot never needs one.
+   */
+  private updateDuelRelay(): void {
+    const none = ($('duel-relay') as HTMLInputElement).value.trim() === '';
+    document.querySelectorAll<HTMLButtonElement>('#duel-menu [data-action=create], #duel-menu [data-action=join]').forEach((b) => { b.disabled = none; });
+    const status = $('duel-status');
+    if (none) status.textContent = NO_RELAY_NOTE;
+    else if (status.textContent === NO_RELAY_NOTE) status.textContent = '';
+  }
+
+  private async joinDuel(create: boolean): Promise<void> {
+    if (($('duel-relay') as HTMLInputElement).value.trim() === '') { this.updateDuelRelay(); return; }
+    const button = document.querySelector<HTMLButtonElement>('#duel-menu [data-action=' + (create ? 'create' : 'join') + ']')!;
+    button.disabled = true;
+    $('duel-status').textContent = 'Connecting…';
+    let transport: DuelTransport | null = null;
+    try {
+      // The duel's code is fetched the first time a duel is asked for, not with the campaign (see `startDuel`).
+      transport = new (await import('../duel/Transport')).DuelTransport();
+      transport.latency = this.duelLatency();
+      await transport.connect(($('duel-relay') as HTMLInputElement).value,
+        create ? undefined : ($('duel-room') as HTMLInputElement).value, ($('duel-name') as HTMLInputElement).value);
+      await this.startDuel(transport);
+    } catch (err) {
+      transport?.close();
+      $('duel-status').textContent = err instanceof Error ? err.message : 'Connection failed';
+    } finally { this.updateDuelRelay(); }
+  }
+
+  /** Load the Akhada directly, with two summit heroes and no campaign scenes or saves. */
+  public async startDuel(transport?: DuelTransport): Promise<void> {
+    if (!this.player) return;
+    // The session, and the practice bot that plays against the hero with it, are their own chunk: a campaign player never
+    // downloads them, a duel's first load does (behind the menu: the load screen below comes up once they are here).
+    let DuelSession: typeof import('../duel/DuelSession').DuelSession;
+    try {
+      ({ DuelSession } = await import('../duel/DuelSession'));
+    } catch (err) {
+      console.error(err);
+      transport?.close();
+      $('duel-status').textContent = 'The duel could not be loaded. Check your connection and try again.';
+      return;
+    }
+    this.clearDuel();
+    this.clearEnemies();
+    this.interpolated.clear();
+    this.poses.clear();
+    this.gameMode = 'duel';
+    const token = ++this.loadToken;
+    this.chapter = null;
+    this.paused = false;
+    this.beaten = false;
+    this.outcome = null;
+    this.screens.clear();
+    this.dialogue.clear();
+    this.director.skip();
+    this.cinema.setActive(false);
+    this.cinema.setFade(0);
+    this.hud.show(false);
+    this.player.group.visible = false;
+    this.setMode('loading');
+    this.showLoading('Duel', 'Akhada', 0);
+    const duel = new DuelSession(this, transport);
+    duel.onNames = () => this.hud.bindDuel(duel.opponent, duel.opponentName);
+    duel.onStart = () => {
+      const paused = this.paused && !!transport;
+      if (!paused) { this.paused = false; this.dialogue.setPaused(false); this.screens.clear(); }
+      duel.suspended = paused;
+      this.hud.bindDuel(duel.opponent, duel.opponentName);
+      this.hud.showBoss(true);
+      this.hud.clearHint();
+      this.setMode('play');
+      this.inputManager.releaseAll();
+    };
+    duel.onFinish = (won) => this.finishNetworkDuel(won ? duel.localName + ' won against ' + duel.opponentName : duel.opponentName + ' won');
+    duel.onDisconnect = (reason) => this.finishNetworkDuel(reason ?? 'Opponent disconnected', true);
+    this.duel = duel;
+    try {
+      await this.levelManager.loadLevel(2, (f) => { if (token === this.loadToken) this.showLoading('Duel', 'Akhada', f * 0.7); });
+      if (token !== this.loadToken) return;
+      await duel.prepare();
+      if (token !== this.loadToken) return;
+      if (!transport) this.addFighter(duel.opponent, new THREE.Vector3(0, 0, -3), FIGHTER_CAPSULE);
+      else this.sceneManager.scene.add(duel.opponent.group, duel.opponent.slashRibbon.mesh);
+      duel.reset();
+      if (!transport) duel.beginPractice();
+      BloodFX.getInstance().clear();
+      this.interpolated.clear();
+      this.poses.clear();
+      this.hud.bindDuel(duel.opponent, duel.opponentName);
+      this.hud.show(true);
+      this.hud.showBoss(true);
+      this.hideLoading();
+      this.setMode('play');
+      this.inputManager.releaseAll();
+      this.inputManager.discardLook();
+      document.querySelector<HTMLButtonElement>('#duel-result [data-action=rematch]')!.hidden = false;
+      $('duel-network').hidden = !transport;
+      if (transport) {
+        $('duel-room-label').textContent = 'Room ' + transport.room;
+        this.hud.hint('Room ' + transport.room + ' — waiting for the other hero', 3600);
+        duel.ready();
+      } else $('duel-room-label').textContent = 'Practice · first to ' + duel.rules.roundsToWin;
+      this.soundFX.music.play('akhada');
+      this.soundFX.playAmbience('akhada');
+      void this.capturePointer();
+    } catch (err) {
+      if (token === this.loadToken) this.loadFailed('The duel could not load. Return to the title and try again.', err);
+    }
+  }
+
+  private finishNetworkDuel(text: string, disconnected = false): void {
+    this.paused = false; this.dialogue.setPaused(false);
+    if (this.duel) { this.duel.suspended = false; this.duel.updatePresentation(); }
+    this.setMode('over');
+    this.inputManager.exitPointerLock();
+    $('duel-outcome').textContent = text;
+    $('duel-room-label').textContent = (this.duel?.transport ? 'Room ' + this.duel.transport.room : 'Practice') +
+      ' · ' + this.duel?.scoreText + ' · vs ' + this.duel?.opponentName;
+    document.querySelector<HTMLButtonElement>('#duel-result [data-action=rematch]')!.hidden = disconnected;
+    this.screens.only('duel-result');
+  }
+
   private clearEnemies(): void {
     for (const enemy of this.enemies) {
       enemy.retire();
@@ -1697,6 +1931,13 @@ export class Engine {
     if (!player) return;
     this.physicsWorld.step(dt);
     this.inputManager.advance(dt);
+    if (this.gameMode === 'duel' && this.duel) {
+      if (this.mode === 'play') {
+        this.duel.step(dt);
+
+      }
+      return;
+    }
     const acting = this.mode === 'play' || this.mode === 'handoff' || this.mode === 'outro';
     const playerControl = acting && !this.beaten;
     this.applyEase();
@@ -1740,11 +1981,12 @@ export class Engine {
   }
 
   private simulating(): boolean {
-    return !this.paused && (this.inFight() || this.mode === 'over');
+    return (!this.paused || !!this.duel?.transport) && (this.inFight() || this.mode === 'over');
   }
 
   private simulatedCharacters(): Character[] {
     const characters: Character[] = [...this.enemies, ...this.cast];
+    if (this.duel) characters.push(this.duel.opponent);
     if (this.player) characters.push(this.player);
     return characters;
   }
@@ -1810,6 +2052,20 @@ export class Engine {
         b.quaternion.fromArray(_boneQuat);
       });
     });
+    // Whatever else a character poses each step (a travelling weapon): its own interpolation (Character.renderUpdate).
+    this.renderAlpha = alpha;
+    this.forEachSimulated(this.renderEach);
+  }
+
+  private renderAlpha = 1;
+  private readonly renderEach = (c: Character): void => c.renderUpdate(this.renderAlpha);
+
+  /** `simulatedCharacters` without the array (once per rendered frame). */
+  private forEachSimulated(each: (c: Character) => void): void {
+    for (const e of this.enemies) each(e);
+    for (const c of this.cast) each(c);
+    if (this.duel) each(this.duel.opponent);
+    if (this.player) each(this.player);
   }
 
   private restoreSimulationState(): void {
@@ -1824,6 +2080,7 @@ export class Engine {
         b.quaternion.fromArray(pose.curr, i * BONE_STRIDE + 3);
       });
     });
+    this.forEachSimulated(restoreRender);
   }
 
   /**
@@ -1962,6 +2219,7 @@ export class Engine {
       this.hud.update(this.player, this.enemies, this.sceneManager.camera, rawDt);
     }
 
+    this.duel?.updatePresentation();
     this.sceneManager.render(rawDt);
     this.debugFrame?.(rawDt);
     if (simulate) this.restoreSimulationState();
@@ -2023,6 +2281,7 @@ export class Engine {
   }
 
   private updateFlow(dt: number): void {
+    if (this.gameMode === 'duel') return;
     switch (this.mode) {
       case 'intro': {
         // Hold to skip; a tap moves on to the next line.

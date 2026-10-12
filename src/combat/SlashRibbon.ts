@@ -20,8 +20,8 @@ import type { Character } from '../entities/Character';
  * when the picture is interpolated between two steps.
  */
 
-/** Steps of trail kept (the newest first), and how finely each is smoothed. */
-const MAX_SAMPLES = 16;
+/** Steps of trail kept (the newest first), and how finely each is smoothed (a fire trail lives ~25 steps). */
+const MAX_SAMPLES = 32;
 const SUB = 3;
 const MAX_COLUMNS = (MAX_SAMPLES - 1) * SUB + 1;
 /** A swing's trail starts this long before its first strike window and runs this long past the last (s). */
@@ -30,7 +30,7 @@ const TAIL = 0.05;
 /** The tip moving less than this since the last point (m) adds none. */
 const MIN_STEP2 = 0.005 * 0.005;
 
-export type TrailKind = 'blade' | 'wood' | 'crush';
+export type TrailKind = 'blade' | 'wood' | 'crush' | 'fire';
 
 export interface TrailLook {
   /** Seconds a point of the trail lives. */
@@ -41,12 +41,16 @@ export interface TrailLook {
   heat: number;
   body: number;
   tint: THREE.Color;
+  /** A burning trail (the island demoness's chained axe): flames with a noisy edge instead of a hot line and a tint. */
+  fire: boolean;
 }
 
 const BASE: Record<TrailKind, { life: number; span: number; heat: number; body: number; hero: number; foe: number }> = {
   blade: { life: 0.13, span: 0.2, heat: 3.0, body: 0.85, hero: 0xffb347, foe: 0xff5a38 },
   wood: { life: 0.16, span: 0.26, heat: 2.4, body: 0.7, hero: 0xf0b866, foe: 0xe8804a },
   crush: { life: 0.17, span: 0.28, heat: 2.8, body: 0.9, hero: 0xff8a3a, foe: 0xff4a28 },
+  // Fire: a long-lived burning ribbon over most of a chained blade's head (life 0.42 s, 0.62 of the given segment).
+  fire: { life: 0.42, span: 0.62, heat: 1.0, body: 1.0, hero: 0xff7a1e, foe: 0xff6a1a },
 };
 const LOOKS = new Map<string, TrailLook>();
 
@@ -56,7 +60,7 @@ export function trailLook(kind: TrailKind, hero: boolean): TrailLook {
   let look = LOOKS.get(key);
   if (!look) {
     const b = BASE[kind];
-    look = { life: b.life, span: b.span, heat: b.heat, body: b.body, tint: new THREE.Color(hero ? b.hero : b.foe) };
+    look = { life: b.life, span: b.span, heat: b.heat, body: b.body, tint: new THREE.Color(hero ? b.hero : b.foe), fire: kind === 'fire' };
     LOOKS.set(key, look);
   }
   return look;
@@ -101,8 +105,46 @@ uniform vec3 uTint;
 uniform float uHeat;
 uniform float uBody;
 uniform float uOpacity;
+uniform float uFire;
+uniform float uTime;
 varying vec2 vUv;
+float hash21(vec2 p) {
+  p = fract(p * vec2(123.34, 456.21));
+  p += dot(p, p + 45.32);
+  return fract(p.x * p.y);
+}
+float vnoise(vec2 p) {
+  vec2 i = floor(p);
+  vec2 f = fract(p);
+  vec2 u = f * f * (3.0 - 2.0 * f);
+  return mix(mix(hash21(i), hash21(i + vec2(1.0, 0.0)), u.x), mix(hash21(i + vec2(0.0, 1.0)), hash21(i + vec2(1.0, 1.0)), u.x), u.y);
+}
+// White-yellow at the hottest, through orange, to a deep red as it cools (HDR: the bloom takes the core).
+vec3 fireRamp(float h) {
+  vec3 c = mix(vec3(0.22, 0.012, 0.0), vec3(1.15, 0.12, 0.012), smoothstep(0.0, 0.3, h));
+  c = mix(c, vec3(2.4, 0.72, 0.07), smoothstep(0.28, 0.66, h));
+  return mix(c, vec3(3.4, 2.3, 0.95), smoothstep(0.72, 1.0, h));
+}
 void main() {
+  if (uFire > 0.5) {
+    float age = clamp(vUv.y, 0.0, 1.0);
+    float edge = clamp(vUv.x, 0.0, 1.0);
+    // Flames licking back along the ribbon: noise scrolled down its length, finer noise on top.
+    vec2 q = vec2(vUv.y * 11.0 - uTime * 5.0, edge * 3.6);
+    float n = vnoise(q) * 0.6 + vnoise(q * 2.3 + vec2(3.1, uTime * 2.3)) * 0.4;
+    // How far across the flame reaches: right across while young, eaten back with age, ragged with the noise.
+    float reach = (1.0 - 0.78 * age) * (0.22 + 0.9 * n);
+    float body = 1.0 - smoothstep(reach - 0.2, reach, edge);
+    // Tongues: the body broken into licks, so the dark shows between them.
+    float lick = vnoise(vec2(vUv.y * 22.0 - uTime * 8.0, edge * 6.0 + 1.7));
+    float tongues = smoothstep(0.3, 0.75, lick);
+    float core = exp(-edge * 9.0) * pow(1.0 - age, 2.2) * (0.6 + 0.4 * n);
+    float h = clamp(core * 1.2 + body * (0.8 - 0.66 * age) * (0.45 + 0.55 * n) * (0.6 + 0.4 * tongues), 0.0, 1.0);
+    float a = max(body * mix(0.22, 1.0, tongues) * (0.35 + 0.65 * n), core);
+    float fade = pow(1.0 - age, 1.15);
+    gl_FragColor = vec4(fireRamp(h) * a * fade * uOpacity, 1.0);
+    return;
+  }
   float age = clamp(vUv.y, 0.0, 1.0);
   float fade = pow(1.0 - age, 1.8);
   float edge = clamp(vUv.x, 0.0, 1.0);             // 0 on the tip's own path, 1 at the inner edge (a pow of a negative is NaN, and one NaN blacks the bloom out)
@@ -155,6 +197,8 @@ export class SlashRibbon {
         uHeat: { value: this.look.heat },
         uBody: { value: this.look.body },
         uOpacity: { value: opacity / 0.75 },
+        uFire: { value: 0 },
+        uTime: { value: 0 },
         uHeadTip: { value: new THREE.Vector3() },
         uHeadInner: { value: new THREE.Vector3() },
       },
@@ -172,6 +216,9 @@ export class SlashRibbon {
     this.mesh.frustumCulled = false;
     this.mesh.renderOrder = 4;
     this.mesh.visible = false;
+    // Hidden between swings, and one program serves every ribbon (fire included): the loading screen's warm-up frame
+    // draws the hero's once (Engine.warmUp), so the first swing of a game compiles nothing.
+    this.mesh.userData.warm = true;
     this.mesh.onBeforeRender = () => this.pullHead();
   }
 
@@ -181,6 +228,7 @@ export class SlashRibbon {
    */
   public update(tip: THREE.Vector3, hilt: THREE.Vector3, active: boolean, dt = 1 / 60, look?: TrailLook): void {
     this.time += dt;
+    this.material.uniforms.uTime.value = this.time;
     if (look && look !== this.look) this.setLook(look);
     this.growing = active;
     if (active) {
@@ -218,6 +266,7 @@ export class SlashRibbon {
     this.material.uniforms.uTint.value.copy(look.tint);
     this.material.uniforms.uHeat.value = look.heat;
     this.material.uniforms.uBody.value = look.body;
+    this.material.uniforms.uFire.value = look.fire ? 1 : 0;
   }
 
   /** Smooths the points into columns of two vertices (the tip's path and the inner edge) and sets what is drawn. */
@@ -290,6 +339,19 @@ export class SlashRibbon {
     (u.uHeadTip.value as THREE.Vector3).subVectors(_head, newest.tip);
     (u.uHeadInner.value as THREE.Vector3).subVectors(_inner, newest.inner);
     this.material.uniformsNeedUpdate = true;
+  }
+}
+
+/**
+ * A trail its owner steps itself, after it has posed its weapon for the step (`drive`), rather than Character.update
+ * stepping it before (the island demoness's axe is posed after the body: a trail stepped first would lag it a step).
+ */
+export class DrivenRibbon extends SlashRibbon {
+  /** Character.update's call: ignored (see `drive`). */
+  public override update(): void {}
+
+  public drive(tip: THREE.Vector3, hilt: THREE.Vector3, active: boolean, dt: number, look: TrailLook): void {
+    super.update(tip, hilt, active, dt, look);
   }
 }
 

@@ -3,10 +3,13 @@ import type { Expedition, ExpeditionSpawn } from './Expedition';
 import { MiniMonster, ArcherMonster } from '../entities/IslandMonsters';
 import { MINI_MONSTER, ARCHER_MONSTER } from '../entities/characters/IslandMonsters';
 import { ISLAND } from '../levels/Level5_Island';
+import { BossIslandDemoness } from '../entities/BossIslandDemoness';
+import { ISLAND_DEMONESS } from '../entities/characters/IslandDemoness';
 
 /*
  * Chapter III's expedition (docs/STORY.md, "Milestone 7"): three places on the way down to the mace where the dark
- * comes out at him, and the altar at the end. The creatures are in entities/IslandMonsters.ts.
+ * comes out at him, and the altar at the end. The hall stays unchanged; the old shrine pack now occupies the pool,
+ * including its rear wave. The last chamber belongs to the demoness, before the sealed ghee-and-fire mace room.
  */
 
 const v = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z);
@@ -23,9 +26,9 @@ const archer = (id: string, at: THREE.Vector3, face?: THREE.Vector3): Expedition
 /** Every creature of each encounter, by id (story beats wait on them). */
 export const ISLAND_FOES = {
   hall: ['hall_runt_1', 'hall_runt_2', 'hall_runt_3', 'hall_runt_4', 'hall_runt_5'],
-  pool: ['pool_archer_1', 'pool_archer_2', 'pool_runt_1', 'pool_runt_2', 'pool_runt_3'],
-  shrine: ['shrine_archer_1', 'shrine_archer_2', 'shrine_runt_1', 'shrine_runt_2', 'shrine_runt_3', 'shrine_runt_4'],
-  shrineBehind: ['shrine_runt_5', 'shrine_runt_6'],
+  pool: ['pool_archer_1', 'pool_archer_2', 'pool_runt_1', 'pool_runt_2', 'pool_runt_3', 'pool_runt_4'],
+  poolBehind: ['pool_runt_5', 'pool_runt_6'],
+  boss: 'island_demoness',
 };
 
 export const ISLAND_EXPEDITION: Expedition = {
@@ -55,32 +58,27 @@ export const ISLAND_EXPEDITION: Expedition = {
         runt('pool_runt_1', v(14.6, -1.95, -50.2)),
         runt('pool_runt_2', v(13.6, -1.95, -52.4)),
         runt('pool_runt_3', v(15.2, -1.95, -44.0)),
+        runt('pool_runt_4', v(12.4, -1.95, -43.0)),
+      ],
+    },
+    // The old final pack's two reinforcements now enter behind the pool fight. Checkpoint only after this wave.
+    {
+      id: 'pool-behind',
+      start: { after: 'pool', alive: 2 },
+      callout: { text: 'Behind you' },
+      spawns: [
+        runt('pool_runt_5', v(11.5, -1.95, -39.5)),
+        runt('pool_runt_6', v(13.4, -1.95, -40.0)),
       ],
       checkpoint: { at: v(10.5, -1.95, -48.5), face: v(8, -2, -54) },
     },
-    // The shrine: its keepers in front of the altar, hurlers either side of the dais.
+    // A boss fight in front of the rock seal; the altar, its fire and mace remain behind it.
     {
-      id: 'shrine',
-      start: { at: v(0.5, -2.5, -66), radius: 3.2 },
-      callout: { text: 'The shrine has keepers' },
-      spawns: [
-        archer('shrine_archer_1', v(-5.0, -2.45, -75.2)),
-        archer('shrine_archer_2', v(5.0, -2.45, -75.2)),
-        runt('shrine_runt_1', v(-5.4, -2.45, -68.4)),
-        runt('shrine_runt_2', v(5.2, -2.45, -67.8)),
-        runt('shrine_runt_3', v(-2.4, -2.45, -72.2)),
-        runt('shrine_runt_4', v(2.8, -2.45, -71.6)),
-      ],
-    },
-    // And two more come down the tunnel behind him once the shrine's keepers are nearly done.
-    {
-      id: 'shrine-behind',
-      start: { after: 'shrine', alive: 2 },
-      callout: { text: 'Behind you' },
-      spawns: [
-        runt('shrine_runt_5', v(1.2, -2.45, -61.0)),
-        runt('shrine_runt_6', v(3.4, -2.15, -58.6)),
-      ],
+      id: 'demoness', requires: ['hall', 'pool', 'pool-behind'],
+      start: { at: ISLAND.shrine, radius: 5 },
+      callout: { text: 'Spider Demoness', sub: 'Keeper of the sealed shrine' },
+      spawns: [{ id: ISLAND_FOES.boss, make: id => new BossIslandDemoness(id), at: v(0, -2.45, -68.5),
+        capsule: { halfHeight: 0.65, radius: 0.85 }, rig: ISLAND_DEMONESS }],
     },
   ],
   goal: { at: ISLAND.beforeAltar, radius: 2.3, hint: 'Not while its keepers stand.' },

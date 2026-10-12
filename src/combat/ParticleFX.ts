@@ -280,6 +280,18 @@ export class ParticleFX {
   public init(scene: THREE.Scene): void {
     this.scene = scene;
     scene.add(this.sparkMesh, this.dust.points, this.flame.points, this.mistPool.points);
+    // Each is hidden until something is thrown; the loading screen's warm-up frame draws them once (Engine.warmUp), so the
+    // first spark, puff or lick of a fight compiles nothing. A parry's ring is a clone of the shockwave material, freed
+    // with the ring: this hidden ring of the original keeps the program for the ones that follow.
+    const anchor = new THREE.Mesh(this.shockwaveGeo, this.shockwaveMat);
+    anchor.name = 'ShockwaveAnchor';
+    anchor.visible = false;
+    anchor.frustumCulled = false;
+    // (Far below the world and tiny: the warm-up frame draws it, and nothing of it could show.)
+    anchor.position.set(0, -500, 0);
+    anchor.scale.setScalar(0.001);
+    scene.add(anchor);
+    for (const o of [this.sparkMesh, this.dust.points, this.flame.points, this.mistPool.points, anchor]) o.userData.warm = true;
     // Sparks and fire glow in every level (the bloom keeps them selected across level loads).
     const postFX = SceneManager.getInstance().postFX;
     postFX.keepBloom(this.sparkMesh);

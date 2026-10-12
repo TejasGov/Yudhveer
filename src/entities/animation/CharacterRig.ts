@@ -31,7 +31,7 @@ export interface ClipInfo {
 /**
  * The finger poses a rig built with finger bones of its own (game asset/characters/hands.py, `--finger-markers`) carries
  * as `hand_<pose>` clips: closed round the haft in the hand's socket, hanging relaxed, laid flat. Each frame a hand that
- * holds a prop closes, an empty one relaxes, and a clip marked `hands: 'flat'` (prayer) lays both flat.
+ * holds a prop closes, an empty one relaxes, and a clip marked `hands` overrides both (flat for prayer, fists for boxing).
  */
 export type HandPose = 'fist' | 'relaxed' | 'flat';
 const HAND_POSES: HandPose[] = ['fist', 'relaxed', 'flat'];
@@ -198,6 +198,11 @@ export interface CharacterDefinition {
   scale?: number;
   /** Multiplies every material's colour (a shared model recoloured for another character). */
   tint?: THREE.ColorRepresentation;
+  /**
+   * The warm rim light's settings where the default (strength 0.14, band from 0.74, 0.5 of the albedo) does not suit the
+   * model: `albedo: 1` keeps the rim of a dark, torn model dark so thin flaps cannot light up as pale slivers.
+   */
+  rim?: { strength?: number; start?: number; albedo?: number };
 }
 
 const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
@@ -326,6 +331,14 @@ export class CharacterRig {
   private readonly mounts: Mount[] = [];
   /** The definition's `scale`, applied once props are attached (see `applyScale`). */
   private scale = 1;
+  /**
+   * Opt in (a staged, eased walk; both default to the way every other character is timed): the lowest playback rate a
+   * speed-matched loop may take, and whether a clip that has just started takes its matched rate at once instead of
+   * easing to it from where the last clip left it (the start of an eased walk would otherwise dip to half speed).
+   */
+  public matchFloor = MATCH_SPEED_RANGE[0];
+  public matchSnap = false;
+  private justStarted = false;
   /** Finger bones and poses (see `HandPose`), for a rig built with them; null otherwise (the clips move any fingers). */
   private readonly hands: Hand[] | null;
   /**
@@ -446,7 +459,8 @@ export class CharacterRig {
       if (!converted.has(src)) {
         const toon = toToonMaterial(src, this.ramp);
         if (tint) toon.color.multiply(tint);
-        addRimLight(toon, { color: 0xffe6c4, strength: 0.14, start: 0.74 });
+        const rim = this.definition.rim;
+        addRimLight(toon, { color: 0xffe6c4, strength: rim?.strength ?? 0.14, start: rim?.start ?? 0.74, albedo: rim?.albedo });
         installHitFlash(toon);
         converted.set(src, toon);
         src.dispose();
@@ -477,18 +491,18 @@ export class CharacterRig {
 
   /**
    * Sets the fingers of each hand (rigs built with finger bones, see `HandPose`), eased toward what it does now: both
-   * flat while the clip asks for it (prayer), otherwise closed on what it holds and relaxed when empty.
+   * in the clip's requested pose (flat for prayer, fists for boxing), otherwise closed on what it holds and relaxed when empty.
    */
   private updateHands(dt: number): void {
     if (!this.hands) return;
-    const flat = !!this.current && this.manifest.clips[this.current.config.clip]?.hands === 'flat';
+    const pose = this.current ? this.manifest.clips[this.current.config.clip]?.hands : undefined;
     const k = 1 - Math.exp(-HAND_RATE * dt);
     for (const hand of this.hands) {
-      const grip = flat ? 0 : this.gripOf(hand);
+      const grip = pose ? 0 : this.gripOf(hand);
       const first = !hand.shown;
       const shown = (hand.shown ??= hand.bones.map(() => new THREE.Quaternion()));
       hand.bones.forEach((bone, i) => {
-        if (flat) _hq.copy(hand.poses.flat[i]);
+        if (pose) _hq.copy(hand.poses[pose][i]);
         else _hq.copy(hand.poses.relaxed[i]).slerp(hand.poses.fist[i], grip);
         if (first) shown[i].copy(_hq);
         else shown[i].slerp(_hq, k);
@@ -770,6 +784,7 @@ export class CharacterRig {
       action.setEffectiveWeight(1);
     }
     this.current = { config, action, lastTime: action.time };
+    this.justStarted = true;
   }
 
   /** How much of the pose `action` makes up now (0 if it is not playing at all). */
@@ -852,15 +867,17 @@ export class CharacterRig {
     if (cur?.config.matchSpeed) {
       const authored = this.manifest.clips[cur.config.clip]?.speed;
       if (authored && authored > 0.01) {
-        const want = THREE.MathUtils.clamp(groundSpeed / (authored * this.scale), ...MATCH_SPEED_RANGE);
+        const want = THREE.MathUtils.clamp(groundSpeed / (authored * this.scale), this.matchFloor, MATCH_SPEED_RANGE[1]);
         // The stride re-times smoothly: a small deadband (the already smoothed speed's last per cent of wobble is not
         // worth chasing), and at most STRIDE_RATE per second of change.
         const now = cur.action.getEffectiveTimeScale();
-        if (Math.abs(want - now) > 0.02 * want) {
+        if (this.matchSnap && this.justStarted) cur.action.setEffectiveTimeScale(want);
+        else if (Math.abs(want - now) > 0.02 * want) {
           cur.action.setEffectiveTimeScale(now + THREE.MathUtils.clamp(want - now, -STRIDE_RATE * dt, STRIDE_RATE * dt));
         }
       }
     }
+    this.justStarted = false;
     this.updateFades(dt);
     this.mixer.update(dt);
     this.updateHands(dt);

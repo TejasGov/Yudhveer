@@ -1,0 +1,248 @@
+{
+  "source": "Adobe Mixamo",
+  "sourceUrl": "https://www.mixamo.com/",
+  "retrieved": "2026-10-08",
+  "character": "X Bot",
+  "export": {
+    "format": "FBX Binary",
+    "skin": "Without Skin",
+    "fps": 30,
+    "keyframeReduction": "none",
+    "trim": [
+      0,
+      100
+    ],
+    "inPlace": false,
+    "mirroredClip": "boxing_jab_right.fbx"
+  },
+  "inspection": "Blender 5.2.2 LTS: imported FBX, sampled every frame, no meshes, 65 Mixamo bones",
+  "integration": "Retargeted to the training hero in yodha_duel_boxing.glb; fists mapping in YodhaWeapons.ts",
+  "clips": [
+    {
+      "file": "boxing_body_hit.fbx",
+      "bytes": 359616,
+      "sha256": "e769cae848249e8067c9aa865f7d3f2bd9414b3a80e0b84e1fff746c91a3e0cd",
+      "fps": 30,
+      "frames": [
+        1,
+        37
+      ],
+      "seconds": 1.2,
+      "bones": 65,
+      "meshes": 0,
+      "hands": {
+        "Left": {
+          "max_shoulder_reach_m": 0.38,
+          "hand_excursion_m": 0.51
+        },
+        "Right": {
+          "max_shoulder_reach_m": 0.338,
+          "hand_excursion_m": 0.255
+        }
+      },
+      "root_travel_m": 0.0,
+      "mixamoDescription": "Stomach Hit: Receiving A Hit In The Stomach"
+    },
+    {
+      "file": "boxing_cross.fbx",
+      "bytes": 435216,
+      "sha256": "e940ec4132b406bab14ac3d432121f9a28cd8ee061a251077fa7fefca6827635",
+      "fps": 30,
+      "frames": [
+        1,
+        65
+      ],
+      "seconds": 2.133,
+      "bones": 65,
+      "meshes": 0,
+      "hands": {
+        "Left": {
+          "max_shoulder_reach_m": 0.269,
+          "hand_excursion_m": 0.298
+        },
+        "Right": {
+          "max_shoulder_reach_m": 0.553,
+          "hand_excursion_m": 0.648
+        }
+      },
+      "root_travel_m": 0.0,
+      "mixamoDescription": "Boxing: Back Hand Cross"
+    },
+    {
+      "file": "boxing_hook.fbx",
+      "bytes": 437920,
+      "sha256": "88a0084a933b993b5bb46f10b8596cc1f675b9061ca374f6146d04474acabff4",
+      "fps": 30,
+      "frames": [
+        1,
+        66
+      ],
+      "seconds": 2.167,
+      "bones": 65,
+      "meshes": 0,
+      "hands": {
+        "Left": {
+          "max_shoulder_reach_m": 0.281,
+          "hand_excursion_m": 0.335
+        },
+        "Right": {
+          "max_shoulder_reach_m": 0.516,
+          "hand_excursion_m": 0.841
+        }
+      },
+      "root_travel_m": 0.0,
+      "mixamoDescription": "Boxing: Boxing Back Hand Hook"
+    },
+    {
+      "file": "boxing_idle.fbx",
+      "bytes": 440608,
+      "sha256": "42ae98c6670dc1babf6ff58385630bf0a50a59024a904e02a77403924ae535d9",
+      "fps": 30,
+      "frames": [
+        1,
+        67
+      ],
+      "seconds": 2.2,
+      "bones": 65,
+      "meshes": 0,
+      "hands": {
+        "Left": {
+          "max_shoulder_reach_m": 0.332,
+          "hand_excursion_m": 0.107
+        },
+        "Right": {
+          "max_shoulder_reach_m": 0.333,
+          "hand_excursion_m": 0.104
+        }
+      },
+      "root_travel_m": 0.0,
+      "mixamoDescription": "Boxing: Boxing Idle"
+    },
+    {
+      "file": "boxing_jab_right.fbx",
+      "bytes": 402816,
+      "sha256": "6a6c198b9210ea80e740316635a4d3b6eb9b6dc2a97c3499d85cdcd25dbbfe06",
+      "fps": 30,
+      "frames": [
+        1,
+        53
+      ],
+      "seconds": 1.733,
+      "bones": 65,
+      "meshes": 0,
+      "hands": {
+        "Left": {
+          "max_shoulder_reach_m": 0.281,
+          "hand_excursion_m": 0.12
+        },
+        "Right": {
+          "max_shoulder_reach_m": 0.561,
+          "hand_excursion_m": 0.557
+        }
+      },
+      "root_travel_m": 0.0,
+      "mixamoDescription": "Boxing: Boxing Leading Hand Jab (Mirror enabled)"
+    },
+    {
+      "file": "boxing_knockout.fbx",
+      "bytes": 709712,
+      "sha256": "16fa59cd25888693e235e1c4d96fd10e543b2fbaac7d0c5e942dd35e4d29f69d",
+      "fps": 30,
+      "frames": [
+        1,
+        149
+      ],
+      "seconds": 4.933,
+      "bones": 65,
+      "meshes": 0,
+      "hands": {
+        "Left": {
+          "max_shoulder_reach_m": 0.56,
+          "hand_excursion_m": 0.674
+        },
+        "Right": {
+          "max_shoulder_reach_m": 0.559,
+          "hand_excursion_m": 0.871
+        }
+      },
+      "root_travel_m": 1.676,
+      "mixamoDescription": "Knocked Out: Knocked Out Falling To Back"
+    },
+    {
+      "file": "boxing_recoil.fbx",
+      "bytes": 336000,
+      "sha256": "97e51f1350a175b7c28fd8ed52250b85b0b8e30d178925e91b964f28e918f0ef",
+      "fps": 30,
+      "frames": [
+        1,
+        29
+      ],
+      "seconds": 0.933,
+      "bones": 65,
+      "meshes": 0,
+      "hands": {
+        "Left": {
+          "max_shoulder_reach_m": 0.447,
+          "hand_excursion_m": 0.296
+        },
+        "Right": {
+          "max_shoulder_reach_m": 0.339,
+          "hand_excursion_m": 0.181
+        }
+      },
+      "root_travel_m": 0.0,
+      "mixamoDescription": "Head Hit: Receiving A Light Hit To The Head From A Right Punch"
+    },
+    {
+      "file": "boxing_run.fbx",
+      "bytes": 327216,
+      "sha256": "65542812ef8836a60eb812710a8d41476108060263cee81ebdcef8cb5514db93",
+      "fps": 30,
+      "frames": [
+        1,
+        25
+      ],
+      "seconds": 0.8,
+      "bones": 65,
+      "meshes": 0,
+      "hands": {
+        "Left": {
+          "max_shoulder_reach_m": 0.508,
+          "hand_excursion_m": 0.603
+        },
+        "Right": {
+          "max_shoulder_reach_m": 0.519,
+          "hand_excursion_m": 0.641
+        }
+      },
+      "root_travel_m": 2.186,
+      "mixamoDescription": "Unarmed Run Forward: Running Forward"
+    },
+    {
+      "file": "boxing_walk.fbx",
+      "bytes": 343408,
+      "sha256": "a9206db760e4c203c8b1f7f671d51434df934a90d5ebab546d27c130b65d4292",
+      "fps": 30,
+      "frames": [
+        1,
+        31
+      ],
+      "seconds": 1.0,
+      "bones": 65,
+      "meshes": 0,
+      "hands": {
+        "Left": {
+          "max_shoulder_reach_m": 0.285,
+          "hand_excursion_m": 0.114
+        },
+        "Right": {
+          "max_shoulder_reach_m": 0.284,
+          "hand_excursion_m": 0.063
+        }
+      },
+      "root_travel_m": 0.534,
+      "mixamoDescription": "Walking: Boxing Advancing Forward"
+    }
+  ],
+  "licenseUrl": "https://helpx.adobe.com/creative-cloud/faq/mixamo-faq.html"
+}

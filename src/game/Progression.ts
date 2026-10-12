@@ -7,7 +7,7 @@
  * fight teaches him mid-chapter (the guru's lessons, in Chapter I) is saved on top, per kit, by `learn`.
  */
 
-export type WeaponId = 'lathi' | 'sword' | 'mace' | 'khanda';
+export type WeaponId = 'lathi' | 'sword' | 'mace' | 'khanda' | 'fists';
 
 /**
  * Moves that can be locked away. Striking, walking, sprinting and jumping are always his; the rest are earned.

@@ -1,0 +1,147 @@
+{
+  "sourceRoot": "E:\\hindan",
+  "sources": {
+    "spider demon.glb": "add0b43722ad0089a52bd0c1e23c0fe5d3b65c8ba49f51bf1ef52866c8ae0ad1",
+    "human form of spider.glb": "4325c6b4121372c19e97f8f954a0d26c8eb43f84304901736b379dddfa89f57e",
+    "spider chain axe.glb": "47e3dc77327bdb1a6dfab6db83bc94c8728b11cca1835bf426cfbcc54fe21b0a"
+  },
+  "status": "user-supplied original meshes unchanged; original provider/plan/license unrecorded; derived rig provenance recorded separately",
+  "texturesMax": {
+    "island_demoness": 2048,
+    "island_soul": 2048,
+    "island_chain_axe": 1024
+  },
+  "animation": {
+    "island_soul": {
+      "status": "integrated",
+      "rigJoints": 24,
+      "heightMeters": 1.8,
+      "triangles": 30658,
+      "rigProvider": "Meshy",
+      "taskId": "01a12465-28fb-744f-9461-3f645036c8e5",
+      "taskType": "rig",
+      "taskStatus": "SUCCEEDED",
+      "actualCredits": 5,
+      "userApproved": true,
+      "rigInput": "E:\\hindan\\human form of spider.glb",
+      "savedTaskRecord": "E:\\hindan\\cave-demoness-work\\rig-rebuild\\20261010_020153_island-soul_01a12465\\task_01a12465-28fb-744f-9461-3f645036c8e5.json",
+      "walkingSource": "bundled Meshy walking animation from the approved rig job",
+      "idleSource": "Adobe Mixamo Stance-Calm Idle.fbx, existing local clip",
+      "idleSourcePath": "E:\\hindan\\game asset\\characters\\animations\\Stance-Calm Idle.fbx",
+      "idleSourceSHA256": "ddc217d048be94f9610f82554fc451d7f61e6b5a17f7ddb27b69f3bc9c833ac8",
+      "preparation": {
+        "idlePipeline": "E:\\hindan\\game asset\\characters\\build_character.py",
+        "combinedScript": "scripts/prepare-island-soul.py",
+        "inputs": [
+          "E:\\hindan\\cave-demoness-work\\rig-rebuild\\soul-walking.glb",
+          "E:\\hindan\\cave-demoness-work\\rig-rebuild\\soul-idle.glb"
+        ],
+        "operations": [
+          "locally retarget existing calm idle",
+          "transfer walk through world-space rest frames",
+          "remove horizontal root travel",
+          "record authored walk speed for runtime matching"
+        ]
+      },
+      "clips": {
+        "idle": {
+          "durationSeconds": 8.3333,
+          "loop": true
+        },
+        "walk": {
+          "durationSeconds": 1.0333333333333334,
+          "loop": true,
+          "authoredSpeedMetersPerSecond": 1.6184
+        }
+      },
+      "runtime": {
+        "groundedShade": true,
+        "stagedSpeedMetersPerSecond": 1.3,
+        "states": {
+          "IDLE": "idle",
+          "REST": "idle",
+          "WALK": "walk",
+          "MOVE": "walk",
+          "SPRINT": "walk"
+        }
+      }
+    },
+    "island_demoness": {
+      "status": "integrated",
+      "script": "scripts/build-island-spider.py",
+      "input": "E:\\hindan\\spider demon.glb",
+      "rigJoints": 39,
+      "legs": 8,
+      "jointsPerLeg": 3,
+      "weightedVertices": 22076,
+      "maxInfluencesPerVertex": 4,
+      "skin": "bone heat; nearest-weighted repair if needed; four normalized influences",
+      "footIK": "baked into exported animation transforms",
+      "clips": [
+        "idle",
+        "move",
+        "attack_1",
+        "attack_2",
+        "attack_3",
+        "impact",
+        "death"
+      ],
+      "moveDurationSeconds": 0.8,
+      "moveAuthoredSpeedMetersPerSecond": 0.6923076923076923,
+      "runtimeMoveSpeedMetersPerSecond": 1.3,
+      "verification": "Blender previews; exact loop endpoints; all eight feet reach or come within 3 mm above the 0.045 m authored target; 1â€“4 cm stance residual after engine forward motion. Not a browser quality or weapon-choreography verdict."
+    },
+    "legacy": {
+      "script": "scripts/build-island-demoness.py",
+      "status": "superseded for both character rigs; retained for original prototype and axe preparation",
+      "outputDirectory": "E:\\hindan\\cave-demoness-work\\prepared"
+    }
+  },
+  "outputs": {
+    "public/assets/characters/island_demoness.glb": {
+      "bytes": 2988916,
+      "sha256": "4ba197cd412fcbeb646d14d7f1ae1831e423296a17ccef8766ddb51451afb482"
+    },
+    "public/assets/characters/island_soul.glb": {
+      "bytes": 4159260,
+      "sha256": "3d9afc107c467a8b24697b0e0511c9239b96461dd3ebb08113927a3a8b887be9"
+    },
+    "public/assets/weapons/island_chain_axe.glb": {
+      "bytes": 824372,
+      "sha256": "100b968fa388fc61b7b35bb938ee223b160c33b8b789162bac77a95a4426be48"
+    }
+  },
+  "verification": {
+    "previews": "Blender-only human idle/walk and spider walk/attack_2/death reviewed; no browser screenshots or playthrough",
+    "humanRoute": {
+      "walkingFrames": 232,
+      "minimumEffectiveWalkRate": 0.7781838820378648,
+      "maxFloorErrorMeters": 1.9073486329235223e-07,
+      "arrival": [
+        1.6761923995485495,
+        -2.1100001692771593,
+        -74.54157801575491
+      ],
+      "exactSceneSettlement": [
+        1.7,
+        -2.11,
+        -74.6
+      ],
+      "test": "scripts/island-soul.test.mjs; production story/Character/CharacterRig/Extra/Staging/GLBLevel with shipped assets"
+    },
+    "automated": {
+      "typescript": "passed",
+      "vite": "passed",
+      "assetURLs": "passed",
+      "caveAndSoulTests": 13,
+      "nonNetworkDuelTests": 35,
+      "webSocketIntegrationTests": 3,
+      "totalTests": 51
+    },
+    "limitations": [
+      "browser access denied; no complete browser playthrough",
+      "camera/collision review and human defence feel unverified",
+      "no final animation-quality claim"
+    ]
+  }
+}
