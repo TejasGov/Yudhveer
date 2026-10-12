@@ -45,7 +45,7 @@ test('killing the rear wave first cannot checkpoint past surviving parent enemie
 
 class Boss {
   constructor() { this.group=new THREE.Group();this.stateMachine={currentState:'IDLE',stateTime:0};this.soundFX={playHitImpact(){}}; }
-  update() {}
+  update(dt) { this.mix?.(dt); } // (the rig tests below run the real clips here, where Character's mixer would)
   retire() { this.retired=true; } // (Character.retire)
 }
 const axePhysics={world:null,RAPIER_INSTANCE:null};
@@ -71,7 +71,7 @@ const { BossIslandDemoness } = await loadDuelModule('src/entities/BossIslandDemo
   '../core/PhysicsWorld':{PhysicsWorld:{getInstance:()=>axePhysics}},
   '../combat/ChainAxeMotion':axeMotion,
   '../combat/AxeChain':await loadDuelModule('src/combat/AxeChain.ts',{three:THREE,'../levels/environment/ToonRelight':toonRelight}),
-  '../combat/AxeBody':await loadDuelModule('src/combat/AxeBody.ts',{three:THREE}),
+  '../combat/AxeBody':await loadDuelModule('src/combat/AxeBody.ts',{three:THREE,'./ChainAxeMotion':axeMotion}),
   '../combat/AxeFX':axeFX,
   '../combat/SlashRibbon':await loadDuelModule('src/combat/SlashRibbon.ts',{three:THREE}),
 });
@@ -137,51 +137,58 @@ test('axe leaves and returns to the hand continuously; deflection recalls instea
   boss.stateMachine.currentState='DEFLECTED';boss.stateMachine.stateTime=0;boss.update(1/60);
   assert.ok(axe.position.distanceTo(released)<.05);assert.equal(boss.hitWindows().length,0);
   for(let f=1;f<30;f++){boss.stateMachine.stateTime=f/60;boss.update(1/60);}
-  assert.ok(axe.position.distanceTo(hand)<1e-6);
+  assert.ok(axe.position.distanceTo(boss.hand)<1e-6,'hauled home into her fist');
   const chain=boss.group.children.find(o=>o.isInstancedMesh);assert.equal(chain.count,0);
 });
 
-test('each blow winds up, holds coiled at the top, whips out at 22-28 m/s and never slows mid-stroke',()=>{
-  const hand=new THREE.Vector3(-0.65,2.3,1.0),p=new THREE.Vector3(),q=new THREE.Quaternion(),tip=new THREE.Vector3(),last=new THREE.Vector3();
+test('each blow winds up, holds coiled at the top, whips out at 22-31 m/s and never slows mid-stroke',()=>{
+  // Her hand where the arm keys put it (the rig's IK reaches it within millimetres: see the rig tests below).
+  const rest=new THREE.Vector3(...axeMotion.REST_HOLD.p),grip=new THREE.Vector3(),wrist=new THREE.Vector3(),hand=new THREE.Vector3();
+  const p=new THREE.Vector3(),q=new THREE.Quaternion(),tip=new THREE.Vector3(),last=new THREE.Vector3(),apex=new THREE.Vector3(),lastP=new THREE.Vector3();
   for(const [state,reach] of [['ATTACK_1',2.4],['ATTACK_2',2.4],['ATTACK_3',4.2]]) {
     const motion=new axeMotion.AxeMotion();motion.prepare(state,reach);const cue=motion.cue({});
     assert.ok(cue.whip>=0.35&&cue.whip<=0.45,`${state} anticipation ${cue.whip}`);
     assert.ok(cue.whip-cue.apex>=0.08-1e-9&&cue.whip-cue.apex<=0.12+1e-9,`${state} apex hold ${cue.whip-cue.apex}`);
     const speeds=[];let held=0;
     for(let f=0;f<=150;f++) {
-      const t=f/60;motion.pose(state,t,hand,p,q);tip.copy(axeMotion.AXE_TIP).applyQuaternion(q).add(p);
-      if(f>0) speeds.push({t,v:tip.distanceTo(last)*60});
-      if(t>cue.apex&&t<=cue.whip) held=Math.max(held,p.distanceTo(motion.position(cue.apex,hand,new THREE.Vector3())));
-      last.copy(tip);
+      const t=f/60;hand.lerpVectors(rest,grip,motion.arm(t,grip,wrist));
+      motion.pose(state,t,hand,axeMotion.HOLD_ROTATION,p,q);tip.copy(axeMotion.AXE_TIP).applyQuaternion(q).add(p);
+      if(f>0) speeds.push({t,v:tip.distanceTo(last)*60,travel:p.distanceTo(lastP)*60});
+      if(t<=cue.apex) apex.copy(p);
+      else if(t<=cue.whip) held=Math.max(held,p.distanceTo(apex));
+      last.copy(tip);lastP.copy(p);
     }
     assert.ok(held<0.15,`${state} hold creeps ${held}`);
     const strike=speeds.filter(s=>s.t>cue.whip&&s.t<=cue.stop);
     const peak=strike.reduce((a,b)=>b.v>a.v?b:a);
-    assert.ok(peak.v>=22&&peak.v<=29,`${state} peak tip ${peak.v}`);
-    // The whip-out: most of its speed within 0.16 s of leaving the coil (the slam then keeps gathering speed into the floor).
-    const out=strike.filter(s=>s.t<=cue.whip+0.16).reduce((a,b)=>Math.max(a,b.v),0);
-    assert.ok(out>=0.8*peak.v,`${state} whip-out reaches ${out} of ${peak.v} m/s in 0.16 s`);
+    // The tip turns about her driving hand as the chain carries the blade round (her hand no longer stands still): up to 31.
+    assert.ok(peak.v>=22&&peak.v<=31,`${state} peak tip ${peak.v}`);
+    // The whip-out: the axe's travel has most of its speed within 0.16 s of leaving her fist (the blade's turn about her hand
+    // as the chain carries it round comes on top of that later, most of all as the slam comes down in front of her).
+    const top=strike.reduce((a,b)=>Math.max(a,b.travel),0);
+    const out=strike.filter(s=>s.t<=cue.whip+0.16).reduce((a,b)=>Math.max(a,b.travel),0);
+    assert.ok(out>=0.8*top,`${state} whip-out reaches ${out} of ${top} m/s in 0.16 s`);
     const after=strike.filter(s=>s.t>=peak.t);
     for(let i=1;i<after.length;i++) assert.ok(after[i].v<=after[i-1].v+2,`${state} speeds up again mid-stroke at ${after[i].t}`);
     assert.ok(Math.max(...speeds.filter(s=>s.t<cue.apex).map(s=>s.v))<18,`${state} draws back readably`);
   }
 });
 
-test('the recall snaps through the hand and settles; the chain hangs slack drawn back and goes taut at full stretch',()=>{
+test('the axe stays in her fist through the draw, the chain goes taut at full stretch, and the recall lands in her fist and stays',()=>{
   const boss=new BossIslandDemoness(),axe=boss.group.getObjectByName('TravellingChainAxe'),hand=axe.position.clone();
   boss.chooseAttack(null,4.2);
-  let passed=false,slackDrawn=1,taut=0;const cue={};
+  let drawn=0,taut=0,afterCatch=0;const cue={};
   for(let f=0;f<=132;f++) {
     boss.stateMachine.currentState='ATTACK_3';boss.stateMachine.stateTime=f/60;boss.update(1/60);
     if(f===0) boss.motion.cue(cue);
     const t=f/60,probe=boss.axeProbe();
-    if(t>0.2&&t<cue.whip) slackDrawn=Math.min(slackDrawn,probe.stretch);
+    if(t<cue.whip) drawn=Math.max(drawn,axe.position.distanceTo(boss.hand));
     if(t>=cue.stop&&t<cue.stop+0.05) taut=Math.max(taut,probe.stretch);
-    if(t>cue.home&&t<cue.settled&&axe.position.distanceTo(hand)>0.02) passed=true;
+    if(t>=cue.home) afterCatch=Math.max(afterCatch,axe.position.distanceTo(boss.hand));
   }
-  assert.ok(slackDrawn<0.95,`drawn back the chain hangs slack (${slackDrawn})`);
+  assert.ok(drawn<1e-6,`drawn back, the axe is in her fist (${drawn} m off it)`);
   assert.ok(taut>0.97,`at full stretch it is taut (${taut})`);
-  assert.ok(passed,'the axe overshoots the hand before settling');
+  assert.ok(afterCatch<1e-6,`caught, it stays in her fist (${afterCatch} m off it)`);
   assert.ok(axe.position.distanceTo(hand)<1e-6);
 });
 
@@ -737,4 +744,281 @@ test('L6: the rune text is laid a few milliseconds at a time, once for the page,
   const gone = await world(true).load();
   calls.text = 0; const f = new gone.ShrineSeal({}, new THREE.Texture()); f.dispose(); drain();
   assert.equal(calls.text, 0, 'a disposed seal sets no text');
+});
+
+// ------------------------------------------------------------------------------------------------ the swing on her real rig
+// The shipped GLB's skeleton and clips (textures left out), mixed at 60 Hz as Character does, under the real AxeBody and the
+// real boss: what the arm, wrist and fist actually do, not what the keys ask for.
+async function demonessRig() {
+  const original = readFileSync(new URL('../public/assets/characters/island_demoness.glb', import.meta.url));
+  const length = original.readUInt32LE(12), data = JSON.parse(original.subarray(20, 20 + length));
+  delete data.images; delete data.textures; delete data.materials;
+  for (const mesh of data.meshes ?? []) for (const primitive of mesh.primitives) delete primitive.material;
+  let json = Buffer.from(JSON.stringify(data));
+  json = Buffer.concat([json, Buffer.alloc((4 - json.length % 4) % 4, 32)]);
+  const tail = original.subarray(20 + length), header = Buffer.from(original.subarray(0, 20));
+  header.writeUInt32LE(20 + json.length + tail.length, 8); header.writeUInt32LE(json.length, 12);
+  const buffer = Buffer.concat([header, json, tail]);
+  return new GLTFLoader().setMeshoptDecoder(MeshoptDecoder).parseAsync(buffer.buffer.slice(buffer.byteOffset, buffer.byteOffset + buffer.byteLength), '');
+}
+const CLIP_OF = { IDLE: 'idle', ATTACK_1: 'attack_1', ATTACK_2: 'attack_2', ATTACK_3: 'attack_3', DEFLECTED: 'impact', STAGGER: 'impact', DEAD: 'death' };
+const ATTACK_SECONDS = { ATTACK_1: 1.8, ATTACK_2: 2.0, ATTACK_3: 2.2 };
+/** A boss on the real rig; `run` plays IDLE, then `state` (broken off by `interrupt` at `at`), then IDLE, sampling every step. */
+async function rigBoss() {
+  const gltf = await demonessRig(), root = gltf.scene, boss = new BossIslandDemoness();
+  boss.group.add(root);
+  boss.rig = { root, socket: (n) => root.getObjectByName(n) };
+  const mixer = new THREE.AnimationMixer(root);
+  const actions = Object.fromEntries(gltf.animations.map((a) => {
+    const x = mixer.clipAction(a);
+    if (a.name !== 'idle') { x.setLoop(THREE.LoopOnce, 1); x.clampWhenFinished = true; }
+    return [a.name, x];
+  }));
+  let playing = null;
+  boss.mix = (dt) => {
+    const want = actions[CLIP_OF[boss.stateMachine.currentState]];
+    if (want !== playing) { want.reset().play(); if (playing) playing.crossFadeTo(want, 0.15, false); playing = want; }
+    mixer.update(dt);
+  };
+  const get = (n) => root.getObjectByName(n);
+  const run = (state, reach, { interrupt = null, at = 0.6 } = {}) => {
+    const sm = boss.stateMachine, frames = [];
+    let s = 'IDLE', t = 0;
+    const lead = 20, total = lead + Math.round((ATTACK_SECONDS[state] + 0.5) * 60);
+    for (let f = 0; f < total; f++) {
+      if (f === lead) { boss.chooseAttack(null, reach); s = state; t = 0; }
+      else if (s === state && interrupt && t >= at - 1e-9) { s = interrupt; t = 0; }
+      else if (s === state && t >= ATTACK_SECONDS[state] - 1e-9) { s = 'IDLE'; t = 0; }
+      sm.currentState = s; sm.stateTime = t; boss.update(1 / 60);
+      boss.group.updateMatrixWorld(true);
+      const w = (n) => get(n).getWorldPosition(new THREE.Vector3()), q = (n) => get(n).getWorldQuaternion(new THREE.Quaternion());
+      frames.push({
+        s, t, held: boss.axe.position.distanceTo(boss.hand) < 1e-9,
+        shoulder: w('UpperArm_R'), elbow: w('Forearm_R'), wrist: w('Hand_R'), socket: w('Socket_Hand_R'), axe: boss.axe.getWorldPosition(new THREE.Vector3()),
+        upperQ: q('UpperArm_R'), foreQ: q('Forearm_R'), handQ: q('Hand_R'), socketQ: q('Socket_Hand_R'), axeQ: boss.axe.getWorldQuaternion(new THREE.Quaternion()),
+        pelvisQ: q('Pelvis'), chestQ: q('Chest'), target: boss.armTarget.clone(), weight: boss.armWeight,
+        head: w('Head'), chest: w('Chest'), headQ: q('Head'), abdomenP: w('Abdomen'), abdomenQ: q('Abdomen'), hand: boss.hand.clone(),
+        blade: BLADE.map((v) => boss.axe.localToWorld(new THREE.Vector3(...v))),
+      });
+      t += 1 / 60;
+    }
+    return frames;
+  };
+  // Her spider back as the swing tester measures it: the ellipsoid through the middle 80% of the Abdomen-owned skin (rest pose).
+  let skinned; root.traverse((o) => { if (o.isSkinnedMesh && !skinned) skinned = o; });
+  root.updateMatrixWorld(true); skinned.skeleton.update();
+  const abdomen = get('Abdomen'), headBone = get('Head'), si = skinned.geometry.getAttribute('skinIndex'), sw = skinned.geometry.getAttribute('skinWeight'), own = [];
+  const headCentre = new THREE.Vector3(); let headVerts = 0;
+  for (let v = 0; v < si.count; v++) {
+    let best = -1, bw = 0;
+    for (let k = 0; k < 4; k++) { const wt = sw.getComponent(v, k); if (wt > bw) { bw = wt; best = si.getComponent(v, k); } }
+    if (bw < 0.5) continue;
+    const bone = skinned.skeleton.bones[best], at = skinned.getVertexPosition(v, new THREE.Vector3()).applyMatrix4(skinned.matrixWorld);
+    if (bone === abdomen) own.push(abdomen.worldToLocal(at));
+    else if (bone === headBone) { headCentre.add(headBone.worldToLocal(at)); headVerts++; }
+  }
+  headCentre.divideScalar(headVerts);
+  const pct = (xs, k) => { const sorted = [...xs].sort((a, b) => a - b); return sorted[Math.floor((sorted.length - 1) * k)]; };
+  const shell = ['x', 'y', 'z'].map((c) => { const lo = pct(own.map((v) => v[c]), 0.1), hi = pct(own.map((v) => v[c]), 0.9); return [(lo + hi) / 2, (hi - lo) / 2]; });
+  return { run, shell, headCentre };
+}
+/** Points on the axe (axe-local): the head, its point, its heel, the middle and the beard of the blade, and the haft's top. */
+const BLADE = [[-0.32, 0.5, 0], [-0.35, 0.66, 0], [-0.44, 0.14, 0], [-0.38, 0.4, 0], [-0.3, 0.25, 0], [0, 0.2, 0]];
+const thirdDiff = (P, i) => P[i].clone().sub(P[i - 1].clone().multiplyScalar(3)).add(P[i - 2].clone().multiplyScalar(3)).sub(P[i - 3]).length();
+const UP_Y = new THREE.Vector3(0, 1, 0);
+const cuesOf = (state, reach) => { const m = new axeMotion.AxeMotion(); m.prepare(state, reach); return m.cue({}); };
+
+test('her real rig holds the axe in her fist: no gap or slide while held, and it leaves the fist at the whip-out and lands back in it', async () => {
+  const { run } = await rigBoss();
+  for (const [state, reach] of [['ATTACK_1', 2.4], ['ATTACK_2', 2.4], ['ATTACK_3', 4.2]]) {
+    const frames = run(state, reach), cue = cuesOf(state, reach);
+    let worstGap = 0, worstTurn = 0, heldFrames = 0;
+    for (const f of frames) {
+      if (!f.held) continue;
+      heldFrames++;
+      worstGap = Math.max(worstGap, f.axe.distanceTo(f.socket));
+      worstTurn = Math.max(worstTurn, f.socketQ.clone().invert().multiply(f.axeQ).angleTo(axeMotion.GRIP));
+    }
+    assert.ok(heldFrames > 80, `${state}: in her fist most of the time (${heldFrames} frames)`);
+    assert.ok(worstGap < 0.01, `${state}: the grip is on the socket while held (${(worstGap * 1000).toFixed(2)} mm)`);
+    assert.ok(worstTurn < 0.5 * Math.PI / 180, `${state}: the haft does not slide or turn in the fist (${worstTurn} rad)`);
+    const atk = frames.filter((f) => f.s === state);
+    assert.ok(atk.filter((f) => f.t < cue.whip - 1e-9).every((f) => f.held), `${state}: held through the draw and the coil`);
+    assert.ok(atk.some((f) => !f.held && f.t > cue.whip && f.t < cue.stop), `${state}: thrown out of the fist`);
+    assert.ok(atk.filter((f) => f.t >= cue.home + 1e-9).every((f) => f.held), `${state}: caught and kept`);
+  }
+});
+
+test('her real rig: the elbow never bends backwards, flips or folds shut, the wrist stays in its range, every target is in reach', async () => {
+  const { run } = await rigBoss();
+  for (const [state, reach, interrupt] of [['ATTACK_1', 2.4], ['ATTACK_2', 2.4], ['ATTACK_3', 4.2], ['ATTACK_1', 2.4, 'DEFLECTED'], ['ATTACK_3', 4.2, 'DEAD']]) {
+    const frames = run(state, reach, { interrupt, at: 0.6 }), name = state + (interrupt ? ' ' + interrupt : '');
+    // The elbow's hinge, fixed in the upper arm: its bend at rest (the idle clip's own elbow).
+    const f0 = frames[0];
+    const hinge = f0.elbow.clone().sub(f0.shoulder).cross(f0.wrist.clone().sub(f0.elbow)).normalize().applyQuaternion(f0.upperQ.clone().invert());
+    const armLength = f0.shoulder.distanceTo(f0.elbow) + f0.elbow.distanceTo(f0.wrist);
+    let minInterior = 180, worstWrist = 0, back = 0, flips = 0, last = 0, unreach = 0;
+    for (const f of frames) {
+      const upper = f.elbow.clone().sub(f.shoulder), fore = f.wrist.clone().sub(f.elbow);
+      const interior = 180 - upper.angleTo(fore) * 180 / Math.PI;
+      minInterior = Math.min(minInterior, interior);
+      if (180 - interior > 8) {
+        const side = Math.sign(upper.clone().cross(fore).dot(hinge.clone().applyQuaternion(f.upperQ)));
+        if (side < 0) back++;
+        if (last && side !== last) flips++;
+        last = side;
+      }
+      worstWrist = Math.max(worstWrist, UP_Y.clone().applyQuaternion(f.foreQ).angleTo(UP_Y.clone().applyQuaternion(f.handQ)) * 180 / Math.PI);
+      if (f.weight > 0.5 && f.target.distanceTo(f.shoulder) > armLength + 0.01) unreach++;
+    }
+    assert.equal(back, 0, `${name}: the elbow never bends backwards`);
+    assert.equal(flips, 0, `${name}: the elbow never flips to its other side`);
+    assert.ok(minInterior >= 30, `${name}: the elbow never folds shut (${minInterior.toFixed(1)} deg)`);
+    // 70 is the joint's limit; in play it keeps well inside it.
+    assert.ok(worstWrist <= 60, `${name}: the wrist bends at most 60 deg off the forearm (${worstWrist.toFixed(1)})`);
+    assert.equal(unreach, 0, `${name}: every wrist target is within the arm's reach`);
+  }
+});
+
+/** Jerk spikes in `j` (per frame): above `limit` and five times the median of the 8 frames either side (a pop stands out
+ * from the motion round it; a fast swing's own jerk does not). The rule the swing tester's metrics apply. */
+const spikesIn = (j, limit) => j.map((v, i) => {
+  const near = j.slice(Math.max(0, i - 8), i + 9).map(Math.abs).sort((a, b) => a - b);
+  return Math.abs(v) > limit && Math.abs(v) > 5 * near[near.length >> 1] ? i : -1;
+}).filter((i) => i >= 0);
+
+test('her real rig: nothing pops at the start, the release, the catch or the end of a swing', async () => {
+  const { run } = await rigBoss();
+  for (const [state, reach] of [['ATTACK_1', 2.4], ['ATTACK_2', 2.4], ['ATTACK_3', 4.2]]) {
+    const frames = run(state, reach);
+    const P = frames.map((f) => f.socket), jerk = [0, 0, 0];
+    for (let i = 3; i < P.length; i++) jerk.push(thirdDiff(P, i));
+    const where = (list) => list.map((i) => `${frames[i].s}@${frames[i].t.toFixed(3)}`).join(', ');
+    // 0.02 m/frame^3: a ~1 cm one-frame jump of the fist.
+    const hand = spikesIn(jerk, 0.02);
+    assert.equal(hand.length, 0, `${state}: the fist pops at ${where(hand)}`);
+    // The bones' turning (degrees stepped per frame, third difference): no one-frame snap in the arm, chest or pelvis.
+    for (const key of ['upperQ', 'foreQ', 'handQ', 'chestQ', 'pelvisQ']) {
+      const ang = [0];
+      for (let i = 1; i < frames.length; i++) ang.push(frames[i][key].angleTo(frames[i - 1][key]) * 180 / Math.PI);
+      const j = [0, 0, 0];
+      for (let i = 3; i < ang.length; i++) j.push(ang[i] - 2 * ang[i - 1] + ang[i - 2]);
+      const pops = spikesIn(j, 3);
+      assert.equal(pops.length, 0, `${state}: ${key} snaps at ${where(pops)}`);
+    }
+  }
+});
+
+test('her real rig: a swing broken off (deflected, staggered, killed) carries on and eases out, no harder than the swing itself moved', async () => {
+  const { run } = await rigBoss();
+  for (const [state, reach, interrupt, at] of [['ATTACK_1', 2.4, 'DEFLECTED', 0.6], ['ATTACK_2', 2.4, 'STAGGER', 0.3], ['ATTACK_3', 4.2, 'DEAD', 0.6], ['ATTACK_3', 4.2, 'DEFLECTED', 1.2]]) {
+    const frames = run(state, reach, { interrupt, at }), cut = frames.findIndex((f) => f.s === interrupt);
+    const P = frames.map((f) => f.socket), acc = (i) => P[i].clone().sub(P[i - 1]).sub(P[i - 1].clone().sub(P[i - 2])).length() * 3600;
+    let worst = 0;
+    for (let i = cut - 2; i <= cut + 15; i++) worst = Math.max(worst, acc(i));
+    // The fist's acceleration through the break and the impact clip's flinch stays below what a swing's own drive reaches.
+    assert.ok(worst < 260, `${state} ${interrupt}: the fist is never yanked (${worst.toFixed(0)} m/s^2)`);
+    // And it eases all the way out: a quarter of a second on, the keys hold no more weight.
+    assert.ok(frames[cut + 16].weight < 1e-6, `${state} ${interrupt}: the keyed arm is gone (${frames[cut + 16].weight})`);
+  }
+});
+
+test('her real rig: hips, then chest, then upper arm, forearm and hand reach their fastest in turn through the strike', async () => {
+  const { run } = await rigBoss();
+  for (const [state, reach] of [['ATTACK_1', 2.4], ['ATTACK_2', 2.4], ['ATTACK_3', 4.2]]) {
+    const frames = run(state, reach).filter((f) => f.s === state), cue = cuesOf(state, reach);
+    const smooth = (w) => w.map((_, i) => (w[Math.max(0, i - 1)] + 2 * w[i] + w[Math.min(w.length - 1, i + 1)]) / 4);
+    const speed = (key) => smooth(frames.map((f, i) => (i ? f[key].angleTo(frames[i - 1][key]) * 180 / Math.PI * 60 : 0)));
+    // The stroke: from the start to 0.35 s after the fist's fastest moment (the wind-up is in it: it must be the slower).
+    const hv = frames.map((f, i) => (i ? f.socket.distanceTo(frames[i - 1].socket) * 60 : 0));
+    let pk = 0;
+    for (let i = 0; i < frames.length && frames[i].t <= cue.stop; i++) if (hv[i] > hv[pk]) pk = i;
+    const end = Math.min(frames.length - 1, pk + 21);
+    const peaks = ['pelvisQ', 'chestQ', 'upperQ', 'foreQ', 'handQ'].map((key) => {
+      const w = speed(key);
+      let b = 0;
+      for (let i = 0; i <= end; i++) if (w[i] > w[b]) b = i;
+      return frames[b].t;
+    });
+    for (let k = 1; k < 5; k++) assert.ok(peaks[k] >= peaks[k - 1] - 1 / 60 - 1e-9, `${state}: each segment peaks after the one before it (${peaks.map((p) => p.toFixed(3)).join(', ')})`);
+    const lag = peaks[4] - peaks[0];
+    assert.ok(lag >= 0.05 && lag <= 0.4, `${state}: pelvis to hand ${Math.round(lag * 1000)} ms`);
+  }
+});
+
+test("her rest hold is measured from the shipped rig: the chest at the idle clip's first frame is where ChainAxeMotion says", async () => {
+  const gltf = await demonessRig(), mixer = new THREE.AnimationMixer(gltf.scene);
+  mixer.clipAction(gltf.animations.find((a) => a.name === 'idle')).play(); mixer.setTime(0); gltf.scene.updateMatrixWorld(true);
+  const chest = gltf.scene.getObjectByName('Chest');
+  assert.ok(chest.getWorldPosition(new THREE.Vector3()).distanceTo(new THREE.Vector3(...axeMotion.CHEST_IDLE.p)) < 0.001);
+  assert.ok(chest.getWorldQuaternion(new THREE.Quaternion()).angleTo(new THREE.Quaternion(...axeMotion.CHEST_IDLE.q)) < 0.002);
+});
+
+test('her real rig: the axe in her fist never covers her face or chest as he sees her, nor comes near her face line as it lands', async () => {
+  const { run, headCentre } = await rigBoss();
+  // The cameras that face her (boss-local, she faces +z): the swing tester's arm close-up from ahead and to her right, and the game
+  // camera behind the hero.
+  const cameras = { ATTACK_1: [[-1.7, 3.0, 3.3], [0, 2.4, 5.9]], ATTACK_2: [[-1.9, 3.3, 3.4], [0, 2.4, 5.9]], ATTACK_3: [[-2.0, 2.9, 3.2], [0, 2.4, 7.7]] };
+  for (const [state, reach] of [['ATTACK_1', 2.4], ['ATTACK_2', 2.4], ['ATTACK_3', 4.2]]) {
+    let view = Infinity, viewAt = '', side = Infinity, sideAt = '';
+    for (const f of run(state, reach)) {
+      if (f.axe.distanceTo(f.socket) > 0.5) continue; // in flight: the strike and the haul home are allowed past her
+      const head = headCentre.clone().applyQuaternion(f.headQ).add(f.head), chest = f.chest.clone().add(new THREE.Vector3(0, 0.25, 0.1));
+      for (const p of f.blade) {
+        // Lateral: out to her side of the line through her face and chest, while it is in or coming into her fist.
+        if (p.y > f.chest.y - 0.05 && p.y < f.head.y + 0.45 && p.z > f.head.z - 0.1) {
+          const off = Math.abs(p.x - f.head.x);
+          if (off < side) { side = off; sideAt = `${f.s}@${f.t.toFixed(3)}`; }
+        }
+        // In view: outside her head's (0.3 m) and chest's (0.24 m) outlines from each camera, when nearer the camera than they are.
+        if (!f.held) continue;
+        for (const c of cameras[state].map((a) => new THREE.Vector3(...a))) {
+          for (const [centre, r] of [[head, 0.3], [chest, 0.24]]) {
+            const pc = p.clone().sub(c), hc = centre.clone().sub(c);
+            if (pc.length() > hc.length()) continue;
+            const margin = (pc.angleTo(hc) - Math.asin(r / hc.length())) * 180 / Math.PI;
+            if (margin < view) { view = margin; viewAt = `${f.s}@${f.t.toFixed(3)}`; }
+          }
+        }
+      }
+    }
+    assert.ok(view > 1, `${state}: in her fist, the blade comes ${view.toFixed(1)} deg inside her face or chest from a camera ahead, at ${viewAt}`);
+    assert.ok(side >= 0.35, `${state}: the blade comes ${side.toFixed(2)} m from her face-and-chest line at ${sideAt}`);
+  }
+});
+
+test('her real rig: the recall is braked into her fist, which gives with the catch; it is not stopped dead', async () => {
+  const { run } = await rigBoss();
+  for (const [state, reach] of [['ATTACK_1', 2.4], ['ATTACK_2', 2.4], ['ATTACK_3', 4.2]]) {
+    const frames = run(state, reach).filter((f) => f.s === state), cue = cuesOf(state, reach);
+    const speed = (i, key) => frames[i][key].distanceTo(frames[i - 1][key]) * 60;
+    let worstStep = 0, peak = 0, home = -1;
+    for (let i = 2; i < frames.length; i++) {
+      if (frames[i].t < cue.recall || frames[i].t > cue.settled + 0.1) continue;
+      worstStep = Math.max(worstStep, Math.abs(speed(i, 'axe') - speed(i - 1, 'axe')));
+      peak = Math.max(peak, speed(i, 'axe'));
+      if (home < 0 && frames[i].t >= cue.home) home = i;
+    }
+    assert.ok(peak > 10, `${state}: hauled home fast (${peak.toFixed(1)} m/s)`);
+    // The old catch dropped 11 m/s in one step; braked, no step changes its speed by more than 5 m/s.
+    assert.ok(worstStep < 5, `${state}: the axe's speed changes by ${worstStep.toFixed(1)} m/s in one step on its way home`);
+    assert.ok(speed(home, 'axe') < 4, `${state}: it lands at ${speed(home, 'axe').toFixed(1)} m/s`);
+    assert.ok(speed(home, 'hand') > 0.8, `${state}: her fist is giving as it lands (${speed(home, 'hand').toFixed(2)} m/s)`);
+  }
+});
+
+test("her real rig: the axe never cuts into her spider back (the abdomen's skin, as an ellipsoid)", async () => {
+  const { run, shell } = await rigBoss();
+  for (const [state, reach] of [['ATTACK_1', 2.4], ['ATTACK_2', 2.4], ['ATTACK_3', 4.2]]) {
+    let worst = Infinity, at = '';
+    for (const f of run(state, reach)) {
+      const inv = f.abdomenQ.clone().invert();
+      for (const p of [...f.blade, f.axe, f.socket]) {
+        const l = p.clone().sub(f.abdomenP).applyQuaternion(inv).toArray();
+        const r = Math.hypot(...l.map((x, k) => (x - shell[k][0]) / shell[k][1]));
+        if (r < worst) { worst = r; at = `${f.s}@${f.t.toFixed(3)}`; }
+      }
+    }
+    assert.ok(worst > 1.2, `${state}: the axe reaches ${worst.toFixed(2)} of the way into her back at ${at}`);
+  }
 });

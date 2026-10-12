@@ -9,10 +9,10 @@ import { createToonRamp, toonifyModel } from '../levels/environment/ToonRelight'
 import { PhysicsWorld } from '../core/PhysicsWorld';
 import type RAPIER from '@dimforge/rapier3d-compat';
 import {
-  AxeMotion, AXE_WINDOWS, AXE_TIP, AXE_HEEL, AXE_POMMEL, HOLD_ROTATION, isAxeAttack, recallPath, recallTime, type AxeAttack, type AxeCues,
+  AxeMotion, AXE_WINDOWS, AXE_TIP, AXE_HEEL, AXE_POMMEL, GRIP, HOLD_ROTATION, REST_HOLD, isAxeAttack, recallPath, recallTime, type AxeAttack, type AxeCues,
 } from '../combat/ChainAxeMotion';
 import { AxeChain, HELD_DISTANCE } from '../combat/AxeChain';
-import { AxeBody, type BodyLayer } from '../combat/AxeBody';
+import { AxeBody, type ArmPose, type BodyLayer } from '../combat/AxeBody';
 import { AxeFX, bladeHeat } from '../combat/AxeFX';
 import { DrivenRibbon, trailLook } from '../combat/SlashRibbon';
 import type { HeroRead } from '../combat/Tactics';
@@ -41,10 +41,27 @@ const SCRAPE_EVERY = 0.07;
 /** The interrupted recall's arc (boss-local direction, metres per metre). */
 const RECALL_BULGE = [0.2, 0.8, 0] as const;
 /** After her death the body's layers go on easing out for this long (s) before they are let go. */
-const DEAD_EASE = 0.3;
-/** The catch's recoil of the right hand (boss-local metres at its peak) and how long it lasts (s). */
-const CATCH_RECOIL = new THREE.Vector3(0.02, 0.06, -0.17);
-const CATCH_SPAN = 0.28;
+const DEAD_EASE = 0.47;
+/**
+ * The catch: her hand gives CATCH_GIVE metres along the way the axe comes in, over CATCH_SPAN seconds from CATCH_LEAD
+ * before it lands (a catcher's give: the axe is braked onto her moving hand, not stopped dead). It does not spring back:
+ * the keys carry her on to her rest hold from there.
+ */
+const CATCH_GIVE = 0.15;
+const CATCH_LEAD = 0.1;
+const CATCH_SPAN = 0.24;
+/** Once an attack ends or breaks off: how long its layers take to fade out (s), and how fast the speed they carry on
+ * with dies away (1/s). */
+const EXIT_SPAN = 0.25;
+const EXIT_DECAY = 12;
+/** After a swing ends or breaks off, its bones ride AxeBody's spring this long (s), then are let go over SMOOTH_OUT. */
+const SMOOTH_HOLD = 0.2;
+const SMOOTH_OUT = 0.25;
+/** In death her arm lets the axe's hold go over this long (s): she goes limp, not snapped back to the clip. */
+const DEAD_HOLD = 0.42;
+const EASED = 9;
+/** Her hand at rest (boss-local), until the rig's socket says where it is. */
+const REST_HAND = new THREE.Vector3(...REST_HOLD.p);
 
 const CUE_WHIP = 1, CUE_STOP = 2, CUE_RECALL = 4, CUE_HOME = 8, CUE_FLOOR = 16;
 const IDENTITY = { x: 0, y: 0, z: 0, w: 1 };
@@ -52,6 +69,12 @@ const DOWN = { x: 0, y: -1, z: 0 };
 const _v = new THREE.Vector3();
 const _w = new THREE.Vector3();
 const _u = new THREE.Vector3();
+const _q = new THREE.Quaternion();
+
+function smootherstep(x: number): number {
+  const k = THREE.MathUtils.clamp(x, 0, 1);
+  return k * k * k * (k * (k * 6 - 15) + 10);
+}
 
 /**
  * The keeper before the island's sealed mace room: a chained, burning axe thrown like the Blades of Chaos. She winds
@@ -75,7 +98,7 @@ export class BossIslandDemoness extends Boss {
   private readonly trail: DrivenRibbon;
   private readonly fireLook = trailLook('fire', false);
   private readonly cues: AxeCues = { apex: 0, whip: 0, stop: 0, recall: 0, home: 0, settled: 0, plants: false };
-  private readonly hand = new THREE.Vector3(0.8, 2.1, 0.3);
+  private readonly hand = REST_HAND.clone();
   private readonly bladeTip = new THREE.Vector3();
   private readonly bladeHilt = new THREE.Vector3();
   private readonly physics = PhysicsWorld.getInstance();
@@ -101,10 +124,24 @@ export class BossIslandDemoness extends Boss {
   private readonly quatPrev = new THREE.Quaternion();
   private readonly quatCurr = new THREE.Quaternion();
   // The body's layers: what the attack asks for, eased out after it.
-  private readonly layer: BodyLayer = { twist: 0, lean: 0, lunge: 0, rise: 0, legs: 0 };
-  private readonly keyed = { twist: 0, lean: 0, lunge: 0, rise: 0, legs: 0, heat: 0 };
-  private readonly armTarget = new THREE.Vector3();
-  private armWeight = 0;
+  private readonly layer: BodyLayer = { twist: 0, lean: 0, hipTwist: 0, hipLean: 0, lunge: 0, rise: 0, legs: 0 };
+  private readonly keyed = { twist: 0, lean: 0, hipTwist: 0, hipLean: 0, lunge: 0, rise: 0, legs: 0, heat: 0 };
+  private readonly arms: ArmPose = { grip: new THREE.Vector3(), wrist: new THREE.Vector3(), weight: 0, hold: 1, off: new THREE.Vector3(), offWeight: 0 };
+  /** The axe as her fist holds it (boss-local), from the hand socket: the held axe's rotation. */
+  private readonly grip = HOLD_ROTATION.clone();
+  private readonly probeTarget = new THREE.Vector3();
+  /** The keyed arms' velocities (per second): an attack broken off carries its hands on and eases them out, not stops them dead. */
+  private readonly gripVel = new THREE.Vector3();
+  private readonly wristVel = new THREE.Vector3();
+  private readonly offVel = new THREE.Vector3();
+  private armsLive = false;
+  /** The eased scalars: the body's seven layers, the right and left arms' weights (and, last, the hold), with velocities. */
+  private readonly eased = new Float64Array(EASED);
+  private readonly easedVel = new Float64Array(EASED);
+  /** The exit's start (the eased values and their speeds then) and how long ago it was (-1: in an attack). */
+  private readonly exitFrom = new Float64Array(EASED);
+  private readonly exitVel = new Float64Array(EASED);
+  private exitClock = -1;
   private heat = 0;
   private socket: THREE.Object3D | null = null;
   private socketRig: CharacterRig | null = null;
@@ -120,7 +157,7 @@ export class BossIslandDemoness extends Boss {
   private closeAttack = false;
   private fired = 0;
   private scrapeClock = 0;
-  private caughtAt = -1;
+  private readonly catchDir = new THREE.Vector3();
   private target: FightTarget | null = null;
   private targetHealth = NaN;
   private targetGuarding = false;
@@ -232,7 +269,6 @@ export class BossIslandDemoness extends Boss {
         this.recalling = false;
         this.fired = 0;
         this.scrapeClock = 0;
-        this.caughtAt = -1;
       } else if (isAxeAttack(this.poseState) && this.axe.position.distanceTo(this.hand) > HELD_DISTANCE) {
         this.beginRecall();
       }
@@ -245,19 +281,19 @@ export class BossIslandDemoness extends Boss {
       // Interrupted (a deflection, a stagger, rock, death): hauled straight home on the chain.
       const u = this.recallTime / this.recallSpan;
       recallPath(this.recallPosition, this.hand, u, RECALL_BULGE, 0.1, this.axe.position);
-      this.axe.quaternion.slerpQuaternions(this.recallRotation, HOLD_ROTATION, THREE.MathUtils.smoothstep(u, 0, 0.7));
+      this.axe.quaternion.slerpQuaternions(this.recallRotation, this.grip, THREE.MathUtils.smoothstep(u, 0, 0.7));
       this.recallTime += dt;
       if (u >= 1) {
         this.recalling = false;
         this.axe.position.copy(this.hand);
-        this.axe.quaternion.copy(HOLD_ROTATION);
+        this.axe.quaternion.copy(this.grip);
         if (state !== 'DEAD') this.fx.caught(this.worldOf(this.hand, _v), this.travel.set(0, 0, 0), 0.7);
       }
     } else if (attack && !this.obstructed) {
-      this.motion.pose(state, t, this.hand, this.axe.position, this.axe.quaternion);
+      this.motion.pose(state, t, this.hand, this.grip, this.axe.position, this.axe.quaternion);
     } else {
       this.axe.position.copy(this.hand);
-      this.axe.quaternion.copy(HOLD_ROTATION);
+      this.axe.quaternion.copy(this.grip);
     }
     // Rock: only while the axe is out of her hand (audit L3: a held axe never pops off the hand beside a wall).
     if ((attack || this.recalling) && this.axe.position.distanceTo(this.hand) > 0.3) this.clipToCave(state, t, dt);
@@ -281,46 +317,90 @@ export class BossIslandDemoness extends Boss {
     this.fx.step(dt);
   }
 
-  /** The body's share of the blow (the attack's keyed layers), eased away when the attack ends or breaks off. */
+  /** The body's share of the blow (the attack's keyed layers and arms), eased away when the attack ends or breaks off. */
   private layBody(dt: number, state: CharacterState, t: number, attack: boolean): void {
+    const arms = this.arms, l = this.layer, eased = this.eased;
     if (attack) {
-      this.motion.body(t, this.keyed);
-      this.layer.twist = this.keyed.twist;
-      this.layer.lean = this.keyed.lean;
-      this.layer.lunge = this.keyed.lunge;
-      this.layer.rise = this.keyed.rise;
-      this.layer.legs = this.keyed.legs;
-      this.heat = this.keyed.heat;
-      this.armWeight = this.motion.arm(t, this.armTarget);
-      // The catch jolts her hand back.
-      if (this.caughtAt >= 0 && t >= this.caughtAt) {
-        const k = (t - this.caughtAt) / CATCH_SPAN;
-        if (k < 1) this.armTarget.addScaledVector(CATCH_RECOIL, Math.sin(Math.PI * Math.min(1, k * 1.6)) * (1 - k * 0.4));
-      }
+      const keyed = this.keyed;
+      this.motion.body(t, keyed);
+      // Last step's keys, for the velocities an interruption carries on with.
+      _v.copy(arms.grip); _w.copy(arms.wrist); _u.copy(arms.off);
+      const weight = this.motion.arm(t, arms.grip, arms.wrist);
+      const offWeight = this.motion.off(t, arms.off);
+      const live = this.armsLive && dt > 0, rate = live ? 1 / dt : 0;
+      this.gripVel.subVectors(arms.grip, _v).multiplyScalar(rate);
+      this.wristVel.subVectors(arms.wrist, _w).multiplyScalar(rate);
+      this.offVel.subVectors(arms.off, _u).multiplyScalar(rate);
+      this.track(0, keyed.twist, rate); this.track(1, keyed.lean, rate); this.track(2, keyed.hipTwist, rate);
+      this.track(3, keyed.hipLean, rate); this.track(4, keyed.lunge, rate); this.track(5, keyed.rise, rate);
+      this.track(6, keyed.legs, rate); this.track(7, weight, rate); this.track(8, offWeight, rate);
+      this.armsLive = true;
+      this.exitClock = -1;
+      this.heat = keyed.heat;
     } else {
-      const k = Math.exp(-11 * dt);
-      this.layer.twist *= k; this.layer.lean *= k; this.layer.lunge *= k; this.layer.rise *= k; this.layer.legs *= k;
-      this.armWeight *= k;
+      // Broken off or over (dead blending): every layer and both hands' weights carry on at the speed they had, that
+      // speed dying away, while the whole is faded out over EXIT_SPAN: no jump in the pose, its speed or its
+      // acceleration at the switch. The keyed hands coast on the same way.
+      if (this.exitClock < 0) {
+        this.exitClock = 0;
+        this.exitFrom.set(eased);
+        this.exitVel.set(this.easedVel.subarray(0, EASED));
+      }
+      this.exitClock += dt;
+      const c = this.exitClock, carried = (1 - Math.exp(-EXIT_DECAY * c)) / EXIT_DECAY, fade = 1 - smootherstep(c / EXIT_SPAN);
+      for (let i = 0; i < EASED; i++) eased[i] = (this.exitFrom[i] + this.exitVel[i] * carried) * fade;
+      const k = Math.exp(-EXIT_DECAY * dt);
+      arms.grip.addScaledVector(this.gripVel, dt); this.gripVel.multiplyScalar(k);
+      arms.wrist.addScaledVector(this.wristVel, dt); this.wristVel.multiplyScalar(k);
+      arms.off.addScaledVector(this.offVel, dt); this.offVel.multiplyScalar(k);
+      this.armsLive = false;
       this.heat = Math.max(0, this.heat - dt * (state === 'DEAD' ? 2.5 : 1.2));
     }
+    l.twist = eased[0]; l.lean = eased[1]; l.hipTwist = eased[2]; l.hipLean = eased[3];
+    l.lunge = eased[4]; l.rise = eased[5]; l.legs = eased[6];
+    arms.weight = eased[7]; arms.offWeight = eased[8];
+    // The catch: the axe's momentum carries her hand back, and she takes it (a quick give, a slower return).
+    if (attack && !this.obstructed) {
+      const k = (t - this.cues.home + CATCH_LEAD) / CATCH_SPAN;
+      if (k > 0) {
+        // The way it comes in, fixed as the give begins (from the hand where it was last step).
+        if (this.catchDir.lengthSq() === 0) this.motion.arrival(this.hand, this.catchDir);
+        arms.grip.addScaledVector(this.catchDir, CATCH_GIVE * smootherstep(k));
+      } else this.catchDir.set(0, 0, 0);
+    }
+    // Her fist keeps its hold on the axe in every state but death, where the arm goes back to the clip with the rest.
+    arms.hold = state === 'DEAD' ? 1 - smootherstep(t / DEAD_HOLD) : 1;
     // A killing blow mid-swing: the layers (already easing out above) stay on for DEAD_EASE seconds, not dropped in one frame
     // from the keyed pose to the fall (audit L5).
     if (!this.rig || (state === 'DEAD' && t > DEAD_EASE)) return;
     if (!this.body.bind(this.rig.root)) return;
-    this.body.apply(this.group, this.layer, this.armTarget, this.armWeight);
+    // A swing broken off (or ended): its bones ride a spring over the clip's cross-fade, let go before DEAD_EASE.
+    const c = this.exitClock, smooth = c < 0 ? 0 : 1 - smootherstep((c - SMOOTH_HOLD) / SMOOTH_OUT);
+    this.body.apply(this.group, this.layer, arms, dt, smooth);
   }
 
-  /** The right hand's socket, boss-local (after the body's layers). */
+  /** Eased slot `i` set to `value`, its velocity from the last step's (`rate`: 1/dt, 0 for none). */
+  private track(i: number, value: number, rate: number): void {
+    this.easedVel[i] = (value - this.eased[i]) * rate;
+    this.eased[i] = value;
+  }
+
+  /** The right hand's socket, boss-local (after the body's layers): where the axe sits in her fist, and how it lies there. */
   private readHand(): void {
     if (this.rig !== this.socketRig) {
       this.socketRig = this.rig;
       this.socket = this.rig?.socket('Socket_Hand_R') ?? null;
     }
-    if (!this.socket) return;
+    if (!this.socket) {
+      // No rig (yet): the hand is where the arm keys put it.
+      this.hand.lerpVectors(REST_HAND, this.arms.grip, this.arms.weight);
+      return;
+    }
     this.socket.updateWorldMatrix(true, false);
-    const e = this.socket.matrixWorld.elements;
-    this.hand.set(e[12], e[13], e[14]);
+    this.socket.matrixWorld.decompose(this.hand, this.grip, _u);
     this.group.worldToLocal(this.hand);
+    this.group.getWorldQuaternion(_q).invert();
+    this.grip.premultiply(_q).multiply(GRIP);
   }
 
   /** How much spare chain hangs between hand and haft now (0: taut). */
@@ -331,7 +411,7 @@ export class BossIslandDemoness extends Boss {
     if (t < c.stop) return THREE.MathUtils.lerp(0.06, 0.015, (t - c.whip) / Math.max(0.01, c.stop - c.whip));
     if (t < c.stop + 0.06) return c.plants ? 0.1 : 0;
     if (t < c.recall) return c.plants ? 0.13 : 0.08;
-    return 0.05;
+    return 0.03; // hauled in: near taut
   }
 
   private beginRecall(): void {
@@ -415,7 +495,6 @@ export class BossIslandDemoness extends Boss {
     }
     if (!(this.fired & CUE_HOME) && t >= c.home) {
       this.fired |= CUE_HOME;
-      this.caughtAt = t;
       this.fx.caught(this.worldOf(this.hand, _v), this.motionDir(_u), power * 0.9);
     }
   }
@@ -548,6 +627,15 @@ export class BossIslandDemoness extends Boss {
     this.group.updateWorldMatrix(true, false);
     this.axe.updateMatrix();
     return out.copy(AXE_TIP).applyMatrix4(this.axe.matrix).applyMatrix4(this.group.matrixWorld);
+  }
+
+  /** Dev and probes: the right wrist's IK target (boss-local) and how far the attack's keys hold the arm (the capture tools read them). */
+  public get armTarget(): THREE.Vector3 {
+    return this.group.worldToLocal(this.probeTarget.copy(this.body.wristTarget));
+  }
+
+  public get armWeight(): number {
+    return this.arms.weight;
   }
 
   /** Dev and probes: what the axe is doing (the capture tools read it). */
